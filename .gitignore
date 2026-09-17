@@ -1,0 +1,15 @@
+# dependencies
+node_modules/
+
+# environment (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# supabase local artifacts
+supabase/.temp/
+supabase/.branches/
+
+# os / editor
+.DS_Store
+*.log

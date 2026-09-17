@@ -1,0 +1,17 @@
+{
+  "name": "horizonte-fleet-management",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Horizonte Fleet Management (HFM) — multi-tenant fleet management SaaS on Supabase/PostgreSQL",
+  "scripts": {
+    "db:types": "supabase gen types typescript --project-id \"$SUPABASE_PROJECT_ID\" --schema public > src/types/database.types.ts",
+    "db:types:local": "supabase gen types typescript --local --schema public > src/types/database.types.ts",
+    "db:push": "supabase db push",
+    "db:reset": "supabase db reset",
+    "db:test": "supabase test db",
+    "db:lint": "supabase db lint --level warning"
+  },
+  "devDependencies": {
+    "supabase": "^2.117.0"
+  }
+}
