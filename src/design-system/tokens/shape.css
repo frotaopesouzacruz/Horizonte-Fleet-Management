@@ -1,0 +1,53 @@
+/* =============================================================================
+   Horizonte Fleet Management — shape, elevation, motion and layout tokens
+   ========================================================================== */
+
+:root {
+  /* ---- Radius (moderate; no capsule aesthetics) -------------------------- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+
+  /* ---- Elevation (discreet; cards rely on borders, not shadows) ----------- */
+  --shadow-xs: 0 1px 2px rgb(16 24 40 / 0.05);
+  --shadow-sm: 0 1px 2px rgb(16 24 40 / 0.06), 0 1px 3px rgb(16 24 40 / 0.08);
+  --shadow-md: 0 4px 12px -2px rgb(16 24 40 / 0.10), 0 2px 4px -2px rgb(16 24 40 / 0.06);
+  --shadow-lg: 0 12px 28px -6px rgb(16 24 40 / 0.16), 0 4px 8px -4px rgb(16 24 40 / 0.06);
+  --shadow-focus: 0 0 0 3px rgb(0 140 203 / 0.28);
+
+  /* ---- Motion (120–250ms, functional only) -------------------------------- */
+  --duration-fast: 120ms;
+  --duration-base: 160ms;
+  --duration-slow: 240ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+
+  /* ---- Layout ------------------------------------------------------------- */
+  --sidebar-width: 248px;
+  --sidebar-width-collapsed: 68px;
+  --topbar-height: 52px;
+  --page-header-height: 56px;
+  --content-max-width: 1600px;
+  --control-height-sm: 30px;
+  --control-height-md: 36px;
+  --control-height-lg: 42px;
+
+  /* ---- Z-index ------------------------------------------------------------ */
+  --z-sidebar: 30;
+  --z-topbar: 20;
+  --z-dropdown: 40;
+  --z-overlay: 50;
+  --z-toast: 60;
+}
+
+.dark {
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.30);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.35), 0 1px 3px rgb(0 0 0 / 0.30);
+  --shadow-md: 0 4px 14px -2px rgb(0 0 0 / 0.45), 0 2px 4px -2px rgb(0 0 0 / 0.30);
+  --shadow-lg: 0 14px 32px -8px rgb(0 0 0 / 0.60), 0 4px 10px -4px rgb(0 0 0 / 0.40);
+  --shadow-focus: 0 0 0 3px rgb(56 182 240 / 0.32);
+}

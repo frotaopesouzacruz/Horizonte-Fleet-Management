@@ -1,0 +1,244 @@
+/* =============================================================================
+   Horizonte Fleet Management — color tokens
+   Source of truth for every color in the product. Components never hardcode
+   colors; they consume semantic tokens (surface, text, primary, status...).
+   Light theme on :root, dark theme on .dark (class set by the ThemeProvider).
+   ========================================================================== */
+
+:root {
+  /* ---- Brand (fixed, derived from the official Horizonte logo) ------------ */
+  --brand-blue: #1f4b93;
+  --brand-blue-deep: #163669;
+  --brand-cyan: #008ccb;
+  --brand-gold: #f4b223;
+  --brand-navy: #0b1426;
+  --brand-white: #ffffff;
+
+  /* ---- Backgrounds & surfaces --------------------------------------------- */
+  --background: #f2f4f8;            /* app canvas */
+  --surface: #ffffff;               /* cards, panels, table body */
+  --surface-secondary: #f6f8fb;     /* table headers, grouped sections */
+  --surface-tertiary: #eceff5;      /* inset areas, disabled fields */
+  --surface-elevated: #ffffff;      /* popovers, menus, dialogs */
+  --surface-sidebar: #ffffff;
+  --surface-topbar: #ffffff;
+  --surface-overlay: rgb(11 20 38 / 0.48);   /* modal scrim */
+  --surface-inverse: #14213d;
+
+  /* ---- Borders ------------------------------------------------------------ */
+  --border: #dfe4ec;
+  --border-strong: #c5cdda;
+  --border-subtle: #eaeef4;
+  --border-focus: var(--brand-cyan);
+
+  /* ---- Text --------------------------------------------------------------- */
+  --text-primary: #1b2537;
+  --text-secondary: #4a5872;
+  --text-muted: #778499;
+  --text-disabled: #a3adbf;
+  --text-inverse: #ffffff;
+  --text-link: #1f4b93;
+  --text-link-hover: #163669;
+
+  /* ---- Primary (Horizonte blue): main actions, active navigation, links --- */
+  --primary: #1f4b93;
+  --primary-hover: #1a407e;
+  --primary-active: #163669;
+  --primary-foreground: #ffffff;
+  --primary-soft: #e8eef8;          /* selected/active backgrounds */
+  --primary-soft-hover: #dbe5f4;
+  --primary-soft-foreground: #1a407e;
+
+  /* ---- Secondary (neutral) ----------------------------------------------- */
+  --secondary: #eef1f6;
+  --secondary-hover: #e3e8f0;
+  --secondary-active: #d8dfe9;
+  --secondary-foreground: #1b2537;
+
+  /* ---- Accent (technological cyan): data, information, secondary indicators */
+  --accent: #008ccb;
+  --accent-hover: #007ab2;
+  --accent-active: #006798;
+  --accent-foreground: #ffffff;
+  --accent-soft: #e2f3fb;
+  --accent-soft-foreground: #045f88;
+
+  /* ---- Highlight (Horizonte gold): sparse brand accents only -------------- */
+  --highlight: #f4b223;
+  --highlight-hover: #e2a11a;
+  --highlight-foreground: #2a1f05;
+  --highlight-soft: #fdf3dc;
+  --highlight-soft-foreground: #7a5300;
+
+  /* ---- Semantic status ---------------------------------------------------- */
+  --success: #1e8e5a;
+  --success-hover: #197a4d;
+  --success-foreground: #ffffff;
+  --success-soft: #e2f4ea;
+  --success-soft-foreground: #14623f;
+
+  --warning: #b9760a;
+  --warning-hover: #9f6508;
+  --warning-foreground: #ffffff;
+  --warning-soft: #fdf1da;
+  --warning-soft-foreground: #7a4e05;
+
+  --danger: #c93636;
+  --danger-hover: #b02d2d;
+  --danger-active: #952525;
+  --danger-foreground: #ffffff;
+  --danger-soft: #fce8e8;
+  --danger-soft-foreground: #8f2323;
+
+  --info: #0b76ad;
+  --info-hover: #096492;
+  --info-foreground: #ffffff;
+  --info-soft: #e2f3fb;
+  --info-soft-foreground: #045f88;
+
+  --neutral: #6b7a90;
+  --neutral-hover: #5c6b80;
+  --neutral-foreground: #ffffff;
+  --neutral-soft: #eef1f5;
+  --neutral-soft-foreground: #45546b;
+
+  /* ---- Interaction -------------------------------------------------------- */
+  --ring: #008ccb;
+  --ring-offset: #ffffff;
+  --hover-overlay: rgb(27 37 55 / 0.04);
+  --selected-overlay: rgb(31 75 147 / 0.08);
+  --input-background: #ffffff;
+  --input-border: #c9d1de;
+  --input-placeholder: #8b96a9;
+
+  /* ---- Charts (ordered series palette) ----------------------------------- */
+  --chart-1: #1f4b93;
+  --chart-2: #008ccb;
+  --chart-3: #f4b223;
+  --chart-4: #1e8e5a;
+  --chart-5: #c93636;
+  --chart-6: #6b7a90;
+  --chart-7: #6c9de0;
+  --chart-8: #0f2a5c;
+  --chart-grid: #e6eaf1;
+  --chart-axis: #778499;
+  --chart-tooltip-bg: #14213d;
+  --chart-tooltip-fg: #ffffff;
+
+  color-scheme: light;
+}
+
+.dark {
+  /* ---- Backgrounds & surfaces (real dark: navy levels, never #000) -------- */
+  --background: #0b1426;
+  --surface: #111c33;
+  --surface-secondary: #172440;
+  --surface-tertiary: #1c2b4a;
+  --surface-elevated: #1a2946;
+  --surface-sidebar: #0a1222;
+  --surface-topbar: #0f1a30;
+  --surface-overlay: rgb(3 8 20 / 0.64);
+  --surface-inverse: #e8edf6;
+
+  /* ---- Borders ------------------------------------------------------------ */
+  --border: #24345a;
+  --border-strong: #35497a;
+  --border-subtle: #1c2a49;
+  --border-focus: #38b6f0;
+
+  /* ---- Text --------------------------------------------------------------- */
+  --text-primary: #e8edf6;
+  --text-secondary: #aab7cf;
+  --text-muted: #7f8eab;
+  --text-disabled: #55638a;
+  --text-inverse: #0b1426;
+  --text-link: #7fb0f5;
+  --text-link-hover: #a3c6f8;
+
+  /* ---- Primary (blue lifted for contrast on navy) ------------------------- */
+  --primary: #3a6bc4;
+  --primary-hover: #4a7bd3;
+  --primary-active: #2f5aa8;
+  --primary-foreground: #ffffff;
+  --primary-soft: rgb(74 123 211 / 0.16);
+  --primary-soft-hover: rgb(74 123 211 / 0.24);
+  --primary-soft-foreground: #a6c3f4;
+
+  /* ---- Secondary ---------------------------------------------------------- */
+  --secondary: #1c2b4a;
+  --secondary-hover: #23345a;
+  --secondary-active: #2a3d69;
+  --secondary-foreground: #e8edf6;
+
+  /* ---- Accent ------------------------------------------------------------- */
+  --accent: #2fb1e8;
+  --accent-hover: #4fbfee;
+  --accent-active: #1f9dd2;
+  --accent-foreground: #0b1426;
+  --accent-soft: rgb(47 177 232 / 0.14);
+  --accent-soft-foreground: #7fd1f5;
+
+  /* ---- Highlight (gold) --------------------------------------------------- */
+  --highlight: #f4b223;
+  --highlight-hover: #f7c04a;
+  --highlight-foreground: #1a1200;
+  --highlight-soft: rgb(244 178 35 / 0.14);
+  --highlight-soft-foreground: #f7c65c;
+
+  /* ---- Semantic status ---------------------------------------------------- */
+  --success: #3dbb7f;
+  --success-hover: #55c78f;
+  --success-foreground: #06251a;
+  --success-soft: rgb(61 187 127 / 0.14);
+  --success-soft-foreground: #7fd9ab;
+
+  --warning: #f0b33a;
+  --warning-hover: #f3c05c;
+  --warning-foreground: #1f1500;
+  --warning-soft: rgb(240 179 58 / 0.14);
+  --warning-soft-foreground: #f6cc73;
+
+  --danger: #f06565;
+  --danger-hover: #f37e7e;
+  --danger-active: #e04b4b;
+  --danger-foreground: #24080a;
+  --danger-soft: rgb(240 101 101 / 0.14);
+  --danger-soft-foreground: #f8a3a3;
+
+  --info: #38b6f0;
+  --info-hover: #5cc3f3;
+  --info-foreground: #06202e;
+  --info-soft: rgb(56 182 240 / 0.14);
+  --info-soft-foreground: #8ad4f7;
+
+  --neutral: #8b9ab5;
+  --neutral-hover: #9dabc4;
+  --neutral-foreground: #0b1426;
+  --neutral-soft: rgb(139 154 181 / 0.14);
+  --neutral-soft-foreground: #b6c2d8;
+
+  /* ---- Interaction -------------------------------------------------------- */
+  --ring: #38b6f0;
+  --ring-offset: #0b1426;
+  --hover-overlay: rgb(232 237 246 / 0.05);
+  --selected-overlay: rgb(74 123 211 / 0.14);
+  --input-background: #0f1a30;
+  --input-border: #2d3f68;
+  --input-placeholder: #6f7f9e;
+
+  /* ---- Charts ------------------------------------------------------------- */
+  --chart-1: #6c9de0;
+  --chart-2: #38b6f0;
+  --chart-3: #f4b223;
+  --chart-4: #3dbb7f;
+  --chart-5: #f06565;
+  --chart-6: #8b9ab5;
+  --chart-7: #a6c3f4;
+  --chart-8: #2fb1e8;
+  --chart-grid: #1f2f52;
+  --chart-axis: #7f8eab;
+  --chart-tooltip-bg: #e8edf6;
+  --chart-tooltip-fg: #0b1426;
+
+  color-scheme: dark;
+}

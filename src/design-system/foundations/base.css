@@ -1,0 +1,90 @@
+/* =============================================================================
+   Base styles: resets that depend on tokens, focus management, scrollbars,
+   reduced motion and a handful of foundation utilities.
+   ========================================================================== */
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: var(--leading-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "tnum" 0, "kern" 1;
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--text-primary);
+    min-height: 100dvh;
+  }
+
+  ::selection {
+    background-color: var(--primary-soft-hover);
+    color: var(--text-primary);
+  }
+
+  /* Focus: visible, brand-colored, keyboard only */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-xs);
+  }
+
+  /* Tabular numerals for data */
+  .tabular-nums,
+  td.numeric,
+  th.numeric {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Discreet scrollbars on desktop */
+  @media (pointer: fine) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-strong) transparent;
+    }
+    *::-webkit-scrollbar { width: 10px; height: 10px; }
+    *::-webkit-scrollbar-thumb {
+      background-color: var(--border-strong);
+      border-radius: 9999px;
+      border: 3px solid transparent;
+      background-clip: content-box;
+    }
+    *::-webkit-scrollbar-track { background: transparent; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@utility hfm-focus-ring {
+  outline: none;
+  &:focus-visible {
+    box-shadow: var(--shadow-focus);
+    border-color: var(--border-focus);
+  }
+}
+
+@utility hfm-transition {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-duration: var(--duration-base);
+  transition-timing-function: var(--ease-standard);
+}
+
+@utility hfm-skeleton {
+  background: linear-gradient(90deg, var(--surface-tertiary) 0%, var(--surface-secondary) 50%, var(--surface-tertiary) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+  border-radius: var(--radius-sm);
+}
