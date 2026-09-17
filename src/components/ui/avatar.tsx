@@ -108,11 +108,12 @@ export interface AvatarGroupProps extends React.HTMLAttributes<HTMLDivElement> {
   size?: AvatarSize;
 }
 
+/* ~25% overlap: enough to read as a stack, still legible initials. */
 const groupOverlap: Record<AvatarSize, string> = {
-  xs: "-space-x-1.5",
-  sm: "-space-x-2",
-  md: "-space-x-2.5",
-  lg: "-space-x-3",
+  xs: "-space-x-1",
+  sm: "-space-x-1.5",
+  md: "-space-x-2",
+  lg: "-space-x-2.5",
 };
 
 /**

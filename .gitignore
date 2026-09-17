@@ -41,3 +41,9 @@ supabase/.temp/
 supabase/.branches/
 # os / editor
 *.log
+
+# playwright artifacts
+tests/ui/.results/
+tests/ui/.screenshots/
+/playwright-report/
+/test-results/

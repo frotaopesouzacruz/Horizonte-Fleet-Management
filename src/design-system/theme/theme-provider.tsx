@@ -40,10 +40,18 @@ export interface UseThemeResult {
   toggle: () => void;
 }
 
+/** Never notifies: the value only differs between the server and the client. */
+const neverSubscribe = () => () => {};
+
 export function useTheme(): UseThemeResult {
   const { theme, resolvedTheme, setTheme } = useNextTheme();
-  const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => setMounted(true), []);
+  // Hydration-safe "are we on the client yet" without setState in an effect:
+  // the server snapshot is false, the client snapshot is true.
+  const mounted = React.useSyncExternalStore(
+    neverSubscribe,
+    () => true,
+    () => false,
+  );
 
   return {
     preference: mounted ? (theme as ThemePreference | undefined) : undefined,

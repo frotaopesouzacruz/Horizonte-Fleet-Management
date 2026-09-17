@@ -66,7 +66,7 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(function Card(
 
 /* -------------------------------------------------------------------------- */
 
-export interface CardHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface CardHeaderProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "title"> {
   title?: React.ReactNode;
   description?: React.ReactNode;
   /** Right-aligned slot for buttons, menus or badges. */

@@ -73,7 +73,9 @@ Master data shared by all future modules: `organizations`, `organization_units`,
 
 - RLS is enabled on every `public` table. `anon` has no privileges on application tables or RPCs (also revoked from
   default privileges for future tables created by `postgres`).
-- Helpers live in schema `private` (not exposed by PostgREST). SECURITY DEFINER is used only where a helper must read
+- Helpers live in schema `private`, which is **not** in the API's exposed schemas (`supabase/config.toml` →
+  `[api].schemas`, and the project's API settings must stay at the default `public, graphql_public, storage`).
+  SECURITY DEFINER is used only where a helper must read
   RLS-protected tables (memberships, roles, platform_admins) without recursion; all have `search_path = ''` and fully
   qualified references.
   - `private.member_org_ids()` — organizations the caller can access.

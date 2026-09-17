@@ -1,0 +1,61 @@
+import { test, expect, type Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+
+/**
+ * Accessibility checks (WCAG 2.1 A/AA) on every surface, in both themes.
+ * Colour contrast is included: the token palette has to hold up in light and dark.
+ */
+
+const THEME_KEY = "hfm.theme";
+
+async function withTheme(page: Page, url: string, theme: "light" | "dark") {
+  await page.goto(url);
+  await page.evaluate(([key, value]) => window.localStorage.setItem(key, value), [THEME_KEY, theme] as const);
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+}
+
+const surfaces = [
+  { name: "login", url: "/login" },
+  { name: "dashboard", url: "/dashboard" },
+  { name: "design-system", url: "/dev/design-system" },
+];
+
+for (const surface of surfaces) {
+  for (const theme of ["light", "dark"] as const) {
+    test(`${surface.name} has no accessibility violations (${theme})`, async ({ page }) => {
+      await withTheme(page, surface.url, theme);
+
+      const results = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+        // Token documentation shows colours (including the disabled one) as text
+        // on purpose; contrast rules do not apply to a colour specimen.
+        .exclude("[data-token-specimen]")
+        .analyze();
+
+      const violations = results.violations.map((v) => ({
+        id: v.id,
+        impact: v.impact,
+        nodes: v.nodes.length,
+        help: v.help,
+        target: v.nodes[0]?.target?.join(" "),
+      }));
+
+      expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
+    });
+  }
+}
+
+test("interactive elements expose an accessible name", async ({ page }) => {
+  await page.goto("/dashboard");
+  const unnamed = await page.evaluate(() => {
+    const isNamed = (el: Element) => {
+      const aria = el.getAttribute("aria-label") ?? el.getAttribute("aria-labelledby") ?? el.getAttribute("title");
+      return Boolean(aria?.trim()) || Boolean(el.textContent?.trim());
+    };
+    return Array.from(document.querySelectorAll("button, a[href]"))
+      .filter((el) => !isNamed(el))
+      .map((el) => el.outerHTML.slice(0, 120));
+  });
+  expect(unnamed).toEqual([]);
+});

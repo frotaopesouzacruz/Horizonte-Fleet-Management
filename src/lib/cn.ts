@@ -1,5 +1,35 @@
 import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { extendTailwindMerge } from "tailwind-merge";
+
+/**
+ * The product uses a named typographic scale (`text-body`, `text-h1`, …) instead
+ * of Tailwind's t-shirt sizes. tailwind-merge cannot know that, so by default it
+ * files `text-body` under `text-color` — where it collides with `text-fg`,
+ * `text-primary-fg` and friends, and silently drops whichever comes first.
+ *
+ * Teaching it the real scale keeps size and colour in separate conflict groups,
+ * so `cn("text-primary-fg", "text-body")` keeps both.
+ */
+const FONT_SIZES = [
+  "display",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "body",
+  "body-sm",
+  "label",
+  "caption",
+  "helper",
+] as const;
+
+const twMerge = extendTailwindMerge({
+  override: {
+    classGroups: {
+      "font-size": [{ text: [...FONT_SIZES] }],
+    },
+  },
+});
 
 /** Merges class names with Tailwind-aware conflict resolution. */
 export function cn(...inputs: ClassValue[]): string {

@@ -116,8 +116,7 @@ export function Sidebar() {
       data-collapsed={collapsed || undefined}
       className={cn(
         "hidden lg:flex fixed inset-y-0 left-0 z-(--z-sidebar) flex-col border-r border-border bg-surface-sidebar",
-        "w-(--sidebar-width) [html[data-sidebar=collapsed]_&]:w-(--sidebar-width-collapsed)",
-        "transition-[width] duration-(--duration-slow) ease-(--ease-standard)",
+        "w-(--sidebar-current-width) transition-[width] duration-(--duration-slow) ease-(--ease-standard)",
       )}
     >
       <div className={cn("flex h-(--topbar-height) shrink-0 items-center border-b border-border px-4", collapsed && "justify-center px-0")}>

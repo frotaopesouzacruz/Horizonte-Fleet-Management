@@ -58,7 +58,7 @@ export const TabsTrigger = React.forwardRef<
         "inline-flex items-center gap-1.5 whitespace-nowrap text-body-sm font-medium hfm-transition hfm-focus-ring",
         "disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
         appearance === "underline" &&
-          "-mb-px h-9 border-b-2 border-transparent px-3 text-fg-secondary hover:text-fg data-[state=active]:border-primary data-[state=active]:text-primary",
+          "-mb-px h-9 border-b-2 border-transparent px-3 text-fg-secondary hover:text-fg data-[state=active]:border-primary data-[state=active]:text-primary-soft-fg",
         appearance === "segmented" &&
           "h-7 rounded-xs px-3 text-fg-secondary hover:text-fg data-[state=active]:bg-surface data-[state=active]:text-fg data-[state=active]:shadow-xs",
         className,

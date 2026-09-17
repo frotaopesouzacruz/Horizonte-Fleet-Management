@@ -4,6 +4,16 @@
    ========================================================================== */
 
 @layer base {
+  /* Live sidebar width: the shell reads this single variable instead of
+     duplicating an ancestor selector in every layout class. The value is set
+     before first paint by the inline script in AppShellScript. */
+  html {
+    --sidebar-current-width: var(--sidebar-width);
+  }
+  html[data-sidebar="collapsed"] {
+    --sidebar-current-width: var(--sidebar-width-collapsed);
+  }
+
   html {
     font-family: var(--font-sans);
     font-size: 14px;
@@ -11,7 +21,10 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    font-feature-settings: "tnum" 0, "kern" 1;
+    /* Kerning only. `font-feature-settings` is the low-level property and would
+       override `font-variant-numeric`, silently disabling every `tabular-nums`
+       column in the product. */
+    font-kerning: normal;
     scrollbar-gutter: stable;
   }
 

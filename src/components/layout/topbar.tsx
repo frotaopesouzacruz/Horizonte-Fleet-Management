@@ -127,17 +127,17 @@ export function Topbar({
         <Menu aria-hidden />
       </IconButton>
 
-      <div className="hidden items-center gap-1 md:flex">
+      <div className="hidden items-center gap-1 lg:flex">
         <ContextSelector icon={Building2} label="Organização" value={organizationName} />
         <span aria-hidden className="h-4 w-px bg-border" />
         <ContextSelector icon={MapPin} label="Unidade" value={unitName} />
       </div>
 
-      <div className="flex flex-1 justify-center px-1 md:justify-end">
-        <GlobalSearch className="w-full max-w-xs md:max-w-sm lg:w-80" />
+      <div className="flex min-w-0 flex-1 justify-center px-1 md:justify-end">
+        <GlobalSearch className="w-full min-w-0 max-w-xs md:max-w-sm lg:w-72 xl:w-80" />
       </div>
 
-      <div className="flex items-center gap-0.5">
+      <div className="flex shrink-0 items-center gap-0.5">
         <ThemeToggle />
         <Popover>
           <PopoverTrigger asChild>

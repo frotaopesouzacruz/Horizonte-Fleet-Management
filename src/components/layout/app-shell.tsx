@@ -20,7 +20,7 @@ export function AppShell({ children, topbar }: AppShellProps) {
       <div className="min-h-dvh bg-background">
         <Sidebar />
         <MobileSidebar />
-        <div className="flex min-h-dvh flex-col lg:pl-(--sidebar-width) lg:[html[data-sidebar=collapsed]_&]:pl-(--sidebar-width-collapsed) transition-[padding] duration-(--duration-slow) ease-(--ease-standard)">
+        <div className="flex min-h-dvh flex-col transition-[padding] duration-(--duration-slow) ease-(--ease-standard) lg:pl-(--sidebar-current-width)">
           <Topbar {...topbar} />
           <main id="main" className="flex min-h-0 flex-1 flex-col">
             {children}

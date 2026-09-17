@@ -10,11 +10,14 @@ export const metadata: Metadata = {
     template: "%s · Horizonte Fleet Management",
   },
   description: "Plataforma corporativa de gestão de frota.",
+  icons: { icon: "/brand/favicon.svg" },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  // Browser chrome colour: the only place a literal is unavoidable (the meta
+  // tag cannot read a CSS variable). Mirrors --background in each theme.
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f2f4f8" },
     { media: "(prefers-color-scheme: dark)", color: "#0b1426" },

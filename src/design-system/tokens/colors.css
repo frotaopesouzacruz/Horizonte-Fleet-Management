@@ -34,7 +34,7 @@
   /* ---- Text --------------------------------------------------------------- */
   --text-primary: #1b2537;
   --text-secondary: #4a5872;
-  --text-muted: #778499;
+  --text-muted: #5d6b81;          /* 5.4:1 on surface, 4.9:1 on background */
   --text-disabled: #a3adbf;
   --text-inverse: #ffffff;
   --text-link: #1f4b93;
@@ -56,9 +56,9 @@
   --secondary-foreground: #1b2537;
 
   /* ---- Accent (technological cyan): data, information, secondary indicators */
-  --accent: #008ccb;
-  --accent-hover: #007ab2;
-  --accent-active: #006798;
+  --accent: #0079b0;              /* 4.8:1 with white text; --brand-cyan stays pure for graphics */
+  --accent-hover: #006998;
+  --accent-active: #005c86;
   --accent-foreground: #ffffff;
   --accent-soft: #e2f3fb;
   --accent-soft-foreground: #045f88;
@@ -71,14 +71,14 @@
   --highlight-soft-foreground: #7a5300;
 
   /* ---- Semantic status ---------------------------------------------------- */
-  --success: #1e8e5a;
-  --success-hover: #197a4d;
+  --success: #1a8455;             /* 4.7:1 with white text */
+  --success-hover: #167048;
   --success-foreground: #ffffff;
   --success-soft: #e2f4ea;
   --success-soft-foreground: #14623f;
 
-  --warning: #b9760a;
-  --warning-hover: #9f6508;
+  --warning: #9d6308;             /* 5.0:1 with white text */
+  --warning-hover: #855307;
   --warning-foreground: #ffffff;
   --warning-soft: #fdf1da;
   --warning-soft-foreground: #7a4e05;
@@ -96,8 +96,8 @@
   --info-soft: #e2f3fb;
   --info-soft-foreground: #045f88;
 
-  --neutral: #6b7a90;
-  --neutral-hover: #5c6b80;
+  --neutral: #5f6e85;             /* 5.2:1 with white text */
+  --neutral-hover: #516075;
   --neutral-foreground: #ffffff;
   --neutral-soft: #eef1f5;
   --neutral-soft-foreground: #45546b;
@@ -121,7 +121,7 @@
   --chart-7: #6c9de0;
   --chart-8: #0f2a5c;
   --chart-grid: #e6eaf1;
-  --chart-axis: #778499;
+  --chart-axis: #5d6b81;
   --chart-tooltip-bg: #14213d;
   --chart-tooltip-fg: #ffffff;
 
