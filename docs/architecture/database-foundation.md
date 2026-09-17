@@ -35,6 +35,8 @@ Master data shared by all future modules: `organizations`, `organization_units`,
 - Child rows reference their parent with composite foreign keys `(organization_id, parent_id)` (e.g. `vehicles →
   organization_units`, `cost_centers → organization_units`), so a row can never point at another tenant's data.
 - `organization_id` is immutable on every tenant table (`private.tg_prevent_tenant_change`).
+- The tenant lifecycle (`organizations.status`, `deleted_at`) is platform-only: `organization.manage` edits the
+  organization's data but cannot suspend or archive it, which would lock every member out.
 - Global catalog rows (`roles`, `vehicle_makes`, `vehicle_models` with `organization_id IS NULL`) are readable by all
   authenticated users and writable only through migrations / `service_role`.
 
@@ -56,8 +58,12 @@ Master data shared by all future modules: `organizations`, `organization_units`,
   the same organization (`private.tg_membership_roles_guard`).
 - Anti-escalation rules enforced in the database:
   - a user can never assign or remove roles on their **own** membership;
+  - a role can only be assigned to someone else if the actor holds **every permission that role grants**
+    (`private.role_within_actor_permissions`), so `members.manage` alone never produces an `org_admin`;
   - granting a permission to a custom role requires `roles.manage` **and** holding that permission yourself;
-  - system roles and their permissions are frozen for application users;
+  - system roles, their permissions and the `is_editable` flag are frozen for application users;
+  - removing a member, or archiving a role, deletes the corresponding `membership_roles` rows, so re-adding the
+    member (or restoring the role) never silently restores old privileges;
   - `platform_admins` has no INSERT/UPDATE/DELETE path for application users.
 - Platform administration (`platform_admins`) is separate from tenant administration. Platform admins hold every
   permission in every organization. Bootstrap (privileged SQL / `service_role` only):
@@ -75,6 +81,10 @@ Master data shared by all future modules: `organizations`, `organization_units`,
   - `private.is_org_member(org)`, `private.has_permission(org, code)`, `private.is_platform_admin()` — scalar variants.
 - Policy pattern (evaluated once per query as an InitPlan, not per row):
   `organization_id in (select private.permitted_org_ids('vehicles.view'))`.
+- Policies never inspect another RLS-protected table through a plain subquery: a policy runs with the caller's own
+  privileges, so `members.manage` without `members.view` would silently fail. The RBAC join tables use dedicated
+  SECURITY DEFINER helpers instead (`can_view_membership`, `can_manage_membership_role`, `can_view_role`,
+  `can_manage_role`, `can_grant_permission`).
 - Reads require the module `*.view` permission; writes require `*.create` / `*.update` / `*.manage`. Archiving or
   restoring (changing `deleted_at`) requires `*.archive` (or `*.manage`) through `private.tg_guard_soft_delete`, and
   archived rows are visible only to holders of that permission.
@@ -91,6 +101,8 @@ Master data shared by all future modules: `organizations`, `organization_units`,
   `updated_at/updated_by` are not logged. Trigger arguments can redact sensitive columns.
 - `vehicle_status_history` records every status change (trigger, SECURITY DEFINER). Use
   `public.set_vehicle_status(vehicle_id, status, reason)` to attach a reason; it runs as the caller (RLS applies).
+  The foreign key to `vehicles` is `RESTRICT` and `changed_by` carries no foreign key: traceability outlives both
+  the vehicle row and the user account.
 
 ## 8. Conventions
 
@@ -99,8 +111,14 @@ Master data shared by all future modules: `organizations`, `organization_units`,
 - `snake_case`, `timestamptz`, `created_at/created_by/updated_at/updated_by` maintained by `private.tg_set_stamps()`
   (created_* immutable), `deleted_at/deleted_by` for soft delete.
 - Statuses are `text` with named CHECK constraints (evolve with `ALTER TABLE ... DROP/ADD CONSTRAINT`), not enums.
-- Codes are normalized to upper case; plates/VIN/RENAVAM are normalized (separators removed). CNPJ is stored as text
-  (alphanumeric CNPJ compatible), not unique (groups may register several tenants).
+- Codes are normalized to upper case; plates/VIN/RENAVAM are normalized (separators removed) and RENAVAM is
+  zero-padded to 11 digits, so a pre-2013 9-digit number cannot slip past the per-tenant unique index. CNPJ is
+  stored as text (alphanumeric CNPJ compatible) with separators stripped, and is not unique (a group may register
+  several tenants under related documents).
+- Authorship cannot be forged: `created_by`/`updated_by` are always taken from `auth.uid()` when a caller is
+  authenticated, and `created_at`/`created_by` are immutable afterwards.
+- Units and cost centers are unique per tenant by code **and** by name, so a row without a code is still
+  identifiable. An active vehicle, driver or cost center can never point at an archived parent.
 - Delete rules: `RESTRICT` from master data to `organizations`; `CASCADE` only for pure children (settings, role grants,
   status history of a hard-deleted vehicle); `SET NULL` for `*_by` actor columns.
 - JSONB only in `audit_logs` (snapshots) and `outbox_events.payload`.
@@ -171,3 +189,12 @@ erDiagram
 - Tests: `npm run db:test` locally (pg_prove over `supabase/tests/database`), or build a console script with
   `supabase/tests/build_script.sh <test file>`. Every test runs in a transaction that is rolled back.
 - Lint: `npm run db:lint` and the Supabase security/performance advisors.
+
+### Known advisor output (reviewed, intentional)
+
+| Advisor | Object | Why it stays |
+| --- | --- | --- |
+| `rls_enabled_no_policy` (INFO) | `outbox_events` | RLS on with no policy is the intent: only `service_role` workers touch the outbox. |
+| `authenticated_security_definer_function_executable` (WARN) | `create_organization` | The function must be callable to be usable; it authorizes internally (platform admin or `service_role`) and raises otherwise. |
+| `unindexed_foreign_keys` (INFO) | `*_created_by` / `*_updated_by` / `*_deleted_by` | Never query predicates. The only cost is a scan when an `auth.users` row is deleted, which is rare; ~25 extra indexes would tax every write. |
+| `unused_index` (INFO) | new indexes | Expected on a database with no traffic yet. |

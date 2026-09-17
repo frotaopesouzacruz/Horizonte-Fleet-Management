@@ -75,13 +75,22 @@ create trigger roles_prevent_tenant_change
   before update on public.roles
   for each row execute function private.tg_prevent_tenant_change();
 
--- Custom roles may not shadow a global code; non-editable roles are frozen.
+-- Custom roles may not shadow a global code (including archived global codes,
+-- which the caller cannot see), non-editable roles are frozen, and `is_editable`
+-- itself is not a tenant-writable flag: otherwise a roles.manage holder could
+-- permanently freeze a role for the whole organization.
+-- SECURITY DEFINER: the reserved-code lookup must see every role, not only the
+-- ones the caller's policies expose.
 create or replace function private.tg_roles_guard()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 begin
+  new.code := lower(btrim(new.code));
+  new.name := btrim(new.name);
+
   if new.organization_id is not null
      and exists (select 1 from public.roles r
                   where r.organization_id is null and r.code = new.code
@@ -90,21 +99,48 @@ begin
       using errcode = 'unique_violation';
   end if;
 
-  if tg_op = 'UPDATE' and not old.is_editable and not private.is_privileged_context() then
-    raise exception 'role % is not editable', old.code using errcode = 'insufficient_privilege';
-  end if;
-
-  if tg_op = 'UPDATE' and (new.is_system is distinct from old.is_system
-                           or new.code is distinct from old.code) then
-    raise exception 'is_system and code are immutable on roles' using errcode = 'check_violation';
+  if tg_op = 'UPDATE' then
+    if not old.is_editable and not private.is_privileged_context() then
+      raise exception 'role % is not editable', old.code using errcode = 'insufficient_privilege';
+    end if;
+    if new.is_system is distinct from old.is_system or new.code is distinct from old.code then
+      raise exception 'is_system and code are immutable on roles' using errcode = 'check_violation';
+    end if;
+    if new.is_editable is distinct from old.is_editable and not private.is_privileged_context() then
+      raise exception 'is_editable is managed by the platform' using errcode = 'insufficient_privilege';
+    end if;
   end if;
   return new;
 end;
 $$;
 
+revoke execute on function private.tg_roles_guard() from public;
+
 create trigger roles_guard
   before insert or update on public.roles
   for each row execute function private.tg_roles_guard();
+
+-- Archiving a role removes it from every membership that holds it. Restoring
+-- the role later therefore never silently re-grants the old privileges.
+create or replace function private.tg_roles_revoke_on_archive()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.deleted_at is not null and old.deleted_at is null then
+    delete from public.membership_roles mr where mr.role_id = new.id;
+  end if;
+  return null;
+end;
+$$;
+
+revoke execute on function private.tg_roles_revoke_on_archive() from public;
+
+create trigger roles_revoke_on_archive
+  after update of deleted_at on public.roles
+  for each row execute function private.tg_roles_revoke_on_archive();
 
 -- -----------------------------------------------------------------------------
 -- role_permissions (N:N)
@@ -129,6 +165,7 @@ create trigger role_permissions_set_stamps
 create or replace function private.tg_role_permissions_guard()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 declare
@@ -145,6 +182,8 @@ begin
   return coalesce(new, old);
 end;
 $$;
+
+revoke execute on function private.tg_role_permissions_guard() from public;
 
 create trigger role_permissions_guard
   before insert or update or delete on public.role_permissions

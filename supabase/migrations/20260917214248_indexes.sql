@@ -10,8 +10,9 @@ create index organization_units_org_active_idx
 
 create index cost_centers_org_active_idx
   on public.cost_centers (organization_id, status) where deleted_at is null;
+-- leads with organization_id so it also covers the composite FK to organization_units
 create index cost_centers_unit_idx
-  on public.cost_centers (organization_unit_id) where organization_unit_id is not null;
+  on public.cost_centers (organization_id, organization_unit_id) where organization_unit_id is not null;
 
 -- memberships / RBAC (hot path of every RLS check) ----------------------------
 create index organization_memberships_user_active_idx
@@ -49,8 +50,9 @@ create index vehicles_model_idx
 create index vehicles_org_created_idx
   on public.vehicles (organization_id, created_at desc);
 
+-- covers both "history of a vehicle" and the composite FK to vehicles
 create index vehicle_status_history_vehicle_idx
-  on public.vehicle_status_history (vehicle_id, changed_at desc);
+  on public.vehicle_status_history (organization_id, vehicle_id, changed_at desc);
 create index vehicle_status_history_org_changed_idx
   on public.vehicle_status_history (organization_id, changed_at desc);
 
@@ -74,5 +76,7 @@ create index outbox_events_pending_idx
 create index outbox_events_aggregate_idx
   on public.outbox_events (aggregate_type, aggregate_id);
 
--- FK support on audit columns is intentionally omitted: created_by/updated_by
--- are never used as query predicates; ON DELETE SET NULL on auth.users is rare.
+-- Deliberately NOT indexed: created_by / updated_by / deleted_by / granted_by.
+-- They are never query predicates, and the only cost of leaving them unindexed is
+-- a scan when an auth.users row is deleted, which is a rare administrative event.
+-- Adding ~25 single-column indexes would slow down every write for no read benefit.

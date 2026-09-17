@@ -13,6 +13,9 @@
 -- -----------------------------------------------------------------------------
 -- Privileges
 -- -----------------------------------------------------------------------------
+-- Supabase grants ALL on public tables to anon/authenticated by default, which
+-- includes TRUNCATE, REFERENCES and TRIGGER. Application roles never need those.
+revoke truncate, references, trigger on all tables in schema public from anon, authenticated;
 revoke all on all tables    in schema public from anon;
 revoke all on all sequences in schema public from anon;
 revoke all on all functions in schema public from anon;
@@ -40,6 +43,12 @@ revoke delete on public.organizations, public.organization_units, public.cost_ce
   from authenticated;
 -- organizations are created only through public.create_organization()
 revoke insert on public.organizations from authenticated;
+
+-- Supabase ships an `ensure_rls` event trigger whose function lives in `public`
+-- and is therefore reachable through the API. It is infrastructure, not an
+-- application RPC: event triggers run as their owner, so revoking EXECUTE does
+-- not affect them.
+revoke execute on function public.rls_auto_enable() from public, anon, authenticated;
 
 -- -----------------------------------------------------------------------------
 -- Enable RLS
@@ -71,6 +80,8 @@ create policy organizations_select on public.organizations
   for select to authenticated
   using (id in (select private.member_org_ids()));
 
+-- organization.manage edits the organization's data; the tenant lifecycle
+-- (status/deleted_at) is blocked by private.tg_organizations_guard().
 create policy organizations_update on public.organizations
   for update to authenticated
   using      (id in (select private.permitted_org_ids('organization.manage')))
@@ -108,7 +119,7 @@ create policy organization_units_update on public.organization_units
   with check (organization_id in (select private.permitted_org_ids('units.manage')));
 
 create trigger organization_units_soft_delete_guard
-  before update on public.organization_units
+  before insert or update on public.organization_units
   for each row execute function private.tg_guard_soft_delete('units.manage');
 
 -- -----------------------------------------------------------------------------
@@ -131,7 +142,7 @@ create policy cost_centers_update on public.cost_centers
   with check (organization_id in (select private.permitted_org_ids('cost_centers.manage')));
 
 create trigger cost_centers_soft_delete_guard
-  before update on public.cost_centers
+  before insert or update on public.cost_centers
   for each row execute function private.tg_guard_soft_delete('cost_centers.manage');
 
 -- -----------------------------------------------------------------------------
@@ -217,7 +228,7 @@ create policy roles_update on public.roles
   );
 
 create trigger roles_soft_delete_guard
-  before update on public.roles
+  before insert or update on public.roles
   for each row execute function private.tg_guard_soft_delete('roles.manage');
 
 -- -----------------------------------------------------------------------------
@@ -227,40 +238,15 @@ create trigger roles_soft_delete_guard
 -- -----------------------------------------------------------------------------
 create policy role_permissions_select on public.role_permissions
   for select to authenticated
-  using (
-    exists (
-      select 1 from public.roles r
-      where r.id = role_permissions.role_id
-        and (r.organization_id is null
-             or r.organization_id in (select private.permitted_org_ids('roles.view')))
-    )
-  );
+  using (private.can_view_role(role_id));
 
 create policy role_permissions_insert on public.role_permissions
   for insert to authenticated
-  with check (
-    exists (
-      select 1 from public.roles r
-      where r.id = role_permissions.role_id
-        and r.organization_id is not null
-        and r.is_editable
-        and r.deleted_at is null
-        and r.organization_id in (select private.permitted_org_ids('roles.manage'))
-        and private.has_permission_id(r.organization_id, role_permissions.permission_id)
-    )
-  );
+  with check (private.can_grant_permission(role_id, permission_id));
 
 create policy role_permissions_delete on public.role_permissions
   for delete to authenticated
-  using (
-    exists (
-      select 1 from public.roles r
-      where r.id = role_permissions.role_id
-        and r.organization_id is not null
-        and r.is_editable
-        and r.organization_id in (select private.permitted_org_ids('roles.manage'))
-    )
-  );
+  using (private.can_manage_role(role_id));
 
 -- -----------------------------------------------------------------------------
 -- membership_roles
@@ -270,36 +256,15 @@ create policy role_permissions_delete on public.role_permissions
 -- -----------------------------------------------------------------------------
 create policy membership_roles_select on public.membership_roles
   for select to authenticated
-  using (
-    membership_id in (select private.own_membership_ids())
-    or exists (
-      select 1 from public.organization_memberships m
-      where m.id = membership_roles.membership_id
-        and m.organization_id in (select private.permitted_org_ids('members.view'))
-    )
-  );
+  using (private.can_view_membership(membership_id));
 
 create policy membership_roles_insert on public.membership_roles
   for insert to authenticated
-  with check (
-    exists (
-      select 1 from public.organization_memberships m
-      where m.id = membership_roles.membership_id
-        and m.user_id <> (select auth.uid())
-        and m.organization_id in (select private.permitted_org_ids('members.manage'))
-    )
-  );
+  with check (private.can_manage_membership_role(membership_id, role_id));
 
 create policy membership_roles_delete on public.membership_roles
   for delete to authenticated
-  using (
-    exists (
-      select 1 from public.organization_memberships m
-      where m.id = membership_roles.membership_id
-        and m.user_id <> (select auth.uid())
-        and m.organization_id in (select private.permitted_org_ids('members.manage'))
-    )
-  );
+  using (private.can_manage_membership_role(membership_id, role_id));
 
 -- -----------------------------------------------------------------------------
 -- vehicle_makes / vehicle_models
@@ -369,7 +334,7 @@ create policy vehicles_update on public.vehicles
   with check (organization_id in (select private.permitted_org_ids('vehicles.update')));
 
 create trigger vehicles_soft_delete_guard
-  before update on public.vehicles
+  before insert or update on public.vehicles
   for each row execute function private.tg_guard_soft_delete('vehicles.archive');
 
 -- -----------------------------------------------------------------------------
@@ -399,7 +364,7 @@ create policy drivers_update on public.drivers
   with check (organization_id in (select private.permitted_org_ids('drivers.update')));
 
 create trigger drivers_soft_delete_guard
-  before update on public.drivers
+  before insert or update on public.drivers
   for each row execute function private.tg_guard_soft_delete('drivers.archive');
 
 -- -----------------------------------------------------------------------------

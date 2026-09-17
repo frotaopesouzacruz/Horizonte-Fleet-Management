@@ -211,3 +211,153 @@ as $$
 $$;
 
 grant execute on function private.user_permission_codes(uuid) to authenticated, service_role;
+
+-- =============================================================================
+-- Policy helpers for the RBAC join tables.
+--
+-- RLS policies run under the caller's own privileges, so an EXISTS subquery
+-- inside a policy is itself filtered by the policies of the table it reads.
+-- A member manager without `members.view`, or a role manager without
+-- `roles.view`, would silently fail. These SECURITY DEFINER helpers answer the
+-- whole question against the real rows instead.
+-- =============================================================================
+
+-- Can the caller see the roles assigned to this membership?
+create or replace function private.can_view_membership(p_membership_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.organization_memberships m
+    where m.id = p_membership_id
+      and (m.user_id = auth.uid()
+           or m.organization_id in (select private.permitted_org_ids('members.view')))
+  );
+$$;
+
+grant execute on function private.can_view_membership(uuid) to authenticated, service_role;
+
+-- Does the caller hold every permission granted by this role, inside p_organization_id?
+-- Prevents a members.manage holder from handing out a role more powerful than
+-- their own (e.g. granting org_admin to a colleague and being promoted back).
+create or replace function private.role_within_actor_permissions(
+  p_organization_id uuid,
+  p_role_id         uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select private.is_platform_admin()
+      or not exists (
+        select 1
+        from public.role_permissions rp
+        join public.permissions perm on perm.id = rp.permission_id
+        where rp.role_id = p_role_id
+          and p_organization_id not in (select private.permitted_org_ids(perm.code))
+      );
+$$;
+
+grant execute on function private.role_within_actor_permissions(uuid, uuid) to authenticated, service_role;
+
+-- Can the caller assign/remove this role on this membership?
+--   * members.manage in the membership's organization;
+--   * never on their own membership (no self-promotion);
+--   * only roles they could grant themselves (no escalation);
+--   * global roles and same-organization roles only, never archived.
+create or replace function private.can_manage_membership_role(
+  p_membership_id uuid,
+  p_role_id       uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.organization_memberships m
+    join public.roles r on r.id = p_role_id
+    where m.id = p_membership_id
+      and m.user_id <> auth.uid()
+      and m.organization_id in (select private.permitted_org_ids('members.manage'))
+      and r.deleted_at is null
+      and (r.organization_id is null or r.organization_id = m.organization_id)
+      and private.role_within_actor_permissions(m.organization_id, p_role_id)
+  );
+$$;
+
+grant execute on function private.can_manage_membership_role(uuid, uuid) to authenticated, service_role;
+
+-- Can the caller read this role's permission grants?
+create or replace function private.can_view_role(p_role_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.roles r
+    where r.id = p_role_id
+      and (r.organization_id is null
+           or r.organization_id in (select private.permitted_org_ids('roles.view')))
+  );
+$$;
+
+grant execute on function private.can_view_role(uuid) to authenticated, service_role;
+
+-- Can the caller change this role's permission grants?
+-- Custom, editable, non-archived roles of an organization where the caller
+-- holds roles.manage. Platform roles are never editable through the API.
+create or replace function private.can_manage_role(p_role_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.roles r
+    where r.id = p_role_id
+      and r.organization_id is not null
+      and r.is_editable
+      and r.deleted_at is null
+      and r.organization_id in (select private.permitted_org_ids('roles.manage'))
+  );
+$$;
+
+grant execute on function private.can_manage_role(uuid) to authenticated, service_role;
+
+-- Can the caller grant this specific permission to this role?
+-- Adds the anti-escalation rule: you cannot grant what you do not hold.
+create or replace function private.can_grant_permission(
+  p_role_id       uuid,
+  p_permission_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select private.can_manage_role(p_role_id)
+     and exists (
+       select 1
+       from public.roles r
+       join public.permissions perm on perm.id = p_permission_id
+       where r.id = p_role_id
+         and r.organization_id in (select private.permitted_org_ids(perm.code))
+     );
+$$;
+
+grant execute on function private.can_grant_permission(uuid, uuid) to authenticated, service_role;

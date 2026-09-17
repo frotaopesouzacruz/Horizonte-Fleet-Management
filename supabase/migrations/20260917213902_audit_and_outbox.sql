@@ -86,9 +86,38 @@ begin
     v_new := v_new - v_redact;
   end if;
 
-  v_org    := coalesce((v_new ->> 'organization_id')::uuid, (v_old ->> 'organization_id')::uuid);
+  -- Tenant scope: most tables carry organization_id; the ones that do not are
+  -- resolved here so their audit trail is visible to the tenant's audit.view
+  -- holders instead of silently landing in the platform-level bucket.
+  v_org := coalesce((v_new ->> 'organization_id')::uuid, (v_old ->> 'organization_id')::uuid);
+  if v_org is null then
+    if tg_table_name = 'organizations' then
+      v_org := coalesce(v_new ->> 'id', v_old ->> 'id')::uuid;
+    elsif tg_table_name = 'membership_roles' then
+      select m.organization_id into v_org
+        from public.organization_memberships m
+       where m.id = coalesce(v_new ->> 'membership_id', v_old ->> 'membership_id')::uuid;
+    elsif tg_table_name = 'role_permissions' then
+      select r.organization_id into v_org
+        from public.roles r
+       where r.id = coalesce(v_new ->> 'role_id', v_old ->> 'role_id')::uuid;
+    end if;
+  end if;
+
+  -- Entity key: single-column PK, or the composite key of the join tables.
   v_entity := coalesce(v_new ->> 'id', v_old ->> 'id',
                        v_new ->> 'user_id', v_old ->> 'user_id');
+  if v_entity is null then
+    if tg_table_name = 'membership_roles' then
+      v_entity := coalesce(v_new ->> 'membership_id', v_old ->> 'membership_id') || ':' ||
+                  coalesce(v_new ->> 'role_id', v_old ->> 'role_id');
+    elsif tg_table_name = 'role_permissions' then
+      v_entity := coalesce(v_new ->> 'role_id', v_old ->> 'role_id') || ':' ||
+                  coalesce(v_new ->> 'permission_id', v_old ->> 'permission_id');
+    else
+      v_entity := coalesce(v_new ->> 'organization_id', v_old ->> 'organization_id');
+    end if;
+  end if;
 
   -- PostgREST exposes request headers; the x-request-id header (when present)
   -- correlates audit rows with API logs.

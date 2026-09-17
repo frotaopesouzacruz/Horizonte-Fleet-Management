@@ -61,6 +61,32 @@ create trigger vehicle_makes_prevent_tenant_change
   before update on public.vehicle_makes
   for each row execute function private.tg_prevent_tenant_change();
 
+-- Trims the name and keeps the tenant catalog from duplicating a global make:
+-- the tenant entry would otherwise shadow the curated one in every picker.
+create or replace function private.tg_vehicle_makes_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  new.name := btrim(new.name);
+  if new.organization_id is not null
+     and exists (select 1 from public.vehicle_makes m
+                  where m.organization_id is null and lower(m.name) = lower(new.name)) then
+    raise exception 'vehicle make % already exists in the platform catalog', new.name
+      using errcode = 'unique_violation';
+  end if;
+  return new;
+end;
+$$;
+
+revoke execute on function private.tg_vehicle_makes_guard() from public;
+
+create trigger vehicle_makes_guard
+  before insert or update on public.vehicle_makes
+  for each row execute function private.tg_vehicle_makes_guard();
+
 -- -----------------------------------------------------------------------------
 -- vehicle_models
 -- -----------------------------------------------------------------------------
@@ -107,6 +133,8 @@ declare
   v_make_org uuid;
   v_found    boolean;
 begin
+  new.name := btrim(new.name);
+
   select true, m.organization_id into v_found, v_make_org
     from public.vehicle_makes m where m.id = new.vehicle_make_id;
   if v_found is not true then
@@ -115,6 +143,14 @@ begin
   if v_make_org is not null and v_make_org is distinct from new.organization_id then
     raise exception 'vehicle make % belongs to another organization', new.vehicle_make_id
       using errcode = 'check_violation';
+  end if;
+  if new.organization_id is not null
+     and exists (select 1 from public.vehicle_models m
+                  where m.organization_id is null
+                    and m.vehicle_make_id = new.vehicle_make_id
+                    and lower(m.name) = lower(new.name)) then
+    raise exception 'vehicle model % already exists in the platform catalog', new.name
+      using errcode = 'unique_violation';
   end if;
   return new;
 end;
@@ -162,8 +198,10 @@ create table public.vehicles (
     check (license_plate is null or license_plate ~ '^[A-Z0-9]{5,10}$'),
   constraint vehicles_vin_check
     check (vin is null or vin ~ '^[A-HJ-NPR-Z0-9]{17}$'),
+  -- RENAVAM is stored zero-padded to 11 digits (pre-2013 9-digit numbers are the
+  -- same identifier left-padded), so the per-tenant unique index really is unique
   constraint vehicles_renavam_check
-    check (renavam is null or renavam ~ '^[0-9]{9,11}$'),
+    check (renavam is null or renavam ~ '^[0-9]{11}$'),
   constraint vehicles_manufacture_year_check
     check (manufacture_year is null or manufacture_year between 1900 and 2100),
   constraint vehicles_model_year_check
@@ -222,11 +260,15 @@ as $$
 declare
   v_model_org uuid;
   v_found     boolean;
+  v_unchanged boolean := false;
 begin
   new.fleet_code    := private.normalize_code(new.fleet_code);
   new.license_plate := nullif(regexp_replace(upper(coalesce(new.license_plate, '')), '[^A-Z0-9]', '', 'g'), '');
   new.vin           := nullif(regexp_replace(upper(coalesce(new.vin, '')), '[^A-Z0-9]', '', 'g'), '');
   new.renavam       := nullif(regexp_replace(coalesce(new.renavam, ''), '[^0-9]', '', 'g'), '');
+  if new.renavam is not null and length(new.renavam) between 9 and 10 then
+    new.renavam := lpad(new.renavam, 11, '0');
+  end if;
 
   if new.vehicle_model_id is not null then
     select true, m.organization_id into v_found, v_model_org
@@ -238,6 +280,16 @@ begin
       raise exception 'vehicle model % belongs to another organization', new.vehicle_model_id
         using errcode = 'check_violation';
     end if;
+  end if;
+
+  -- an active vehicle never points at an archived unit or cost center
+  if tg_op = 'UPDATE' then
+    v_unchanged := new.organization_unit_id is not distinct from old.organization_unit_id
+               and new.cost_center_id is not distinct from old.cost_center_id;
+  end if;
+  if new.deleted_at is null then
+    perform private.assert_parent_active(new.organization_id, new.organization_unit_id,
+                                         new.cost_center_id, v_unchanged);
   end if;
   return new;
 end;
@@ -255,17 +307,22 @@ create trigger vehicles_guard
 create table public.vehicle_status_history (
   id              uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations (id) on delete restrict,
-  vehicle_id      uuid not null references public.vehicles (id) on delete cascade,
+  vehicle_id      uuid not null,
   previous_status text,
   new_status      text not null,
   reason          text,
   changed_at      timestamptz not null default now(),
-  changed_by      uuid references auth.users (id) on delete set null,
+  -- no FK on changed_by: the history is append-only and must outlive the user,
+  -- exactly like audit_logs (an ON DELETE SET NULL would be blocked by the
+  -- append-only trigger and would make auth.users deletion fail)
+  changed_by      uuid,
 
   constraint vehicle_status_history_reason_check check (reason is null or length(reason) <= 1000),
+  -- RESTRICT, not CASCADE: traceability is never destroyed by removing the
+  -- vehicle row. Vehicles are archived (deleted_at), never hard deleted.
   constraint vehicle_status_history_vehicle_fkey
     foreign key (organization_id, vehicle_id)
-    references public.vehicles (organization_id, id) on delete cascade
+    references public.vehicles (organization_id, id) on delete restrict
 );
 
 comment on table public.vehicle_status_history is
@@ -354,17 +411,29 @@ create trigger drivers_prevent_tenant_change
   before update on public.drivers
   for each row execute function private.tg_prevent_tenant_change();
 
+-- SECURITY DEFINER: the guard calls a private helper the caller cannot execute
 create or replace function private.tg_drivers_guard()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
+declare
+  v_unchanged boolean := false;
 begin
   new.employee_code := private.normalize_code(new.employee_code);
   new.full_name     := btrim(new.full_name);
+  if tg_op = 'UPDATE' then
+    v_unchanged := new.organization_unit_id is not distinct from old.organization_unit_id;
+  end if;
+  if new.deleted_at is null then
+    perform private.assert_parent_active(new.organization_id, new.organization_unit_id, null, v_unchanged);
+  end if;
   return new;
 end;
 $$;
+
+revoke execute on function private.tg_drivers_guard() from public;
 
 create trigger drivers_guard
   before insert or update on public.drivers

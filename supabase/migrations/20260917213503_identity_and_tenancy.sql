@@ -34,7 +34,10 @@ create table public.organizations (
   constraint organizations_timezone_check
     check (length(timezone) between 3 and 64),
   constraint organizations_locale_check
-    check (locale ~ '^[a-z]{2}(-[A-Z]{2})?$')
+    check (locale ~ '^[a-z]{2}(-[A-Z]{2})?$'),
+  -- one lifecycle fact, one encoding: archived <=> deleted_at is set
+  constraint organizations_lifecycle_check
+    check ((status = 'archived') = (deleted_at is not null))
 );
 
 create unique index organizations_slug_key on public.organizations (slug);
@@ -47,6 +50,45 @@ comment on table public.organizations is
 create trigger organizations_set_stamps
   before insert or update on public.organizations
   for each row execute function private.tg_set_stamps();
+
+-- Normalizes the tenant identity fields and protects the tenant lifecycle:
+-- suspending or archiving an organization would lock every member out, so it
+-- is reserved for the platform (service_role / platform admins), never for a
+-- tenant administrator holding organization.manage.
+create or replace function private.tg_organizations_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  new.name            := btrim(new.name);
+  new.legal_name      := nullif(btrim(coalesce(new.legal_name, '')), '');
+  new.document_number := nullif(regexp_replace(upper(coalesce(new.document_number, '')), '[^A-Z0-9]', '', 'g'), '');
+  new.slug            := lower(btrim(new.slug));
+
+  if tg_op = 'UPDATE'
+     and (new.status is distinct from old.status or new.deleted_at is distinct from old.deleted_at)
+     and not private.is_privileged_context()
+     and not private.is_platform_admin() then
+    raise exception 'organization lifecycle (status/deleted_at) is managed by the platform'
+      using errcode = 'insufficient_privilege';
+  end if;
+
+  if new.deleted_at is not null then
+    new.deleted_by := coalesce(auth.uid(), new.deleted_by);
+  else
+    new.deleted_by := null;
+  end if;
+  return new;
+end;
+$$;
+
+revoke execute on function private.tg_organizations_guard() from public;
+
+create trigger organizations_guard
+  before insert or update on public.organizations
+  for each row execute function private.tg_organizations_guard();
 
 -- -----------------------------------------------------------------------------
 -- organization_settings (1:1)
@@ -134,6 +176,10 @@ create table public.organization_units (
 create unique index organization_units_org_code_key
   on public.organization_units (organization_id, code)
   where code is not null and deleted_at is null;
+-- a unit without a code still needs to be distinguishable inside the tenant
+create unique index organization_units_org_name_key
+  on public.organization_units (organization_id, lower(name))
+  where deleted_at is null;
 
 comment on table public.organization_units is
   'Operational units of an organization (branch, base, operation). Master data.';
@@ -183,6 +229,9 @@ create table public.cost_centers (
 create unique index cost_centers_org_code_key
   on public.cost_centers (organization_id, code)
   where code is not null and deleted_at is null;
+create unique index cost_centers_org_name_key
+  on public.cost_centers (organization_id, lower(name))
+  where deleted_at is null;
 
 comment on table public.cost_centers is
   'Cost centers of an organization, optionally tied to an organization unit. Master data.';
@@ -198,6 +247,33 @@ create trigger cost_centers_prevent_tenant_change
 create trigger cost_centers_normalize
   before insert or update on public.cost_centers
   for each row execute function private.tg_normalize_org_code();
+
+-- an active cost center never points at an archived unit
+-- SECURITY DEFINER: the guard calls a private helper the caller cannot execute
+create or replace function private.tg_cost_centers_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_unchanged boolean := false;
+begin
+  if tg_op = 'UPDATE' then
+    v_unchanged := new.organization_unit_id is not distinct from old.organization_unit_id;
+  end if;
+  if new.deleted_at is null then
+    perform private.assert_parent_active(new.organization_id, new.organization_unit_id, null, v_unchanged);
+  end if;
+  return new;
+end;
+$$;
+
+revoke execute on function private.tg_cost_centers_guard() from public;
+
+create trigger cost_centers_guard
+  before insert or update on public.cost_centers
+  for each row execute function private.tg_cost_centers_guard();
 
 -- -----------------------------------------------------------------------------
 -- profiles (1:1 with auth.users, never the tenant link)
@@ -291,10 +367,16 @@ create trigger organization_memberships_prevent_tenant_change
   before update on public.organization_memberships
   for each row execute function private.tg_prevent_tenant_change();
 
--- user_id is immutable and joined_at is set when the membership becomes active.
+-- Membership lifecycle:
+--  * user_id is immutable, joined_at is set once when the membership activates;
+--  * every member has a profile row (the profile is what RLS joins on), so a
+--    membership created before the auth trigger ran still grants access;
+--  * removing a member drops their role assignments, so re-adding the same user
+--    later never silently restores old privileges.
 create or replace function private.tg_membership_lifecycle()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 begin
@@ -308,13 +390,41 @@ begin
   if new.status = 'active' and new.joined_at is null then
     new.joined_at := now();
   end if;
+
+  if tg_op = 'INSERT' then
+    insert into public.profiles (user_id)
+    values (new.user_id)
+    on conflict (user_id) do nothing;
+  end if;
   return new;
 end;
 $$;
 
+revoke execute on function private.tg_membership_lifecycle() from public;
+
 create trigger organization_memberships_lifecycle
   before insert or update on public.organization_memberships
   for each row execute function private.tg_membership_lifecycle();
+
+create or replace function private.tg_membership_revoke_roles()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.status = 'removed' and old.status is distinct from 'removed' then
+    delete from public.membership_roles mr where mr.membership_id = new.id;
+  end if;
+  return null;
+end;
+$$;
+
+revoke execute on function private.tg_membership_revoke_roles() from public;
+
+create trigger organization_memberships_revoke_roles
+  after update of status on public.organization_memberships
+  for each row execute function private.tg_membership_revoke_roles();
 
 -- -----------------------------------------------------------------------------
 -- platform_admins (global SaaS operators; separate from tenant admins)
