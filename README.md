@@ -8,7 +8,11 @@ application layer.
 | Stage | Scope | State |
 | --- | --- | --- |
 | 01 | Database and back-end foundation | Applied to the Dev project and validated |
-| 02 | Visual identity, design system and themes | Foundation in place; official brand files pending |
+| 02 | Visual identity, design system and themes | Official brand files installed |
+| 03 | Authentication and Administration / Users | Deployed; 143 employees imported from the QLP sheet |
+
+Live at **https://horizonte-fleet-management.vercel.app** — see `docs/deploy.md`
+for the environment it runs in and the two Supabase URL settings it depends on.
 
 Operational modules (fleet, maintenance, tyres, checklists, fuel, fines, washing, documents, suppliers, reports)
 are not implemented yet. They build on the foundation without redefining master data or the palette.
