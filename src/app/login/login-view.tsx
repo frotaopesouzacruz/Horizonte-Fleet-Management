@@ -4,7 +4,7 @@ import * as React from "react";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { signIn, type ActionState } from "@/lib/auth/actions";
 import { BrandLogo } from "@/components/brand/brand-logo";
-import { BrandBackground } from "@/components/brand/brand-background";
+import { InstitutionalPanel } from "@/app/login/institutional-panel";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -87,7 +87,7 @@ export function LoginView({ next, linkError }: { next?: string; linkError?: stri
     <div className="relative grid min-h-dvh grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] xl:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]">
       {/* The toggle floats above the grid: the institutional column is hidden
           below `lg`, so anchoring it there would lose it on a phone. */}
-      <div className="absolute right-4 top-4 z-10 sm:right-6 sm:top-6">
+      <div className="absolute right-4 top-4 z-10 rounded-full border border-border/60 bg-surface/75 backdrop-blur-sm sm:right-6 sm:top-6">
         <ThemeToggle />
       </div>
 
@@ -100,7 +100,7 @@ export function LoginView({ next, linkError }: { next?: string; linkError?: stri
             <div className="flex flex-col items-center text-center">
               <BrandLogo height={52} />
               <h1 className="mt-5 text-h2 font-semibold text-fg">
-                Horizonte <span className="text-highlight">Fleet Management</span>
+                Horizonte <span className="text-highlight-soft-fg">Fleet Management</span>
               </h1>
               <p className="mt-1 text-caption font-medium uppercase tracking-[0.18em] text-fg-muted">
                 Operações Souza Cruz
@@ -176,7 +176,7 @@ export function LoginView({ next, linkError }: { next?: string; linkError?: stri
 
             <div className="mt-7 flex items-center justify-between border-t border-border-subtle pt-4 text-caption text-fg-muted">
               <span className="flex items-center gap-1.5">
-                <ShieldCheck className="size-3.5 text-highlight" aria-hidden />
+                <ShieldCheck className="size-3.5 text-highlight-soft-fg" aria-hidden />
                 Conexão segura
               </span>
               <LocalClock />
@@ -189,15 +189,7 @@ export function LoginView({ next, linkError }: { next?: string; linkError?: stri
         </main>
       </div>
 
-      {/* ------------------------------------------------- institutional side */}
-      {/* The official artwork is a composed scene that carries its own captions,
-          so nothing is layered on top of it: no scrim, no competing headline. */}
-      <div aria-hidden className="relative hidden lg:block">
-        {/* Anchored right: the scene's left third is empty studio floor, and the
-            capability panel at its right edge is the part worth keeping when the
-            column is narrower than the photograph. */}
-        <BrandBackground scrim="none" position="right center" />
-      </div>
+      <InstitutionalPanel />
     </div>
   );
 }

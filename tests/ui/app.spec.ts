@@ -135,7 +135,7 @@ test.describe("login", () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/login");
 
-    await expect(page.getByRole("heading", { name: "Acessar o sistema" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Horizonte Fleet Management" })).toBeVisible();
 
     // The official files must decode: when one is missing the logo degrades to a
     // plain wordmark, which is precisely what must never reach a screen.
@@ -150,12 +150,13 @@ test.describe("login", () => {
       .poll(() => artwork.evaluate((el) => (el as HTMLImageElement).naturalWidth ?? 0), { timeout: 20_000 })
       .toBeGreaterThan(0);
 
-    await page.getByRole("button", { name: "Entrar" }).click();
-    await expect(page.getByText("Informe um e-mail válido.")).toBeVisible();
+    await page.getByRole("button", { name: "Acessar Sistema" }).click();
+    await expect(page.getByText("Informe sua matrícula ou e-mail.")).toBeVisible();
 
-    await page.getByRole("textbox", { name: "E-mail corporativo" }).fill("operacao@horizonte.com.br");
+    // One field takes both, so a matrícula must clear the error just as an e-mail does.
+    await page.getByRole("textbox", { name: "Matrícula ou e-mail" }).fill("140349");
     await passwordField(page).fill("senha-de-teste");
-    await expect(page.getByText("Informe um e-mail válido.")).toBeHidden();
+    await expect(page.getByText("Informe sua matrícula ou e-mail.")).toBeHidden();
 
     await page.getByRole("button", { name: "Mostrar senha" }).click();
     await expect(passwordField(page)).toHaveAttribute("type", "text");
@@ -163,18 +164,31 @@ test.describe("login", () => {
 
   test("every control on the form is keyboard reachable in order", async ({ page }) => {
     await page.goto("/login");
-    await page.getByRole("textbox", { name: "E-mail corporativo" }).focus();
+    await page.getByRole("textbox", { name: "Matrícula ou e-mail" }).focus();
 
-    await page.keyboard.press("Tab");
-    await expect(page.getByRole("link", { name: "Esqueci minha senha" })).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(passwordField(page)).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(page.getByRole("button", { name: "Mostrar senha" })).toBeFocused();
     await page.keyboard.press("Tab");
-    await expect(page.getByRole("checkbox", { name: /Manter conectado/ })).toBeFocused();
+    await expect(page.getByRole("button", { name: "Acessar Sistema" })).toBeFocused();
     await page.keyboard.press("Tab");
-    await expect(page.getByRole("button", { name: "Entrar" })).toBeFocused();
+    await expect(page.getByRole("link", { name: "Esqueci minha senha" })).toBeFocused();
+  });
+
+  test("the institutional carousel is operable and stops for a pointer", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/login");
+
+    const panel = page.getByRole("region", { name: "Horizonte Fleet Management" });
+    await expect(panel).toBeVisible();
+
+    // Auto-advancing content has to be reachable by hand, or WCAG 2.2.2 is a
+    // promise the screen does not keep.
+    const second = panel.getByRole("button", { name: "Gestão Inteligente de Frotas" });
+    await second.click();
+    await expect(second).toHaveAttribute("aria-current", "true");
+    await expect(panel.getByRole("heading", { level: 2 })).toContainText("Gestão Inteligente de");
   });
 });
 
