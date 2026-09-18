@@ -42,6 +42,9 @@ const publicSurfaces = [
   { name: "login", url: "/login" },
   { name: "recuperar-acesso", url: "/recuperar-acesso" },
   { name: "design-system", url: "/dev/design-system" },
+  // Organização → Operações and Estados e cidades, rendered against fixed
+  // data. The real routes need a session; this is the same markup.
+  { name: "organizacao (preview)", url: "/dev/preview-organizacao" },
 ];
 
 /** Behind the app shell: need a real session against a reachable Supabase. */

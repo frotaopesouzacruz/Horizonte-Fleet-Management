@@ -6,6 +6,9 @@ import type { Page, BrowserContext } from "@playwright/test";
  *
  *   HFM_E2E_EMAIL=... HFM_E2E_PASSWORD=... npm run test:ui
  *
+ * HFM_E2E_EMAIL takes either half of the identity split: a corporate e-mail or
+ * a matrícula. The field is one box and the server decides which it was.
+ *
  * Without them the suite still covers everything that does not require a
  * session, and the skipped tests say why instead of silently passing.
  */
@@ -19,9 +22,9 @@ export const SKIP_REASON =
 /** Signs in through the real login form and waits for the shell. */
 export async function signIn(page: Page): Promise<void> {
   await page.goto("/login");
-  await page.getByRole("textbox", { name: "E-mail corporativo" }).fill(E2E_EMAIL!);
+  await page.locator('input[name="identifier"]').fill(E2E_EMAIL!);
   await page.locator('input[name="password"]').fill(E2E_PASSWORD!);
-  await page.getByRole("button", { name: "Entrar" }).click();
+  await page.getByRole("button", { name: "Acessar Sistema" }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 30_000 });
 }
 

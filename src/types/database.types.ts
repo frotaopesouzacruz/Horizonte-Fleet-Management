@@ -128,6 +128,7 @@ export type Database = {
           deleted_at: string | null
           deleted_by: string | null
           id: string
+          login_method: string
           name: string
           organization_id: string
           status: string
@@ -141,6 +142,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           id?: string
+          login_method?: string
           name: string
           organization_id: string
           status?: string
@@ -154,6 +156,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           id?: string
+          login_method?: string
           name?: string
           organization_id?: string
           status?: string
@@ -166,6 +169,57 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cities: {
+        Row: {
+          ddd: number | null
+          id: number
+          is_capital: boolean
+          is_municipality: boolean
+          latitude: number | null
+          longitude: number | null
+          name: string
+          state_id: number
+          time_zone: string | null
+        }
+        Insert: {
+          ddd?: number | null
+          id: number
+          is_capital?: boolean
+          is_municipality?: boolean
+          latitude?: number | null
+          longitude?: number | null
+          name: string
+          state_id: number
+          time_zone?: string | null
+        }
+        Update: {
+          ddd?: number | null
+          id?: number
+          is_capital?: boolean
+          is_municipality?: boolean
+          latitude?: number | null
+          longitude?: number | null
+          name?: string
+          state_id?: number
+          time_zone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cities_state_id_fkey"
+            columns: ["state_id"]
+            isOneToOne: false
+            referencedRelation: "state_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cities_state_id_fkey"
+            columns: ["state_id"]
+            isOneToOne: false
+            referencedRelation: "states"
             referencedColumns: ["id"]
           },
         ]
@@ -485,6 +539,13 @@ export type Database = {
             columns: ["organization_id", "manager_employee_id"]
             isOneToOne: false
             referencedRelation: "employees"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "employee_assignments_operation_fk"
+            columns: ["organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operation_summary"
             referencedColumns: ["organization_id", "id"]
           },
           {
@@ -997,6 +1058,13 @@ export type Database = {
             columns: ["organization_id", "membership_id"]
             isOneToOne: false
             referencedRelation: "organization_memberships"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "membership_operation_scopes_operation_fk"
+            columns: ["organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operation_summary"
             referencedColumns: ["organization_id", "id"]
           },
           {
@@ -1526,6 +1594,33 @@ export type Database = {
           },
         ]
       }
+      states: {
+        Row: {
+          id: number
+          latitude: number | null
+          longitude: number | null
+          name: string
+          region: string
+          uf: string
+        }
+        Insert: {
+          id: number
+          latitude?: number | null
+          longitude?: number | null
+          name: string
+          region: string
+          uf: string
+        }
+        Update: {
+          id?: number
+          latitude?: number | null
+          longitude?: number | null
+          name?: string
+          region?: string
+          uf?: string
+        }
+        Relationships: []
+      }
       vehicle_makes: {
         Row: {
           created_at: string
@@ -1803,6 +1898,7 @@ export type Database = {
       }
       work_locations: {
         Row: {
+          city_id: number | null
           created_at: string
           created_by: string | null
           deleted_at: string | null
@@ -1816,6 +1912,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          city_id?: number | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
@@ -1829,6 +1926,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          city_id?: number | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
@@ -1842,6 +1940,13 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "work_locations_city_id_fkey"
+            columns: ["city_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "work_locations_organization_id_fkey"
             columns: ["organization_id"]
@@ -1915,6 +2020,40 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      operation_summary: {
+        Row: {
+          access_count: number | null
+          employee_count: number | null
+          id: string | null
+          location_count: number | null
+          name: string | null
+          organization_id: string | null
+          status: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      state_summary: {
+        Row: {
+          capital_id: number | null
+          capital_name: string | null
+          city_count: number | null
+          id: number | null
+          latitude: number | null
+          longitude: number | null
+          name: string | null
+          region: string | null
+          uf: string | null
+        }
+        Relationships: []
       }
     }
     Functions: {
@@ -2001,6 +2140,28 @@ export type Database = {
       save_employee: {
         Args: { p_organization_id: string; p_payload: Json }
         Returns: string
+      }
+      search_cities: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_query?: string
+          p_state_id?: number
+        }
+        Returns: {
+          ddd: number
+          id: number
+          is_capital: boolean
+          is_municipality: boolean
+          latitude: number
+          longitude: number
+          name: string
+          state_id: number
+          state_name: string
+          time_zone: string
+          total: number
+          uf: string
+        }[]
       }
       set_employee_access_status: {
         Args: { p_employee_id: string; p_status: string }

@@ -1,24 +1,15 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  Activity,
   BarChart3,
-  Building2,
-  CalendarCheck,
   CircleDot,
   ClipboardCheck,
-  ClipboardList,
-  Droplets,
-  FileText,
   Fuel,
-  Gauge,
   LayoutDashboard,
-  ListChecks,
-  Route,
-  Settings,
+  Map,
+  Network,
   ShieldAlert,
   Truck,
   Users,
-  UsersRound,
   Wrench,
   type LucideProps,
 } from "lucide-react";
@@ -61,11 +52,18 @@ export function visibleNavigation(permissions: string[], isPlatformAdmin = false
 /**
  * Navigation model of the product.
  *
- * Administração sits directly under the Dashboard, ahead of the operational
- * groups, because it is what exists: eighteen of the twenty-one entries are
- * `planned` placeholders, and burying the one working module at the bottom of
- * them made it unreachable in practice. The order follows what a person can
- * actually open, not the eventual shape of the product.
+ * Two groups, because there are two kinds of thing here. Organização is what the
+ * company is — the operations it runs, the places it runs them, the people and
+ * the fleet attached to each. Módulos futuros is what the product will do with
+ * all that, and every entry in it is still a placeholder.
+ *
+ * Keeping the placeholders in one visibly separate group is the point: mixed in
+ * with working modules they made the product look finished and the one screen
+ * that worked impossible to find.
+ *
+ * Colaboradores and Usuários are one entry and one module. They are the same 143
+ * people seen from two sides — the employee record and the HFM account — and
+ * splitting them would mean two screens arguing about who someone is.
  */
 export const navigation: NavGroup[] = [
   {
@@ -73,58 +71,45 @@ export const navigation: NavGroup[] = [
     items: [{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard }],
   },
   {
-    // First implemented structure. New administrative modules are added here
-    // without touching the Sidebar itself.
-    id: "admin",
-    label: "Administração",
+    id: "organization",
+    label: "Organização",
     items: [
-      { label: "Usuários", href: "/administracao/usuarios", icon: Users, permission: "users.view" },
-      { label: "Cadastros", href: "/administracao/cadastros", icon: ClipboardList, planned: true },
-      { label: "Configurações", href: "/administracao/configuracoes", icon: Settings, planned: true },
+      {
+        label: "Operações",
+        href: "/organizacao/operacoes",
+        icon: Network,
+        permission: "operations.view",
+      },
+      {
+        // Reference data: readable by anyone signed in, so no permission gate.
+        label: "Estados e cidades",
+        href: "/organizacao/estados",
+        icon: Map,
+      },
+      {
+        label: "Colaboradores e usuários",
+        href: "/administracao/usuarios",
+        icon: Users,
+        permission: "users.view",
+      },
+      {
+        label: "Frotas",
+        href: "/organizacao/frotas",
+        icon: Truck,
+        planned: true,
+        permission: "vehicles.view",
+      },
     ],
   },
   {
-    id: "fleet",
-    label: "Gestão de frota",
-    items: [
-      { label: "Frota", href: "/frota", icon: Truck, planned: true },
-      { label: "Motoristas", href: "/motoristas", icon: UsersRound, planned: true },
-      { label: "Quilometragem", href: "/quilometragem", icon: Route, planned: true },
-    ],
-  },
-  {
-    id: "maintenance",
-    label: "Manutenção",
-    items: [
-      { label: "Visão geral", href: "/manutencao", icon: Gauge, planned: true },
-      { label: "Preventiva", href: "/manutencao/preventiva", icon: CalendarCheck, planned: true },
-      { label: "Corretiva", href: "/manutencao/corretiva", icon: Wrench, planned: true },
-      { label: "Preditiva", href: "/manutencao/preditiva", icon: Activity, planned: true },
-      { label: "Ordens de serviço", href: "/manutencao/ordens", icon: ClipboardList, planned: true },
-    ],
-  },
-  {
-    id: "tires",
-    label: "Pneus",
-    items: [{ label: "Gestão de pneus", href: "/pneus", icon: CircleDot, planned: true }],
-  },
-  {
-    id: "operations",
-    label: "Operação",
+    id: "future",
+    label: "Módulos futuros",
     items: [
       { label: "Checklist", href: "/checklist", icon: ClipboardCheck, planned: true },
-      { label: "Planos de ação", href: "/planos-de-acao", icon: ListChecks, planned: true },
+      { label: "Manutenção", href: "/manutencao", icon: Wrench, planned: true },
+      { label: "Pneus", href: "/pneus", icon: CircleDot, planned: true },
       { label: "Abastecimento", href: "/abastecimento", icon: Fuel, planned: true },
       { label: "Multas", href: "/multas", icon: ShieldAlert, planned: true },
-      { label: "Lavagem", href: "/lavagem", icon: Droplets, planned: true },
-    ],
-  },
-  {
-    id: "management",
-    label: "Gestão",
-    items: [
-      { label: "Fornecedores", href: "/fornecedores", icon: Building2, planned: true },
-      { label: "Documentos", href: "/documentos", icon: FileText, planned: true },
       { label: "Relatórios", href: "/relatorios", icon: BarChart3, planned: true },
     ],
   },
