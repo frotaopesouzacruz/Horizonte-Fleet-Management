@@ -121,7 +121,7 @@ export function Sidebar() {
     >
       <div className={cn("flex h-(--topbar-height) shrink-0 items-center border-b border-border px-4", collapsed && "justify-center px-0")}>
         <Link href="/dashboard" className="flex items-center rounded-sm outline-none hfm-focus-ring" aria-label="Horizonte Fleet Management — início">
-          <BrandLogo compact={collapsed} height={collapsed ? 26 : 28} />
+          <BrandLogo compact={collapsed} height={collapsed ? 26 : 38} />
         </Link>
       </div>
 
@@ -158,7 +158,7 @@ export function MobileSidebar() {
           <DrawerTitle>Menu de navegação</DrawerTitle>
         </VisuallyHidden>
         <div className="flex h-(--topbar-height) shrink-0 items-center border-b border-border px-4">
-          <BrandLogo height={28} />
+          <BrandLogo height={38} />
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto py-3">
           <SidebarNav onNavigate={() => setMobileOpen(false)} />

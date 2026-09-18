@@ -39,7 +39,21 @@ async function main() {
         await page.goto(`${BASE}${surface.url}`);
         await page.evaluate((t) => window.localStorage.setItem("hfm.theme", t), theme);
         await page.reload();
-        await page.waitForLoadState("networkidle");
+        // Wait for the brand assets themselves: `networkidle` can stay stuck on
+        // requests Chromium served from its memory cache.
+        await page.waitForFunction(
+          (t) => document.documentElement.classList.contains("dark") === (t === "dark"),
+          theme,
+        );
+        // Only the images that actually have a box: below `lg` the institutional
+        // artwork and the sidebar are `display:none`, so they are never fetched
+        // there — by design, and a mobile surface may legitimately show none.
+        await page.waitForFunction(() =>
+          Array.from(document.images)
+            .filter((image) => image.getBoundingClientRect().width > 0)
+            .every((image) => image.complete && image.naturalWidth > 0),
+        );
+        await page.waitForLoadState("load");
         await page.screenshot({
           path: `${OUT}/${surface.name}-${theme}-${viewport.name}.png`,
           fullPage: surface.full,

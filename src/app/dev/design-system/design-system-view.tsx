@@ -14,7 +14,7 @@ export function DesignSystemView() {
     <div className="min-h-dvh bg-background">
       <header className="sticky top-0 z-(--z-topbar) border-b border-border bg-surface-topbar">
         <div className="mx-auto flex h-14 max-w-(--content-max-width) items-center gap-4 px-4 sm:px-6">
-          <BrandLogo height={26} />
+          <BrandLogo height={38} />
           <div className="min-w-0">
             <h1 className="truncate text-h4 font-semibold text-fg">Design System</h1>
             <p className="truncate text-caption text-fg-muted">Referência interna · ambiente de desenvolvimento</p>

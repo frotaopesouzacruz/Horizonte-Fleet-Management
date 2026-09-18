@@ -49,11 +49,11 @@ export function LoginView() {
   }
 
   return (
-    <div className="grid min-h-dvh grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+    <div className="grid min-h-dvh grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] xl:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]">
       {/* ----------------------------------------------------------- form side */}
       <div className="flex flex-col bg-background">
         <header className="flex items-center justify-between px-6 py-5 sm:px-10">
-          <BrandLogo height={30} />
+          <BrandLogo height={46} />
           <ThemeToggle />
         </header>
 
@@ -128,21 +128,14 @@ export function LoginView() {
       </div>
 
       {/* ------------------------------------------------- institutional side */}
-      <aside className="relative hidden lg:block">
-        <BrandBackground priority scrim="soft" position="center" />
-        <div className="relative flex h-full flex-col justify-end p-10 xl:p-14">
-          <div className="max-w-md">
-            <span className="inline-flex items-center gap-2 rounded-xs bg-highlight-soft px-2 py-1 text-caption font-medium text-highlight-soft-fg">
-              Plataforma corporativa
-            </span>
-            <h2 className="mt-4 text-display font-semibold text-fg">Gestão inteligente de frotas</h2>
-            <p className="mt-3 text-body text-fg-secondary">
-              Frota, manutenção, quilometragem e conformidade operacional em um único ecossistema, com governança e
-              rastreabilidade de ponta a ponta.
-            </p>
-          </div>
-        </div>
-      </aside>
+      {/* The official artwork is a composed scene that carries its own captions,
+          so nothing is layered on top of it: no scrim, no competing headline. */}
+      <div aria-hidden className="relative hidden lg:block">
+        {/* Anchored right: the scene's left third is empty studio floor, and the
+            capability panel at its right edge is the part worth keeping when the
+            column is narrower than the photograph. */}
+        <BrandBackground scrim="none" position="right center" />
+      </div>
     </div>
   );
 }

@@ -15,8 +15,6 @@ export interface BrandBackgroundProps extends React.HTMLAttributes<HTMLDivElemen
   scrim?: "none" | "soft" | "strong";
   /** Focal point of the photograph (object-position). */
   position?: string;
-  /** Load eagerly (login) or lazily (secondary institutional areas). */
-  priority?: boolean;
 }
 
 /**
@@ -25,17 +23,23 @@ export interface BrandBackgroundProps extends React.HTMLAttributes<HTMLDivElemen
  * Fills its positioned parent, so the parent needs `relative`.
  *
  * The image goes through next/image, which serves AVIF/WebP at the right size:
- * the official PNGs are ~2 MB and must not be shipped as-is. The originals stay
- * untouched in `public/brand/`.
+ * the official files are 1672 × 941 and ~200 KB, too heavy to ship as-is for a
+ * panel that rarely needs more than half that. The originals stay untouched in
+ * `public/brand/`.
  *
- * While the official file is absent, it degrades to a brand-tinted surface
- * instead of a broken image. That surface is a placeholder, not the artwork.
+ * The artwork is a composed scene with its own baked-in captions, so it is
+ * decorative here and carries no foreground copy of ours. If the file is
+ * missing it degrades to a brand-tinted surface, which is a placeholder, not
+ * the artwork.
+ *
+ * No `priority`: the element only exists after hydration (the theme decides the
+ * file), so a preload could never run ahead of the fetch it duplicates — it just
+ * leaves an unconsumed request open in the browser.
  */
 export function BrandBackground({
   variant = "auto",
   scrim = "soft",
   position = "center",
-  priority = false,
   className,
   children,
   ...props
@@ -54,7 +58,6 @@ export function BrandBackground({
           src={src}
           alt=""
           fill
-          priority={priority}
           sizes="(max-width: 1024px) 100vw, 55vw"
           style={{ objectFit: "cover", objectPosition: position }}
           onError={() => setFailed(true)}

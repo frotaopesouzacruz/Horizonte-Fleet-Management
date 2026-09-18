@@ -43,7 +43,7 @@ export function RecoverAccessView() {
   return (
     <div className="flex min-h-dvh flex-col bg-background">
       <header className="flex items-center justify-between px-6 py-5 sm:px-10">
-        <BrandLogo height={30} />
+        <BrandLogo height={46} />
         <ThemeToggle />
       </header>
 

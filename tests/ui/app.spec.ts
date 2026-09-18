@@ -129,7 +129,19 @@ test.describe("login", () => {
     await page.goto("/login");
 
     await expect(page.getByRole("heading", { name: "Acessar o sistema" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Gestão inteligente de frotas" })).toBeVisible();
+
+    // The official files must decode: when one is missing the logo degrades to a
+    // plain wordmark, which is precisely what must never reach a screen.
+    const logo = page.getByRole("img", { name: "Horizonte Fleet Management" });
+    await expect(logo).toHaveAttribute("src", /logo-light/);
+    await expect
+      .poll(() => logo.evaluate((el) => (el as HTMLImageElement).naturalWidth ?? 0), { timeout: 20_000 })
+      .toBeGreaterThan(0);
+
+    const artwork = page.locator('img[src*="background-light"]');
+    await expect
+      .poll(() => artwork.evaluate((el) => (el as HTMLImageElement).naturalWidth ?? 0), { timeout: 20_000 })
+      .toBeGreaterThan(0);
 
     await page.getByRole("button", { name: "Entrar" }).click();
     await expect(page.getByText("Informe um e-mail válido.")).toBeVisible();

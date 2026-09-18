@@ -9,10 +9,31 @@ import AxeBuilder from "@axe-core/playwright";
 const THEME_KEY = "hfm.theme";
 
 async function withTheme(page: Page, url: string, theme: "light" | "dark") {
-  await page.goto(url);
+  const response = await page.goto(url);
+  // A 404 page has no violations either: without this the whole surface would
+  // pass vacuously whenever a route is missing from the build under test.
+  expect(response?.status(), `${url} must be reachable in this build`).toBe(200);
   await page.evaluate(([key, value]) => window.localStorage.setItem(key, value), [THEME_KEY, theme] as const);
   await page.reload();
-  await page.waitForLoadState("networkidle");
+
+  // Not `networkidle`: Chromium does not always report a request served from its
+  // memory cache as finished, so the in-flight count can stay stuck for a page
+  // that is fully painted. Wait for what the check actually depends on — the
+  // theme applied, and every image decoded, so contrast is measured on the real
+  // brand assets rather than on empty boxes.
+  await page.waitForFunction((t) => document.documentElement.classList.contains("dark") === (t === "dark"), theme);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          // Only the images that actually have a box: the institutional artwork
+          // is `display:none` below `lg`, so it is never fetched there.
+          const images = Array.from(document.images).filter((image) => image.getBoundingClientRect().width > 0);
+          return images.length > 0 && images.every((image) => image.complete && image.naturalWidth > 0);
+        }),
+      { timeout: 20_000 },
+    )
+    .toBe(true);
 }
 
 const surfaces = [

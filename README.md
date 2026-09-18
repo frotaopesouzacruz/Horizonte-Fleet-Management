@@ -31,6 +31,7 @@ Useful scripts:
 npm run lint             # ESLint
 npm run typecheck        # tsc --noEmit
 npm run build            # production build
+npm run build:ui-test    # same build with /dev/design-system enabled (required before test:ui)
 npm run test:ui          # Playwright: themes, responsive shell, accessibility
 npm run db:push          # apply migrations to the linked Supabase project
 npm run db:types         # regenerate src/types/database.types.ts
