@@ -5,6 +5,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ACTIVE_ORG_COOKIE, getSessionContext } from "@/lib/auth/session";
+import { isEmailIdentifier, safeNext } from "@/lib/auth/login-identity";
 
 export interface ActionState {
   error?: string;
@@ -24,27 +25,43 @@ export async function siteOrigin() {
 /**
  * Sign in with corporate credentials.
  *
+ * The form has one identifier field taking either a matrícula or an e-mail,
+ * because 123 of the 143 imported employees have no e-mail at all.
+ *
+ * Only the e-mail branch can authenticate today. Supabase Auth identifies an
+ * account by e-mail or phone and by nothing else, so signing in by matrícula
+ * needs a login address derived from it — a decision with its own policy and
+ * DNS requirements that is not made here. Until it is, a matrícula reaches the
+ * same generic failure as a wrong password, which is also what keeps this form
+ * from answering "does 140349 exist?".
+ *
  * Failures are reported with one generic message on purpose: telling the caller
- * whether the e-mail exists would turn the form into an account oracle.
+ * whether an account exists would turn the form into an account oracle.
  */
 export async function signIn(_state: ActionState, formData: FormData): Promise<ActionState> {
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const identifier = String(formData.get("identifier") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const next = String(formData.get("next") ?? "/dashboard");
+  const next = safeNext(String(formData.get("next") ?? ""));
 
-  if (!email || !password) return { error: "Informe e-mail e senha." };
+  if (!identifier || !password) return { error: "Informe sua matrícula ou e-mail e a senha." };
+
+  const generic = { error: "Matrícula, e-mail ou senha inválidos." };
+  if (!isEmailIdentifier(identifier)) return generic;
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { error } = await supabase.auth.signInWithPassword({
+    email: identifier.toLowerCase(),
+    password,
+  });
 
   if (error) {
     if (error.message.toLowerCase().includes("email not confirmed")) {
       return { error: "Conta ainda não ativada. Utilize o link enviado por e-mail para definir sua senha." };
     }
-    return { error: "E-mail ou senha inválidos." };
+    return generic;
   }
 
-  redirect(next.startsWith("/") ? next : "/dashboard");
+  redirect(next);
 }
 
 export async function signOut() {
@@ -55,14 +72,28 @@ export async function signOut() {
   redirect("/login");
 }
 
-/** Always answers the same way, whether or not the e-mail has an account. */
+/**
+ * Recovery. For an e-mail it always answers the same way, whether or not the
+ * address has an account, so the screen cannot be used to enumerate users.
+ *
+ * A matrícula has no mailbox to send anything to, so it is answered honestly
+ * rather than with a link that would never arrive: that access is restored by a
+ * manager reissuing the temporary password.
+ */
 export async function requestPasswordReset(_state: ActionState, formData: FormData): Promise<ActionState> {
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  if (!email) return { error: "Informe um e-mail válido." };
+  const identifier = String(formData.get("identifier") ?? "").trim();
+  if (!identifier) return { error: "Informe sua matrícula ou e-mail." };
+
+  if (!isEmailIdentifier(identifier)) {
+    return {
+      notice:
+        "O acesso por matrícula é restaurado pelo seu gestor, em Administração › Usuários, com a emissão de uma nova senha temporária. Nenhum e-mail é enviado nesse caso.",
+    };
+  }
 
   const supabase = await createClient();
   const origin = await siteOrigin();
-  await supabase.auth.resetPasswordForEmail(email, {
+  await supabase.auth.resetPasswordForEmail(identifier.toLowerCase(), {
     redirectTo: `${origin}/auth/confirm?next=/definir-senha`,
   });
 

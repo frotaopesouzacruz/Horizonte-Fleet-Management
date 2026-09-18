@@ -78,14 +78,21 @@ create or replace function tests.new_user(p_email text, p_full_name text default
 returns uuid language plpgsql as $$
 declare v_id uuid := gen_random_uuid();
 begin
+  -- The token columns are written explicitly as ''. They have no DEFAULT in the
+  -- Supabase schema, so omitting them stores NULL — and GoTrue scans them into a
+  -- non-nullable Go string, so a single NULL makes /token and /recover answer 500
+  -- for that user. A row built here must look exactly like one the Auth API built.
   insert into auth.users
     (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
-     raw_app_meta_data, raw_user_meta_data, created_at, updated_at, is_sso_user, is_anonymous)
+     raw_app_meta_data, raw_user_meta_data, created_at, updated_at, is_sso_user, is_anonymous,
+     confirmation_token, recovery_token, email_change, email_change_token_new,
+     email_change_token_current, phone_change, phone_change_token, reauthentication_token)
   values
     (v_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', p_email,
      extensions.crypt('test-only-not-a-real-password', extensions.gen_salt('bf')), now(),
      '{"provider":"email","providers":["email"]}'::jsonb,
-     jsonb_build_object('full_name', coalesce(p_full_name, p_email)), now(), now(), false, false);
+     jsonb_build_object('full_name', coalesce(p_full_name, p_email)), now(), now(), false, false,
+     '', '', '', '', '', '', '', '');
   return v_id;
 end; $$;
 

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { safeNext } from "@/lib/auth/login-identity";
 
 /**
  * Landing point for every Supabase Auth e-mail (invite, recovery, e-mail
@@ -11,8 +12,7 @@ export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
-  const next = searchParams.get("next") ?? "/dashboard";
-  const safeNext = next.startsWith("/") ? next : "/dashboard";
+  const target = safeNext(searchParams.get("next"));
 
   if (!tokenHash || !type) {
     return NextResponse.redirect(new URL("/login?erro=link-invalido", origin));
@@ -25,5 +25,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/login?erro=link-expirado", origin));
   }
 
-  return NextResponse.redirect(new URL(safeNext, origin));
+  return NextResponse.redirect(new URL(target, origin));
 }

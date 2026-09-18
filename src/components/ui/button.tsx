@@ -9,7 +9,12 @@ import { cn } from "@/lib/cn";
 /**
  * Button — the single button of the product. Hierarchy:
  * primary (Horizonte blue) › secondary › outline › ghost › danger.
- * Gold (`highlight`) is intentionally not a button variant.
+ *
+ * `highlight` (Horizonte gold) is the exception, and stays one: it is reserved
+ * for the single decisive action of an institutional surface — the login
+ * screen's "Acessar Sistema". Inside the application the hierarchy above is the
+ * only one, because gold next to gold stops meaning anything. The foreground is
+ * the near-black `highlight-fg`, not white: gold carries white at 1.8:1.
  */
 export const buttonVariants = cva(
   [
@@ -27,6 +32,7 @@ export const buttonVariants = cva(
           "border border-border-strong bg-surface text-fg hover:bg-secondary active:bg-secondary-hover",
         ghost: "text-fg-secondary hover:bg-secondary hover:text-fg active:bg-secondary-hover",
         danger: "bg-danger text-danger-fg hover:bg-danger-hover active:bg-danger-active",
+        highlight: "bg-highlight text-highlight-fg hover:bg-highlight-hover active:bg-highlight-hover",
         link: "h-auto px-0 text-link underline-offset-4 hover:text-link-hover hover:underline",
       },
       size: {
