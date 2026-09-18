@@ -65,23 +65,19 @@ export function InstitutionalPanel() {
 
       <div
         aria-hidden
-        className="absolute inset-0 bg-linear-to-t from-background/92 via-background/45 to-background/10"
+        className="absolute inset-0 bg-linear-to-t from-background/90 via-background/55 to-background/38"
       />
 
-      <div className="absolute inset-0 flex flex-col justify-between p-8 xl:p-12">
-        {/* The chip is not decoration: this line sits on the photograph's pale
-            wall in the light theme, where plain text on the image disappears.
-            A contrast checker cannot see it — it reports text over an image as
-            "incomplete", never as a violation — so the backing is the fix. */}
-        <p className="flex w-fit items-center gap-2 rounded-full border border-border/60 bg-surface/75 px-3.5 py-1.5 text-caption font-semibold uppercase tracking-[0.2em] text-fg-secondary backdrop-blur-sm">
-          <span className="relative flex size-2">
+      <div className="absolute inset-0 flex flex-col justify-between px-8 pt-8 pb-[14vh] xl:px-12 xl:pt-10">
+        <p className="flex items-center gap-2.5 text-caption font-semibold uppercase tracking-[0.22em] text-fg-secondary">
+          <span className="relative flex size-1.5">
             <span className="absolute inline-flex size-full animate-ping rounded-full bg-highlight opacity-70 motion-reduce:hidden" />
-            <span className="relative inline-flex size-2 rounded-full bg-highlight" />
+            <span className="relative inline-flex size-1.5 rounded-full bg-highlight" />
           </span>
           Central operacional · Online
         </p>
 
-        <div className="max-w-xl">
+        <div className="max-w-lg">
           <p className="inline-flex items-center gap-1.5 rounded-full border border-highlight/60 px-3 py-1 text-caption font-semibold uppercase tracking-[0.16em] text-highlight-soft-fg">
             <Zap className="size-3.5" aria-hidden />
             Plataforma Enterprise
@@ -89,13 +85,13 @@ export function InstitutionalPanel() {
 
           {/* aria-live: the headline changes on its own, so a screen reader is
               told politely rather than left reading a stale line. */}
-          <h2 aria-live="polite" className="mt-5 text-display font-semibold text-fg">
+          <h2 aria-live="polite" className="mt-4 max-w-[15ch] text-display font-semibold leading-[1.06] text-fg">
             {headline.lead} <span className="text-highlight-soft-fg">{headline.accent}</span>
           </h2>
 
-          <p className="mt-4 max-w-md text-body text-fg-secondary">{SUMMARY}</p>
+          <p className="mt-4 max-w-[38ch] text-body-sm text-fg-secondary">{SUMMARY}</p>
 
-          <div className="mt-7 flex items-center gap-2">
+          <div className="mt-6 flex items-center gap-1.5">
             {HEADLINES.map((item, position) => (
               <button
                 key={item.accent}
@@ -104,8 +100,8 @@ export function InstitutionalPanel() {
                 aria-current={position === index}
                 aria-label={item.lead + " " + item.accent}
                 className={
-                  "h-1 rounded-full hfm-transition hfm-focus-ring " +
-                  (position === index ? "w-8 bg-highlight" : "w-4 bg-fg-muted/40 hover:bg-fg-muted/70")
+                  "h-[3px] rounded-full hfm-transition hfm-focus-ring " +
+                  (position === index ? "w-8 bg-highlight" : "w-5 bg-fg-muted/45 hover:bg-fg-muted/75")
                 }
               />
             ))}

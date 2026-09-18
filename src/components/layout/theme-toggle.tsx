@@ -49,6 +49,33 @@ export function ThemeToggle({ className }: { className?: string }) {
   );
 }
 
+/**
+ * Single-click light/dark switch, for the institutional surfaces (login,
+ * recovery, password). A menu asking Claro/Escuro/Sistema is three decisions on
+ * a screen whose only job is to let someone in; inside the product the full
+ * ThemeToggle above still offers all three.
+ *
+ * The icon is the destination, not the current state: one click, one outcome.
+ * `toggle()` writes an explicit light/dark preference, so "system" survives as
+ * the default for anyone who never touched it and is simply resolved away once
+ * they do.
+ */
+export function ThemeSwitch({ className }: { className?: string }) {
+  const { resolved, mounted, toggle } = useTheme();
+  const dark = resolved === "dark";
+
+  // Before hydration the resolved theme is unknown; rendering the light-theme
+  // icon and a neutral label avoids announcing an action that may be backwards.
+  const Icon = mounted && dark ? Sun : Moon;
+  const label = !mounted ? "Alterar tema" : dark ? "Ativar tema claro" : "Ativar tema escuro";
+
+  return (
+    <IconButton label={label} variant="ghost" className={className} onClick={toggle}>
+      <Icon aria-hidden />
+    </IconButton>
+  );
+}
+
 /** Inline segmented variant for settings pages. */
 export function ThemeSegmented({ className }: { className?: string }) {
   const { preference, setPreference, mounted } = useTheme();

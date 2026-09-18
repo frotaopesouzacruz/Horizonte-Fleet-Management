@@ -9,3 +9,19 @@
 
 /* Dark mode is class-based (.dark on <html>), controlled by the ThemeProvider. */
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* -----------------------------------------------------------------------------
+   Theme transition, scoped to the institutional surfaces.
+   Switching theme should read as the screen settling, not as a cut. Only the
+   four properties that actually change are animated — never layout, never
+   shadow — and the rule is scoped to this subtree rather than `*`, so the
+   application shell keeps repainting instantly.
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: no-preference) {
+  .hfm-theme-transition,
+  .hfm-theme-transition *:not(svg):not(path) {
+    transition-property: color, background-color, border-color, fill;
+    transition-duration: 250ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}

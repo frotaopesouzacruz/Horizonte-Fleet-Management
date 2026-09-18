@@ -4,7 +4,7 @@ import * as React from "react";
 import { KeyRound } from "lucide-react";
 import { setPassword, type ActionState } from "@/lib/auth/actions";
 import { BrandLogo } from "@/components/brand/brand-logo";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { ThemeSwitch } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
 import { FormField } from "@/components/ui/form-field";
@@ -27,7 +27,7 @@ export function SetPasswordView({ email }: { email: string | null }) {
     <div className="flex min-h-dvh flex-col bg-background">
       <header className="flex items-center justify-between px-6 py-5 sm:px-10">
         <BrandLogo height={46} />
-        <ThemeToggle />
+        <ThemeSwitch />
       </header>
 
       <main className="flex flex-1 items-center justify-center px-6 pb-10 sm:px-10">

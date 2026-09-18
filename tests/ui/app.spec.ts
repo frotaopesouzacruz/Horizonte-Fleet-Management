@@ -68,12 +68,21 @@ test.describe("theme", () => {
     await context.close();
   });
 
-  test("theme menu switches the applied theme", async ({ page }) => {
+  test("one click switches the theme on the login screen", async ({ page }) => {
     await page.goto("/login");
     await setTheme(page, "light");
-    await page.getByRole("button", { name: "Alterar tema" }).click();
-    await page.getByRole("menuitemradio", { name: "Escuro" }).click();
+
+    // The institutional surfaces carry a switch, not a menu: one click, one
+    // outcome, and the icon names the destination rather than the current state.
+    await page.getByRole("button", { name: "Ativar tema escuro" }).click();
     await expect.poll(() => htmlClass(page)).toContain("dark");
+
+    await page.getByRole("button", { name: "Ativar tema claro" }).click();
+    await expect.poll(() => htmlClass(page)).not.toContain("dark");
+
+    // and the choice survives a reload
+    await page.reload();
+    expect(await htmlClass(page)).not.toContain("dark");
   });
 });
 
@@ -167,13 +176,32 @@ test.describe("login", () => {
     await page.getByRole("textbox", { name: "Matrícula ou e-mail" }).focus();
 
     await page.keyboard.press("Tab");
+    await expect(page.getByRole("link", { name: "Esqueci minha senha" })).toBeFocused();
+    await page.keyboard.press("Tab");
     await expect(passwordField(page)).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(page.getByRole("button", { name: "Mostrar senha" })).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(page.getByRole("button", { name: "Acessar Sistema" })).toBeFocused();
-    await page.keyboard.press("Tab");
-    await expect(page.getByRole("link", { name: "Esqueci minha senha" })).toBeFocused();
+  });
+
+  test("no horizontal overflow, and the form survives, at every supported width", async ({ page }) => {
+    // The login screen is the one surface every person meets before there is a
+    // session, so its responsiveness cannot ride on the authenticated tests.
+    for (const width of [1920, 1600, 1440, 1366, 1280, 1024, 768, 430, 390]) {
+      await page.setViewportSize({ width, height: width < 700 ? 844 : 900 });
+      await page.goto("/login");
+
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow, `viewport ${width}px`).toBeLessThanOrEqual(1);
+
+      // Below lg the institutional column is dropped; authentication is not.
+      await expect(page.getByRole("textbox", { name: "Matrícula ou e-mail" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Acessar Sistema" })).toBeVisible();
+      await expect(page.locator('input[name="password"]')).toBeVisible();
+    }
   });
 
   test("the institutional carousel is operable and stops for a pointer", async ({ page }) => {
