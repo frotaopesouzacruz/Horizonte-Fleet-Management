@@ -1,0 +1,32 @@
+/* =============================================================================
+   Horizonte Fleet Management — typography tokens
+   Montserrat (self-hosted via @fontsource-variable) with system fallbacks.
+   Dense, legible scale for operational B2B screens (base 14px).
+   ========================================================================== */
+
+:root {
+  --font-sans: "Montserrat Variable", "Montserrat", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* size / line-height pairs */
+  --text-display: 28px;      --leading-display: 34px;
+  --text-h1: 22px;           --leading-h1: 28px;
+  --text-h2: 18px;           --leading-h2: 24px;
+  --text-h3: 16px;           --leading-h3: 22px;
+  --text-h4: 14px;           --leading-h4: 20px;
+  --text-body: 14px;         --leading-body: 20px;
+  --text-body-sm: 13px;      --leading-body-sm: 18px;
+  --text-label: 13px;        --leading-label: 16px;
+  --text-caption: 12px;      --leading-caption: 16px;
+  --text-helper: 12px;       --leading-helper: 16px;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --tracking-tight: -0.01em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.04em;
+}

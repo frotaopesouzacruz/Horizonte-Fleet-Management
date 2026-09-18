@@ -1,0 +1,11 @@
+@import "tailwindcss";
+@import "@fontsource-variable/montserrat";
+
+@import "../design-system/tokens/colors.css";
+@import "../design-system/tokens/shape.css";
+@import "../design-system/tokens/typography.css";
+@import "../design-system/theme/tailwind-theme.css";
+@import "../design-system/foundations/base.css";
+
+/* Dark mode is class-based (.dark on <html>), controlled by the ThemeProvider. */
+@custom-variant dark (&:where(.dark, .dark *));
