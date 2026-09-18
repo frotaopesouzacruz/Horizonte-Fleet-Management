@@ -65,9 +65,11 @@ function LocalClock() {
 /**
  * Login against Supabase Auth.
  *
- * One identifier field takes either a matrícula or an e-mail — 124 of the 144
- * imported employees have no e-mail at all, so an e-mail-only form would lock
- * most of the base out. Which of the two was typed is decided server-side.
+ * One identifier field takes either a matrícula or an e-mail, because the two
+ * halves of the base are identified differently: the Operacional profile signs
+ * in with the matrícula (123 of the 143 employees, none of whom has an e-mail)
+ * and every other profile with the registered corporate e-mail. Which one was
+ * typed is decided server-side, by the presence of `@`.
  *
  * Client-side validation only decides when the form is worth submitting; the
  * answer always comes from the server, and a failure is reported with a single
@@ -125,7 +127,12 @@ export function LoginView({ next, linkError }: { next?: string; linkError?: stri
                 </Alert>
               ) : null}
 
-              <FormField label="Matrícula ou e-mail" labelClassName={FIELD_LABEL} error={identifierError}>
+              <FormField
+                label="Matrícula ou e-mail"
+                labelClassName={FIELD_LABEL}
+                error={identifierError}
+                helperText="Perfil Operacional entra pela matrícula. Demais perfis, pelo e-mail corporativo."
+              >
                 <Input
                   size="lg"
                   type="text"

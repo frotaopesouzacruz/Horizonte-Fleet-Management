@@ -109,14 +109,29 @@ select count(*) from auth.users
 
 ### Sign-in identity
 
-Supabase Auth identifies an account by e-mail or phone and by nothing else.
-123 of the 143 imported employees have no e-mail, so signing in by matrícula
-requires a derived login address and a domain with a null MX. That decision is
-open; until it is taken, only the accounts that have a real e-mail can sign in.
-The login form already accepts both and routes on the presence of `@`.
+Supabase Auth identifies an account by an e-mail or a phone number and by
+nothing else. The base is split in two, and `business_profiles.login_method`
+says which half a person is in:
 
-## 6. Retention
+| `login_method` | Profiles | People | Signs in with |
+| --- | --- | --- | --- |
+| `employee_code` | Operacional | 123 | the matrícula |
+| `email` | the other six | 20 | the registered corporate e-mail |
 
-`public.purge_expired_import_batches()` deletes import staging older than
-`expires_at` (30 days). It is service-role only; schedule it with pg_cron or an
-Edge Function so raw personal data does not linger.
+The split is exact: every Operacional employee has no e-mail, and every
+employee on another profile has one. It is a stored column, not a match against
+the profile's name — renaming "Operacional" would otherwise lock 123 people out
+in silence.
+
+A matrícula is carried by a derived login address, `<matrícula>@<HFM_LOGIN_DOMAIN>`,
+defaulting to `<namespace>.invalid`. RFC 2606 §2 reserves the `.invalid` TLD for
+names that must never resolve, so the address is provably undeliverable and no
+DNS work is needed. It is not a contact address and is never displayed as one;
+`employees.corporate_email` stays NULL for those 123 people.
+
+Point `HFM_LOGIN_DOMAIN` at a real subdomain only after publishing a null MX
+(`MX 0 .`) and `v=spf1 -all` on it, or a mailbox could one day exist at an
+address the product treats as unreachable.
+
+The address is derived, never looked up. A resolver endpoint would answer "does
+matrícula 140349 exist?" to anyone who asked, and the codes are sequential.

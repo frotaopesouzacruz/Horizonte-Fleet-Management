@@ -5,7 +5,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ACTIVE_ORG_COOKIE, getSessionContext } from "@/lib/auth/session";
-import { isEmailIdentifier, safeNext } from "@/lib/auth/login-identity";
+import { isEmailIdentifier, loginEmailForCode, safeNext } from "@/lib/auth/login-identity";
 
 export interface ActionState {
   error?: string;
@@ -25,15 +25,16 @@ export async function siteOrigin() {
 /**
  * Sign in with corporate credentials.
  *
- * The form has one identifier field taking either a matrícula or an e-mail,
- * because 123 of the 143 imported employees have no e-mail at all.
+ * One identifier field takes both, because the two halves of the base are
+ * identified differently: people on the Operacional profile sign in with their
+ * matrícula — 123 of them have no e-mail at all — and every other profile signs
+ * in with the registered corporate e-mail. Which applies to whom is stored on
+ * `business_profiles.login_method`; the form does not need to know, because the
+ * presence of `@` already separates the two.
  *
- * Only the e-mail branch can authenticate today. Supabase Auth identifies an
- * account by e-mail or phone and by nothing else, so signing in by matrícula
- * needs a login address derived from it — a decision with its own policy and
- * DNS requirements that is not made here. Until it is, a matrícula reaches the
- * same generic failure as a wrong password, which is also what keeps this form
- * from answering "does 140349 exist?".
+ * A matrícula is turned into its login address by pure derivation, with no
+ * lookup. That is the point: a resolver endpoint would answer "does matrícula
+ * 140349 exist?" to anyone who asked, and codes are sequential enough to walk.
  *
  * Failures are reported with one generic message on purpose: telling the caller
  * whether an account exists would turn the form into an account oracle.
@@ -46,17 +47,18 @@ export async function signIn(_state: ActionState, formData: FormData): Promise<A
   if (!identifier || !password) return { error: "Informe sua matrícula ou e-mail e a senha." };
 
   const generic = { error: "Matrícula, e-mail ou senha inválidos." };
-  if (!isEmailIdentifier(identifier)) return generic;
+
+  const email = isEmailIdentifier(identifier)
+    ? identifier.toLowerCase()
+    : loginEmailForCode(identifier);
+  if (!email) return generic;
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({
-    email: identifier.toLowerCase(),
-    password,
-  });
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
     if (error.message.toLowerCase().includes("email not confirmed")) {
-      return { error: "Conta ainda não ativada. Utilize o link enviado por e-mail para definir sua senha." };
+      return { error: "Conta ainda não ativada. Procure seu gestor para receber uma nova senha temporária." };
     }
     return generic;
   }
