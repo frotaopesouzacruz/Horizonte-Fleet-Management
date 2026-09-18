@@ -59,13 +59,29 @@ export function visibleNavigation(permissions: string[], isPlatformAdmin = false
 }
 
 /**
- * Navigation model of the product. Groups are prepared for every planned
- * module; only Dashboard exists in this stage, the rest is marked `planned`.
+ * Navigation model of the product.
+ *
+ * Administração sits directly under the Dashboard, ahead of the operational
+ * groups, because it is what exists: eighteen of the twenty-one entries are
+ * `planned` placeholders, and burying the one working module at the bottom of
+ * them made it unreachable in practice. The order follows what a person can
+ * actually open, not the eventual shape of the product.
  */
 export const navigation: NavGroup[] = [
   {
     id: "home",
     items: [{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard }],
+  },
+  {
+    // First implemented structure. New administrative modules are added here
+    // without touching the Sidebar itself.
+    id: "admin",
+    label: "Administração",
+    items: [
+      { label: "Usuários", href: "/administracao/usuarios", icon: Users, permission: "users.view" },
+      { label: "Cadastros", href: "/administracao/cadastros", icon: ClipboardList, planned: true },
+      { label: "Configurações", href: "/administracao/configuracoes", icon: Settings, planned: true },
+    ],
   },
   {
     id: "fleet",
@@ -110,17 +126,6 @@ export const navigation: NavGroup[] = [
       { label: "Fornecedores", href: "/fornecedores", icon: Building2, planned: true },
       { label: "Documentos", href: "/documentos", icon: FileText, planned: true },
       { label: "Relatórios", href: "/relatorios", icon: BarChart3, planned: true },
-    ],
-  },
-  {
-    // First implemented structure. New administrative modules are added here
-    // without touching the Sidebar itself.
-    id: "admin",
-    label: "Administração",
-    items: [
-      { label: "Usuários", href: "/administracao/usuarios", icon: Users, permission: "users.view" },
-      { label: "Cadastros", href: "/administracao/cadastros", icon: ClipboardList, planned: true },
-      { label: "Configurações", href: "/administracao/configuracoes", icon: Settings, planned: true },
     ],
   },
 ];

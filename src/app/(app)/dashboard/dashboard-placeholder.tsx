@@ -54,13 +54,18 @@ export function DashboardPlaceholder() {
         meta={`${plannedModules.length} módulos · entram nas próximas etapas`}
         padding="none"
         actions={
-          <Link
-            href="/dev/design-system"
-            className="inline-flex items-center gap-1 rounded-xs text-body-sm font-medium text-link hover:text-link-hover hover:underline"
-          >
-            Ver design system
-            <ArrowUpRight className="size-3.5" aria-hidden />
-          </Link>
+          // /dev/design-system is compiled out of a normal production build, so
+          // outside a build made with NEXT_PUBLIC_ENABLE_DEV_PAGES=1 this link
+          // led to a 404 from the dashboard itself.
+          process.env.NEXT_PUBLIC_ENABLE_DEV_PAGES === "1" ? (
+            <Link
+              href="/dev/design-system"
+              className="inline-flex items-center gap-1 rounded-xs text-body-sm font-medium text-link hover:text-link-hover hover:underline"
+            >
+              Ver design system
+              <ArrowUpRight className="size-3.5" aria-hidden />
+            </Link>
+          ) : null
         }
       >
         <ul className="divide-y divide-border-subtle">
