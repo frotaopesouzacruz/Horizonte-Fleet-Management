@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { canAuthenticate, signIn, SKIP_REASON } from "./auth";
 
 /**
  * Accessibility checks (WCAG 2.1 A/AA) on every surface, in both themes.
@@ -36,15 +37,26 @@ async function withTheme(page: Page, url: string, theme: "light" | "dark") {
     .toBe(true);
 }
 
-const surfaces = [
+/** Reachable without a session. */
+const publicSurfaces = [
   { name: "login", url: "/login" },
-  { name: "dashboard", url: "/dashboard" },
+  { name: "recuperar-acesso", url: "/recuperar-acesso" },
   { name: "design-system", url: "/dev/design-system" },
 ];
 
-for (const surface of surfaces) {
+/** Behind the app shell: need a real session against a reachable Supabase. */
+const authenticatedSurfaces = [
+  { name: "dashboard", url: "/dashboard" },
+  { name: "administracao/usuarios", url: "/administracao/usuarios" },
+];
+
+for (const surface of [...publicSurfaces, ...authenticatedSurfaces]) {
+  const needsSession = authenticatedSurfaces.includes(surface);
+
   for (const theme of ["light", "dark"] as const) {
     test(`${surface.name} has no accessibility violations (${theme})`, async ({ page }) => {
+      test.skip(needsSession && !canAuthenticate, SKIP_REASON);
+      if (needsSession) await signIn(page);
       await withTheme(page, surface.url, theme);
 
       const results = await new AxeBuilder({ page })
@@ -68,6 +80,8 @@ for (const surface of surfaces) {
 }
 
 test("interactive elements expose an accessible name", async ({ page }) => {
+  test.skip(!canAuthenticate, SKIP_REASON);
+  await signIn(page);
   await page.goto("/dashboard");
   const unnamed = await page.evaluate(() => {
     const isNamed = (el: Element) => {

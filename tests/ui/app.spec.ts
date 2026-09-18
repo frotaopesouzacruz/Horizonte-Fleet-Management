@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { canAuthenticate, signIn, SKIP_REASON } from "./auth";
 
 /**
  * UI validation for the Horizonte design system: themes, persistence,
@@ -77,6 +78,12 @@ test.describe("theme", () => {
 });
 
 test.describe("app shell", () => {
+  // The shell lives behind authentication now, so these need a real session.
+  test.beforeEach(async ({ page }) => {
+    test.skip(!canAuthenticate, SKIP_REASON);
+    await signIn(page);
+  });
+
   test("sidebar expands, collapses and persists", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/dashboard");

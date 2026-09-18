@@ -10,7 +10,7 @@ import { IconButton } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
-import { navigation, isActivePath, type NavItem } from "./navigation";
+import { visibleNavigation, isActivePath, type NavItem } from "./navigation";
 import { useAppShell } from "./app-shell-context";
 
 /* -------------------------------------------------------------------------- */
@@ -80,9 +80,15 @@ function SidebarItem({ item, collapsed, onNavigate }: { item: NavItem; collapsed
 /* -------------------------------------------------------------------------- */
 
 export function SidebarNav({ collapsed = false, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
+  const { permissions, isPlatformAdmin } = useAppShell();
+  const groups = React.useMemo(
+    () => visibleNavigation(permissions, isPlatformAdmin),
+    [permissions, isPlatformAdmin],
+  );
+
   return (
     <nav aria-label="Navegação principal" className="flex flex-col gap-4 px-2">
-      {navigation.map((group) => (
+      {groups.map((group) => (
         <div key={group.id} className="flex flex-col gap-0.5">
           {group.label ? (
             collapsed ? (

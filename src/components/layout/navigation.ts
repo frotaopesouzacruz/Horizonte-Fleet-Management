@@ -32,12 +32,30 @@ export interface NavItem {
   /** Marks a module that is not implemented yet (rendered muted, non-clickable). */
   planned?: boolean;
   badge?: string;
+  /**
+   * Permission code required to see the entry. Hiding a menu item is a courtesy,
+   * never the boundary: the route re-checks it and RLS enforces it.
+   */
+  permission?: string;
 }
 
 export interface NavGroup {
   id: string;
   label?: string;
   items: NavItem[];
+}
+
+/**
+ * Filters the navigation for a set of permissions, dropping groups that end up
+ * empty. Entries without a `permission` are visible to every member.
+ */
+export function visibleNavigation(permissions: string[], isPlatformAdmin = false): NavGroup[] {
+  const allowed = (item: NavItem) =>
+    !item.permission || isPlatformAdmin || permissions.includes(item.permission);
+
+  return navigation
+    .map((group) => ({ ...group, items: group.items.filter(allowed) }))
+    .filter((group) => group.items.length > 0);
 }
 
 /**
@@ -95,12 +113,14 @@ export const navigation: NavGroup[] = [
     ],
   },
   {
+    // First implemented structure. New administrative modules are added here
+    // without touching the Sidebar itself.
     id: "admin",
     label: "Administração",
     items: [
-      { label: "Usuários", href: "/admin/usuarios", icon: Users, planned: true },
-      { label: "Cadastros", href: "/admin/cadastros", icon: ClipboardList, planned: true },
-      { label: "Configurações", href: "/admin/configuracoes", icon: Settings, planned: true },
+      { label: "Usuários", href: "/administracao/usuarios", icon: Users, permission: "users.view" },
+      { label: "Cadastros", href: "/administracao/cadastros", icon: ClipboardList, planned: true },
+      { label: "Configurações", href: "/administracao/configuracoes", icon: Settings, planned: true },
     ],
   },
 ];

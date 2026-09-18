@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/design-system/theme/theme-provider";
 import { ToastProvider } from "@/components/feedback/toast";
+import { ConfirmProvider } from "@/components/feedback/confirm-dialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 export const metadata: Metadata = {
@@ -31,7 +32,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="font-sans antialiased">
         <ThemeProvider>
           <TooltipProvider>
-            <ToastProvider>{children}</ToastProvider>
+            <ToastProvider>
+              <ConfirmProvider>{children}</ConfirmProvider>
+            </ToastProvider>
           </TooltipProvider>
         </ThemeProvider>
       </body>

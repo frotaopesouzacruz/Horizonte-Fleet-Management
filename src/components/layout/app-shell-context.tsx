@@ -21,6 +21,10 @@ interface AppShellContextValue {
   toggleCollapsed: () => void;
   mobileOpen: boolean;
   setMobileOpen: (value: boolean) => void;
+  /** Permission codes of the caller in the active organization. */
+  permissions: string[];
+  isPlatformAdmin: boolean;
+  can: (permission: string) => boolean;
 }
 
 const AppShellContext = React.createContext<AppShellContextValue | null>(null);
@@ -30,7 +34,15 @@ const AppShellContext = React.createContext<AppShellContextValue | null>(null);
  * by an inline script before paint (see AppShellScript) and persisted in
  * localStorage, so the layout never jumps on load.
  */
-export function AppShellProvider({ children }: { children: React.ReactNode }) {
+export function AppShellProvider({
+  children,
+  permissions = [],
+  isPlatformAdmin = false,
+}: {
+  children: React.ReactNode;
+  permissions?: string[];
+  isPlatformAdmin?: boolean;
+}) {
   const collapsed = React.useSyncExternalStore(subscribe, readCollapsed, () => false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
@@ -51,8 +63,11 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
       toggleCollapsed: () => setCollapsed(!collapsed),
       mobileOpen,
       setMobileOpen,
+      permissions,
+      isPlatformAdmin,
+      can: (permission: string) => isPlatformAdmin || permissions.includes(permission),
     }),
-    [collapsed, setCollapsed, mobileOpen],
+    [collapsed, setCollapsed, mobileOpen, permissions, isPlatformAdmin],
   );
 
   return <AppShellContext.Provider value={value}>{children}</AppShellContext.Provider>;

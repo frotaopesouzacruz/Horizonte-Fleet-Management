@@ -6,6 +6,9 @@ import { Topbar, type TopbarProps } from "./topbar";
 export interface AppShellProps {
   children: React.ReactNode;
   topbar?: TopbarProps;
+  /** Permission codes of the caller, used to filter the navigation. */
+  permissions?: string[];
+  isPlatformAdmin?: boolean;
 }
 
 /**
@@ -13,9 +16,9 @@ export interface AppShellProps {
  * content. The content area offsets by the sidebar width through CSS variables
  * driven by <html data-sidebar>, so there is no layout jump on load.
  */
-export function AppShell({ children, topbar }: AppShellProps) {
+export function AppShell({ children, topbar, permissions, isPlatformAdmin }: AppShellProps) {
   return (
-    <AppShellProvider>
+    <AppShellProvider permissions={permissions} isPlatformAdmin={isPlatformAdmin}>
       <AppShellScript />
       <div className="min-h-dvh bg-background">
         <Sidebar />

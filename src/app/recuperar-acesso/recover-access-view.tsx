@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { ArrowLeft, Send } from "lucide-react";
+import { requestPasswordReset, type ActionState } from "@/lib/auth/actions";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -11,34 +12,19 @@ import { FormField } from "@/components/ui/form-field";
 import { Alert, AlertDescription, AlertTitle } from "@/components/feedback/alert";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const INITIAL_STATE: ActionState = {};
 
 /**
- * Password recovery — visual foundation, same posture as the login screen:
- * the layout and every state exist, the delivery backend does not yet.
+ * Password recovery. The answer is deliberately identical whether or not the
+ * address has an account, so the screen cannot be used to enumerate users.
  */
 export function RecoverAccessView() {
+  const [state, formAction, pending] = React.useActionState(requestPasswordReset, INITIAL_STATE);
   const [email, setEmail] = React.useState("");
   const [touched, setTouched] = React.useState(false);
-  const [loading, setLoading] = React.useState(false);
-  const [notice, setNotice] = React.useState<string | null>(null);
 
   const emailError = touched && !EMAIL_PATTERN.test(email) ? "Informe um e-mail válido." : undefined;
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setTouched(true);
-    setNotice(null);
-    if (!EMAIL_PATTERN.test(email)) return;
-
-    setLoading(true);
-    try {
-      // Supabase Auth recovery is connected in a later stage.
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setNotice("O envio de e-mail de recuperação ainda não está conectado nesta versão do sistema.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const notice = state.notice;
 
   return (
     <div className="flex min-h-dvh flex-col bg-background">
@@ -54,11 +40,25 @@ export function RecoverAccessView() {
             Informe o e-mail corporativo cadastrado. Você receberá um link para definir uma nova senha.
           </p>
 
-          <form onSubmit={handleSubmit} noValidate className="mt-7 flex flex-col gap-4">
+          <form
+            action={formAction}
+            noValidate
+            onSubmit={(event) => {
+              setTouched(true);
+              if (!EMAIL_PATTERN.test(email)) event.preventDefault();
+            }}
+            className="mt-7 flex flex-col gap-4"
+          >
             {notice ? (
               <Alert variant="info">
-                <AlertTitle>Recuperação indisponível</AlertTitle>
+                <AlertTitle>Verifique seu e-mail</AlertTitle>
                 <AlertDescription>{notice}</AlertDescription>
+              </Alert>
+            ) : null}
+            {state.error ? (
+              <Alert variant="danger">
+                <AlertTitle>Não foi possível enviar</AlertTitle>
+                <AlertDescription>{state.error}</AlertDescription>
               </Alert>
             ) : null}
 
@@ -75,8 +75,8 @@ export function RecoverAccessView() {
               />
             </FormField>
 
-            <Button type="submit" size="lg" loading={loading} leadingIcon={<Send />}>
-              {loading ? "Enviando…" : "Enviar link de recuperação"}
+            <Button type="submit" size="lg" loading={pending} leadingIcon={<Send />}>
+              {pending ? "Enviando…" : "Enviar link de recuperação"}
             </Button>
           </form>
 

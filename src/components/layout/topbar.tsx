@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Bell, Building2, ChevronDown, HelpCircle, LogOut, MapPin, Menu, Search, Settings, User } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Bell, Building2, Check, ChevronDown, HelpCircle, LogOut, MapPin, Menu, Search, Settings, User } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button, IconButton } from "@/components/ui/button";
 import {
@@ -18,43 +19,94 @@ import { ThemeToggle } from "./theme-toggle";
 import { useAppShell } from "./app-shell-context";
 
 /* -------------------------------------------------------------------------- */
-/* Context selectors (organization / unit) — visual placeholders wired later  */
+/* Context selectors (organization / unit)                                    */
 /* -------------------------------------------------------------------------- */
 
-function ContextSelector({
-  icon: Icon,
-  label,
-  value,
-  className,
+const selectorTrigger = cn(
+  "inline-flex h-8 max-w-56 items-center gap-2 rounded-sm px-2 text-body-sm hfm-transition hfm-focus-ring",
+  "text-fg-secondary hover:bg-secondary hover:text-fg data-[state=open]:bg-secondary",
+);
+
+/**
+ * Organization switcher. It only ever lists the caller's own memberships, and
+ * the server action re-validates the choice — the cookie is a preference, not
+ * an authorization.
+ */
+function OrganizationSelector({
+  organizations,
+  activeId,
+  fallbackName,
+  onSwitch,
 }: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-  className?: string;
+  organizations: { id: string; name: string }[];
+  activeId?: string;
+  fallbackName: string;
+  onSwitch?: (organizationId: string) => Promise<void>;
 }) {
+  const [pending, startTransition] = React.useTransition();
+  const router = useRouter();
+  const active = organizations.find((o) => o.id === activeId);
+  const value = active?.name ?? fallbackName;
+  const single = organizations.length <= 1;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          aria-label={`${label}: ${value}`}
-          className={cn(
-            "inline-flex h-8 max-w-56 items-center gap-2 rounded-sm px-2 text-body-sm hfm-transition hfm-focus-ring",
-            "text-fg-secondary hover:bg-secondary hover:text-fg data-[state=open]:bg-secondary",
-            className,
-          )}
-        >
-          <Icon className="size-4 shrink-0 text-fg-muted" aria-hidden />
+        <button type="button" aria-label={`Organização: ${value}`} className={selectorTrigger} disabled={pending}>
+          <Building2 className="size-4 shrink-0 text-fg-muted" aria-hidden />
           <span className="truncate font-medium">{value}</span>
           <ChevronDown className="size-3.5 shrink-0 text-fg-muted" aria-hidden />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-56">
-        <DropdownMenuLabel>{label}</DropdownMenuLabel>
+        <DropdownMenuLabel>Organização</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {organizations.length === 0 ? (
+          <div className="px-2 py-1.5 text-caption text-fg-muted">Nenhum vínculo ativo.</div>
+        ) : (
+          organizations.map((organization) => (
+            <DropdownMenuItem
+              key={organization.id}
+              disabled={organization.id === activeId || !onSwitch}
+              onSelect={() =>
+                startTransition(async () => {
+                  await onSwitch?.(organization.id);
+                  router.refresh();
+                })
+              }
+            >
+              <Check className={cn("size-4", organization.id === activeId ? "opacity-100" : "opacity-0")} aria-hidden />
+              {organization.name}
+            </DropdownMenuItem>
+          ))
+        )}
+        {single ? null : (
+          <>
+            <DropdownMenuSeparator />
+            <div className="px-2 py-1.5 text-caption text-fg-muted">A troca recarrega os dados no contexto escolhido.</div>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function UnitSelector({ value }: { value: string }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" aria-label={`Unidade: ${value}`} className={selectorTrigger}>
+          <MapPin className="size-4 shrink-0 text-fg-muted" aria-hidden />
+          <span className="truncate font-medium">{value}</span>
+          <ChevronDown className="size-3.5 shrink-0 text-fg-muted" aria-hidden />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-56">
+        <DropdownMenuLabel>Unidade</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled>{value}</DropdownMenuItem>
         <DropdownMenuSeparator />
-        <div className="px-2 py-1.5 text-caption text-fg-muted">A troca de contexto será habilitada com o módulo de administração.</div>
+        <div className="px-2 py-1.5 text-caption text-fg-muted">O filtro por unidade entra com os módulos operacionais.</div>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -101,6 +153,11 @@ export interface TopbarProps {
   userEmail?: string;
   organizationName?: string;
   unitName?: string;
+  /** Organizations the caller belongs to (active memberships only). */
+  organizations?: { id: string; name: string }[];
+  activeOrganizationId?: string;
+  onSignOut?: () => Promise<void>;
+  onSwitchOrganization?: (organizationId: string) => Promise<void>;
 }
 
 export function Topbar({
@@ -108,8 +165,13 @@ export function Topbar({
   userEmail,
   organizationName = "Organização",
   unitName = "Todas as unidades",
+  organizations = [],
+  activeOrganizationId,
+  onSignOut,
+  onSwitchOrganization,
 }: TopbarProps) {
   const { setMobileOpen } = useAppShell();
+  const [signingOut, startSignOut] = React.useTransition();
   const initials = userName
     .split(" ")
     .filter(Boolean)
@@ -128,9 +190,14 @@ export function Topbar({
       </IconButton>
 
       <div className="hidden items-center gap-1 lg:flex">
-        <ContextSelector icon={Building2} label="Organização" value={organizationName} />
+        <OrganizationSelector
+          organizations={organizations}
+          activeId={activeOrganizationId}
+          fallbackName={organizationName}
+          onSwitch={onSwitchOrganization}
+        />
         <span aria-hidden className="h-4 w-px bg-border" />
-        <ContextSelector icon={MapPin} label="Unidade" value={unitName} />
+        <UnitSelector value={unitName} />
       </div>
 
       <div className="flex min-w-0 flex-1 justify-center px-1 md:justify-end">
@@ -190,9 +257,12 @@ export function Topbar({
               Ajuda
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled>
+            <DropdownMenuItem
+              disabled={!onSignOut || signingOut}
+              onSelect={() => startSignOut(async () => { await onSignOut?.(); })}
+            >
               <LogOut aria-hidden />
-              Sair
+              {signingOut ? "Saindo…" : "Sair"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

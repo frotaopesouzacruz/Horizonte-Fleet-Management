@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { ArrowRight, ShieldCheck } from "lucide-react";
+import { signIn, type ActionState } from "@/lib/auth/actions";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { BrandBackground } from "@/components/brand/brand-background";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
@@ -14,39 +15,24 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/feedback/alert
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const INITIAL_STATE: ActionState = {};
+
 /**
- * Login — visual foundation.
+ * Login against Supabase Auth.
  *
- * Authentication is not wired yet: this stage establishes the layout, the brand
- * surfaces and every form state (idle, invalid, loading, error). The submit
- * handler validates locally and then reports that the session backend is not
- * connected. It never fakes a successful sign-in.
+ * Client-side validation only decides when the form is worth submitting; the
+ * answer always comes from the server, and a failure is reported with a single
+ * generic message so the screen cannot be used to probe which e-mails exist.
  */
-export function LoginView() {
+export function LoginView({ next, linkError }: { next?: string; linkError?: string }) {
+  const [state, formAction, pending] = React.useActionState(signIn, INITIAL_STATE);
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
   const [touched, setTouched] = React.useState(false);
 
   const emailError = touched && !EMAIL_PATTERN.test(email) ? "Informe um e-mail válido." : undefined;
-  const passwordError = touched && password.length < 6 ? "A senha deve ter ao menos 6 caracteres." : undefined;
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setTouched(true);
-    setError(null);
-    if (!EMAIL_PATTERN.test(email) || password.length < 6) return;
-
-    setLoading(true);
-    try {
-      // Supabase Auth is connected in a later stage.
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      setError("A autenticação ainda não está conectada nesta versão do sistema.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const passwordError = touched && password.length < 6 ? "Informe sua senha." : undefined;
+  const error = state.error ?? linkError;
 
   return (
     <div className="grid min-h-dvh grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] xl:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]">
@@ -64,7 +50,16 @@ export function LoginView() {
               Informe suas credenciais corporativas para entrar na plataforma.
             </p>
 
-            <form onSubmit={handleSubmit} noValidate className="mt-7 flex flex-col gap-4">
+            <form
+              action={formAction}
+              noValidate
+              onSubmit={(event) => {
+                setTouched(true);
+                if (!EMAIL_PATTERN.test(email) || password.length < 6) event.preventDefault();
+              }}
+              className="mt-7 flex flex-col gap-4"
+            >
+              <input type="hidden" name="next" value={next ?? "/dashboard"} />
               {error ? (
                 <Alert variant="danger">
                   <AlertTitle>Não foi possível entrar</AlertTitle>
@@ -108,10 +103,10 @@ export function LoginView() {
                 />
               </FormField>
 
-              <CheckboxField defaultChecked label="Manter conectado neste dispositivo" />
+              <CheckboxField defaultChecked name="remember" label="Manter conectado neste dispositivo" />
 
-              <Button type="submit" size="lg" loading={loading} trailingIcon={<ArrowRight />} className="mt-1">
-                {loading ? "Entrando…" : "Entrar"}
+              <Button type="submit" size="lg" loading={pending} trailingIcon={<ArrowRight />} className="mt-1">
+                {pending ? "Entrando…" : "Entrar"}
               </Button>
             </form>
 
