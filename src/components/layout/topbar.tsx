@@ -129,7 +129,7 @@ function GlobalSearch({ className }: { className?: string }) {
           )}
         >
           <Search className="size-4 shrink-0" aria-hidden />
-          <span className="hidden truncate md:inline">Buscar veículos, motoristas, unidades…</span>
+          <span className="hidden truncate md:inline">Buscar no sistema…</span>
           <span className="sr-only md:hidden">Buscar</span>
           <kbd className="ml-auto hidden rounded-xs border border-border bg-surface-secondary px-1.5 font-sans text-[11px] text-fg-muted md:inline-block">
             Ctrl K
@@ -201,7 +201,7 @@ export function Topbar({
       </div>
 
       <div className="flex min-w-0 flex-1 justify-center px-1 md:justify-end">
-        <GlobalSearch className="w-full min-w-0 max-w-xs md:max-w-sm lg:w-72 xl:w-80" />
+        <GlobalSearch className="w-full min-w-0 max-w-xs md:w-[300px] md:max-w-none xl:w-[340px]" />
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5">

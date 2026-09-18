@@ -3,15 +3,20 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronsLeft, ChevronsRight } from "lucide-react";
+import { ChevronDown, ChevronsLeft, ChevronsRight, Settings } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { IconButton } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
-import { visibleNavigation, isActivePath, type NavItem } from "./navigation";
+import { visibleNavigation, isActivePath, type NavGroup, type NavItem } from "./navigation";
 import { useAppShell } from "./app-shell-context";
+import { usePersistedSet } from "@/lib/use-persisted-set";
+
+const GROUPS_STORAGE_KEY = "hfm.nav.closed";
+/** Nothing closed. Module-level so the snapshot keeps its identity. */
+const ALL_OPEN: readonly string[] = [];
 
 /* -------------------------------------------------------------------------- */
 /* Nav item                                                                   */
@@ -25,30 +30,36 @@ function SidebarItem({ item, collapsed, onNavigate }: { item: NavItem; collapsed
   const content = (
     <span
       className={cn(
-        "relative flex h-[34px] items-center gap-3 rounded-sm px-2.5 text-body-sm font-medium hfm-transition",
-        collapsed && "justify-center px-0",
+        "relative flex h-(--sidebar-item-height) items-center gap-2.5 rounded-sm text-body-sm hfm-transition",
+        collapsed ? "w-10 justify-center px-0" : "px-2.5",
         active
-          ? "bg-primary-soft text-primary-soft-fg"
+          ? "bg-primary-soft font-semibold text-primary-soft-fg"
           : item.planned
-            ? "text-fg-disabled"
-            : "text-fg-secondary hover:bg-secondary hover:text-fg",
+            ? "font-medium text-fg-disabled"
+            : "font-medium text-fg-secondary hover:bg-hover-overlay hover:text-fg",
       )}
     >
-      {active ? <span aria-hidden className="absolute top-1.5 bottom-1.5 -left-2 w-0.5 rounded-r bg-primary" /> : null}
-      <Icon className="size-[18px] shrink-0" strokeWidth={1.75} aria-hidden />
+      {/* The active marker is a rule on the item's own left edge, not a filled
+          block: at a glance you read "this one", not "this is a button". */}
+      {active ? (
+        <span aria-hidden className="absolute top-1.5 bottom-1.5 left-0 w-[3px] rounded-r-full bg-primary" />
+      ) : null}
+      <Icon
+        className={cn("size-[18px] shrink-0", active ? "text-primary" : item.planned ? "" : "text-fg-muted")}
+        strokeWidth={active ? 2 : 1.75}
+        aria-hidden
+      />
       {!collapsed ? <span className="truncate">{item.label}</span> : null}
       {!collapsed && item.badge ? (
-        <span className="ml-auto rounded-xs bg-secondary px-1.5 text-caption tabular-nums text-fg-secondary">{item.badge}</span>
+        <span className="ml-auto rounded-xs bg-secondary px-1.5 text-caption tabular-nums text-fg-secondary">
+          {item.badge}
+        </span>
       ) : null}
     </span>
   );
 
   const node = item.planned ? (
-    <span
-      aria-disabled="true"
-      title={collapsed ? undefined : "Módulo em desenvolvimento"}
-      className="block cursor-default select-none"
-    >
+    <span aria-disabled="true" className="block cursor-default select-none">
       {content}
     </span>
   ) : (
@@ -62,16 +73,93 @@ function SidebarItem({ item, collapsed, onNavigate }: { item: NavItem; collapsed
     </Link>
   );
 
-  if (!collapsed) return node;
+  // Collapsed has no labels, and a planned module has to say why it does not
+  // respond. Both are the same affordance, so both get the same tooltip.
+  if (!collapsed && !item.planned) return node;
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>{node}</TooltipTrigger>
       <TooltipContent side="right">
-        {item.label}
-        {item.planned ? <span className="ml-1 text-fg-muted">· em desenvolvimento</span> : null}
+        {collapsed ? item.label : null}
+        {item.planned ? (
+          <span className={collapsed ? "ml-1 text-fg-muted" : undefined}>
+            {collapsed ? "· em desenvolvimento" : "Módulo em desenvolvimento"}
+          </span>
+        ) : null}
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Group                                                                      */
+/* -------------------------------------------------------------------------- */
+
+function SidebarGroup({
+  group,
+  collapsed,
+  open,
+  onToggle,
+  onNavigate,
+}: {
+  group: NavGroup;
+  collapsed: boolean;
+  open: boolean;
+  onToggle: () => void;
+  onNavigate?: () => void;
+}) {
+  const listId = `nav-group-${group.id}`;
+
+  // Collapsed leaves no room for a label, so the grouping is carried by a rule.
+  if (collapsed) {
+    return (
+      <div className="flex flex-col items-center gap-1">
+        {group.label ? <div aria-hidden className="my-1 h-px w-8 bg-border" /> : null}
+        <ul className="flex flex-col items-center gap-1">
+          {group.items.map((item) => (
+            <li key={item.href}>
+              <SidebarItem item={item} collapsed onNavigate={onNavigate} />
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      {group.label ? (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-controls={listId}
+          className={cn(
+            "group flex h-7 items-center gap-1 rounded-xs px-2.5 text-overline font-semibold uppercase",
+            "text-fg-muted hfm-transition hover:text-fg-secondary hfm-focus-ring",
+          )}
+        >
+          <span className="truncate">{group.label}</span>
+          <ChevronDown
+            aria-hidden
+            className={cn(
+              "size-3.5 shrink-0 opacity-0 hfm-transition group-hover:opacity-100 group-focus-visible:opacity-100",
+              !open && "-rotate-90 opacity-100",
+            )}
+          />
+        </button>
+      ) : null}
+      {open ? (
+        <ul id={listId} className="flex flex-col gap-0.5">
+          {group.items.map((item) => (
+            <li key={item.href}>
+              <SidebarItem item={item} collapsed={false} onNavigate={onNavigate} />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 
@@ -86,27 +174,56 @@ export function SidebarNav({ collapsed = false, onNavigate }: { collapsed?: bool
     [permissions, isPlatformAdmin],
   );
 
+  // Every group starts open: a menu that hides its own contents on first visit
+  // is a menu nobody discovers. What someone closes is remembered, nothing else.
+  const [closed, toggle] = usePersistedSet(GROUPS_STORAGE_KEY, ALL_OPEN);
+
   return (
-    <nav aria-label="Navegação principal" className="flex flex-col gap-4 px-2">
+    <nav aria-label="Navegação principal" className={cn("flex flex-col gap-3", collapsed ? "px-3" : "px-3")}>
       {groups.map((group) => (
-        <div key={group.id} className="flex flex-col gap-0.5">
-          {group.label ? (
-            collapsed ? (
-              <div aria-hidden className="mx-2 my-1 h-px bg-border" />
-            ) : (
-              <h2 className="px-2.5 pt-1 pb-1.5 text-[11px] font-semibold tracking-wide text-fg-muted uppercase">{group.label}</h2>
-            )
-          ) : null}
-          <ul className="flex flex-col gap-0.5">
-            {group.items.map((item) => (
-              <li key={item.href}>
-                <SidebarItem item={item} collapsed={collapsed} onNavigate={onNavigate} />
-              </li>
-            ))}
-          </ul>
-        </div>
+        <SidebarGroup
+          key={group.id}
+          group={group}
+          collapsed={collapsed}
+          open={!closed.includes(group.id)}
+          onToggle={() => toggle(group.id)}
+          onNavigate={onNavigate}
+        />
       ))}
     </nav>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Footer                                                                     */
+/* -------------------------------------------------------------------------- */
+
+function SidebarFooter({ collapsed }: { collapsed: boolean }) {
+  const settings = (
+    <span
+      className={cn(
+        "flex h-(--sidebar-item-height) items-center gap-2.5 rounded-sm text-body-sm font-medium text-fg-disabled",
+        collapsed ? "w-10 justify-center px-0" : "px-2.5",
+      )}
+    >
+      <Settings className="size-[18px] shrink-0" strokeWidth={1.75} aria-hidden />
+      {!collapsed ? <span className="truncate">Configurações</span> : null}
+    </span>
+  );
+
+  return (
+    <div className="shrink-0 border-t border-border px-3 py-2">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span aria-disabled="true" className="block cursor-default select-none">
+            {settings}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="right">
+          {collapsed ? "Configurações · " : null}Módulo em desenvolvimento
+        </TooltipContent>
+      </Tooltip>
+    </div>
   );
 }
 
@@ -121,21 +238,37 @@ export function Sidebar() {
     <aside
       data-collapsed={collapsed || undefined}
       className={cn(
-        "hidden lg:flex fixed inset-y-0 left-0 z-(--z-sidebar) flex-col border-r border-border bg-surface-sidebar",
+        "fixed inset-y-0 left-0 z-(--z-sidebar) hidden flex-col border-r border-border bg-surface-sidebar lg:flex",
         "w-(--sidebar-current-width) transition-[width] duration-(--duration-slow) ease-(--ease-standard)",
       )}
     >
-      <div className={cn("flex h-(--topbar-height) shrink-0 items-center border-b border-border px-4", collapsed && "justify-center px-0")}>
-        <Link href="/dashboard" className="flex items-center rounded-sm outline-none hfm-focus-ring" aria-label="Horizonte Fleet Management — início">
-          <BrandLogo compact={collapsed} height={collapsed ? 26 : 38} />
+      <div
+        className={cn(
+          "flex h-(--topbar-height) shrink-0 items-center border-b border-border",
+          collapsed ? "justify-center px-0" : "px-4",
+        )}
+      >
+        <Link
+          href="/dashboard"
+          className="flex items-center rounded-sm outline-none hfm-focus-ring"
+          aria-label="Horizonte Fleet Management — início"
+        >
+          <BrandLogo compact={collapsed} height={collapsed ? 28 : 36} />
         </Link>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto py-3">
+      <div className="min-h-0 flex-1 overflow-y-auto py-4">
         <SidebarNav collapsed={collapsed} />
       </div>
 
-      <div className={cn("flex shrink-0 items-center border-t border-border p-2", collapsed ? "justify-center" : "justify-between")}>
+      <SidebarFooter collapsed={collapsed} />
+
+      <div
+        className={cn(
+          "flex shrink-0 items-center border-t border-border p-2",
+          collapsed ? "justify-center" : "justify-between",
+        )}
+      >
         {!collapsed ? <span className="px-1.5 text-caption text-fg-muted">HFM · v0.1</span> : null}
         <IconButton
           label={collapsed ? "Expandir menu" : "Recolher menu"}
@@ -159,16 +292,17 @@ export function MobileSidebar() {
   const { mobileOpen, setMobileOpen } = useAppShell();
   return (
     <Drawer open={mobileOpen} onOpenChange={setMobileOpen}>
-      <DrawerContent side="left" size="sm" className="w-[min(85vw,300px)] bg-surface-sidebar">
+      <DrawerContent side="left" size="sm" className="w-[min(86vw,304px)] bg-surface-sidebar">
         <VisuallyHidden>
           <DrawerTitle>Menu de navegação</DrawerTitle>
         </VisuallyHidden>
         <div className="flex h-(--topbar-height) shrink-0 items-center border-b border-border px-4">
-          <BrandLogo height={38} />
+          <BrandLogo height={36} />
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto py-3">
+        <div className="min-h-0 flex-1 overflow-y-auto py-4">
           <SidebarNav onNavigate={() => setMobileOpen(false)} />
         </div>
+        <SidebarFooter collapsed={false} />
       </DrawerContent>
     </Drawer>
   );

@@ -115,11 +115,16 @@ export const TableHeader = React.forwardRef<HTMLTableSectionElement, TableHeader
       data-sticky={isSticky || undefined}
       className={cn(
         "bg-surface-secondary text-caption font-semibold text-fg-secondary",
-        "[&_tr]:h-9 [&_tr]:border-b [&_tr]:border-border [&_tr:hover]:bg-transparent",
+        "[&_tr]:h-(--table-header-height) [&_tr]:border-b [&_tr]:border-border [&_tr:hover]:bg-transparent",
         isSticky && [
+          // `relative` used to be added here to anchor the ::after rule below.
+          // It cancelled the `sticky` on the same selector — tailwind-merge keeps
+          // the last position utility — so the sticky header silently never
+          // stuck. `sticky` is itself a positioned value and anchors ::after
+          // perfectly well, so the fix is to stop asking for both.
           "[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-surface-secondary",
           // The row border does not travel with sticky cells — redraw it per cell.
-          "[&_tr]:border-b-0 [&_th]:relative",
+          "[&_tr]:border-b-0",
           "[&_th]:after:absolute [&_th]:after:inset-x-0 [&_th]:after:bottom-0 [&_th]:after:h-px [&_th]:after:bg-border",
         ],
         className,
@@ -131,7 +136,13 @@ export const TableHeader = React.forwardRef<HTMLTableSectionElement, TableHeader
 
 export const TableBody = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
   function TableBody({ className, ...props }, ref) {
-    return <tbody ref={ref} className={cn("[&_tr:last-child]:border-0", className)} {...props} />;
+    return (
+      <tbody
+        ref={ref}
+        className={cn("[&>tr]:bg-surface [&_tr:last-child]:border-0", className)}
+        {...props}
+      />
+    );
   },
 );
 

@@ -9,9 +9,11 @@
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
 
-  /* size / line-height pairs */
-  --text-display: 28px;      --leading-display: 34px;
-  --text-h1: 22px;           --leading-h1: 28px;
+  /* size / line-height pairs.
+     Declared in px on purpose: an operational table must not change size
+     because a container changed its rem basis. */
+  --text-display: 34px;      --leading-display: 40px;
+  --text-h1: 24px;           --leading-h1: 30px;
   --text-h2: 18px;           --leading-h2: 24px;
   --text-h3: 16px;           --leading-h3: 22px;
   --text-h4: 14px;           --leading-h4: 20px;
@@ -20,6 +22,9 @@
   --text-label: 13px;        --leading-label: 16px;
   --text-caption: 12px;      --leading-caption: 16px;
   --text-helper: 12px;       --leading-helper: 16px;
+  /* Group labels in the sidebar and section eyebrows. The smallest size in the
+     system, and the only one allowed below 12px — it never carries data. */
+  --text-overline: 11px;     --leading-overline: 14px;
 
   --font-weight-regular: 400;
   --font-weight-medium: 500;

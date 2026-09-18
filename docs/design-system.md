@@ -140,3 +140,70 @@ Shadows are deeper and never used to fake elevation on flat surfaces.
    run the axe checks in `tests/ui/a11y.spec.ts`. Any solid colour that carries white text must clear 4.5:1 — that
    constraint is why `accent`, `success`, `warning` and `neutral` are darker than the raw brand swatches in the
    light theme (`--brand-cyan` stays pure for charts and graphics).
+
+## 13. Density and rhythm
+
+The root font-size is **16px**. It used to be 14px, which looked like a
+reasonable way to make an operational product denser and was in fact the single
+cause of the product reading as compressed: the type scale is declared in px and
+never depended on it, but every Tailwind spacing utility is rem-based, so `px-6`
+resolved to 21px, `gap-4` to 14px and `size-4` to 14px. Everything was 12.5%
+tighter than the class name said.
+
+The rule that follows: **the root controls the rhythm, the tokens control the
+text.** Sizes that must not move with a container — table text, labels, headings
+— stay in px in `tokens/typography.css`. Spacing stays in Tailwind's rem scale.
+
+Scale in use:
+
+| Role | Token | Size |
+| --- | --- | --- |
+| Hero (login only) | `text-display` | 34 / 40 |
+| Page title | `text-h1` | 24 / 30 |
+| Section title | `text-h2` | 18 / 24 |
+| Card title | `text-h3` / `text-h4` | 16 / 14 |
+| Body | `text-body` | 14 |
+| Table, dense UI | `text-body-sm` | 13 |
+| Caption | `text-caption` | 12 |
+| Group label, eyebrow | `text-overline` | 11 |
+
+`text-overline` is the only size below 12px and it never carries data — sidebar
+group labels and section eyebrows, nothing else.
+
+Layout tokens live in `tokens/shape.css`: `--sidebar-width` (248) and
+`--sidebar-width-collapsed` (68), `--sidebar-item-height` (38), `--topbar-height`
+(56), `--table-row-height` (48), `--table-header-height` (42),
+`--content-max-width` (1760) and `--content-reading-width` (1120).
+
+## 14. Data tables
+
+An operational table's job is to be read, not to fit. The conventions:
+
+- **Every column declares a width** sized so its own header reads in full.
+  `Matrí…`, `Situa…` and `Acesso H…` were the symptom of columns with no floor.
+- **`layout="fixed"` plus a table `minWidth`** equal to the sum of the visible
+  widths. When the viewport is narrower the container scrolls sideways; columns
+  are never squeezed below their floor.
+- **Eight columns by default, the rest behind a Colunas menu**, persisted per
+  browser. Twelve columns at once is what forced every header into an ellipsis.
+  Nothing is lost: every field is in the detail drawer regardless.
+- **One line per cell**, `truncate` with the full value in `title`. Two lines are
+  allowed only where the second line is a different fact (name + e-mail).
+- **The identity column is frozen** (`position: sticky`) together with the
+  selection checkbox, so a horizontally scrolled row can still be named.
+- **Below `lg` the table becomes cards.** A twelve-column table inside a 390px
+  scroller is not a responsive table, it is a hidden one.
+
+One trap worth remembering: `TableHeader` used to apply both `[&_th]:sticky` and
+`[&_th]:relative`. tailwind-merge keeps the last position utility, so the sticky
+header silently never stuck — and because a descendant selector outranks a
+utility class on the cell itself, a `sticky` set by a caller was overridden too.
+`sticky` is already a positioned value and anchors the header's `::after` rule
+on its own; asking for both is what broke it.
+
+## 15. Filters
+
+Four filters carry almost every real query; the rest belong behind **Mais
+filtros** with a count on the button. Eight selects on one line is how a toolbar
+turns into a row of unreadable stubs. Applied filters are echoed as chips under
+the bar, each removable, with a single "Limpar filtros".

@@ -138,6 +138,9 @@
   --text-caption--line-height: var(--leading-caption);
   --text-helper: var(--text-helper);
   --text-helper--line-height: var(--leading-helper);
+  --text-overline: var(--text-overline);
+  --text-overline--line-height: var(--leading-overline);
+  --text-overline--letter-spacing: 0.06em;
 
   /* shape & elevation */
   --radius-xs: var(--radius-xs);

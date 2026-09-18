@@ -44,8 +44,8 @@ export function kpiTrendVariant(trend: KpiTrend): BadgeVariant {
 export const kpiCardVariants = cva("relative flex flex-col rounded-md border border-border bg-surface text-fg", {
   variants: {
     size: {
-      default: "min-h-26 gap-2 p-4",
-      compact: "min-h-21 gap-1.5 p-3",
+      default: "min-h-24 justify-center gap-1.5 px-4 py-3.5",
+      compact: "min-h-20 justify-center gap-1 px-3.5 py-3",
     },
     status: {
       neutral: "",
@@ -116,7 +116,7 @@ export const KpiCard = React.forwardRef<HTMLElement, KpiCardProps>(function KpiC
         </span>
         <span className="hfm-skeleton h-3 w-24" aria-hidden />
         <span className={cn("hfm-skeleton w-32", isCompact ? "h-5" : "h-6")} aria-hidden />
-        <span className="hfm-skeleton mt-auto h-3 w-20" aria-hidden />
+        <span className="hfm-skeleton h-3 w-20" aria-hidden />
       </section>
     );
   }
@@ -128,23 +128,28 @@ export const KpiCard = React.forwardRef<HTMLElement, KpiCardProps>(function KpiC
   return (
     <section ref={ref} className={cn(kpiCardVariants({ size, status }), className)} {...props}>
       <header className="flex items-start justify-between gap-2">
-        <h3 className="text-caption font-medium text-fg-muted">{label}</h3>
+        <h3 className="min-w-0 text-balance text-body-sm font-medium text-fg-secondary">{label}</h3>
         {icon ? (
-          <span className="shrink-0 text-fg-muted [&_svg]:size-4 [&_svg]:shrink-0" aria-hidden>
+          <span className="shrink-0 text-fg-muted [&_svg]:size-[18px] [&_svg]:shrink-0" aria-hidden>
             {icon}
           </span>
         ) : null}
       </header>
 
       <p className="flex min-w-0 items-baseline gap-1.5">
-        <span className={cn("font-semibold text-fg tabular-nums", isCompact ? "text-h2" : "text-h1")}>
+        <span
+          className={cn(
+            "font-bold text-fg tabular-nums leading-none",
+            isCompact ? "text-[26px]" : "text-[30px]",
+          )}
+        >
           {typeof value === "number" ? valueNumberFormat.format(value) : value}
         </span>
         {unit != null ? <span className="text-body-sm font-medium text-fg-muted">{unit}</span> : null}
       </p>
 
       {trend || period != null ? (
-        <footer className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1">
+        <footer className="flex flex-wrap items-center gap-x-2 gap-y-1">
           {trend && TrendIcon ? (
             <Badge
               variant={kpiTrendVariant(trend)}

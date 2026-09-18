@@ -15,13 +15,17 @@ import {
   UserCheck,
   UserMinus,
   UserX,
+  Columns3,
+  SlidersHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { usePersistedSet } from "@/lib/use-persisted-set";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { SearchField } from "@/components/ui/search-field";
 import { FilterBar, FilterGroup, FilterChip, FilterBarClear } from "@/components/ui/filter-bar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -79,6 +83,42 @@ export function formatDate(value: string | null | undefined): string {
   if (!value) return "—";
   const [year, month, day] = value.split("-");
   return year && month && day ? `${day}/${month}/${year}` : value;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Columns                                                                    */
+/* -------------------------------------------------------------------------- */
+
+type DirectoryRow = DirectoryPage["rows"][number];
+
+interface UserColumn {
+  key: string;
+  label: string;
+  /**
+   * Floor width in px, chosen so the header reads in full. This is the whole
+   * fix for "Matrí…", "Situa…" and "Acesso H…": a column is never allowed to
+   * shrink below its own name, and when the sum exceeds the viewport the
+   * container scrolls instead of the text disappearing.
+   */
+  width: number;
+  sort?: SortKey;
+  numeric?: boolean;
+  /** Secondary field: available in the Colunas menu, off by default. */
+  optional?: boolean;
+  render: (row: DirectoryRow) => React.ReactNode;
+}
+
+const COLUMN_STORAGE_KEY = "hfm.usuarios.columns";
+
+/** One line, clipped with an ellipsis, with the full value on hover. */
+function Cell({ value, className }: { value?: string | null; className?: string }) {
+  const text = value?.trim();
+  if (!text) return <span className="text-fg-muted">—</span>;
+  return (
+    <span title={text} className={cn("block truncate", className)}>
+      {text}
+    </span>
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -182,6 +222,162 @@ export function UsersView({ page, options, stats, filters, permissions, isPlatfo
   const onSort = (key: SortKey) => (direction: "asc" | "desc") => apply({ sort: key, dir: direction });
 
   const allOnPageSelected = page.rows.length > 0 && page.rows.every((row) => row.id && selected.has(row.id));
+
+  /* ----------------------------------------------------------- columns ---- */
+
+  const columns = React.useMemo<UserColumn[]>(
+    () => [
+      {
+        key: "full_name",
+        label: "Nome",
+        width: 280,
+        sort: "full_name",
+        render: (row) => (
+          <>
+            {/* The row reacts to a click; this button is what keyboards and
+                screen readers use, so the record is never mouse-only. */}
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                if (row.id) setDetailId(row.id);
+              }}
+              title={row.full_name ?? undefined}
+              className="block w-full truncate rounded-xs text-left font-medium text-fg hfm-focus-ring hover:text-primary"
+            >
+              {row.full_name}
+            </button>
+            {row.corporate_email ? (
+              <span title={row.corporate_email} className="block truncate text-caption text-fg-muted">
+                {row.corporate_email}
+              </span>
+            ) : null}
+          </>
+        ),
+      },
+      {
+        key: "employee_code",
+        label: "Matrícula",
+        width: 116,
+        sort: "employee_code",
+        numeric: true,
+        render: (row) => <span className="tabular-nums">{row.employee_code}</span>,
+      },
+      {
+        key: "employment_status",
+        label: "Situação",
+        width: 120,
+        sort: "employment_status",
+        render: (row) => (
+          <StatusBadge
+            status={EMPLOYMENT_TONE[(row.employment_status ?? "active") as keyof typeof EMPLOYMENT_TONE] ?? "neutral"}
+          >
+            {EMPLOYMENT_STATUS_LABELS[row.employment_status ?? ""] ?? row.employment_status ?? "—"}
+          </StatusBadge>
+        ),
+      },
+      {
+        key: "job_position_name",
+        label: "Cargo",
+        width: 200,
+        sort: "job_position_name",
+        render: (row) => <Cell value={row.job_position_name} />,
+      },
+      {
+        key: "operation_name",
+        label: "Operação",
+        width: 180,
+        sort: "operation_name",
+        render: (row) => <Cell value={row.operation_name} />,
+      },
+      {
+        key: "work_location_name",
+        label: "Localidade",
+        width: 160,
+        render: (row) => <Cell value={row.work_location_name} />,
+      },
+      {
+        key: "access_status",
+        label: "Acesso HFM",
+        width: 144,
+        sort: "access_status",
+        render: (row) => (
+          <StatusBadge status={ACCESS_TONE[(row.access_status ?? "none") as keyof typeof ACCESS_TONE] ?? "neutral"}>
+            {ACCESS_STATUS_LABELS[row.access_status ?? "none"] ?? "—"}
+          </StatusBadge>
+        ),
+      },
+      {
+        key: "access_role_names",
+        label: "Perfil de acesso",
+        width: 190,
+        render: (row) =>
+          row.access_role_names?.length ? (
+            <span className="flex flex-nowrap items-center gap-1 overflow-hidden">
+              <Badge variant="neutral" className="max-w-36 truncate" title={row.access_role_names.join(", ")}>
+                {row.access_role_names[0]}
+              </Badge>
+              {row.access_role_names.length > 1 ? (
+                <Badge variant="neutral" title={row.access_role_names.join(", ")}>
+                  +{row.access_role_names.length - 1}
+                </Badge>
+              ) : null}
+            </span>
+          ) : (
+            <span className="text-fg-muted">—</span>
+          ),
+      },
+      {
+        key: "employment_area_name",
+        label: "Área",
+        width: 150,
+        optional: true,
+        render: (row) => <Cell value={row.employment_area_name} />,
+      },
+      {
+        key: "business_profile_name",
+        label: "Perfil organizacional",
+        width: 190,
+        optional: true,
+        render: (row) => <Cell value={row.business_profile_name} />,
+      },
+      {
+        key: "organization_unit_name",
+        label: "Filial",
+        width: 170,
+        optional: true,
+        render: (row) => <Cell value={row.organization_unit_name} />,
+      },
+      {
+        key: "manager_name",
+        label: "Líder",
+        width: 200,
+        optional: true,
+        render: (row) => <Cell value={row.manager_name} />,
+      },
+    ],
+    [],
+  );
+
+  // Eight columns by default, twelve available. Showing all twelve was what
+  // forced every header into an ellipsis; the other four are one menu away and
+  // all of them are in the detail drawer regardless.
+  const defaultHidden = React.useMemo(
+    () => columns.filter((column) => column.optional).map((column) => column.key),
+    [columns],
+  );
+  const [hidden, toggleColumn] = usePersistedSet(COLUMN_STORAGE_KEY, defaultHidden);
+
+  /** Filters that live behind "Mais filtros", so the button can say how many. */
+  const advancedCount = [filters.area, filters.location, filters.unit, filters.manager, filters.archived].filter(
+    Boolean,
+  ).length;
+
+  const visibleColumns = columns.filter((column) => !hidden.includes(column.key));
+  // 44px for the selection column. The table refuses to render narrower than
+  // the sum, which is what turns an unreadable squeeze into a scrollbar.
+  const tableMinWidth = visibleColumns.reduce((sum, column) => sum + column.width, 44);
+
 
   async function runBulk(action: "suspend" | "reactivate" | "archive") {
     const ids = [...selected];
@@ -296,23 +492,62 @@ export function UsersView({ page, options, stats, filters, permissions, isPlatfo
           </>
         }
         filters={
-          <FilterBar>
+          <FilterBar
+            end={
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="secondary" size="sm" leadingIcon={<Columns3 />} className="hidden lg:inline-flex">
+                    Colunas
+                    <span className="tabular-nums text-fg-secondary">
+                      {visibleColumns.length}/{columns.length}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-56">
+                  <DropdownMenuLabel>Colunas visíveis</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {columns.map((column) => {
+                    const shown = !hidden.includes(column.key);
+                    return (
+                      <DropdownMenuItem
+                        key={column.key}
+                        // The menu is a set of toggles, so it stays open while
+                        // the table is being shaped.
+                        onSelect={(event) => {
+                          event.preventDefault();
+                          toggleColumn(column.key);
+                        }}
+                        // "Nome" is the row's identity and its keyboard handle;
+                        // a table of anonymous rows is not a view anyone wants.
+                        disabled={column.key === "full_name"}
+                      >
+                        <Checkbox checked={shown} aria-hidden tabIndex={-1} className="pointer-events-none" />
+                        {column.label}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            }
+          >
             <SearchField
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               onClear={() => setSearch("")}
               placeholder="Buscar por nome, matrícula ou e-mail"
               aria-label="Buscar colaboradores"
-              className="w-full sm:w-72"
+              className="w-full sm:w-80"
             />
 
+            {/* Four filters carry almost every real query. The remaining four
+                used to sit on the same line and squeezed all eight into
+                unreadable stubs. */}
             <FilterSelect
               label="Situação"
               value={filters.status}
               onChange={(value) => apply({ status: value })}
               options={Object.entries(EMPLOYMENT_STATUS_LABELS).map(([id, label]) => ({ id, label }))}
             />
-            <FilterSelect label="Área" value={filters.area} onChange={(value) => apply({ area: value })} options={options.areas} />
             <FilterSelect
               label="Operação"
               value={filters.operation}
@@ -326,27 +561,6 @@ export function UsersView({ page, options, stats, filters, permissions, isPlatfo
               options={options.profiles}
             />
             <FilterSelect
-              label="Localidade"
-              value={filters.location}
-              onChange={(value) => apply({ location: value })}
-              options={options.locations}
-              className="hidden xl:inline-flex"
-            />
-            <FilterSelect
-              label="Filial"
-              value={filters.unit}
-              onChange={(value) => apply({ unit: value })}
-              options={options.units}
-              className="hidden xl:inline-flex"
-            />
-            <FilterSelect
-              label="Líder"
-              value={filters.manager}
-              onChange={(value) => apply({ manager: value })}
-              options={options.managers}
-              className="hidden 2xl:inline-flex"
-            />
-            <FilterSelect
               label="Acesso"
               value={filters.access}
               onChange={(value) => apply({ access: value })}
@@ -355,15 +569,56 @@ export function UsersView({ page, options, stats, filters, permissions, isPlatfo
                 .map(([id, label]) => ({ id, label }))}
             />
 
-            {can("users.archive") ? (
-              <FilterGroup label="Inativos">
-                <Checkbox
-                  checked={Boolean(filters.archived)}
-                  onCheckedChange={(checked) => apply({ archived: checked ? "1" : undefined })}
-                  aria-label="Exibir cadastros inativos"
-                />
-              </FilterGroup>
-            ) : null}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="secondary" size="sm" leadingIcon={<SlidersHorizontal />}>
+                  Mais filtros
+                  {advancedCount > 0 ? (
+                    <Badge variant="primary" size="sm" className="tabular-nums">
+                      {advancedCount}
+                    </Badge>
+                  ) : null}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-80">
+                <div className="flex flex-col gap-3">
+                  <p className="text-h4 font-semibold text-fg">Filtros adicionais</p>
+                  <StackedFilter
+                    label="Área"
+                    value={filters.area}
+                    onChange={(value) => apply({ area: value })}
+                    options={options.areas}
+                  />
+                  <StackedFilter
+                    label="Localidade"
+                    value={filters.location}
+                    onChange={(value) => apply({ location: value })}
+                    options={options.locations}
+                  />
+                  <StackedFilter
+                    label="Filial"
+                    value={filters.unit}
+                    onChange={(value) => apply({ unit: value })}
+                    options={options.units}
+                  />
+                  <StackedFilter
+                    label="Líder"
+                    value={filters.manager}
+                    onChange={(value) => apply({ manager: value })}
+                    options={options.managers}
+                  />
+                  {can("users.archive") ? (
+                    <label className="flex items-center gap-2 border-t border-border-subtle pt-3 text-body-sm text-fg-secondary">
+                      <Checkbox
+                        checked={Boolean(filters.archived)}
+                        onCheckedChange={(checked) => apply({ archived: checked ? "1" : undefined })}
+                      />
+                      Exibir cadastros inativos
+                    </label>
+                  ) : null}
+                </div>
+              </PopoverContent>
+            </Popover>
           </FilterBar>
         }
       />
@@ -453,11 +708,14 @@ export function UsersView({ page, options, stats, filters, permissions, isPlatfo
         ) : (
           <>
             {/* Desktop: the full table. Below lg the same rows become cards. */}
-            <TableContainer stickyHeader maxHeight={620} className="hidden lg:block">
-              <Table>
+            {/* Desktop: the full table. Below lg the same rows become cards.
+                The table is never squeezed below the sum of its columns — it
+                scrolls sideways instead, which keeps every header readable. */}
+            <TableContainer stickyHeader maxHeight="calc(100dvh - 22rem)" className="hidden lg:block">
+              <Table layout="fixed" style={{ minWidth: tableMinWidth }}>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-10">
+                    <TableHead style={{ width: 44, zIndex: 21 }} className="sticky left-0 bg-surface-secondary">
                       <Checkbox
                         checked={allOnPageSelected}
                         onCheckedChange={(checked) =>
@@ -470,43 +728,39 @@ export function UsersView({ page, options, stats, filters, permissions, isPlatfo
                         aria-label="Selecionar todos os registros desta página"
                       />
                     </TableHead>
-                    <TableHead sortable sortDirection={sortDirection("full_name")} onSort={onSort("full_name")}>
-                      Nome
-                    </TableHead>
-                    <TableHead sortable sortDirection={sortDirection("employee_code")} onSort={onSort("employee_code")}>
-                      Matrícula
-                    </TableHead>
-                    <TableHead sortable sortDirection={sortDirection("employment_status")} onSort={onSort("employment_status")}>
-                      Situação
-                    </TableHead>
-                    <TableHead sortable sortDirection={sortDirection("job_position_name")} onSort={onSort("job_position_name")}>
-                      Cargo
-                    </TableHead>
-                    <TableHead className="hidden xl:table-cell">Área</TableHead>
-                    <TableHead sortable sortDirection={sortDirection("operation_name")} onSort={onSort("operation_name")}>
-                      Operação
-                    </TableHead>
-                    <TableHead className="hidden 2xl:table-cell">Perfil organizacional</TableHead>
-                    <TableHead className="hidden xl:table-cell">Localidade</TableHead>
-                    <TableHead className="hidden 2xl:table-cell">Filial</TableHead>
-                    <TableHead className="hidden 2xl:table-cell">Líder</TableHead>
-                    <TableHead sortable sortDirection={sortDirection("access_status")} onSort={onSort("access_status")}>
-                      Acesso HFM
-                    </TableHead>
-                    <TableHead className="hidden xl:table-cell">Perfil de acesso</TableHead>
+                    {visibleColumns.map((column, index) => (
+                      <TableHead
+                        key={column.key}
+                        style={{
+                          width: column.width,
+                          left: index === 0 ? 44 : undefined,
+                          zIndex: index === 0 ? 21 : undefined,
+                        }}
+                        className={cn(index === 0 && "sticky border-r border-border bg-surface-secondary")}
+                        numeric={column.numeric}
+                        sortable={Boolean(column.sort)}
+                        sortDirection={column.sort ? sortDirection(column.sort) : undefined}
+                        onSort={column.sort ? onSort(column.sort) : undefined}
+                      >
+                        {column.label}
+                      </TableHead>
+                    ))}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {page.rows.length === 0 ? (
-                    <TableEmpty colSpan={13} message="Nenhum colaborador encontrado com os filtros aplicados." />
+                    <TableEmpty
+                      colSpan={visibleColumns.length + 1}
+                      message="Nenhum colaborador encontrado com os filtros aplicados."
+                    />
                   ) : (
                     page.rows.map((row) => (
                       <TableRow
                         key={row.id}
                         onClick={() => row.id && setDetailId(row.id)}
-                        className={cn("cursor-pointer", row.deleted_at && "opacity-70")}
+                        className={cn("h-(--table-row-height) cursor-pointer", row.deleted_at && "opacity-70")}
                       >
-                        <TableCell onClick={(event) => event.stopPropagation()}>
+                        <TableCell onClick={(event) => event.stopPropagation()} style={{ zIndex: 1 }} className="sticky left-0 bg-inherit">
                           <Checkbox
                             checked={Boolean(row.id && selected.has(row.id))}
                             onCheckedChange={(checked) =>
@@ -521,59 +775,16 @@ export function UsersView({ page, options, stats, filters, permissions, isPlatfo
                             aria-label={`Selecionar ${row.full_name}`}
                           />
                         </TableCell>
-                        <TableCell className="font-medium text-fg">
-                          {/* The row reacts to a click; this button is what keyboards and
-                              screen readers use, so the record is never mouse-only. */}
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              if (row.id) setDetailId(row.id);
-                            }}
-                            className="block max-w-56 truncate rounded-xs text-left hfm-focus-ring hover:text-primary"
+                        {visibleColumns.map((column, index) => (
+                          <TableCell
+                            key={column.key}
+                            numeric={column.numeric}
+                            style={{ left: index === 0 ? 44 : undefined, zIndex: index === 0 ? 1 : undefined }}
+                            className={cn(index === 0 && "sticky border-r border-border bg-inherit")}
                           >
-                            {row.full_name}
-                          </button>
-                          {row.corporate_email ? (
-                            <span className="block max-w-56 truncate text-caption text-fg-muted">{row.corporate_email}</span>
-                          ) : null}
-                        </TableCell>
-                        <TableCell numeric>{row.employee_code}</TableCell>
-                        <TableCell>
-                          <StatusBadge
-                            status={EMPLOYMENT_TONE[(row.employment_status ?? "active") as keyof typeof EMPLOYMENT_TONE] ?? "neutral"}>{EMPLOYMENT_STATUS_LABELS[row.employment_status ?? ""] ?? row.employment_status ?? "—"}</StatusBadge>
-                        </TableCell>
-                        <TableCell>
-                          <span className="block max-w-48 truncate">{row.job_position_name ?? "—"}</span>
-                        </TableCell>
-                        <TableCell className="hidden xl:table-cell">{row.employment_area_name ?? "—"}</TableCell>
-                        <TableCell>{row.operation_name ?? "—"}</TableCell>
-                        <TableCell className="hidden 2xl:table-cell">{row.business_profile_name ?? "—"}</TableCell>
-                        <TableCell className="hidden xl:table-cell">{row.work_location_name ?? "—"}</TableCell>
-                        <TableCell className="hidden 2xl:table-cell">{row.organization_unit_name ?? "—"}</TableCell>
-                        <TableCell className="hidden 2xl:table-cell">
-                          <span className="block max-w-40 truncate">{row.manager_name ?? "—"}</span>
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge
-                            status={ACCESS_TONE[(row.access_status ?? "none") as keyof typeof ACCESS_TONE] ?? "neutral"}>{ACCESS_STATUS_LABELS[row.access_status ?? "none"] ?? "—"}</StatusBadge>
-                        </TableCell>
-                        <TableCell className="hidden xl:table-cell">
-                          {row.access_role_names?.length ? (
-                            <span className="flex flex-wrap gap-1">
-                              {row.access_role_names.slice(0, 2).map((name) => (
-                                <Badge key={name} variant="neutral">
-                                  {name}
-                                </Badge>
-                              ))}
-                              {row.access_role_names.length > 2 ? (
-                                <Badge variant="neutral">+{row.access_role_names.length - 2}</Badge>
-                              ) : null}
-                            </span>
-                          ) : (
-                            "—"
-                          )}
-                        </TableCell>
+                            {column.render(row)}
+                          </TableCell>
+                        ))}
                       </TableRow>
                     ))
                   )}
@@ -689,5 +900,46 @@ function FilterSelect({
         </SelectContent>
       </Select>
     </FilterGroup>
+  );
+}
+
+/**
+ * A filter in the advanced popover: label above the control, full width. The
+ * inline variant used in the toolbar puts the label beside a 160px select,
+ * which is exactly the shape that stopped fitting once there were eight of them.
+ */
+function StackedFilter({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value?: string;
+  onChange: (value: string | undefined) => void;
+  options: { id: string; label: string }[];
+}) {
+  const id = React.useId();
+  if (!options.length) return null;
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-caption font-medium text-fg-secondary">
+        {label}
+      </label>
+      <Select value={value ?? "__all"} onValueChange={(next) => onChange(next === "__all" ? undefined : next)}>
+        <SelectTrigger id={id} className="w-full">
+          <SelectValue placeholder="Todos" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__all">Todos</SelectItem>
+          {options.map((option) => (
+            <SelectItem key={option.id} value={option.id}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }

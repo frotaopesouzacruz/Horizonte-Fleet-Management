@@ -16,7 +16,11 @@
 
   html {
     font-family: var(--font-sans);
-    font-size: 14px;
+    /* 16px, not 14. The type scale is declared in px and does not depend on
+       this, but every Tailwind spacing utility is rem-based: at 14px `px-6`
+       resolved to 21px and `gap-4` to 14px, which is why the whole product read
+       as compressed. The root controls the rhythm; the tokens control the text. */
+    font-size: 16px;
     line-height: var(--leading-body);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

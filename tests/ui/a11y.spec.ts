@@ -45,6 +45,9 @@ const publicSurfaces = [
   // Organização → Operações and Estados e cidades, rendered against fixed
   // data. The real routes need a session; this is the same markup.
   { name: "organizacao (preview)", url: "/dev/preview-organizacao" },
+  // The densest screen in the product: twelve columns, eight filters and
+  // four indicators, all of which have to clear contrast in both themes.
+  { name: "usuarios (preview)", url: "/dev/preview-usuarios" },
 ];
 
 /** Behind the app shell: need a real session against a reachable Supabase. */

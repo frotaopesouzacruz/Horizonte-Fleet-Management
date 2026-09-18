@@ -29,12 +29,21 @@
   /* ---- Layout ------------------------------------------------------------- */
   --sidebar-width: 248px;
   --sidebar-width-collapsed: 68px;
-  --topbar-height: 52px;
+  --sidebar-item-height: 38px;
+  --topbar-height: 56px;
   --page-header-height: 56px;
-  --content-max-width: 1600px;
-  --control-height-sm: 30px;
-  --control-height-md: 36px;
-  --control-height-lg: 42px;
+  /* Operational pages are data first: a 1600px cap wasted a third of a 2560px
+     monitor on a twelve-column table. Wide pages opt out entirely, reading
+     pages keep a measure. */
+  --content-max-width: 1760px;
+  --content-reading-width: 1120px;
+  --content-padding: 24px;
+  --content-padding-sm: 16px;
+  --table-row-height: 48px;
+  --table-header-height: 42px;
+  --control-height-sm: 32px;
+  --control-height-md: 38px;
+  --control-height-lg: 44px;
 
   /* ---- Z-index ------------------------------------------------------------ */
   --z-sidebar: 30;

@@ -24,7 +24,7 @@ export async function signIn(page: Page): Promise<void> {
   await page.goto("/login");
   await page.locator('input[name="identifier"]').fill(E2E_EMAIL!);
   await page.locator('input[name="password"]').fill(E2E_PASSWORD!);
-  await page.getByRole("button", { name: "Acessar Sistema" }).click();
+  await page.getByRole("button", { name: "Entrar" }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 30_000 });
 }
 

@@ -12,7 +12,7 @@ import { cn } from "@/lib/cn";
  *
  * `highlight` (Horizonte gold) is the exception, and stays one: it is reserved
  * for the single decisive action of an institutional surface — the login
- * screen's "Acessar Sistema". Inside the application the hierarchy above is the
+ * screen's "Entrar". Inside the application the hierarchy above is the
  * only one, because gold next to gold stops meaning anything. The foreground is
  * the near-black `highlight-fg`, not white: gold carries white at 1.8:1.
  */

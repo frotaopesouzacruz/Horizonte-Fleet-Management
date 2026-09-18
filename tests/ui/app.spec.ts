@@ -144,7 +144,7 @@ test.describe("login", () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/login");
 
-    await expect(page.getByRole("heading", { name: "Horizonte Fleet Management" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: /Bem-vindo ao Horizonte/ })).toBeVisible();
 
     // The official files must decode: when one is missing the logo degrades to a
     // plain wordmark, which is precisely what must never reach a screen.
@@ -159,7 +159,7 @@ test.describe("login", () => {
       .poll(() => artwork.evaluate((el) => (el as HTMLImageElement).naturalWidth ?? 0), { timeout: 20_000 })
       .toBeGreaterThan(0);
 
-    await page.getByRole("button", { name: "Acessar Sistema" }).click();
+    await page.getByRole("button", { name: "Entrar" }).click();
     await expect(page.getByText("Informe sua matrícula ou e-mail.")).toBeVisible();
 
     // One field takes both, so a matrícula must clear the error just as an e-mail does.
@@ -182,7 +182,7 @@ test.describe("login", () => {
     await page.keyboard.press("Tab");
     await expect(page.getByRole("button", { name: "Mostrar senha" })).toBeFocused();
     await page.keyboard.press("Tab");
-    await expect(page.getByRole("button", { name: "Acessar Sistema" })).toBeFocused();
+    await expect(page.getByRole("button", { name: "Entrar" })).toBeFocused();
   });
 
   test("no horizontal overflow, and the form survives, at every supported width", async ({ page }) => {
@@ -199,24 +199,23 @@ test.describe("login", () => {
 
       // Below lg the institutional column is dropped; authentication is not.
       await expect(page.getByRole("textbox", { name: "Matrícula ou e-mail" })).toBeVisible();
-      await expect(page.getByRole("button", { name: "Acessar Sistema" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Entrar" })).toBeVisible();
       await expect(page.locator('input[name="password"]')).toBeVisible();
     }
   });
 
-  test("the institutional carousel is operable and stops for a pointer", async ({ page }) => {
+  test("the institutional panel carries the brand, not a copy of the artwork", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/login");
 
     const panel = page.getByRole("region", { name: "Horizonte Fleet Management" });
     await expect(panel).toBeVisible();
+    await expect(panel.getByRole("heading", { level: 2 })).toContainText("Gestão inteligente da frota");
 
-    // Auto-advancing content has to be reachable by hand, or WCAG 2.2.2 is a
-    // promise the screen does not keep.
-    const second = panel.getByRole("button", { name: "Gestão Inteligente de Frotas" });
-    await second.click();
-    await expect(second).toHaveAttribute("aria-current", "true");
-    await expect(panel.getByRole("heading", { level: 2 })).toContainText("Gestão Inteligente de");
+    // The artwork prints its own capability rail. The overlay must not repeat
+    // it — that duplication is what the panel was rewritten to remove.
+    await expect(panel).not.toContainText("Rota Inteligente");
+    await expect(panel).not.toContainText("Monitoramento em Tempo Real");
   });
 });
 
