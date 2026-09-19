@@ -1126,6 +1126,133 @@ export type Database = {
           },
         ]
       }
+      operation_cities: {
+        Row: {
+          city_id: number
+          created_at: string
+          created_by: string | null
+          id: string
+          operation_id: string
+          organization_id: string
+          state_id: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          city_id: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          operation_id: string
+          organization_id: string
+          state_id: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          city_id?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          operation_id?: string
+          organization_id?: string
+          state_id?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operation_cities_city_fk"
+            columns: ["city_id", "state_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id", "state_id"]
+          },
+          {
+            foreignKeyName: "operation_cities_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operation_cities_state_fk"
+            columns: ["organization_id", "operation_id", "state_id"]
+            isOneToOne: false
+            referencedRelation: "operation_states"
+            referencedColumns: ["organization_id", "operation_id", "state_id"]
+          },
+        ]
+      }
+      operation_states: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          operation_id: string
+          organization_id: string
+          state_id: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          operation_id: string
+          organization_id: string
+          state_id: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          operation_id?: string
+          organization_id?: string
+          state_id?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operation_states_operation_fk"
+            columns: ["organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operation_summary"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "operation_states_operation_fk"
+            columns: ["organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operations"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "operation_states_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operation_states_state_id_fkey"
+            columns: ["state_id"]
+            isOneToOne: false
+            referencedRelation: "state_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operation_states_state_id_fkey"
+            columns: ["state_id"]
+            isOneToOne: false
+            referencedRelation: "states"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       operations: {
         Row: {
           code: string | null
@@ -2021,14 +2148,57 @@ export type Database = {
           },
         ]
       }
+      operation_geography: {
+        Row: {
+          city_id: number | null
+          city_name: string | null
+          ddd: number | null
+          employee_count: number | null
+          id: string | null
+          is_capital: boolean | null
+          latitude: number | null
+          longitude: number | null
+          operation_id: string | null
+          organization_id: string | null
+          region: string | null
+          state_id: number | null
+          state_name: string | null
+          uf: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operation_cities_city_fk"
+            columns: ["city_id", "state_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id", "state_id"]
+          },
+          {
+            foreignKeyName: "operation_cities_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operation_cities_state_fk"
+            columns: ["organization_id", "operation_id", "state_id"]
+            isOneToOne: false
+            referencedRelation: "operation_states"
+            referencedColumns: ["organization_id", "operation_id", "state_id"]
+          },
+        ]
+      }
       operation_summary: {
         Row: {
           access_count: number | null
+          city_count: number | null
           employee_count: number | null
           id: string | null
           location_count: number | null
           name: string | null
           organization_id: string | null
+          state_count: number | null
           status: string | null
         }
         Relationships: [

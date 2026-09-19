@@ -84,7 +84,57 @@ count rides back on every row, so a page of results costs one round trip.
 two operations sees two rows, not eight with the others zeroed — a zero is still a
 disclosure that the operation exists.
 
-## 4. Navigation
+## 4. The footprint of an operation
+
+An operation used to be a name and nothing else. "Last Mille MG" has people in
+Contagem, Uberlândia and Juiz de Fora; "Redespacho - Belém" has people in Pará.
+Nothing in the schema said so, so nothing could be planned, filtered or measured
+by place.
+
+Two levels, because that is how the operation is described: the states it covers
+and, inside each state, the municipalities. The second level is not derived from
+the first — an operation can cover a state before anyone decides which cities,
+and that half-built state is a real thing to record.
+
+```
+operations ──< operation_states ──< operation_cities >── cities
+```
+
+### Integrity by structure, not by trigger
+
+Three things have to be true, and all three are composite foreign keys:
+
+| Guarantee | How |
+| --- | --- |
+| the city belongs to the state it is filed under | `(city_id, state_id) → cities (id, state_id)` |
+| the state belongs to the operation it is filed under | `(organization_id, operation_id, state_id) → operation_states` |
+| both belong to the organization owning the operation | `organization_id` is part of the two keys above |
+
+A wrong row is not rejected by application code at write time: it **cannot be
+represented**. Filing Uberlândia under Pará, or Salvador under an operation that
+does not cover Bahia, fails at the database — both were tested.
+
+Removing a state takes its municipalities with it (`on delete cascade`), and the
+screen says how many before confirming. These are links, not records: there is no
+`deleted_at`, what was removed is gone, and the audit trail is its history.
+
+### Reading
+
+`public.operation_geography` returns one municipality per row with its state and
+how many people are assigned there — `security_invoker`, so operation scopes
+still decide what comes back and the headcount is counted under the caller's own
+visibility of the directory. It is the difference between "Last Mille MG has 101
+people", which is a number, and "53 in Contagem, 11 in Juiz de Fora, 11 in
+Uberlândia", which is an operation.
+
+### A derived starting point, not an invented one
+
+The structure was born populated: every current assignment names an operation and
+a work location, and a work location now names a municipality. The backfill read
+exactly that and nothing more. Locations whose city is still unresolved
+contributed nothing.
+
+## 5. Navigation
 
 The sidebar is two groups. **Organização** is what the company is; **Módulos
 futuros** is what the product will do with it, and every entry there is still a
@@ -96,7 +146,7 @@ Colaboradores and Usuários are one entry and one module. They are the same 143
 people seen from two sides — the employee record and the HFM account — and
 splitting them would produce two screens arguing about who someone is.
 
-## 5. Reviewing the screens without a database
+## 6. Reviewing the screens without a database
 
 Both screens sit behind a session, which makes them impossible to look at from an
 environment that cannot reach Supabase. `/dev/preview-organizacao` renders the
@@ -105,7 +155,7 @@ page — present only in development or in a build made with
 `NEXT_PUBLIC_ENABLE_DEV_PAGES=1` — and the accessibility suite uses it to check
 both screens in light and dark without credentials.
 
-## 6. Loading the reference data elsewhere
+## 7. Loading the reference data elsewhere
 
 `supabase/migrations/20260918192400_ibge_states_and_cities.sql` carries the whole
 list, so `supabase db push` reproduces it. The linked project was loaded by a

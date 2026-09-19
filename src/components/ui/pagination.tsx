@@ -193,7 +193,11 @@ export const Pagination = React.forwardRef<HTMLElement, PaginationProps>(functio
             <ChevronLeft aria-hidden />
           </IconButton>
 
-          <ol className="flex items-center gap-0.5">
+          <span className="px-2 text-caption whitespace-nowrap text-fg-secondary tabular-nums sm:hidden">
+            {formatCount(currentPage)} / {formatCount(pageCount)}
+          </span>
+
+          <ol className="hidden items-center gap-0.5 sm:flex">
             {items.map((item, index) =>
               item === "ellipsis" ? (
                 <li

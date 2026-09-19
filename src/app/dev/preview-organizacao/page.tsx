@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { OperationsView } from "@/app/(app)/organizacao/operacoes/operations-view";
 import { GeographyView } from "@/app/(app)/organizacao/estados/geography-view";
+import { OperationGeographyView } from "@/app/(app)/organizacao/operacoes/[id]/operation-geography-view";
 
 /**
  * Renders the Organização screens against fixed data.
@@ -23,14 +24,14 @@ const enabled =
   process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_ENABLE_DEV_PAGES === "1";
 
 const OPERATIONS = [
-  { id: "1", name: "Last Mille MG", status: "active", employeeCount: 101, accessCount: 1, locationCount: 12 },
-  { id: "2", name: "Merchandising", status: "active", employeeCount: 15, accessCount: 0, locationCount: 5 },
-  { id: "3", name: "Redespacho", status: "active", employeeCount: 9, accessCount: 0, locationCount: 3 },
-  { id: "4", name: "Redespacho - Belém", status: "active", employeeCount: 6, accessCount: 0, locationCount: 1 },
-  { id: "5", name: "Frota", status: "active", employeeCount: 5, accessCount: 0, locationCount: 2 },
-  { id: "6", name: "Gente", status: "active", employeeCount: 4, accessCount: 0, locationCount: 1 },
-  { id: "7", name: "Gestão", status: "active", employeeCount: 2, accessCount: 0, locationCount: 1 },
-  { id: "8", name: "Segurança", status: "active", employeeCount: 1, accessCount: 0, locationCount: 1 },
+  { id: "1", name: "Last Mille MG", status: "active", employeeCount: 101, accessCount: 1, locationCount: 12 , stateCount: 1, cityCount: 13 },
+  { id: "2", name: "Merchandising", status: "active", employeeCount: 15, accessCount: 0, locationCount: 5 , stateCount: 4, cityCount: 5 },
+  { id: "3", name: "Redespacho", status: "active", employeeCount: 9, accessCount: 0, locationCount: 3 , stateCount: 1, cityCount: 1 },
+  { id: "4", name: "Redespacho - Belém", status: "active", employeeCount: 6, accessCount: 0, locationCount: 1 , stateCount: 1, cityCount: 2 },
+  { id: "5", name: "Frota", status: "active", employeeCount: 5, accessCount: 0, locationCount: 2 , stateCount: 1, cityCount: 1 },
+  { id: "6", name: "Gente", status: "active", employeeCount: 4, accessCount: 0, locationCount: 1 , stateCount: 1, cityCount: 1 },
+  { id: "7", name: "Gestão", status: "active", employeeCount: 2, accessCount: 0, locationCount: 1 , stateCount: 1, cityCount: 1 },
+  { id: "8", name: "Segurança", status: "active", employeeCount: 1, accessCount: 0, locationCount: 1 , stateCount: 1, cityCount: 1 },
 ];
 
 const LOCATIONS = [
@@ -67,12 +68,44 @@ const CITIES = {
   pageSize: 50,
 };
 
+const OPERATION_GEOGRAPHY = [
+  {
+    id: "os1",
+    stateId: 31,
+    uf: "MG",
+    name: "Minas Gerais",
+    region: "Sudeste",
+    cities: [
+      { id: "oc1", cityId: 3118601, name: "Contagem", isCapital: false, ddd: 31, employeeCount: 53 },
+      { id: "oc2", cityId: 3136702, name: "Juiz de Fora", isCapital: false, ddd: 32, employeeCount: 11 },
+      { id: "oc3", cityId: 3170206, name: "Uberlândia", isCapital: false, ddd: 34, employeeCount: 11 },
+      { id: "oc4", cityId: 3122306, name: "Divinópolis", isCapital: false, ddd: 37, employeeCount: 5 },
+      { id: "oc5", cityId: 3127701, name: "Governador Valadares", isCapital: false, ddd: 33, employeeCount: 2 },
+    ],
+  },
+  {
+    id: "os2",
+    stateId: 52,
+    uf: "GO",
+    name: "Goiás",
+    region: "Centro-Oeste",
+    cities: [{ id: "oc6", cityId: 5208707, name: "Goiânia", isCapital: true, ddd: 62, employeeCount: 3 }],
+  },
+  { id: "os3", stateId: 15, uf: "PA", name: "Pará", region: "Norte", cities: [] },
+];
+
 export default function PreviewPage() {
   if (!enabled) notFound();
 
   return (
     <AppShell permissions={["operations.view", "users.view"]}>
       <OperationsView operations={OPERATIONS} locations={LOCATIONS} />
+      <OperationGeographyView
+        operation={{ id: "1", name: "Last Mille MG", status: "active", code: null }}
+        geography={OPERATION_GEOGRAPHY}
+        allStates={STATES.map((s) => ({ id: s.id, uf: s.uf, name: s.name, region: s.region }))}
+        canManage
+      />
       <GeographyView
         states={STATES}
         cities={CITIES}

@@ -39,7 +39,7 @@ export function OperationsView({ operations, locations }: OperationsViewProps) {
     <>
       <PageHeader
         title="Operações"
-        description="Cada operação reúne pessoas, locais de trabalho e, em breve, a frota alocada a ela."
+        description="Cada operação reúne pessoas e a área geográfica onde atua. Abra uma operação para definir seus estados e municípios."
       />
 
       <PageContent className="flex flex-col gap-5">
@@ -72,14 +72,24 @@ export function OperationsView({ operations, locations }: OperationsViewProps) {
                     <TableHead>Operação</TableHead>
                     <TableHead numeric>Colaboradores</TableHead>
                     <TableHead numeric>Com acesso</TableHead>
-                    <TableHead numeric>Locais</TableHead>
+                    <TableHead numeric>Estados</TableHead>
+                    <TableHead numeric>Municípios</TableHead>
                     <TableHead>Situação</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {operations.map((operation) => (
                     <TableRow key={operation.id}>
-                      <TableCell className="font-medium text-fg">{operation.name}</TableCell>
+                      <TableCell>
+                        {/* The row's subject is also the way into it: the
+                            operation's geography lives one level down. */}
+                        <Link
+                          href={`/organizacao/operacoes/${operation.id}`}
+                          className="rounded-xs font-medium text-fg hfm-focus-ring hover:text-primary hover:underline"
+                        >
+                          {operation.name}
+                        </Link>
+                      </TableCell>
                       <TableCell numeric>{number.format(operation.employeeCount)}</TableCell>
                       <TableCell numeric>
                         {operation.accessCount === 0 ? (
@@ -88,7 +98,20 @@ export function OperationsView({ operations, locations }: OperationsViewProps) {
                           number.format(operation.accessCount)
                         )}
                       </TableCell>
-                      <TableCell numeric>{number.format(operation.locationCount)}</TableCell>
+                      <TableCell numeric>
+                        {operation.stateCount === 0 ? (
+                          <span className="text-fg-muted">—</span>
+                        ) : (
+                          number.format(operation.stateCount)
+                        )}
+                      </TableCell>
+                      <TableCell numeric>
+                        {operation.cityCount === 0 ? (
+                          <span className="text-fg-muted">—</span>
+                        ) : (
+                          number.format(operation.cityCount)
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={operation.status === "active" ? "success" : "neutral"} appearance="soft" dot>
                           {operation.status === "active" ? "Ativa" : operation.status}
