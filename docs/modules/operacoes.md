@@ -1,16 +1,17 @@
-# Organização
+# Operações
 
-Second functional structure of HFM. It answers where the company is and how it is
-divided, so that everything the fleet modules will later record has somewhere to
-be recorded *about*.
+Second functional structure of HFM, and the axis the rest of the product turns
+on. People, fleet, checklists, maintenance and every indicator will hang off an
+`operation_id` and, where it matters, off the municipality inside it.
 
-Two screens today:
+There is **one** module here — Operações — with two screens: the list, and one
+operation with its general data and its geographic coverage.
 
-- **Operações** — the eight operations, their headcount, how many of those people
-  can actually sign in, and the work locations each spans.
-- **Estados e cidades** — the IBGE list of 27 federative units and 5 571
-  municipalities, read-only, and the link between a work location and a real
-  municipality.
+There is deliberately no Estados module and no Cidades module. The IBGE tables
+exist and are used by everything, but a state is not something anyone
+administers: it is a dimension of an operation's coverage, chosen inside the
+operation. A menu entry for it would invite building geography that belongs to
+nobody.
 
 ## 1. Why the IBGE list is in the database
 
@@ -134,9 +135,53 @@ a work location, and a work location now names a municipality. The backfill read
 exactly that and nothing more. Locations whose city is still unresolved
 contributed nothing.
 
-## 5. Navigation
+## 5. Creating and editing an operation
 
-The sidebar is two groups. **Organização** is what the company is; **Módulos
+`public.save_operation(organization_id, payload)` is the only write path. It
+takes the operation and its whole coverage and applies both in one transaction,
+because the rule that an active operation must cover at least one municipality
+in every state it claims is checked at save time — letting the two halves be
+saved separately would mean letting an operation exist in a state the rule
+forbids.
+
+Coverage is applied as a **difference**, not a wipe-and-reinsert: rows that did
+not change are not touched, so the audit trail records what actually happened
+instead of a full rewrite every time someone fixes a typo in the name. A payload
+without a `coverage` key leaves the coverage alone entirely.
+
+| Rule | Where it lives |
+| --- | --- |
+| an active operation needs ≥ 1 state, each with ≥ 1 municipality | `save_operation` |
+| a municipality is not listed twice in one operation | `unique (operation_id, city_id)` |
+| the code is issued once and never changes | `operations_code_immutable` trigger |
+| an operation with assignments or scopes cannot be hard-deleted | `operations_block_delete` trigger |
+
+The code is generated, not typed: `OP-00001`, `OP-00002`, … per organization.
+Deactivation is how an operation ends — `set_operation_status` — and it keeps
+every assignment, scope and indicator that ever pointed at it.
+
+Permissions are granular and additive over the existing `operations.manage`:
+`operations.create`, `operations.update`, `operations.deactivate`,
+`operations.manage_geography`, `operations.view_audit`.
+
+## 6. Cascading filters
+
+Three functions in `lib/organization/operations.ts` are the contract every future
+module filters through:
+
+```
+listOperations(organizationId)
+listStatesByOperation(organizationId, operationId)
+listCitiesByOperationAndState(organizationId, operationId, stateId)
+```
+
+The point is what they do **not** return. Choosing Merchandising lists DF, GO,
+MG and MT — not the 27 units of Brazil. Choosing MG inside it lists Contagem and
+Uberlândia — not the 853 municipalities of Minas Gerais.
+
+## 7. Navigation
+
+The sidebar is two groups. **Administração** is what the company is; **Módulos
 futuros** is what the product will do with it, and every entry there is still a
 placeholder. Keeping the placeholders visibly apart is deliberate: mixed in with
 working modules they made the product look finished and made the screens that do
@@ -146,7 +191,7 @@ Colaboradores and Usuários are one entry and one module. They are the same 143
 people seen from two sides — the employee record and the HFM account — and
 splitting them would produce two screens arguing about who someone is.
 
-## 6. Reviewing the screens without a database
+## 8. Reviewing the screens without a database
 
 Both screens sit behind a session, which makes them impossible to look at from an
 environment that cannot reach Supabase. `/dev/preview-organizacao` renders the
@@ -155,7 +200,7 @@ page — present only in development or in a build made with
 `NEXT_PUBLIC_ENABLE_DEV_PAGES=1` — and the accessibility suite uses it to check
 both screens in light and dark without credentials.
 
-## 7. Loading the reference data elsewhere
+## 9. Loading the reference data elsewhere
 
 `supabase/migrations/20260918192400_ibge_states_and_cities.sql` carries the whole
 list, so `supabase db push` reproduces it. The linked project was loaded by a

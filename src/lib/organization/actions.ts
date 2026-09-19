@@ -3,146 +3,129 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrganization } from "@/lib/auth/session";
+import type { Json } from "@/types/database.types";
 
 /**
- * Writes to an operation's geographic footprint.
+ * Writes for the operations module.
  *
- * Every one of these needs `operations.manage` — the same permission as
- * renaming the operation, because deciding where an operation runs is the same
- * kind of decision. The check here is a courtesy that produces a good error
- * message; RLS is what actually refuses the write.
+ * There is one write path — `save_operation` — and it takes the operation and
+ * its whole coverage together. Saving them separately is how a screen ends up
+ * with an operation that saved and a coverage that did not, and the coverage is
+ * applied as a difference inside the function, so a rename does not rewrite
+ * twenty-one rows.
  *
- * Nothing in this file validates that a city belongs to its state or that the
- * state belongs to the operation. It cannot be written wrongly: the composite
- * foreign keys make an inconsistent row unrepresentable, so a bug here fails
- * loudly at the database rather than quietly storing nonsense.
+ * Nothing here validates that a city belongs to its state or that a state is
+ * covered by the operation. It cannot be written wrongly: composite foreign keys
+ * make an inconsistent row unrepresentable, and the function refuses an active
+ * operation whose coverage is incomplete.
  */
 
 const MODULE_PATH = "/organizacao/operacoes";
 
-export interface Result {
+export interface Result<T = undefined> {
   ok: boolean;
   error?: string;
+  data?: T;
 }
 
 function toMessage(error: { message?: string; code?: string } | null, fallback: string): string {
   const message = error?.message ?? "";
-  if (error?.code === "23505") return "Este item já está vinculado a esta operação.";
-  if (error?.code === "23503") {
-    return "Vínculo inválido: a cidade não pertence ao estado informado, ou o estado não está coberto por esta operação.";
+  // The function raises in Portuguese and on purpose; those pass through.
+  if (/^[A-ZÀ-Ú]/.test(message) && !message.includes("violates") && !message.includes("relation")) {
+    return message;
   }
-  if (error?.code === "42501" || message.includes("permission") || message.includes("policy")) {
-    return "Você não possui permissão para alterar a abrangência desta operação.";
-  }
+  if (error?.code === "23505") return "Já existe uma operação com este nome.";
+  if (error?.code === "42501") return "Você não possui permissão para esta ação.";
   return fallback;
 }
 
-export async function addOperationState(operationId: string, stateId: number): Promise<Result> {
-  const { organization } = await requireOrganization("operations.manage");
+export interface CoverageInput {
+  stateId: number;
+  cityIds: number[];
+}
+
+export interface SaveOperationInput {
+  id?: string | null;
+  name: string;
+  description?: string | null;
+  status: "active" | "inactive";
+  /** Omit to leave the coverage untouched; pass it to replace it. */
+  coverage?: CoverageInput[];
+}
+
+export async function saveOperation(input: SaveOperationInput): Promise<Result<{ id: string }>> {
+  const { organization } = await requireOrganization(input.id ? "operations.view" : "operations.view");
   const supabase = await createClient();
 
-  const { error } = await supabase.from("operation_states").insert({
-    organization_id: organization.organizationId,
-    operation_id: operationId,
-    state_id: stateId,
+  const payload: Record<string, unknown> = {
+    id: input.id ?? null,
+    name: input.name,
+    description: input.description ?? null,
+    status: input.status,
+  };
+  if (input.coverage) {
+    payload.coverage = input.coverage.map((entry) => ({
+      state_id: entry.stateId,
+      cities: entry.cityIds,
+    }));
+  }
+
+  const { data, error } = await supabase.rpc("save_operation", {
+    p_organization_id: organization.organizationId,
+    p_payload: payload as Json,
   });
 
-  if (error) return { ok: false, error: toMessage(error, "Não foi possível adicionar o estado.") };
-  revalidatePath(`${MODULE_PATH}/${operationId}`);
+  if (error) return { ok: false, error: toMessage(error, "Não foi possível salvar a operação.") };
+
   revalidatePath(MODULE_PATH);
-  return { ok: true };
+  if (data) revalidatePath(`${MODULE_PATH}/${data}`);
+  return { ok: true, data: { id: data as string } };
 }
 
-/**
- * Removing a state takes its municipalities with it — that is the cascade on
- * operation_cities, and it is the behaviour the screen warns about before
- * calling this.
- */
-export async function removeOperationState(operationId: string, stateId: number): Promise<Result> {
-  const { organization } = await requireOrganization("operations.manage");
-  const supabase = await createClient();
-
-  const { error } = await supabase
-    .from("operation_states")
-    .delete()
-    .eq("organization_id", organization.organizationId)
-    .eq("operation_id", operationId)
-    .eq("state_id", stateId);
-
-  if (error) return { ok: false, error: toMessage(error, "Não foi possível remover o estado.") };
-  revalidatePath(`${MODULE_PATH}/${operationId}`);
-  revalidatePath(MODULE_PATH);
-  return { ok: true };
-}
-
-export async function addOperationCity(
+export async function setOperationStatus(
   operationId: string,
-  stateId: number,
-  cityId: number,
+  status: "active" | "inactive",
 ): Promise<Result> {
-  const { organization } = await requireOrganization("operations.manage");
+  await requireOrganization("operations.view");
   const supabase = await createClient();
 
-  const { error } = await supabase.from("operation_cities").insert({
-    organization_id: organization.organizationId,
-    operation_id: operationId,
-    state_id: stateId,
-    city_id: cityId,
+  const { error } = await supabase.rpc("set_operation_status", {
+    p_operation_id: operationId,
+    p_status: status,
   });
 
-  if (error) return { ok: false, error: toMessage(error, "Não foi possível adicionar a cidade.") };
-  revalidatePath(`${MODULE_PATH}/${operationId}`);
+  if (error) return { ok: false, error: toMessage(error, "Não foi possível alterar a situação.") };
+
   revalidatePath(MODULE_PATH);
-  return { ok: true };
-}
-
-export async function removeOperationCity(operationId: string, cityId: number): Promise<Result> {
-  const { organization } = await requireOrganization("operations.manage");
-  const supabase = await createClient();
-
-  const { error } = await supabase
-    .from("operation_cities")
-    .delete()
-    .eq("organization_id", organization.organizationId)
-    .eq("operation_id", operationId)
-    .eq("city_id", cityId);
-
-  if (error) return { ok: false, error: toMessage(error, "Não foi possível remover a cidade.") };
   revalidatePath(`${MODULE_PATH}/${operationId}`);
-  revalidatePath(MODULE_PATH);
   return { ok: true };
 }
 
 /* -------------------------------------------------------------------------- */
 
-export interface CityOption {
+export interface CityChoice {
   id: number;
   name: string;
   isCapital: boolean;
 }
 
 /**
- * Municipalities of one state, for the picker that adds a city to an operation.
+ * Every municipality of one state, fetched once and cached by the picker.
  *
- * Read through a server action rather than shipped to the browser: Minas Gerais
- * alone has 853 municipalities, and the operation may cover several states. The
- * search is the accent-insensitive one, so "sao joao" finds "São João".
+ * Minas Gerais has 853 and São Paulo 645, which is too many to ship for every
+ * state up front and too few to justify paging: one request per state the user
+ * actually opens, held for the life of the form, is the shape that makes search,
+ * "select all" and "clear" instant without asking the server again.
  */
-export async function searchCitiesInState(stateId: number, query: string): Promise<CityOption[]> {
+export async function listCitiesOfState(stateId: number): Promise<CityChoice[]> {
   await requireOrganization("operations.view");
   const supabase = await createClient();
 
-  const trimmed = query.trim();
-  const { data } = await supabase.rpc("search_cities", {
-    p_state_id: stateId,
-    p_query: trimmed.length > 0 ? trimmed : undefined,
-    p_limit: 30,
-    p_offset: 0,
-  });
+  const { data } = await supabase
+    .from("cities")
+    .select("id, name, is_capital")
+    .eq("state_id", stateId)
+    .order("name");
 
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    name: row.name,
-    isCapital: row.is_capital,
-  }));
+  return (data ?? []).map((row) => ({ id: row.id, name: row.name, isCapital: row.is_capital }));
 }

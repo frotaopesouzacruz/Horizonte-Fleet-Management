@@ -5,7 +5,6 @@ import {
   ClipboardCheck,
   Fuel,
   LayoutDashboard,
-  Map,
   Network,
   ShieldAlert,
   Truck,
@@ -52,10 +51,14 @@ export function visibleNavigation(permissions: string[], isPlatformAdmin = false
 /**
  * Navigation model of the product.
  *
- * Two groups, because there are two kinds of thing here. Organização is what the
- * company is — the operations it runs, the places it runs them, the people and
- * the fleet attached to each. Módulos futuros is what the product will do with
- * all that, and every entry in it is still a placeholder.
+ * Two groups, because there are two kinds of thing here. Administração is what
+ * the company is — the operations it runs, the people and the fleet attached to
+ * each. Módulos futuros is what the product will do with all that, and every
+ * entry in it is still a placeholder.
+ *
+ * There is no Estados or Cidades entry, and there must not be one. The IBGE
+ * tables exist and are used, but a state is not something anyone administers:
+ * it is a dimension of an operation's coverage, chosen inside the operation.
  *
  * Keeping the placeholders in one visibly separate group is the point: mixed in
  * with working modules they made the product look finished and the one screen
@@ -71,20 +74,14 @@ export const navigation: NavGroup[] = [
     items: [{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard }],
   },
   {
-    id: "organization",
-    label: "Organização",
+    id: "admin",
+    label: "Administração",
     items: [
       {
         label: "Operações",
         href: "/organizacao/operacoes",
         icon: Network,
         permission: "operations.view",
-      },
-      {
-        // Reference data: readable by anyone signed in, so no permission gate.
-        label: "Estados e cidades",
-        href: "/organizacao/estados",
-        icon: Map,
       },
       {
         label: "Colaboradores e usuários",

@@ -1179,6 +1179,13 @@ export type Database = {
             foreignKeyName: "operation_cities_state_fk"
             columns: ["organization_id", "operation_id", "state_id"]
             isOneToOne: false
+            referencedRelation: "operation_state_summary"
+            referencedColumns: ["organization_id", "operation_id", "state_id"]
+          },
+          {
+            foreignKeyName: "operation_cities_state_fk"
+            columns: ["organization_id", "operation_id", "state_id"]
+            isOneToOne: false
             referencedRelation: "operation_states"
             referencedColumns: ["organization_id", "operation_id", "state_id"]
           },
@@ -1260,6 +1267,7 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           deleted_by: string | null
+          description: string | null
           id: string
           name: string
           organization_id: string
@@ -1273,6 +1281,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          description?: string | null
           id?: string
           name: string
           organization_id: string
@@ -1286,6 +1295,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          description?: string | null
           id?: string
           name?: string
           organization_id?: string
@@ -2184,8 +2194,64 @@ export type Database = {
             foreignKeyName: "operation_cities_state_fk"
             columns: ["organization_id", "operation_id", "state_id"]
             isOneToOne: false
+            referencedRelation: "operation_state_summary"
+            referencedColumns: ["organization_id", "operation_id", "state_id"]
+          },
+          {
+            foreignKeyName: "operation_cities_state_fk"
+            columns: ["organization_id", "operation_id", "state_id"]
+            isOneToOne: false
             referencedRelation: "operation_states"
             referencedColumns: ["organization_id", "operation_id", "state_id"]
+          },
+        ]
+      }
+      operation_state_summary: {
+        Row: {
+          city_count: number | null
+          id: string | null
+          operation_id: string | null
+          organization_id: string | null
+          region: string | null
+          state_id: number | null
+          state_name: string | null
+          uf: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operation_states_operation_fk"
+            columns: ["organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operation_summary"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "operation_states_operation_fk"
+            columns: ["organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operations"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "operation_states_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operation_states_state_id_fkey"
+            columns: ["state_id"]
+            isOneToOne: false
+            referencedRelation: "state_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operation_states_state_id_fkey"
+            columns: ["state_id"]
+            isOneToOne: false
+            referencedRelation: "states"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -2193,6 +2259,8 @@ export type Database = {
         Row: {
           access_count: number | null
           city_count: number | null
+          code: string | null
+          description: string | null
           employee_count: number | null
           id: string | null
           location_count: number | null
@@ -2200,6 +2268,7 @@ export type Database = {
           organization_id: string | null
           state_count: number | null
           status: string | null
+          updated_at: string | null
         }
         Relationships: [
           {
@@ -2311,6 +2380,10 @@ export type Database = {
         Args: { p_organization_id: string; p_payload: Json }
         Returns: string
       }
+      save_operation: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: string
+      }
       search_cities: {
         Args: {
           p_limit?: number
@@ -2343,6 +2416,10 @@ export type Database = {
       }
       set_membership_roles: {
         Args: { p_membership_id: string; p_role_ids: string[] }
+        Returns: undefined
+      }
+      set_operation_status: {
+        Args: { p_operation_id: string; p_status: string }
         Returns: undefined
       }
       set_vehicle_status: {
