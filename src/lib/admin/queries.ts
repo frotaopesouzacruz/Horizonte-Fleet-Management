@@ -263,12 +263,14 @@ export async function getDirectoryOptions(organizationId: string): Promise<Direc
       .eq("organization_id", organizationId)
       .not("manager_employee_id", "is", null)
       .limit(5000),
+    // The seven official access profiles of this organization, in catalogue
+    // order — not alphabetical: Operacional before Administrador says something
+    // that "Administrador before Operacional" does not.
     supabase
-      .from("roles")
-      .select("id, code, name, description, organization_id")
-      .or(`organization_id.is.null,organization_id.eq.${organizationId}`)
-      .is("deleted_at", null)
-      .order("name"),
+      .from("access_profile_overview")
+      .select("role_id, code, catalog_name, description, sort_order")
+      .eq("organization_id", organizationId)
+      .order("sort_order"),
   ]);
 
   const managerMap = new Map<string, string>();
@@ -286,7 +288,12 @@ export async function getDirectoryOptions(organizationId: string): Promise<Direc
     managers: [...managerMap.entries()]
       .map(([id, label]) => ({ id, label }))
       .sort((a, b) => a.label.localeCompare(b.label, "pt-BR")),
-    roles: (roles.data ?? []).map((r) => ({ id: r.id, label: r.name, description: r.description })),
+    roles: (roles.data ?? []).map((r) => ({
+      id: r.role_id as string,
+      label: (r.catalog_name ?? r.code) as string,
+      hint: r.code as string,
+      description: r.description as string | null,
+    })),
   };
 }
 
@@ -310,6 +317,101 @@ export async function getDirectoryStats(organizationId: string): Promise<Directo
     withoutAccess: Number(data?.without_access ?? 0),
     suspended: Number(data?.suspended_access ?? 0),
     pending: Number(data?.pending_invites ?? 0),
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Managerial summary                                                         */
+/* -------------------------------------------------------------------------- */
+
+export interface OperationHeadcount {
+  operationId: string | null;
+  operationName: string;
+  operationCode: string | null;
+  count: number;
+}
+
+export interface EmployeeSummary {
+  total: number;
+  active: number;
+  inactive: number;
+  /** Neither active nor inactive: reported so the five numbers reconcile. */
+  onLeave: number;
+  terminated: number;
+  withLeader: number;
+  withoutLeader: number;
+  operationCount: number;
+  withoutOperation: number;
+  /** Ordered by headcount, with "Sem operação" always last. */
+  byOperation: OperationHeadcount[];
+}
+
+/** The structural filters. The free-text search is deliberately not one of them. */
+const SUMMARY_FILTER_KEYS = [
+  "status",
+  "area",
+  "operation",
+  "profile",
+  "location",
+  "unit",
+  "manager",
+  "access",
+] as const;
+
+/**
+ * The five managerial indicators, aggregated by the database in one pass.
+ *
+ * Never by counting rows in the browser: at ten thousand people that means
+ * downloading ten thousand people to render five numbers. The function is
+ * `security invoker`, so it counts exactly the employees the caller may see —
+ * the organization and the operation scope are enforced by RLS, not by the
+ * arguments we pass.
+ *
+ * The indicators follow the structural filters but ignore `q`: the search
+ * narrows the table, and recomputing the organization on every keystroke would
+ * only make the cards flicker.
+ */
+export async function getEmployeeSummary(
+  organizationId: string,
+  filters: DirectoryFilters = {},
+): Promise<EmployeeSummary> {
+  const supabase = await createClient();
+
+  const payload: Record<string, string | boolean> = {};
+  for (const key of SUMMARY_FILTER_KEYS) {
+    const value = filters[key];
+    if (value) payload[key] = value;
+  }
+  if (filters.archived) payload.archived = true;
+
+  const { data, error } = await supabase.rpc("employee_summary", {
+    p_organization_id: organizationId,
+    p_filters: payload,
+  });
+
+  if (error) throw new Error(error.message);
+
+  const row = (data ?? {}) as Record<string, unknown>;
+  const int = (key: string): number => Number(row[key] ?? 0);
+
+  const byOperation = (Array.isArray(row.by_operation) ? row.by_operation : []) as Record<string, unknown>[];
+
+  return {
+    total: int("total"),
+    active: int("active"),
+    inactive: int("inactive"),
+    onLeave: int("on_leave"),
+    terminated: int("terminated"),
+    withLeader: int("with_leader"),
+    withoutLeader: int("without_leader"),
+    operationCount: int("operation_count"),
+    withoutOperation: int("without_operation"),
+    byOperation: byOperation.map((entry) => ({
+      operationId: (entry.operation_id as string | null) ?? null,
+      operationName: (entry.operation_name as string | null) ?? "Sem operação",
+      operationCode: (entry.operation_code as string | null) ?? null,
+      count: Number(entry.employee_count ?? 0),
+    })),
   };
 }
 

@@ -3,7 +3,7 @@ import { requireOrganization } from "@/lib/auth/session";
 import {
   listEmployees,
   getDirectoryOptions,
-  getDirectoryStats,
+  getEmployeeSummary,
   DEFAULT_PAGE_SIZE,
   type DirectoryFilters,
   type SortKey,
@@ -51,17 +51,20 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
     pageSize: Number(first(params, "pageSize") ?? DEFAULT_PAGE_SIZE) || DEFAULT_PAGE_SIZE,
   };
 
-  const [page, options, stats] = await Promise.all([
+  const [page, options, summary] = await Promise.all([
     listEmployees(organization.organizationId, filters),
     getDirectoryOptions(organization.organizationId),
-    getDirectoryStats(organization.organizationId),
+    // The indicators follow the structural filters, not the search box: the
+    // table answers "who matches what I typed", the cards answer "what does
+    // this slice of the organization look like".
+    getEmployeeSummary(organization.organizationId, filters),
   ]);
 
   return (
     <UsersView
       page={page}
       options={options}
-      stats={stats}
+      summary={summary}
       filters={filters}
       permissions={session.permissions}
       isPlatformAdmin={session.isPlatformAdmin}

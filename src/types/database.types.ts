@@ -14,6 +14,87 @@ export type Database = {
   }
   public: {
     Tables: {
+      access_profile_changes: {
+        Row: {
+          actor_user_id: string | null
+          created_at: string
+          id: string
+          membership_id: string | null
+          new_codes: string[]
+          organization_id: string
+          previous_codes: string[]
+          reason: string
+          target_user_id: string | null
+        }
+        Insert: {
+          actor_user_id?: string | null
+          created_at?: string
+          id?: string
+          membership_id?: string | null
+          new_codes?: string[]
+          organization_id: string
+          previous_codes?: string[]
+          reason: string
+          target_user_id?: string | null
+        }
+        Update: {
+          actor_user_id?: string | null
+          created_at?: string
+          id?: string
+          membership_id?: string | null
+          new_codes?: string[]
+          organization_id?: string
+          previous_codes?: string[]
+          reason?: string
+          target_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "access_profile_changes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      access_profile_defaults: {
+        Row: {
+          permission_code: string
+          profile_code: string
+        }
+        Insert: {
+          permission_code: string
+          profile_code: string
+        }
+        Update: {
+          permission_code?: string
+          profile_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "access_profile_defaults_permission_code_fkey"
+            columns: ["permission_code"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "access_profile_defaults_profile_code_fkey"
+            columns: ["profile_code"]
+            isOneToOne: false
+            referencedRelation: "access_profile_overview"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "access_profile_defaults_profile_code_fkey"
+            columns: ["profile_code"]
+            isOneToOne: false
+            referencedRelation: "access_profiles"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
       access_profile_mappings: {
         Row: {
           approved_at: string | null
@@ -73,10 +154,91 @@ export type Database = {
             foreignKeyName: "access_profile_mappings_role_id_fkey"
             columns: ["role_id"]
             isOneToOne: false
+            referencedRelation: "access_profile_overview"
+            referencedColumns: ["role_id"]
+          },
+          {
+            foreignKeyName: "access_profile_mappings_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
             referencedRelation: "roles"
             referencedColumns: ["id"]
           },
         ]
+      }
+      access_profile_reviews: {
+        Row: {
+          created_at: string
+          details: Json
+          employee_id: string | null
+          id: string
+          membership_id: string | null
+          organization_id: string
+          reason_code: string
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json
+          employee_id?: string | null
+          id?: string
+          membership_id?: string | null
+          organization_id: string
+          reason_code: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json
+          employee_id?: string | null
+          id?: string
+          membership_id?: string | null
+          organization_id?: string
+          reason_code?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "access_profile_reviews_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      access_profiles: {
+        Row: {
+          code: string
+          created_at: string
+          description: string
+          is_administrator: boolean
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          description: string
+          is_administrator?: boolean
+          name: string
+          sort_order: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          description?: string
+          is_administrator?: boolean
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
       }
       audit_logs: {
         Row: {
@@ -1121,6 +1283,13 @@ export type Database = {
             foreignKeyName: "membership_roles_role_id_fkey"
             columns: ["role_id"]
             isOneToOne: false
+            referencedRelation: "access_profile_overview"
+            referencedColumns: ["role_id"]
+          },
+          {
+            foreignKeyName: "membership_roles_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
             referencedRelation: "roles"
             referencedColumns: ["id"]
           },
@@ -1670,6 +1839,13 @@ export type Database = {
             foreignKeyName: "role_permissions_role_id_fkey"
             columns: ["role_id"]
             isOneToOne: false
+            referencedRelation: "access_profile_overview"
+            referencedColumns: ["role_id"]
+          },
+          {
+            foreignKeyName: "role_permissions_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
             referencedRelation: "roles"
             referencedColumns: ["id"]
           },
@@ -2102,6 +2278,31 @@ export type Database = {
       }
     }
     Views: {
+      access_profile_overview: {
+        Row: {
+          added_permissions: string[] | null
+          catalog_name: string | null
+          code: string | null
+          description: string | null
+          is_administrator: boolean | null
+          member_count: number | null
+          organization_id: string | null
+          permission_count: number | null
+          removed_permissions: string[] | null
+          role_id: string | null
+          role_name: string | null
+          sort_order: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_directory: {
         Row: {
           access_all_operations: boolean | null
@@ -2296,6 +2497,28 @@ export type Database = {
       }
     }
     Functions: {
+      access_inconsistencies: {
+        Args: { p_organization_id: string }
+        Returns: {
+          detail: string
+          kind: string
+          severity: string
+          subject: string
+          subject_id: string
+        }[]
+      }
+      access_profile_matrix: {
+        Args: { p_organization_id: string }
+        Returns: {
+          default_codes: string[]
+          description: string
+          granted_codes: string[]
+          module: string
+          permission_code: string
+          permission_name: string
+          reserved: boolean
+        }[]
+      }
       archive_employee: {
         Args: { p_employee_id: string; p_suspend_access?: boolean }
         Returns: undefined
@@ -2334,6 +2557,10 @@ export type Database = {
           has_birth_date: boolean
           has_cpf: boolean
         }[]
+      }
+      employee_summary: {
+        Args: { p_filters?: Json; p_organization_id: string }
+        Returns: Json
       }
       grant_employee_access: {
         Args: {
@@ -2376,6 +2603,10 @@ export type Database = {
       }
       purge_expired_import_batches: { Args: never; Returns: number }
       restore_employee: { Args: { p_employee_id: string }; Returns: undefined }
+      restore_role_defaults: {
+        Args: { p_reason: string; p_role_id: string }
+        Returns: undefined
+      }
       save_employee: {
         Args: { p_organization_id: string; p_payload: Json }
         Returns: string
@@ -2415,11 +2646,23 @@ export type Database = {
         Returns: undefined
       }
       set_membership_roles: {
-        Args: { p_membership_id: string; p_role_ids: string[] }
+        Args: {
+          p_membership_id: string
+          p_reason: string
+          p_role_ids: string[]
+        }
         Returns: undefined
       }
       set_operation_status: {
         Args: { p_operation_id: string; p_status: string }
+        Returns: undefined
+      }
+      set_role_permissions: {
+        Args: {
+          p_permission_codes: string[]
+          p_reason: string
+          p_role_id: string
+        }
         Returns: undefined
       }
       set_vehicle_status: {

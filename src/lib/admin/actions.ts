@@ -7,6 +7,7 @@ import { requireOrganization } from "@/lib/auth/session";
 import { siteOrigin } from "@/lib/auth/actions";
 
 const MODULE_PATH = "/administracao/usuarios";
+const PROFILES_PATH = "/administracao/perfis";
 
 export interface Result<T = undefined> {
   ok: boolean;
@@ -273,17 +274,28 @@ export async function setAccessStatus(employeeId: string, status: "active" | "su
   return { ok: true };
 }
 
-export async function setRoles(membershipId: string, roleIds: string[]): Promise<Result> {
+/**
+ * Changes the HFM access profile of one account.
+ *
+ * The reason is not decoration: a profile change is the single most consequential
+ * edit in the product, and the database refuses the call without one. Nothing
+ * else in the system may reach `membership_roles` — not an import, not an
+ * integration, not a direct write — so this function and its sibling in the
+ * Perfis screen are the whole of it.
+ */
+export async function setRoles(membershipId: string, roleIds: string[], reason: string): Promise<Result> {
   await requireOrganization("users.manage_roles");
   const supabase = await createClient();
 
   const { error } = await supabase.rpc("set_membership_roles", {
     p_membership_id: membershipId,
     p_role_ids: roleIds,
+    p_reason: reason,
   });
   if (error) return { ok: false, error: toMessage(error, "Não foi possível alterar o perfil de acesso.") };
 
   revalidatePath(MODULE_PATH);
+  revalidatePath(PROFILES_PATH);
   return { ok: true };
 }
 

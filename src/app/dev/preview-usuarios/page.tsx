@@ -120,7 +120,24 @@ export default function PreviewUsersPage() {
       <UsersView
         page={PAGE}
         options={OPTIONS}
-        stats={{ total: 143, withAccess: 1, withoutAccess: 142, suspended: 1, pending: 1 }}
+        summary={{
+          total: 143,
+          active: 138,
+          inactive: 2,
+          onLeave: 2,
+          terminated: 1,
+          withLeader: 142,
+          withoutLeader: 1,
+          operationCount: 4,
+          withoutOperation: 3,
+          byOperation: [
+            { operationId: "op-1", operationName: "Merchandising", operationCode: "OP-00002", count: 61 },
+            { operationId: "op-2", operationName: "Last Mille MG", operationCode: "OP-00001", count: 44 },
+            { operationId: "op-3", operationName: "Redespacho", operationCode: "OP-00003", count: 24 },
+            { operationId: "op-4", operationName: "Redespacho Belém", operationCode: "OP-00004", count: 11 },
+            { operationId: null, operationName: "Sem operação", operationCode: null, count: 3 },
+          ],
+        }}
         filters={{ sort: "full_name", dir: "asc", page: 1, pageSize: 25 }}
         permissions={["users.view", "users.create", "users.import", "users.export", "users.archive", "users.bulk_manage", "users.manage_access"]}
         isPlatformAdmin={false}

@@ -48,6 +48,10 @@ const publicSurfaces = [
   // The densest screen in the product: twelve columns, eight filters and
   // four indicators, all of which have to clear contrast in both themes.
   { name: "usuarios (preview)", url: "/dev/preview-usuarios" },
+  // The permission matrix is a grid of dozens of ✓/— cells carrying meaning by
+  // colour; it is exactly the kind of thing that fails contrast in one theme
+  // only and is never noticed.
+  { name: "perfis (preview)", url: "/dev/preview-perfis" },
 ];
 
 /** Behind the app shell: need a real session against a reachable Supabase. */

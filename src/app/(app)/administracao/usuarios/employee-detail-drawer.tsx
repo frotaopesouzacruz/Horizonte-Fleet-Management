@@ -28,6 +28,7 @@ import { LoadingState } from "@/components/feedback/loading-state";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { useToast } from "@/components/feedback/toast";
 import { useConfirm } from "@/components/feedback/confirm-dialog";
+import { ReasonDialog } from "@/components/admin/reason-dialog";
 import { EMPLOYMENT_STATUS_LABELS, ACCESS_STATUS_LABELS } from "@/lib/admin/qlp";
 import type { DirectoryOptions } from "@/lib/admin/queries";
 import { loadEmployeeDetail, type EmployeeDetailPayload } from "@/lib/admin/detail-actions";
@@ -265,8 +266,8 @@ export function EmployeeDetailDrawer({
                   onGrant={(roleIds, operationIds) =>
                     run(() => grantAccess(row.id!, roleIds, operationIds), "Acesso concedido. O convite foi enviado por e-mail.")
                   }
-                  onRoles={(roleIds) =>
-                    run(() => setRoles(row.membership_id!, roleIds), "Perfil de acesso atualizado.")
+                  onRoles={(roleIds, reason) =>
+                    run(() => setRoles(row.membership_id!, roleIds, reason), "Perfil de acesso atualizado.")
                   }
                   onScopes={(operationIds) =>
                     run(() => setOperationScopes(row.membership_id!, operationIds), "Operações permitidas atualizadas.")
@@ -426,7 +427,7 @@ function AccessTab({
   options: DirectoryOptions;
   pending: boolean;
   onGrant: (roleIds: string[], operationIds: string[]) => void;
-  onRoles: (roleIds: string[]) => void;
+  onRoles: (roleIds: string[], reason: string) => void;
   onScopes: (operationIds: string[]) => void;
   onStatus: (status: "active" | "suspended") => void;
   onResend: () => void;
@@ -437,6 +438,7 @@ function AccessTab({
 
   const [roleIds, setRoleIds] = React.useState<string[]>(detail.roleIds);
   const [operationIds, setOperationIds] = React.useState<string[]>(detail.scopeOperationIds);
+  const [reasonOpen, setReasonOpen] = React.useState(false);
 
   // A reload brings a new `detail` object: the pickers follow it during render,
   // so a saved change is reflected without a second commit.
@@ -519,9 +521,25 @@ function AccessTab({
         value={roleIds}
         onChange={setRoleIds}
         disabled={!can("users.manage_roles")}
-        onSave={can("users.manage_roles") ? () => onRoles(roleIds) : undefined}
+        onSave={can("users.manage_roles") ? () => setReasonOpen(true) : undefined}
         saving={pending}
         dirty={!sameSet(roleIds, detail.roleIds)}
+      />
+
+      <ReasonDialog
+        open={reasonOpen}
+        onOpenChange={setReasonOpen}
+        title="Alterar o perfil de acesso"
+        description={
+          <>
+            De <strong>{profileNames(options, detail.roleIds) || "nenhum perfil"}</strong> para{" "}
+            <strong>{profileNames(options, roleIds) || "nenhum perfil"}</strong>. A alteração vale imediatamente para
+            tudo que esta conta enxerga no HFM.
+          </>
+        }
+        confirmLabel="Alterar perfil"
+        loading={pending}
+        onConfirm={(reason) => onRoles(roleIds, reason)}
       />
 
       {grantsAllOperations ? (
@@ -581,6 +599,14 @@ function AccessTab({
   );
 }
 
+/** The profile names behind a set of role ids, for the confirmation sentence. */
+function profileNames(options: DirectoryOptions, roleIds: string[]): string {
+  return options.roles
+    .filter((role) => roleIds.includes(role.id))
+    .map((role) => role.label)
+    .join(", ");
+}
+
 function RolePicker({
   roles,
   value,
@@ -598,41 +624,73 @@ function RolePicker({
   saving?: boolean;
   dirty?: boolean;
 }) {
+  const name = React.useId();
+  const selected = value[0];
+
   return (
     <fieldset className="flex flex-col gap-2" disabled={disabled}>
       <legend className="text-body-sm font-semibold text-fg">Perfil de acesso (HFM)</legend>
       <p className="text-caption text-fg-muted">
-        Define o que a conta pode fazer no sistema. Não confundir com o perfil organizacional da base.
+        Define o que a conta pode fazer no sistema. É uma escolha única, e não tem relação com o perfil organizacional
+        que vem da base corporativa.
       </p>
+
+      {value.length > 1 ? (
+        <Alert variant="warning">
+          <AlertTitle>Mais de um perfil atribuído</AlertTitle>
+          <AlertDescription>
+            Esta conta acumula {value.length} perfis e o acesso efetivo é a soma deles. Escolha um único perfil para
+            normalizar.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {roles.length === 0 ? (
+        // The official profiles belong to the organization and are read with
+        // `roles.view`. Without it the list is empty, and an empty list that
+        // says nothing reads as "this organization has no profiles".
+        <p className="text-body-sm text-fg-muted">
+          Você não possui permissão para consultar os perfis de acesso desta organização.
+        </p>
+      ) : null}
+
       <div className="flex flex-col gap-1.5">
-        {roles.map((role) => (
-          <label
-            key={role.id}
-            className={cn(
-              "flex items-start gap-2.5 rounded-sm border border-border-subtle px-3 py-2",
-              disabled && "opacity-60",
-            )}
-          >
-            <Checkbox
-              className="mt-0.5"
-              checked={value.includes(role.id)}
-              disabled={disabled}
-              onCheckedChange={(checked) =>
-                onChange(checked ? [...value, role.id] : value.filter((id) => id !== role.id))
-              }
-            />
-            <span className="min-w-0">
-              <span className="block text-body-sm font-medium text-fg">{role.label}</span>
-              {role.description ? <span className="block text-caption text-fg-muted">{role.description}</span> : null}
-            </span>
-          </label>
-        ))}
+        {roles.map((role) => {
+          const checked = value.includes(role.id);
+          return (
+            <label
+              key={role.id}
+              className={cn(
+                "flex cursor-pointer items-start gap-2.5 rounded-sm border px-3 py-2",
+                checked ? "border-primary bg-selected-overlay" : "border-border-subtle",
+                disabled && "cursor-default opacity-60",
+              )}
+            >
+              <input
+                type="radio"
+                name={name}
+                className="mt-1 accent-[var(--color-primary)]"
+                checked={checked}
+                disabled={disabled}
+                onChange={() => onChange([role.id])}
+              />
+              <span className="min-w-0">
+                <span className="block text-body-sm font-medium text-fg">{role.label}</span>
+                {role.description ? <span className="block text-caption text-fg-muted">{role.description}</span> : null}
+              </span>
+            </label>
+          );
+        })}
       </div>
+
       {onSave ? (
         <div>
-          <Button size="sm" variant="secondary" disabled={!dirty || saving} onClick={onSave}>
-            Salvar perfis
+          <Button size="sm" variant="secondary" disabled={!dirty || saving || !selected} onClick={onSave}>
+            Alterar perfil de acesso…
           </Button>
+          <p className="mt-1.5 text-caption text-fg-muted">
+            A alteração exige um motivo e fica registrada na auditoria.
+          </p>
         </div>
       ) : null}
     </fieldset>

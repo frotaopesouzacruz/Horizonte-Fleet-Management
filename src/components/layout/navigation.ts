@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Network,
   ShieldAlert,
+  ShieldCheck,
   Truck,
   Users,
   Wrench,
@@ -67,6 +68,10 @@ export function visibleNavigation(permissions: string[], isPlatformAdmin = false
  * Colaboradores and Usuários are one entry and one module. They are the same 143
  * people seen from two sides — the employee record and the HFM account — and
  * splitting them would mean two screens arguing about who someone is.
+ *
+ * Perfis e permissões is its own entry precisely because it is not that: the
+ * access profile is what a person may do, and it must not be reachable only as
+ * a tab inside the record of who they are.
  */
 export const navigation: NavGroup[] = [
   {
@@ -88,6 +93,12 @@ export const navigation: NavGroup[] = [
         href: "/administracao/usuarios",
         icon: Users,
         permission: "users.view",
+      },
+      {
+        label: "Perfis e permissões",
+        href: "/administracao/perfis",
+        icon: ShieldCheck,
+        permission: "roles.view",
       },
       {
         label: "Frotas",

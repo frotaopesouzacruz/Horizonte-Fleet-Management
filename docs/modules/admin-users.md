@@ -151,7 +151,58 @@ cannot contain them. Every export is recorded as `user.exported`.
 `user.import_started/completed`. The trail is append-only: `DELETE` on
 `audit_logs` is refused even for a superuser.
 
-## 11. Known limits
+## 11. The managerial indicators
+
+The screen used to lead with four numbers about HFM access — com acesso, sem
+acesso, suspensos, convites. That is an administrator's question, and the people
+who open this screen every day were asking a different one. The five cards now
+answer it:
+
+**Total de colaboradores · Colaboradores por operação · Ativos · Inativos ·
+Vinculados à liderança**
+
+Access is not gone: it is still a filter, a table column and a whole tab of the
+detail drawer. It simply stopped being the first thing the page says.
+
+### Where the numbers come from
+
+`public.employee_summary(organization_id, filters)` — one function, one scan,
+one round trip. Never by counting rows in the browser: at ten thousand people
+that means downloading ten thousand people to render five numbers. It is
+`security invoker`, so it counts exactly the employees the caller may see; the
+tenant and the operation scope are enforced by RLS, not by the arguments.
+
+Three definitions, taken from the data model rather than invented:
+
+- **Ativos / Inativos** are literally `employment_status = 'active'` and
+  `= 'inactive'`. `on_leave` and `terminated` are neither, and are printed under
+  the Inativos card ("2 afastado(s) · 1 desligado(s)") so the five numbers
+  reconcile with the total without folding an afastado into an inactive person.
+- **Vinculados à liderança** is a current assignment (`is_current`) carrying a
+  `manager_employee_id`. A closed assignment is history and never counts.
+- **Por operação** groups by `operations.id`. Never by the operation's name:
+  two operations are free to be renamed to the same text and would still be two.
+
+### The contextual card
+
+With an operation filtered, the second card answers about that operation. With
+no filter it shows how many operations have people and offers **Ver
+distribuição** — the full ranking, one proportional bar per operation, with
+"Sem operação" always last even at zero. A blank where that number should be is
+how it stays invisible for months.
+
+No donut. A bar per row answers "which operation is biggest, and by how much" by
+length, which the eye compares reliably.
+
+### Filters, not keystrokes
+
+The cards follow the structural filters (situação, operação, perfil, acesso,
+área, localidade, filial, líder) and deliberately ignore the search box.
+Recounting the organization on every keystroke would make them flicker without
+telling anyone anything: the table answers "who matches what I typed", the cards
+answer "what does this slice of the organization look like".
+
+## 12. Known limits
 
 - The Operations module itself is not built: only the master data the directory
   and the scope need.
@@ -159,4 +210,10 @@ cannot contain them. Every export is recorded as `user.exported`.
   dropped; the Drivers module decides when the employee becomes the source of
   identity.
 - Organizational profile → role mapping exists as a table and is never applied
-  automatically. The UI for approving a mapping comes with the Settings module.
+  automatically, and after Etapa 05 it never can be: `membership_roles` refuses
+  every write that does not come through an audited access RPC. See
+  [Perfis e permissões](./admin-roles-permissions.md).
+- The access profile is a single choice in the interface, while the data model
+  still allows an account to hold several. The audit panel of Perfis e
+  permissões reports any account that does, so the two can be reconciled without
+  a migration guessing on somebody's behalf.

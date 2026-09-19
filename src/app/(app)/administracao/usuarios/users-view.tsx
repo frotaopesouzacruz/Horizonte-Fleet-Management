@@ -14,7 +14,8 @@ import {
   Users as UsersIcon,
   UserCheck,
   UserMinus,
-  UserX,
+  Building2,
+  Network,
   Columns3,
   SlidersHorizontal,
 } from "lucide-react";
@@ -53,7 +54,13 @@ import { EmptyState } from "@/components/feedback/empty-state";
 import { useToast } from "@/components/feedback/toast";
 import { useConfirm } from "@/components/feedback/confirm-dialog";
 import { EMPLOYMENT_STATUS_LABELS, ACCESS_STATUS_LABELS } from "@/lib/admin/qlp";
-import type { DirectoryFilters, DirectoryOptions, DirectoryPage, DirectoryStats, SortKey } from "@/lib/admin/queries";
+import type {
+  DirectoryFilters,
+  DirectoryOptions,
+  DirectoryPage,
+  EmployeeSummary,
+  SortKey,
+} from "@/lib/admin/queries";
 import { bulkArchive, bulkSetAccessStatus } from "@/lib/admin/actions";
 import { EmployeeDetailDrawer } from "./employee-detail-drawer";
 import { EmployeeFormDrawer } from "./employee-form-drawer";
@@ -78,6 +85,21 @@ const ACCESS_TONE = {
   removed: "neutral",
   none: "neutral",
 } as const;
+
+const numberFormat = new Intl.NumberFormat("pt-BR");
+
+/**
+ * Five cards, one baseline.
+ *
+ * The labels are not all one line — "Colaboradores por operação" wraps where
+ * "Ativos" does not — and a centred card would then put its number at a
+ * different height from its neighbours. Reserving two lines for every label and
+ * stacking from the top lines the five numbers up, which is what makes the row
+ * read as one instrument instead of five.
+ */
+function kpiLabel(text: string) {
+  return <span className="block min-h-11 leading-snug">{text}</span>;
+}
 
 export function formatDate(value: string | null | undefined): string {
   if (!value) return "—";
@@ -128,13 +150,13 @@ function Cell({ value, className }: { value?: string | null; className?: string 
 export interface UsersViewProps {
   page: DirectoryPage;
   options: DirectoryOptions;
-  stats: DirectoryStats;
+  summary: EmployeeSummary;
   filters: DirectoryFilters;
   permissions: string[];
   isPlatformAdmin: boolean;
 }
 
-export function UsersView({ page, options, stats, filters, permissions, isPlatformAdmin }: UsersViewProps) {
+export function UsersView({ page, options, summary, filters, permissions, isPlatformAdmin }: UsersViewProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -373,6 +395,31 @@ export function UsersView({ page, options, stats, filters, permissions, isPlatfo
     Boolean,
   ).length;
 
+  /**
+   * The "por operação" card is contextual. With an operation filtered it
+   * answers about that operation; without one it offers the distribution.
+   * The filter is matched by operations.id — never by the operation's name,
+   * which two operations are free to share.
+   */
+  const selectedOperation = filters.operation
+    ? options.operations.find((operation) => operation.id === filters.operation)
+    : undefined;
+  const selectedOperationCount =
+    summary.byOperation.find((entry) => entry.operationId === filters.operation)?.count ?? 0;
+
+  /**
+   * Afastados and desligados are neither "ativo" nor "inativo". Printing them
+   * under the Inativos card is what lets the five numbers reconcile with the
+   * total without inventing a rule that folds them into one of the two.
+   */
+  const otherSituations =
+    [
+      summary.onLeave > 0 ? `${numberFormat.format(summary.onLeave)} afastado(s)` : null,
+      summary.terminated > 0 ? `${numberFormat.format(summary.terminated)} desligado(s)` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ") || undefined;
+
   const visibleColumns = columns.filter((column) => !hidden.includes(column.key));
   // 44px for the selection column. The table refuses to render narrower than
   // the sum, which is what turns an unreadable squeeze into a scrollbar.
@@ -491,9 +538,30 @@ export function UsersView({ page, options, stats, filters, permissions, isPlatfo
             ) : null}
           </>
         }
-        filters={
-          <FilterBar
-            end={
+      />
+
+      <div className="flex min-h-0 flex-1 flex-col px-4 pb-6 sm:px-6">
+      {/* Cabeçalho → busca: 24px. Quem chega nesta tela quase sempre chega
+          procurando uma pessoa, então a busca abre o conteúdo sozinha, numa
+          largura em que o próprio texto de ajuda cabe inteiro — o campo cresce
+          para caber a frase, a frase nunca encolhe para caber no campo. */}
+      <div className="flex flex-wrap items-center gap-2 pt-6">
+        <SearchField
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          onClear={() => setSearch("")}
+          placeholder="Buscar por nome, matrícula ou e-mail"
+          aria-label="Buscar colaboradores"
+          // The width belongs on the wrapper: the component's own is `w-full`,
+          // and a class on the input alone leaves the field claiming the whole
+          // row. 400px is chosen so the placeholder fits without shrinking.
+          wrapperClassName="w-full sm:w-100"
+        />
+
+        {/* Shaping the table is not filtering it, and the control was spilling
+            onto a line of its own anyway. It sits at the far end of the search
+            row, where the row had space to spare. */}
+        <div className="ml-auto flex flex-wrap items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="secondary" size="sm" leadingIcon={<Columns3 />} className="hidden lg:inline-flex">
@@ -528,119 +596,101 @@ export function UsersView({ page, options, stats, filters, permissions, isPlatfo
                   })}
                 </DropdownMenuContent>
               </DropdownMenu>
-            }
-          >
-            <SearchField
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              onClear={() => setSearch("")}
-              placeholder="Buscar por nome, matrícula ou e-mail"
-              aria-label="Buscar colaboradores"
-              className="w-full sm:w-80"
-            />
-
-            {/* Four filters carry almost every real query. The remaining four
-                used to sit on the same line and squeezed all eight into
-                unreadable stubs. */}
-            <FilterSelect
-              label="Situação"
-              value={filters.status}
-              onChange={(value) => apply({ status: value })}
-              options={Object.entries(EMPLOYMENT_STATUS_LABELS).map(([id, label]) => ({ id, label }))}
-            />
-            <FilterSelect
-              label="Operação"
-              value={filters.operation}
-              onChange={(value) => apply({ operation: value })}
-              options={options.operations}
-            />
-            <FilterSelect
-              label="Perfil"
-              value={filters.profile}
-              onChange={(value) => apply({ profile: value })}
-              options={options.profiles}
-            />
-            <FilterSelect
-              label="Acesso"
-              value={filters.access}
-              onChange={(value) => apply({ access: value })}
-              options={Object.entries(ACCESS_STATUS_LABELS)
-                .filter(([id]) => id !== "removed")
-                .map(([id, label]) => ({ id, label }))}
-            />
-
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="secondary" size="sm" leadingIcon={<SlidersHorizontal />}>
-                  Mais filtros
-                  {advancedCount > 0 ? (
-                    <Badge variant="primary" size="sm" className="tabular-nums">
-                      {advancedCount}
-                    </Badge>
-                  ) : null}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-80">
-                <div className="flex flex-col gap-3">
-                  <p className="text-h4 font-semibold text-fg">Filtros adicionais</p>
-                  <StackedFilter
-                    label="Área"
-                    value={filters.area}
-                    onChange={(value) => apply({ area: value })}
-                    options={options.areas}
-                  />
-                  <StackedFilter
-                    label="Localidade"
-                    value={filters.location}
-                    onChange={(value) => apply({ location: value })}
-                    options={options.locations}
-                  />
-                  <StackedFilter
-                    label="Filial"
-                    value={filters.unit}
-                    onChange={(value) => apply({ unit: value })}
-                    options={options.units}
-                  />
-                  <StackedFilter
-                    label="Líder"
-                    value={filters.manager}
-                    onChange={(value) => apply({ manager: value })}
-                    options={options.managers}
-                  />
-                  {can("users.archive") ? (
-                    <label className="flex items-center gap-2 border-t border-border-subtle pt-3 text-body-sm text-fg-secondary">
-                      <Checkbox
-                        checked={Boolean(filters.archived)}
-                        onCheckedChange={(checked) => apply({ archived: checked ? "1" : undefined })}
-                      />
-                      Exibir cadastros inativos
-                    </label>
-                  ) : null}
-                </div>
-              </PopoverContent>
-            </Popover>
-          </FilterBar>
-        }
-      />
-
-      <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 pb-6 sm:px-6">
-        {/* Compact indicators: four numbers, not four posters. */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <KpiCard size="compact" label="Colaboradores" value={stats.total} icon={<UsersIcon aria-hidden />} />
-          <KpiCard size="compact" status="success" label="Com acesso ao HFM" value={stats.withAccess} icon={<UserCheck aria-hidden />} />
-          <KpiCard size="compact" label="Sem acesso" value={stats.withoutAccess} icon={<UserMinus aria-hidden />} />
-          <KpiCard
-            size="compact"
-            status={stats.suspended > 0 ? "warning" : "neutral"}
-            label="Acessos suspensos"
-            value={stats.suspended}
-            period={stats.pending > 0 ? `${stats.pending} convite(s) pendente(s)` : undefined}
-            icon={<UserX aria-hidden />}
-          />
         </div>
+      </div>
 
+      {/* Busca → filtros: 10px. Os filtros continuam os mesmos, validados pelo
+          Product Owner; o que muda é que deixam de disputar a mesma linha. */}
+      <FilterBar
+        className="mt-2.5 py-0"
+        label="Filtros de colaboradores"
+      >
+          {/* Four filters carry almost every real query. The remaining four
+              used to sit on the same line and squeezed all eight into
+              unreadable stubs. */}
+          <FilterSelect
+            label="Situação"
+            value={filters.status}
+            onChange={(value) => apply({ status: value })}
+            options={Object.entries(EMPLOYMENT_STATUS_LABELS).map(([id, label]) => ({ id, label }))}
+          />
+          <FilterSelect
+            label="Operação"
+            value={filters.operation}
+            onChange={(value) => apply({ operation: value })}
+            options={options.operations}
+          />
+          <FilterSelect
+            label="Perfil"
+            value={filters.profile}
+            onChange={(value) => apply({ profile: value })}
+            options={options.profiles}
+          />
+          <FilterSelect
+            label="Acesso"
+            value={filters.access}
+            onChange={(value) => apply({ access: value })}
+            options={Object.entries(ACCESS_STATUS_LABELS)
+              .filter(([id]) => id !== "removed")
+              .map(([id, label]) => ({ id, label }))}
+          />
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="secondary" size="sm" leadingIcon={<SlidersHorizontal />}>
+                Mais filtros
+                {advancedCount > 0 ? (
+                  <Badge variant="primary" size="sm" className="tabular-nums">
+                    {advancedCount}
+                  </Badge>
+                ) : null}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-80">
+              <div className="flex flex-col gap-3">
+                <p className="text-h4 font-semibold text-fg">Filtros adicionais</p>
+                <StackedFilter
+                  label="Área"
+                  value={filters.area}
+                  onChange={(value) => apply({ area: value })}
+                  options={options.areas}
+                />
+                <StackedFilter
+                  label="Localidade"
+                  value={filters.location}
+                  onChange={(value) => apply({ location: value })}
+                  options={options.locations}
+                />
+                <StackedFilter
+                  label="Filial"
+                  value={filters.unit}
+                  onChange={(value) => apply({ unit: value })}
+                  options={options.units}
+                />
+                <StackedFilter
+                  label="Líder"
+                  value={filters.manager}
+                  onChange={(value) => apply({ manager: value })}
+                  options={options.managers}
+                />
+                {can("users.archive") ? (
+                  <label className="flex items-center gap-2 border-t border-border-subtle pt-3 text-body-sm text-fg-secondary">
+                    <Checkbox
+                      checked={Boolean(filters.archived)}
+                      onCheckedChange={(checked) => apply({ archived: checked ? "1" : undefined })}
+                    />
+                    Exibir cadastros inativos
+                  </label>
+                ) : null}
+              </div>
+            </PopoverContent>
+          </Popover>
+      </FilterBar>
+
+        {/* Os chips pertencem aos filtros, não aos indicadores: ficam
+            imediatamente abaixo deles, onde foram criados. */}
         {activeFilters.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             {activeFilters.map((filter) => (
               <FilterChip
                 key={filter.key}
@@ -660,8 +710,87 @@ export function UsersView({ page, options, stats, filters, permissions, isPlatfo
           </div>
         ) : null}
 
+        {/* Filtros → indicadores: 24px.
+
+            Cinco números de gestão, e a mudança de assunto é deliberada: a tela
+            respondia "quem tem acesso ao HFM" e passa a responder "quantas
+            pessoas existem, onde estão, quantas estão ativas e quantas têm
+            liderança definida". O estado do acesso continua nos filtros, na
+            coluna da tabela e no detalhe de cada pessoa — só deixou de ser a
+            primeira pergunta da página.
+
+            Os cartões seguem os filtros estruturais e ignoram a busca: recontar
+            a organização a cada tecla digitada faria os números piscarem sem
+            informar nada. */}
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+          <KpiCard
+            size="compact"
+            className="justify-start"
+            label={kpiLabel("Total de colaboradores")}
+            value={summary.total}
+            icon={<UsersIcon aria-hidden />}
+          />
+
+          {/* Contextual: com uma operação filtrada o cartão responde sobre ela;
+              sem filtro, responde sobre a distribuição. */}
+          {selectedOperation ? (
+            <KpiCard
+              size="compact"
+              className="justify-start"
+              label={kpiLabel("Colaboradores na operação")}
+              value={selectedOperationCount}
+              period={selectedOperation.label}
+              icon={<Building2 aria-hidden />}
+            />
+          ) : (
+            <KpiCard
+              size="compact"
+              className="justify-start"
+              label={kpiLabel("Colaboradores por operação")}
+              value={summary.operationCount}
+              unit={summary.operationCount === 1 ? "operação" : "operações"}
+              icon={<Building2 aria-hidden />}
+              period={<OperationDistribution summary={summary} />}
+            />
+          )}
+
+          <KpiCard
+            size="compact"
+            className="justify-start"
+            status="success"
+            label={kpiLabel("Ativos")}
+            value={summary.active}
+            icon={<UserCheck aria-hidden />}
+          />
+
+          {/* "Inativo" é exatamente employment_status = 'inactive'. Afastados e
+              desligados não são inativos e aparecem ao lado, para que a soma
+              dos cartões feche com o total sem que se invente uma regra. */}
+          <KpiCard
+            size="compact"
+            className="justify-start"
+            label={kpiLabel("Inativos")}
+            value={summary.inactive}
+            period={otherSituations}
+            icon={<UserMinus aria-hidden />}
+          />
+
+          <KpiCard
+            size="compact"
+            className="justify-start"
+            label={kpiLabel("Vinculados à liderança")}
+            value={summary.withLeader}
+            period={
+              summary.withoutLeader > 0
+                ? `${numberFormat.format(summary.withoutLeader)} sem líder definido`
+                : undefined
+            }
+            icon={<Network aria-hidden />}
+          />
+        </div>
+
         {selected.size > 0 ? (
-          <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface-secondary px-3 py-2">
+          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface-secondary px-3 py-2">
             <span className="text-body-sm font-medium text-fg">{selected.size} selecionado(s)</span>
             <span aria-hidden className="h-4 w-px bg-border" />
             {can("users.bulk_manage") && can("users.manage_access") ? (
@@ -685,157 +814,159 @@ export function UsersView({ page, options, stats, filters, permissions, isPlatfo
           </div>
         ) : null}
 
-        {isEmpty ? (
-          <EmptyState
-            icon={<UsersIcon />}
-            title="Nenhum usuário cadastrado"
-            description="Cadastre manualmente ou importe sua base de colaboradores."
-            action={
-              can("users.create") ? (
-                <Button leadingIcon={<Plus />} onClick={() => { setEditId(null); setFormOpen(true); }}>
-                  Novo usuário
-                </Button>
-              ) : undefined
-            }
-            secondaryAction={
-              can("users.import") ? (
-                <Button variant="secondary" leadingIcon={<Upload />} onClick={() => setImportOpen(true)}>
-                  Importar base
-                </Button>
-              ) : undefined
-            }
-          />
-        ) : (
-          <>
-            {/* Desktop: the full table. Below lg the same rows become cards. */}
-            {/* Desktop: the full table. Below lg the same rows become cards.
-                The table is never squeezed below the sum of its columns — it
-                scrolls sideways instead, which keeps every header readable. */}
-            <TableContainer stickyHeader maxHeight="calc(100dvh - 22rem)" className="hidden lg:block">
-              <Table layout="fixed" style={{ minWidth: tableMinWidth }}>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead style={{ width: 44, zIndex: 21 }} className="sticky left-0 bg-surface-secondary">
-                      <Checkbox
-                        checked={allOnPageSelected}
-                        onCheckedChange={(checked) =>
-                          setSelected(
-                            checked
-                              ? new Set(page.rows.map((row) => row.id).filter((id): id is string => Boolean(id)))
-                              : new Set(),
-                          )
-                        }
-                        aria-label="Selecionar todos os registros desta página"
-                      />
-                    </TableHead>
-                    {visibleColumns.map((column, index) => (
-                      <TableHead
-                        key={column.key}
-                        style={{
-                          width: column.width,
-                          left: index === 0 ? 44 : undefined,
-                          zIndex: index === 0 ? 21 : undefined,
-                        }}
-                        className={cn(index === 0 && "sticky border-r border-border bg-surface-secondary")}
-                        numeric={column.numeric}
-                        sortable={Boolean(column.sort)}
-                        sortDirection={column.sort ? sortDirection(column.sort) : undefined}
-                        onSort={column.sort ? onSort(column.sort) : undefined}
-                      >
-                        {column.label}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {page.rows.length === 0 ? (
-                    <TableEmpty
-                      colSpan={visibleColumns.length + 1}
-                      message="Nenhum colaborador encontrado com os filtros aplicados."
-                    />
-                  ) : (
-                    page.rows.map((row) => (
-                      <TableRow
-                        key={row.id}
-                        onClick={() => row.id && setDetailId(row.id)}
-                        className={cn("h-(--table-row-height) cursor-pointer", row.deleted_at && "opacity-70")}
-                      >
-                        <TableCell onClick={(event) => event.stopPropagation()} style={{ zIndex: 1 }} className="sticky left-0 bg-inherit">
-                          <Checkbox
-                            checked={Boolean(row.id && selected.has(row.id))}
-                            onCheckedChange={(checked) =>
-                              setSelected((current) => {
-                                const next = new Set(current);
-                                if (!row.id) return next;
-                                if (checked) next.add(row.id);
-                                else next.delete(row.id);
-                                return next;
-                              })
-                            }
-                            aria-label={`Selecionar ${row.full_name}`}
-                          />
-                        </TableCell>
-                        {visibleColumns.map((column, index) => (
-                          <TableCell
-                            key={column.key}
-                            numeric={column.numeric}
-                            style={{ left: index === 0 ? 44 : undefined, zIndex: index === 0 ? 1 : undefined }}
-                            className={cn(index === 0 && "sticky border-r border-border bg-inherit")}
-                          >
-                            {column.render(row)}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-
-            <ul className="flex flex-col gap-2 lg:hidden">
-              {page.rows.map((row) => (
-                <li key={row.id}>
-                  <button
-                    type="button"
-                    onClick={() => row.id && setDetailId(row.id)}
-                    className="flex w-full flex-col gap-1.5 rounded-md border border-border bg-surface p-3 text-left hfm-transition hover:border-border-strong hfm-focus-ring"
-                  >
-                    <span className="flex items-start justify-between gap-2">
-                      <span className="min-w-0">
-                        <span className="block truncate text-body-sm font-semibold text-fg">{row.full_name}</span>
-                        <span className="block truncate text-caption text-fg-muted">
-                          {row.employee_code} · {row.job_position_name ?? "Sem cargo"}
-                        </span>
-                      </span>
-                      <StatusBadge
-                        status={EMPLOYMENT_TONE[(row.employment_status ?? "active") as keyof typeof EMPLOYMENT_TONE] ?? "neutral"}>{EMPLOYMENT_STATUS_LABELS[row.employment_status ?? ""] ?? "—"}</StatusBadge>
-                    </span>
-                    <span className="flex flex-wrap items-center gap-1.5 text-caption text-fg-secondary">
-                      {row.operation_name ? <Badge variant="neutral">{row.operation_name}</Badge> : null}
-                      {row.work_location_name ? <Badge variant="neutral">{row.work_location_name}</Badge> : null}
-                      <StatusBadge
-                        status={ACCESS_TONE[(row.access_status ?? "none") as keyof typeof ACCESS_TONE] ?? "neutral"}>{ACCESS_STATUS_LABELS[row.access_status ?? "none"] ?? "—"}</StatusBadge>
-                    </span>
-                  </button>
-                </li>
-              ))}
-              {page.rows.length === 0 ? (
-                <li className="rounded-md border border-border bg-surface p-6 text-center text-body-sm text-fg-muted">
-                  Nenhum colaborador encontrado com os filtros aplicados.
-                </li>
-              ) : null}
-            </ul>
-
-            <Pagination
-              page={page.page}
-              pageSize={page.pageSize}
-              total={page.total}
-              disabled={pending}
-              onPageChange={(value) => apply({ page: String(value) }, false)}
-              onPageSizeChange={(value) => apply({ pageSize: String(value), page: undefined })}
+        {/* Indicadores → tabela: 24px. */}
+        <div className="mt-6 flex min-h-0 flex-1 flex-col gap-4">
+          {isEmpty ? (
+            <EmptyState
+              icon={<UsersIcon />}
+              title="Nenhum usuário cadastrado"
+              description="Cadastre manualmente ou importe sua base de colaboradores."
+              action={
+                can("users.create") ? (
+                  <Button leadingIcon={<Plus />} onClick={() => { setEditId(null); setFormOpen(true); }}>
+                    Novo usuário
+                  </Button>
+                ) : undefined
+              }
+              secondaryAction={
+                can("users.import") ? (
+                  <Button variant="secondary" leadingIcon={<Upload />} onClick={() => setImportOpen(true)}>
+                    Importar base
+                  </Button>
+                ) : undefined
+              }
             />
-          </>
-        )}
+          ) : (
+            <>
+              {/* Desktop: the full table. Below lg the same rows become cards.
+                  The table is never squeezed below the sum of its columns — it
+                  scrolls sideways instead, which keeps every header readable. */}
+              <TableContainer stickyHeader maxHeight="calc(100dvh - 22rem)" className="hidden lg:block">
+                <Table layout="fixed" style={{ minWidth: tableMinWidth }}>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead style={{ width: 44, zIndex: 21 }} className="sticky left-0 bg-surface-secondary">
+                        <Checkbox
+                          checked={allOnPageSelected}
+                          onCheckedChange={(checked) =>
+                            setSelected(
+                              checked
+                                ? new Set(page.rows.map((row) => row.id).filter((id): id is string => Boolean(id)))
+                                : new Set(),
+                            )
+                          }
+                          aria-label="Selecionar todos os registros desta página"
+                        />
+                      </TableHead>
+                      {visibleColumns.map((column, index) => (
+                        <TableHead
+                          key={column.key}
+                          style={{
+                            width: column.width,
+                            left: index === 0 ? 44 : undefined,
+                            zIndex: index === 0 ? 21 : undefined,
+                          }}
+                          className={cn(index === 0 && "sticky border-r border-border bg-surface-secondary")}
+                          numeric={column.numeric}
+                          sortable={Boolean(column.sort)}
+                          sortDirection={column.sort ? sortDirection(column.sort) : undefined}
+                          onSort={column.sort ? onSort(column.sort) : undefined}
+                        >
+                          {column.label}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {page.rows.length === 0 ? (
+                      <TableEmpty
+                        colSpan={visibleColumns.length + 1}
+                        message="Nenhum colaborador encontrado com os filtros aplicados."
+                      />
+                    ) : (
+                      page.rows.map((row) => (
+                        <TableRow
+                          key={row.id}
+                          onClick={() => row.id && setDetailId(row.id)}
+                          className={cn("h-(--table-row-height) cursor-pointer", row.deleted_at && "opacity-70")}
+                        >
+                          <TableCell onClick={(event) => event.stopPropagation()} style={{ zIndex: 1 }} className="sticky left-0 bg-inherit">
+                            <Checkbox
+                              checked={Boolean(row.id && selected.has(row.id))}
+                              onCheckedChange={(checked) =>
+                                setSelected((current) => {
+                                  const next = new Set(current);
+                                  if (!row.id) return next;
+                                  if (checked) next.add(row.id);
+                                  else next.delete(row.id);
+                                  return next;
+                                })
+                              }
+                              aria-label={`Selecionar ${row.full_name}`}
+                            />
+                          </TableCell>
+                          {visibleColumns.map((column, index) => (
+                            <TableCell
+                              key={column.key}
+                              numeric={column.numeric}
+                              style={{ left: index === 0 ? 44 : undefined, zIndex: index === 0 ? 1 : undefined }}
+                              className={cn(index === 0 && "sticky border-r border-border bg-inherit")}
+                            >
+                              {column.render(row)}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+              <ul className="flex flex-col gap-2 lg:hidden">
+                {page.rows.map((row) => (
+                  <li key={row.id}>
+                    <button
+                      type="button"
+                      onClick={() => row.id && setDetailId(row.id)}
+                      className="flex w-full flex-col gap-1.5 rounded-md border border-border bg-surface p-3 text-left hfm-transition hover:border-border-strong hfm-focus-ring"
+                    >
+                      <span className="flex items-start justify-between gap-2">
+                        <span className="min-w-0">
+                          <span className="block truncate text-body-sm font-semibold text-fg">{row.full_name}</span>
+                          <span className="block truncate text-caption text-fg-muted">
+                            {row.employee_code} · {row.job_position_name ?? "Sem cargo"}
+                          </span>
+                        </span>
+                        <StatusBadge
+                          status={EMPLOYMENT_TONE[(row.employment_status ?? "active") as keyof typeof EMPLOYMENT_TONE] ?? "neutral"}>{EMPLOYMENT_STATUS_LABELS[row.employment_status ?? ""] ?? "—"}</StatusBadge>
+                      </span>
+                      <span className="flex flex-wrap items-center gap-1.5 text-caption text-fg-secondary">
+                        {row.operation_name ? <Badge variant="neutral">{row.operation_name}</Badge> : null}
+                        {row.work_location_name ? <Badge variant="neutral">{row.work_location_name}</Badge> : null}
+                        <StatusBadge
+                          status={ACCESS_TONE[(row.access_status ?? "none") as keyof typeof ACCESS_TONE] ?? "neutral"}>{ACCESS_STATUS_LABELS[row.access_status ?? "none"] ?? "—"}</StatusBadge>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+                {page.rows.length === 0 ? (
+                  <li className="rounded-md border border-border bg-surface p-6 text-center text-body-sm text-fg-muted">
+                    Nenhum colaborador encontrado com os filtros aplicados.
+                  </li>
+                ) : null}
+              </ul>
+
+              <Pagination
+                page={page.page}
+                pageSize={page.pageSize}
+                total={page.total}
+                disabled={pending}
+                onPageChange={(value) => apply({ page: String(value) }, false)}
+                onPageSizeChange={(value) => apply({ pageSize: String(value), page: undefined })}
+              />
+            </>
+          )}
+        </div>
       </div>
 
       <EmployeeDetailDrawer
@@ -941,5 +1072,84 @@ function StackedFilter({
         </SelectContent>
       </Select>
     </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Distribution by operation                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The footer of the "Colaboradores por operação" card: a button that opens the
+ * whole distribution, ranked, with a proportional bar per operation.
+ *
+ * A bar per row rather than a donut: the question people actually ask here is
+ * "which operation is biggest, and by how much", and a ranked bar answers it
+ * by length, which the eye compares reliably. "Sem operação" is always shown,
+ * last, even at zero — a blank where it should be is how that number stays
+ * invisible for months.
+ */
+function OperationDistribution({ summary }: { summary: EmployeeSummary }) {
+  const largest = summary.byOperation.reduce((max, entry) => Math.max(max, entry.count), 0);
+  const rows = summary.byOperation.some((entry) => entry.operationId === null)
+    ? summary.byOperation
+    : [
+        ...summary.byOperation,
+        { operationId: null, operationName: "Sem operação", operationCode: null, count: 0 },
+      ];
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        {/* `text-link` rather than `text-primary`: the brand blue is tuned for a
+            button's fill, and as small text on the card's surface it does not
+            clear contrast in the dark theme. */}
+        <Button variant="link" size="sm" className="text-caption">
+          Ver distribuição
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-84">
+        <div className="flex flex-col gap-3">
+          <div>
+            <p className="text-h4 font-semibold text-fg">Colaboradores por operação</p>
+            <p className="text-caption text-fg-muted">
+              {numberFormat.format(summary.total)} colaborador(es) com os filtros atuais.
+            </p>
+          </div>
+
+          <ul className="flex max-h-80 flex-col gap-2.5 overflow-y-auto">
+            {rows.map((entry) => {
+              const share = summary.total > 0 ? Math.round((entry.count / summary.total) * 100) : 0;
+              return (
+                <li key={entry.operationId ?? "sem-operacao"} className="flex flex-col gap-1">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span
+                      className={cn(
+                        "truncate text-body-sm",
+                        entry.operationId ? "text-fg" : "text-fg-muted",
+                      )}
+                      title={entry.operationName}
+                    >
+                      {entry.operationName}
+                    </span>
+                    <span className="shrink-0 text-body-sm tabular-nums text-fg-secondary">
+                      <span className="font-semibold text-fg">{numberFormat.format(entry.count)}</span>
+                      {" · "}
+                      {share}%
+                    </span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-surface-secondary" aria-hidden>
+                    <div
+                      className={cn("h-full rounded-full", entry.operationId ? "bg-primary" : "bg-border-strong")}
+                      style={{ width: `${largest > 0 ? (entry.count / largest) * 100 : 0}%` }}
+                    />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
