@@ -342,6 +342,11 @@ export interface EmployeeSummary {
   withoutLeader: number;
   operationCount: number;
   withoutOperation: number;
+  /** HFM access, kept here because the Total card shows it as a second line. */
+  withAccess: number;
+  withoutAccess: number;
+  suspendedAccess: number;
+  pendingAccess: number;
   /** Ordered by headcount, with "Sem operação" always last. */
   byOperation: OperationHeadcount[];
 }
@@ -406,6 +411,10 @@ export async function getEmployeeSummary(
     withoutLeader: int("without_leader"),
     operationCount: int("operation_count"),
     withoutOperation: int("without_operation"),
+    withAccess: int("with_access"),
+    withoutAccess: int("without_access"),
+    suspendedAccess: int("suspended_access"),
+    pendingAccess: int("pending_access"),
     byOperation: byOperation.map((entry) => ({
       operationId: (entry.operation_id as string | null) ?? null,
       operationName: (entry.operation_name as string | null) ?? "Sem operação",

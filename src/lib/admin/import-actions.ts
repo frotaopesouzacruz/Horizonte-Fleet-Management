@@ -28,6 +28,11 @@ export interface ImportPreview {
   unmappedColumns: string[];
   missingColumns: string[];
   alreadyImported: boolean;
+  /**
+   * Rows whose declared profile disagrees with the HFM access profile. The HFM
+   * one was preserved in every case: an import is not a channel of authorization.
+   */
+  profileDivergences: number;
   findings: { row_number: number | null; level: string; field: string | null; message: string }[];
   sample: { row_number: number; action: string; status: string; name: string; code: string }[];
 }
@@ -139,6 +144,26 @@ export async function uploadImportFile(formData: FormData): Promise<Result<Impor
     return { ok: false, error: "Não foi possível validar a importação." };
   }
 
+  /**
+   * The file cannot change anybody's HFM access profile — the database refuses
+   * that write outright. This is the other half: saying so. Where the base
+   * declares a profile that disagrees with HFM, the row is marked with a
+   * warning and a review is queued, and the HFM profile stays exactly as it is.
+   *
+   * A failure here must not fail the import: the divergence report is
+   * information, and losing it is not a reason to reject a valid file.
+   */
+  const { data: divergences } = await supabase.rpc("flag_import_profile_divergences", {
+    p_batch_id: batch.id,
+  });
+
+  // The flagger moves clean rows to "warning", so the counts are re-read.
+  const { data: recounted } = await supabase
+    .from("import_batches")
+    .select("total_rows, valid_rows, warning_rows, error_rows")
+    .eq("id", batch.id)
+    .maybeSingle();
+
   const preview = await loadPreview(batch.id, {
     fileName: file.name,
     sheetName: sheet.sheetName,
@@ -147,7 +172,8 @@ export async function uploadImportFile(formData: FormData): Promise<Result<Impor
     headers: sheet.headers,
     unmapped: unmapped.map((u) => u.header),
     alreadyImported: Boolean(previous?.length),
-    counts: validation,
+    counts: { ...validation, ...(recounted ?? {}) },
+    profileDivergences: Number(divergences ?? 0),
   });
 
   return { ok: true, data: preview };
@@ -163,14 +189,15 @@ async function loadPreview(
     headers: string[];
     unmapped: string[];
     alreadyImported: boolean;
-    counts: {
+    counts: Partial<{
       total_rows: number;
       valid_rows: number;
       warning_rows: number;
       error_rows: number;
       create_rows: number;
       update_rows: number;
-    } | null;
+    }> | null;
+    profileDivergences?: number;
   },
 ): Promise<ImportPreview> {
   const supabase = await createClient();
@@ -210,6 +237,7 @@ async function loadPreview(
     unmappedColumns: context.unmapped,
     missingColumns: [],
     alreadyImported: context.alreadyImported,
+    profileDivergences: context.profileDivergences ?? 0,
     findings: findings.data ?? [],
     sample: (sample.data ?? []).map((row) => {
       const data = row.normalized_data as { full_name?: string; employee_code?: string };

@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { UsersView } from "@/app/(app)/administracao/usuarios/users-view";
-import type { DirectoryOptions, DirectoryPage } from "@/lib/admin/queries";
+import { OverviewCards } from "@/app/(app)/administracao/usuarios/overview";
+import type { DirectoryOptions, DirectoryPage, EmployeeSummary } from "@/lib/admin/queries";
 
 /**
  * Renders Administração → Usuários against fixed data.
@@ -38,13 +39,13 @@ const OPTIONS: DirectoryOptions = {
 };
 
 const PEOPLE: Array<[string, string, string | null, string, string, string, string, string, string, string, string[]]> = [
-  ["Ana Paula de Almeida Rodrigues", "140349", "ana.paula.rodrigues@grupohorizonte.com.br", "active", "Coordenadora de Operações Logísticas", "Operações", "Last Mille MG", "Contagem", "active", "Gabriel Moutinho Albino", ["Administrador da organização", "Gestor de frota"]],
+  ["Ana Paula de Almeida Rodrigues", "140349", "ana.paula.rodrigues@grupohorizonte.com.br", "active", "Coordenadora de Operações Logísticas", "Operações", "Last Mille MG", "Contagem", "active", "Gabriel Moutinho Albino", ["Administrador"]],
   ["Carlos Eduardo Nogueira Silva", "140350", null, "active", "Motorista Carreteiro", "Operações", "Redespacho - Belém", "Belém Do Pará", "none", "Ana Paula de Almeida Rodrigues", []],
-  ["Marina dos Santos Figueiredo", "140351", "marina.figueiredo@grupohorizonte.com.br", "on_leave", "Analista de Manutenção Preventiva", "Manutenção", "Frota", "Uberlândia", "suspended", "Gabriel Moutinho Albino", ["Consulta"]],
+  ["Marina dos Santos Figueiredo", "140351", "marina.figueiredo@grupohorizonte.com.br", "on_leave", "Analista de Manutenção Preventiva", "Manutenção", "Frota", "Uberlândia", "suspended", "Gabriel Moutinho Albino", ["Operacional"]],
   ["João Vitor Rodrigues de Oliveira", "140352", null, "active", "Auxiliar de Logística", "Operações", "Merchandising", "Governador Valadares", "none", "Ana Paula de Almeida Rodrigues", []],
-  ["Beatriz Carvalho Mendes Lima", "140353", "beatriz.lima@grupohorizonte.com.br", "active", "Gerente Administrativa Regional", "Administrativo", "Gente", "Brasilia", "invited", "Gabriel Moutinho Albino", ["Gestor de pessoas"]],
+  ["Beatriz Carvalho Mendes Lima", "140353", "beatriz.lima@grupohorizonte.com.br", "active", "Gerente Administrativa Regional", "Administrativo", "Gente", "Brasilia", "invited", "Gabriel Moutinho Albino", ["Gente"]],
   ["Rafael Augusto Pereira Barbosa", "140354", null, "terminated", "Motorista de Entrega Urbana", "Operações", "Last Mille MG", "Contagem", "none", "Ana Paula de Almeida Rodrigues", []],
-  ["Luciana Aparecida Ferreira Gomes", "140355", "luciana.gomes@grupohorizonte.com.br", "active", "Supervisora de Redespacho", "Operações", "Redespacho", "Uberlândia", "active", "Gabriel Moutinho Albino", ["Gestor de frota"]],
+  ["Luciana Aparecida Ferreira Gomes", "140355", "luciana.gomes@grupohorizonte.com.br", "active", "Supervisora de Redespacho", "Operações", "Redespacho", "Uberlândia", "active", "Gabriel Moutinho Albino", ["Gestor de Frota"]],
   ["Thiago Henrique Moreira Castro", "140356", null, "active", "Conferente de Carga", "Operações", "Merchandising", "Contagem", "none", "Luciana Aparecida Ferreira Gomes", []],
 ];
 
@@ -103,6 +104,29 @@ const PAGE: DirectoryPage = {
   pageCount: 6,
 };
 
+const SUMMARY: EmployeeSummary = {
+  total: 143,
+  active: 138,
+  inactive: 2,
+  onLeave: 2,
+  terminated: 1,
+  withLeader: 142,
+  withoutLeader: 1,
+  operationCount: 4,
+  withoutOperation: 3,
+  withAccess: 1,
+  withoutAccess: 140,
+  suspendedAccess: 1,
+  pendingAccess: 1,
+  byOperation: [
+    { operationId: "op-1", operationName: "Merchandising", operationCode: "OP-00002", count: 61 },
+    { operationId: "op-2", operationName: "Last Mille MG", operationCode: "OP-00001", count: 44 },
+    { operationId: "op-3", operationName: "Redespacho", operationCode: "OP-00003", count: 24 },
+    { operationId: "op-4", operationName: "Redespacho Belém", operationCode: "OP-00004", count: 11 },
+    { operationId: null, operationName: "Sem operação", operationCode: null, count: 3 },
+  ],
+};
+
 export default function PreviewUsersPage() {
   if (!enabled) notFound();
 
@@ -120,24 +144,7 @@ export default function PreviewUsersPage() {
       <UsersView
         page={PAGE}
         options={OPTIONS}
-        summary={{
-          total: 143,
-          active: 138,
-          inactive: 2,
-          onLeave: 2,
-          terminated: 1,
-          withLeader: 142,
-          withoutLeader: 1,
-          operationCount: 4,
-          withoutOperation: 3,
-          byOperation: [
-            { operationId: "op-1", operationName: "Merchandising", operationCode: "OP-00002", count: 61 },
-            { operationId: "op-2", operationName: "Last Mille MG", operationCode: "OP-00001", count: 44 },
-            { operationId: "op-3", operationName: "Redespacho", operationCode: "OP-00003", count: 24 },
-            { operationId: "op-4", operationName: "Redespacho Belém", operationCode: "OP-00004", count: 11 },
-            { operationId: null, operationName: "Sem operação", operationCode: null, count: 3 },
-          ],
-        }}
+        overview={<OverviewCards summary={SUMMARY} />}
         filters={{ sort: "full_name", dir: "asc", page: 1, pageSize: 25 }}
         permissions={["users.view", "users.create", "users.import", "users.export", "users.archive", "users.bulk_manage", "users.manage_access"]}
         isPlatformAdmin={false}

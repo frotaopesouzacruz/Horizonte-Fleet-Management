@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrganization } from "@/lib/auth/session";
+import { getEffectiveAccess, type EffectiveAccess } from "@/lib/admin/access-profiles";
 import type { Result } from "@/lib/admin/actions";
 
 const PROFILES_PATH = "/administracao/perfis";
@@ -60,4 +61,23 @@ export async function restoreProfileDefaults(roleId: string, reason: string): Pr
   revalidatePath(PROFILES_PATH);
   revalidatePath(USERS_PATH);
   return { ok: true };
+}
+
+/**
+ * Loads what one account can actually do, for the simulation panel.
+ *
+ * It describes the account and never becomes it: no session is touched, nothing
+ * is executed on anybody's behalf. The database refuses to answer at all unless
+ * the caller may see profiles in that account's organization.
+ */
+export async function loadEffectiveAccess(membershipId: string): Promise<Result<EffectiveAccess>> {
+  await requireOrganization("roles.view");
+
+  try {
+    const access = await getEffectiveAccess(membershipId);
+    if (!access) return { ok: false, error: "Conta não encontrada ou fora do seu alcance." };
+    return { ok: true, data: access };
+  } catch {
+    return { ok: false, error: "Não foi possível carregar o acesso efetivo desta conta." };
+  }
 }

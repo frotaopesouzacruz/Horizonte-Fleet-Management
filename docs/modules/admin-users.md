@@ -185,14 +185,26 @@ Three definitions, taken from the data model rather than invented:
 
 ### The contextual card
 
-With an operation filtered, the second card answers about that operation. With
-no filter it shows how many operations have people and offers **Ver
-distribuição** — the full ranking, one proportional bar per operation, with
-"Sem operação" always last even at zero. A blank where that number should be is
-how it stays invisible for months.
+The question is how many *people* are in each operation, not how many operations
+exist — so "4 operações" would have been the easy card and the useless one.
+
+With an operation filtered, the card answers about that operation by name:
+**Last Mille MG · 101 colaboradores**. With no filter it lists the three largest
+with their headcounts and offers the rest behind **+ N operações** — the full
+ranking, one proportional bar per operation, with "Sem operação" always last
+even at zero. A blank where that number should be is how it stays invisible for
+months.
 
 No donut. A bar per row answers "which operation is biggest, and by how much" by
 length, which the eye compares reliably.
+
+### Streamed, not awaited
+
+The route renders the table and hands the indicator row to `<Suspense>`. The
+list is usable while the aggregate is still running, five skeletons hold the
+row's shape, and a failed aggregate costs the reader the cards — never the
+page. The `try` guards the fetch only; rendering stays outside it, where an
+error belongs to an error boundary.
 
 ### Filters, not keystrokes
 

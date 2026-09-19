@@ -24,6 +24,7 @@ export type Database = {
           organization_id: string
           previous_codes: string[]
           reason: string
+          role_id: string | null
           target_user_id: string | null
         }
         Insert: {
@@ -35,6 +36,7 @@ export type Database = {
           organization_id: string
           previous_codes?: string[]
           reason: string
+          role_id?: string | null
           target_user_id?: string | null
         }
         Update: {
@@ -46,6 +48,7 @@ export type Database = {
           organization_id?: string
           previous_codes?: string[]
           reason?: string
+          role_id?: string | null
           target_user_id?: string | null
         }
         Relationships: [
@@ -2285,6 +2288,7 @@ export type Database = {
           code: string | null
           description: string | null
           is_administrator: boolean | null
+          last_changed_at: string | null
           member_count: number | null
           organization_id: string | null
           permission_count: number | null
@@ -2562,6 +2566,10 @@ export type Database = {
         Args: { p_filters?: Json; p_organization_id: string }
         Returns: Json
       }
+      flag_import_profile_divergences: {
+        Args: { p_batch_id: string }
+        Returns: number
+      }
       grant_employee_access: {
         Args: {
           p_employee_id: string
@@ -2579,6 +2587,10 @@ export type Database = {
           p_with_sensitive?: boolean
         }
         Returns: undefined
+      }
+      membership_effective_access: {
+        Args: { p_membership_id: string }
+        Returns: Json
       }
       prepare_employee_access: {
         Args: {
@@ -2668,6 +2680,16 @@ export type Database = {
       set_vehicle_status: {
         Args: { p_reason?: string; p_status: string; p_vehicle_id: string }
         Returns: undefined
+      }
+      simulatable_memberships: {
+        Args: { p_organization_id: string }
+        Returns: {
+          email: string
+          employee_name: string
+          membership_id: string
+          profile_codes: string[]
+          status: string
+        }[]
       }
       validate_employee_import: {
         Args: { p_batch_id: string }

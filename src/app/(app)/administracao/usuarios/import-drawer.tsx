@@ -205,10 +205,28 @@ export function ImportDrawer({ open, onOpenChange }: { open: boolean; onOpenChan
                 </Alert>
               ) : null}
 
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {preview.profileDivergences > 0 ? (
+                <Alert variant="info">
+                  <AlertTitle>
+                    {preview.profileDivergences} perfil(is) informados na base diferem do Perfil de Acesso HFM
+                  </AlertTitle>
+                  <AlertDescription>
+                    O Perfil de Acesso do HFM foi <strong>preservado</strong> em todos os casos — um arquivo não concede
+                    nem retira acesso. As divergências ficam listadas abaixo e em Administração → Perfis e permissões,
+                    para que um Administrador decida caso a caso.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
                 <Stat label="Linhas" value={preview.totalRows} />
                 <Stat label="Novos" value={preview.createRows} tone="success" />
                 <Stat label="Atualizações" value={preview.updateRows} tone="info" />
+                <Stat
+                  label="Perfis preservados"
+                  value={preview.profileDivergences}
+                  tone={preview.profileDivergences ? "info" : "neutral"}
+                />
                 <Stat label="Com erro" value={preview.errorRows} tone={preview.errorRows ? "danger" : "neutral"} />
               </div>
 

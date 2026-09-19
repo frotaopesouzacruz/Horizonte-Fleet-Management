@@ -5,6 +5,7 @@ import {
   getPermissionMatrix,
   listAccessInconsistencies,
   listProfileChanges,
+  listSimulatableMemberships,
 } from "@/lib/admin/access-profiles";
 import { AccessProfilesView } from "./access-profiles-view";
 
@@ -23,11 +24,12 @@ export const metadata: Metadata = {
 export default async function AccessProfilesPage() {
   const { session, organization } = await requireOrganization("roles.view");
 
-  const [profiles, matrix, inconsistencies, changes] = await Promise.all([
+  const [profiles, matrix, inconsistencies, changes, memberships] = await Promise.all([
     listAccessProfiles(organization.organizationId),
     getPermissionMatrix(organization.organizationId),
     listAccessInconsistencies(organization.organizationId),
     listProfileChanges(organization.organizationId),
+    listSimulatableMemberships(organization.organizationId),
   ]);
 
   return (
@@ -36,6 +38,7 @@ export default async function AccessProfilesPage() {
       matrix={matrix}
       inconsistencies={inconsistencies}
       changes={changes}
+      memberships={memberships}
       canManage={session.permissions.includes("roles.manage")}
     />
   );

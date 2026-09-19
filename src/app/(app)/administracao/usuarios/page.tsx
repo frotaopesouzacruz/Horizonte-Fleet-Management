@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { requireOrganization } from "@/lib/auth/session";
 import {
@@ -6,9 +7,11 @@ import {
   getEmployeeSummary,
   DEFAULT_PAGE_SIZE,
   type DirectoryFilters,
+  type EmployeeSummary,
   type SortKey,
 } from "@/lib/admin/queries";
 import { UsersView } from "./users-view";
+import { OverviewCards, OverviewError, OverviewSkeleton } from "./overview";
 
 export const metadata: Metadata = {
   title: "Usuários",
@@ -51,23 +54,55 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
     pageSize: Number(first(params, "pageSize") ?? DEFAULT_PAGE_SIZE) || DEFAULT_PAGE_SIZE,
   };
 
-  const [page, options, summary] = await Promise.all([
+  const [page, options] = await Promise.all([
     listEmployees(organization.organizationId, filters),
     getDirectoryOptions(organization.organizationId),
-    // The indicators follow the structural filters, not the search box: the
-    // table answers "who matches what I typed", the cards answer "what does
-    // this slice of the organization look like".
-    getEmployeeSummary(organization.organizationId, filters),
   ]);
 
   return (
     <UsersView
       page={page}
       options={options}
-      summary={summary}
+      overview={
+        // Streamed, not awaited: the table is rendered and usable while the
+        // aggregate is still running, and a failure costs the reader the five
+        // cards rather than the whole page.
+        <Suspense fallback={<OverviewSkeleton />}>
+          <Overview organizationId={organization.organizationId} filters={filters} />
+        </Suspense>
+      }
       filters={filters}
       permissions={session.permissions}
       isPlatformAdmin={session.isPlatformAdmin}
     />
   );
+}
+
+/**
+ * The indicator row.
+ *
+ * The cards follow the structural filters and deliberately ignore `q`: the
+ * table answers "who matches what I typed", the cards answer "what does this
+ * slice of the organization look like". Recounting the organization on every
+ * keystroke would only make them flicker.
+ */
+async function Overview({
+  organizationId,
+  filters,
+}: {
+  organizationId: string;
+  filters: DirectoryFilters;
+}) {
+  // Only the fetch is guarded: a failure here is not a reason for the person to
+  // lose the list of colaboradores below it. Rendering stays outside the catch,
+  // where an error belongs to an error boundary and not to this handler.
+  let summary: EmployeeSummary | null = null;
+  try {
+    summary = await getEmployeeSummary(organizationId, filters);
+  } catch {
+    summary = null;
+  }
+
+  if (!summary) return <OverviewError />;
+  return <OverviewCards summary={summary} operationId={filters.operation} />;
 }

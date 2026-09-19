@@ -74,6 +74,16 @@ Delegating access administration is still possible, and there is exactly one way
 to do it: **give the person the Administrador profile**, deliberately, with a
 reason, where the audit trail can see it.
 
+### Permissions depend on their own `view`
+
+`users.create` without `users.view` describes an account that may register a
+colaborador and then cannot see the screen it would register them on. It is not
+dangerous — it is incoherent, and an incoherent matrix is one an administrator
+cannot reason about. `private.permission_dependency()` names the
+`<resource>.view` each code requires, `set_role_permissions` refuses the
+combination, and the editor greys the dependants out and un-ticks them when the
+`view` goes, so the rule is visible before it is enforced.
+
 ## 3. Nothing automatic ever changes an access profile
 
 > CSV, XLSX, API externa, QLP, ERP, integração, webhook e sincronização **nunca**
@@ -102,9 +112,31 @@ Only a migration running as the database owner is exempt
 (`private.is_migration_context()`). **service_role is deliberately not exempt**:
 an integration holding the service key is exactly what this rule is about.
 
-If a file declares a profile that disagrees with HFM, HFM wins and the file is
-reported, never applied. The queue for that is
-`public.access_profile_reviews`, reason code `import_declared_profile_ignored`.
+### When the file disagrees
+
+The guard makes the wrong outcome impossible; `public.flag_import_profile_divergences()`
+makes it **visible**. After validation, every row whose declared profile reads
+as one of the seven and differs from the account's HFM profile gets:
+
+* a `warning` on the row, code `profile_mismatch`, saying in words that the HFM
+  profile was preserved;
+* a pending review in `public.access_profile_reviews`
+  (`import_declared_profile_ignored`) for an Administrador to settle.
+
+`private.official_profile_from_text()` is what reads the column — "Admin", "RH",
+"Liderança", "SESMT" and the rest. Recognising the word grants nothing: the
+result is only ever compared and reported, never written.
+
+There is no "aplicar todos os perfis da planilha" button, and there will not be
+one. That control is a mass privilege escalation with a friendly label.
+
+Tested end to end, both directions:
+
+| Perfil HFM | Planilha diz | Depois | Resultado |
+|---|---|---|---|
+| Operacional | Administrador | **Operacional** | aviso + revisão |
+| Administrador | Operacional | **Administrador** | aviso + revisão |
+| Gestor de Frota | Administrador | **Gestor de Frota** | aviso + revisão |
 
 ## 4. Every change carries a reason
 
@@ -153,11 +185,31 @@ profiles. Green: granted as the official default. Amber: granted beyond the
 default. Red: in the default and removed here. The cell state is carried by an
 icon and a `title`, never by colour alone.
 
+**Simulação** — pick an account and see what it can actually do: its profile,
+its operation scope, which sidebar entries it sees, and every effective
+permission grouped by module. `public.membership_effective_access()` is the one
+answer to "what can this person do", so no two screens can disagree about it.
+The menu list is derived from the navigation model itself rather than retyped,
+because a simulation that lists a menu the product no longer has is worse than
+no simulation.
+
 **Auditoria** — `public.access_inconsistencies()` reports and does **not**
 correct: an account with no profile, an account with more than one, access still
 open for somebody who left, a scoped profile with no operation, a profile that
 drifted, and the organization having a single Administrador. Below it, the
 append-only change history.
+
+The change history can be filtered by period, by event type (an account's
+profile vs. a profile's matrix) and by profile, and searched by person or
+reason. The filter is local, over the last 200 entries the page loaded, and the
+screen says so: a small honest window beats a filter that looks like it sweeps
+the whole history and does not.
+
+**Exportação** — `/administracao/perfis/export?format=xlsx|csv` writes the whole
+matrix, one row per permission and one column per profile, with what this
+organization grants *and* the official default beside it. The two questions an
+auditor asks are "who can do this" and "is that the standard"; a file that
+answers only the first sends them back to the screen.
 
 ### Simulation never becomes impersonation
 
@@ -169,10 +221,12 @@ audit trail that cannot tell the difference is worth nothing.
 ## 7. Reading it from the application
 
 ```ts
-listAccessProfiles(organizationId)      // the seven, with size and drift
-getPermissionMatrix(organizationId)     // the whole matrix, one round trip
+listAccessProfiles(organizationId)         // the seven, with size and drift
+getPermissionMatrix(organizationId)        // the whole matrix, one round trip
 listAccessInconsistencies(organizationId)
 listProfileChanges(organizationId)
+listSimulatableMemberships(organizationId)
+getEffectiveAccess(membershipId)           // the one answer, for the simulation
 ```
 
 All of them read through `security invoker` views and functions, so RLS decides
@@ -189,3 +243,29 @@ user.profile === "administrador"               // never
 Routes change; `/administracao/perfis` is a URL, not an identity. Permission
 codes are the stable contract and are what every check — in the app, in an RPC
 and in an RLS policy — is written against.
+
+## 8. What was tested, and how
+
+Run against the live schema under real identities, not mocked:
+
+| Teste | Resultado |
+|---|---|
+| Operacional, Segurança‑equivalente, Gente, Liderança e Gestor de Frota tentam promover alguém a Administrador | bloqueado (4/4) |
+| Os mesmos tentam alterar o próprio perfil | bloqueado (4/4) |
+| Os mesmos tentam editar a matriz | bloqueado (4/4) |
+| Administrador muda Operacional → Gestor de Frota | permitido e auditado |
+| `INSERT` / `DELETE` direto em `membership_roles` e `role_permissions` | bloqueado pelo guarda |
+| Troca de perfil sem motivo | bloqueada |
+| Remover o último Administrador | bloqueado |
+| Administrador da organização A altera perfil na organização B | bloqueado |
+| Administrador da organização A edita a matriz da organização B | bloqueado |
+| Administrador da organização A lista perfis da organização B | 0 visíveis |
+| `users.create` sem `users.view` | bloqueado |
+| Importação declarando outro perfil, nos dois sentidos | perfil HFM preservado, aviso e revisão |
+
+The test accounts and the second organization were removed afterwards. The
+entries they produced in `access_profile_changes` were not: that table is
+append-only by design, and the first exception to it is not going to be mine.
+They are real changes that really happened, with "teste" in the reason field. A
+clean trail before go-live means replaying the migrations on a fresh database,
+not editing an append-only table.

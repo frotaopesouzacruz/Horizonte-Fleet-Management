@@ -40,6 +40,8 @@ export interface AccessProfile {
   addedPermissions: string[];
   /** In the official default but not granted here. */
   removedPermissions: string[];
+  /** When this profile's matrix last moved, or null if it never has. */
+  lastChangedAt: string | null;
 }
 
 export interface PermissionRow {
@@ -65,6 +67,7 @@ export interface AccessInconsistency {
 
 export interface AccessProfileChange {
   id: string;
+  roleId: string | null;
   membershipId: string | null;
   actorUserId: string | null;
   actorName: string | null;
@@ -97,6 +100,7 @@ export async function listAccessProfiles(organizationId: string): Promise<Access
     memberCount: Number(row.member_count ?? 0),
     addedPermissions: (row.added_permissions ?? []) as string[],
     removedPermissions: (row.removed_permissions ?? []) as string[],
+    lastChangedAt: (row.last_changed_at as string | null) ?? null,
   }));
 }
 
@@ -142,12 +146,12 @@ export async function listAccessInconsistencies(organizationId: string): Promise
 }
 
 /** Who changed whose profile, and why. Append-only, newest first. */
-export async function listProfileChanges(organizationId: string, limit = 50): Promise<AccessProfileChange[]> {
+export async function listProfileChanges(organizationId: string, limit = 200): Promise<AccessProfileChange[]> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("access_profile_changes")
-    .select("id, membership_id, actor_user_id, target_user_id, previous_codes, new_codes, reason, created_at")
+    .select("id, role_id, membership_id, actor_user_id, target_user_id, previous_codes, new_codes, reason, created_at")
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -173,6 +177,7 @@ export async function listProfileChanges(organizationId: string, limit = 50): Pr
 
   return rows.map((row) => ({
     id: row.id,
+    roleId: row.role_id,
     membershipId: row.membership_id,
     actorUserId: row.actor_user_id,
     actorName: row.actor_user_id ? (names.get(row.actor_user_id) ?? null) : null,
@@ -182,4 +187,72 @@ export async function listProfileChanges(organizationId: string, limit = 50): Pr
     reason: row.reason,
     createdAt: row.created_at,
   }));
+}
+
+/* -------------------------------------------------------------------------- */
+/* Simulation                                                                 */
+/* -------------------------------------------------------------------------- */
+
+export interface SimulatableMembership {
+  membershipId: string;
+  name: string;
+  email: string | null;
+  status: string;
+  profileCodes: string[];
+}
+
+export interface EffectiveAccess {
+  membershipId: string;
+  status: string;
+  name: string | null;
+  email: string | null;
+  profiles: { code: string; name: string }[];
+  permissions: string[];
+  operations: { id: string; name: string; code: string | null }[];
+  accessAllOperations: boolean;
+}
+
+/** The accounts a simulation can describe. */
+export async function listSimulatableMemberships(organizationId: string): Promise<SimulatableMembership[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("simulatable_memberships", {
+    p_organization_id: organizationId,
+  });
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((row) => ({
+    membershipId: row.membership_id as string,
+    name: (row.employee_name ?? "Conta sem colaborador") as string,
+    email: (row.email as string | null) ?? null,
+    status: (row.status ?? "active") as string,
+    profileCodes: (row.profile_codes ?? []) as string[],
+  }));
+}
+
+/**
+ * What one account can actually do.
+ *
+ * Read-only by construction: it describes an account, it never becomes one. No
+ * session is touched and nothing is executed on anybody's behalf — an audit
+ * trail that cannot tell a simulation from the real person is worth nothing.
+ */
+export async function getEffectiveAccess(membershipId: string): Promise<EffectiveAccess | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("membership_effective_access", {
+    p_membership_id: membershipId,
+  });
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+
+  const row = data as Record<string, unknown>;
+  return {
+    membershipId: row.membership_id as string,
+    status: (row.status ?? "active") as string,
+    name: (row.employee_name as string | null) ?? null,
+    email: (row.email as string | null) ?? null,
+    profiles: (row.profiles ?? []) as { code: string; name: string }[],
+    permissions: (row.permissions ?? []) as string[],
+    operations: (row.operations ?? []) as { id: string; name: string; code: string | null }[],
+    accessAllOperations: Boolean(row.access_all_operations),
+  };
 }

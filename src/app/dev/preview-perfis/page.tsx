@@ -6,6 +6,7 @@ import type {
   AccessProfile,
   AccessProfileChange,
   PermissionRow,
+  SimulatableMembership,
 } from "@/lib/admin/access-profiles";
 
 /**
@@ -37,6 +38,7 @@ const PROFILES: AccessProfile[] = [
     memberCount: 84,
     addedPermissions: [],
     removedPermissions: [],
+    lastChangedAt: "2026-09-01T09:00:00Z",
   },
   {
     roleId: "r2",
@@ -49,6 +51,7 @@ const PROFILES: AccessProfile[] = [
     memberCount: 4,
     addedPermissions: [],
     removedPermissions: [],
+    lastChangedAt: null,
   },
   {
     roleId: "r3",
@@ -61,6 +64,7 @@ const PROFILES: AccessProfile[] = [
     memberCount: 9,
     addedPermissions: ["users.view_sensitive"],
     removedPermissions: [],
+    lastChangedAt: "2026-09-17T09:02:00Z",
   },
   {
     roleId: "r4",
@@ -73,6 +77,7 @@ const PROFILES: AccessProfile[] = [
     memberCount: 3,
     addedPermissions: [],
     removedPermissions: [],
+    lastChangedAt: null,
   },
   {
     roleId: "r5",
@@ -85,6 +90,7 @@ const PROFILES: AccessProfile[] = [
     memberCount: 2,
     addedPermissions: [],
     removedPermissions: ["users.export_sensitive"],
+    lastChangedAt: "2026-09-10T15:20:00Z",
   },
   {
     roleId: "r6",
@@ -97,6 +103,7 @@ const PROFILES: AccessProfile[] = [
     memberCount: 2,
     addedPermissions: [],
     removedPermissions: [],
+    lastChangedAt: null,
   },
   {
     roleId: "r7",
@@ -109,6 +116,7 @@ const PROFILES: AccessProfile[] = [
     memberCount: 1,
     addedPermissions: [],
     removedPermissions: [],
+    lastChangedAt: null,
   },
 ];
 
@@ -230,6 +238,7 @@ const INCONSISTENCIES: AccessInconsistency[] = [
 const CHANGES: AccessProfileChange[] = [
   {
     id: "c1",
+    roleId: null,
     membershipId: "m3",
     actorUserId: "u1",
     actorName: "Gabriel Albino",
@@ -241,6 +250,7 @@ const CHANGES: AccessProfileChange[] = [
   },
   {
     id: "c2",
+    roleId: "r3",
     membershipId: null,
     actorUserId: "u1",
     actorName: "Gabriel Albino",
@@ -249,6 +259,23 @@ const CHANGES: AccessProfileChange[] = [
     newCodes: ["users.view", "users.export", "users.view_sensitive"],
     reason: "Liderança precisa conferir CNH das equipes de campo.",
     createdAt: "2026-09-17T09:02:00Z",
+  },
+];
+
+const MEMBERSHIPS: SimulatableMembership[] = [
+  {
+    membershipId: "m1",
+    name: "Gabriel Albino",
+    email: "gabriel.albino@grupohorizonte.com.br",
+    status: "active",
+    profileCodes: ["administrador"],
+  },
+  {
+    membershipId: "m2",
+    name: "Beltrano de Tal",
+    email: "beltrano@grupohorizonte.com.br",
+    status: "active",
+    profileCodes: ["lideranca_operacoes"],
   },
 ];
 
@@ -271,6 +298,7 @@ export default function PreviewAccessProfilesPage() {
         matrix={MATRIX}
         inconsistencies={INCONSISTENCIES}
         changes={CHANGES}
+        memberships={MEMBERSHIPS}
         canManage
       />
     </AppShell>

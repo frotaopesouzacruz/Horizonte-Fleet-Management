@@ -12,10 +12,6 @@ import {
   Plus,
   Upload,
   Users as UsersIcon,
-  UserCheck,
-  UserMinus,
-  Building2,
-  Network,
   Columns3,
   SlidersHorizontal,
 } from "lucide-react";
@@ -30,7 +26,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { KpiCard } from "@/components/ui/kpi-card";
 import { Pagination } from "@/components/ui/pagination";
 import {
   Table,
@@ -54,13 +49,7 @@ import { EmptyState } from "@/components/feedback/empty-state";
 import { useToast } from "@/components/feedback/toast";
 import { useConfirm } from "@/components/feedback/confirm-dialog";
 import { EMPLOYMENT_STATUS_LABELS, ACCESS_STATUS_LABELS } from "@/lib/admin/qlp";
-import type {
-  DirectoryFilters,
-  DirectoryOptions,
-  DirectoryPage,
-  EmployeeSummary,
-  SortKey,
-} from "@/lib/admin/queries";
+import type { DirectoryFilters, DirectoryOptions, DirectoryPage, SortKey } from "@/lib/admin/queries";
 import { bulkArchive, bulkSetAccessStatus } from "@/lib/admin/actions";
 import { EmployeeDetailDrawer } from "./employee-detail-drawer";
 import { EmployeeFormDrawer } from "./employee-form-drawer";
@@ -85,21 +74,6 @@ const ACCESS_TONE = {
   removed: "neutral",
   none: "neutral",
 } as const;
-
-const numberFormat = new Intl.NumberFormat("pt-BR");
-
-/**
- * Five cards, one baseline.
- *
- * The labels are not all one line — "Colaboradores por operação" wraps where
- * "Ativos" does not — and a centred card would then put its number at a
- * different height from its neighbours. Reserving two lines for every label and
- * stacking from the top lines the five numbers up, which is what makes the row
- * read as one instrument instead of five.
- */
-function kpiLabel(text: string) {
-  return <span className="block min-h-11 leading-snug">{text}</span>;
-}
 
 export function formatDate(value: string | null | undefined): string {
   if (!value) return "—";
@@ -150,13 +124,24 @@ function Cell({ value, className }: { value?: string | null; className?: string 
 export interface UsersViewProps {
   page: DirectoryPage;
   options: DirectoryOptions;
-  summary: EmployeeSummary;
   filters: DirectoryFilters;
   permissions: string[];
   isPlatformAdmin: boolean;
+  /**
+   * The indicator row, streamed by the route so a slow aggregate never holds
+   * the table hostage and a failed one never takes the page with it.
+   */
+  overview: React.ReactNode;
 }
 
-export function UsersView({ page, options, summary, filters, permissions, isPlatformAdmin }: UsersViewProps) {
+export function UsersView({
+  page,
+  options,
+  filters,
+  permissions,
+  isPlatformAdmin,
+  overview,
+}: UsersViewProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -399,30 +384,7 @@ export function UsersView({ page, options, summary, filters, permissions, isPlat
     Boolean,
   ).length;
 
-  /**
-   * The "por operação" card is contextual. With an operation filtered it
-   * answers about that operation; without one it offers the distribution.
-   * The filter is matched by operations.id — never by the operation's name,
-   * which two operations are free to share.
-   */
-  const selectedOperation = filters.operation
-    ? options.operations.find((operation) => operation.id === filters.operation)
-    : undefined;
-  const selectedOperationCount =
-    summary.byOperation.find((entry) => entry.operationId === filters.operation)?.count ?? 0;
-
-  /**
-   * Afastados and desligados are neither "ativo" nor "inativo". Printing them
-   * under the Inativos card is what lets the five numbers reconcile with the
-   * total without inventing a rule that folds them into one of the two.
-   */
-  const otherSituations =
-    [
-      summary.onLeave > 0 ? `${numberFormat.format(summary.onLeave)} afastado(s)` : null,
-      summary.terminated > 0 ? `${numberFormat.format(summary.terminated)} desligado(s)` : null,
-    ]
-      .filter(Boolean)
-      .join(" · ") || undefined;
+  const overviewLabelId = React.useId();
 
   const visibleColumns = columns.filter((column) => !hidden.includes(column.key));
   // 44px for the selection column. The table refuses to render narrower than
@@ -720,82 +682,23 @@ export function UsersView({ page, options, summary, filters, permissions, isPlat
 
         {/* Filtros → indicadores: 24px.
 
-            Cinco números de gestão, e a mudança de assunto é deliberada: a tela
-            respondia "quem tem acesso ao HFM" e passa a responder "quantas
-            pessoas existem, onde estão, quantas estão ativas e quantas têm
-            liderança definida". O estado do acesso continua nos filtros, na
-            coluna da tabela e no detalhe de cada pessoa — só deixou de ser a
-            primeira pergunta da página.
+            A mudança de assunto é deliberada: a tela respondia "quem tem acesso
+            ao HFM" e passa a responder "quantas pessoas existem, onde estão,
+            quantas estão ativas e quantas têm liderança definida". O estado do
+            acesso continua no filtro, na coluna e no detalhe de cada pessoa —
+            e como segunda linha do primeiro cartão. Só deixou de ser a primeira
+            pergunta da página.
 
             Os cartões seguem os filtros estruturais e ignoram a busca: recontar
             a organização a cada tecla digitada faria os números piscarem sem
             informar nada. */}
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-          <KpiCard
-            size="compact"
-            className="justify-start"
-            label={kpiLabel("Total de colaboradores")}
-            value={summary.total}
-            icon={<UsersIcon aria-hidden />}
-          />
+        <section className="mt-6 flex flex-col gap-3" aria-labelledby={overviewLabelId}>
+          <h2 id={overviewLabelId} className="text-body-sm font-semibold text-fg-secondary">
+            Visão geral
+          </h2>
 
-          {/* Contextual: com uma operação filtrada o cartão responde sobre ela;
-              sem filtro, responde sobre a distribuição. */}
-          {selectedOperation ? (
-            <KpiCard
-              size="compact"
-              className="justify-start"
-              label={kpiLabel("Colaboradores na operação")}
-              value={selectedOperationCount}
-              period={selectedOperation.label}
-              icon={<Building2 aria-hidden />}
-            />
-          ) : (
-            <KpiCard
-              size="compact"
-              className="justify-start"
-              label={kpiLabel("Colaboradores por operação")}
-              value={summary.operationCount}
-              unit={summary.operationCount === 1 ? "operação" : "operações"}
-              icon={<Building2 aria-hidden />}
-              period={<OperationDistribution summary={summary} />}
-            />
-          )}
-
-          <KpiCard
-            size="compact"
-            className="justify-start"
-            status="success"
-            label={kpiLabel("Ativos")}
-            value={summary.active}
-            icon={<UserCheck aria-hidden />}
-          />
-
-          {/* "Inativo" é exatamente employment_status = 'inactive'. Afastados e
-              desligados não são inativos e aparecem ao lado, para que a soma
-              dos cartões feche com o total sem que se invente uma regra. */}
-          <KpiCard
-            size="compact"
-            className="justify-start"
-            label={kpiLabel("Inativos")}
-            value={summary.inactive}
-            period={otherSituations}
-            icon={<UserMinus aria-hidden />}
-          />
-
-          <KpiCard
-            size="compact"
-            className="justify-start"
-            label={kpiLabel("Vinculados à liderança")}
-            value={summary.withLeader}
-            period={
-              summary.withoutLeader > 0
-                ? `${numberFormat.format(summary.withoutLeader)} sem líder definido`
-                : undefined
-            }
-            icon={<Network aria-hidden />}
-          />
-        </div>
+          {overview}
+        </section>
 
         {selected.size > 0 ? (
           <div className="mt-4 flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface-secondary px-3 py-2">
@@ -1080,84 +983,5 @@ function StackedFilter({
         </SelectContent>
       </Select>
     </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/* Distribution by operation                                                  */
-/* -------------------------------------------------------------------------- */
-
-/**
- * The footer of the "Colaboradores por operação" card: a button that opens the
- * whole distribution, ranked, with a proportional bar per operation.
- *
- * A bar per row rather than a donut: the question people actually ask here is
- * "which operation is biggest, and by how much", and a ranked bar answers it
- * by length, which the eye compares reliably. "Sem operação" is always shown,
- * last, even at zero — a blank where it should be is how that number stays
- * invisible for months.
- */
-function OperationDistribution({ summary }: { summary: EmployeeSummary }) {
-  const largest = summary.byOperation.reduce((max, entry) => Math.max(max, entry.count), 0);
-  const rows = summary.byOperation.some((entry) => entry.operationId === null)
-    ? summary.byOperation
-    : [
-        ...summary.byOperation,
-        { operationId: null, operationName: "Sem operação", operationCode: null, count: 0 },
-      ];
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        {/* `text-link` rather than `text-primary`: the brand blue is tuned for a
-            button's fill, and as small text on the card's surface it does not
-            clear contrast in the dark theme. */}
-        <Button variant="link" size="sm" className="text-caption">
-          Ver distribuição
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-84">
-        <div className="flex flex-col gap-3">
-          <div>
-            <p className="text-h4 font-semibold text-fg">Colaboradores por operação</p>
-            <p className="text-caption text-fg-muted">
-              {numberFormat.format(summary.total)} colaborador(es) com os filtros atuais.
-            </p>
-          </div>
-
-          <ul className="flex max-h-80 flex-col gap-2.5 overflow-y-auto">
-            {rows.map((entry) => {
-              const share = summary.total > 0 ? Math.round((entry.count / summary.total) * 100) : 0;
-              return (
-                <li key={entry.operationId ?? "sem-operacao"} className="flex flex-col gap-1">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span
-                      className={cn(
-                        "truncate text-body-sm",
-                        entry.operationId ? "text-fg" : "text-fg-muted",
-                      )}
-                      title={entry.operationName}
-                    >
-                      {entry.operationName}
-                    </span>
-                    <span className="shrink-0 text-body-sm tabular-nums text-fg-secondary">
-                      <span className="font-semibold text-fg">{numberFormat.format(entry.count)}</span>
-                      {" · "}
-                      {share}%
-                    </span>
-                  </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-surface-secondary" aria-hidden>
-                    <div
-                      className={cn("h-full rounded-full", entry.operationId ? "bg-primary" : "bg-border-strong")}
-                      style={{ width: `${largest > 0 ? (entry.count / largest) * 100 : 0}%` }}
-                    />
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      </PopoverContent>
-    </Popover>
   );
 }
