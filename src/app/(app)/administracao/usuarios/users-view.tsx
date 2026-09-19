@@ -218,7 +218,11 @@ export function UsersView({ page, options, summary, filters, permissions, isPlat
       filters.status && { key: "status", label: "Situação", value: EMPLOYMENT_STATUS_LABELS[filters.status] ?? filters.status },
       filters.area && { key: "area", label: "Área", value: labelOf(options.areas, filters.area) },
       filters.operation && { key: "operation", label: "Operação", value: labelOf(options.operations, filters.operation) },
-      filters.profile && { key: "profile", label: "Perfil", value: labelOf(options.profiles, filters.profile) },
+      filters.profile && {
+        key: "profile",
+        label: "Perfil organizacional",
+        value: labelOf(options.profiles, filters.profile),
+      },
       filters.location && { key: "location", label: "Localidade", value: labelOf(options.locations, filters.location) },
       filters.unit && { key: "unit", label: "Filial", value: labelOf(options.units, filters.unit) },
       filters.manager && { key: "manager", label: "Líder", value: labelOf(options.managers, filters.manager) },
@@ -620,8 +624,12 @@ export function UsersView({ page, options, summary, filters, permissions, isPlat
             onChange={(value) => apply({ operation: value })}
             options={options.operations}
           />
+          {/* "Perfil" on its own is now ambiguous: this is the organizational
+              profile that comes from the corporate base, and the HFM access
+              profile is a different thing entirely. Same filter, same field,
+              same behaviour — only the label stops conflating the two. */}
           <FilterSelect
-            label="Perfil"
+            label="Perfil organizacional"
             value={filters.profile}
             onChange={(value) => apply({ profile: value })}
             options={options.profiles}
