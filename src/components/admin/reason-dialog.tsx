@@ -68,12 +68,11 @@ export function ReasonDialog({
       confirmLabel={confirmLabel}
       loading={loading}
       icon={<ShieldAlert aria-hidden />}
-      onConfirm={() => {
-        setTouched(true);
-        // Rejecting keeps the dialog open, which is what an empty field deserves.
-        if (invalid) return Promise.reject(new Error("reason required"));
-        return onConfirm(trimmed);
-      }}
+      // Disabled rather than rejected: the confirm button simply does not act
+      // until there is a reason, so an empty field never reaches the database
+      // and never produces an error anybody has to read.
+      confirmDisabled={invalid}
+      onConfirm={() => onConfirm(trimmed)}
     >
       <FormField
         label="Motivo da alteração"

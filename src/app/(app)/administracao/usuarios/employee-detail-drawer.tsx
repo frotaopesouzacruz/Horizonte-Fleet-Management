@@ -117,16 +117,28 @@ export function EmployeeDetailDrawer({
   const can = (permission: string) => detail?.permissions.includes(permission) ?? false;
   const row = detail?.directory;
 
-  function run(action: () => Promise<{ ok: boolean; error?: string; warning?: string }>, successMessage: string) {
-    startTransition(async () => {
-      const result = await action();
-      if (result.ok) {
-        toast({ title: successMessage, description: result.warning, variant: result.warning ? "warning" : "success" });
-        setReloadToken((token) => token + 1);
-        router.refresh();
-      } else {
-        toast({ title: "Ação não concluída", description: result.error, variant: "danger" });
-      }
+  /**
+   * Returns a promise so a dialog waiting on the action can stay open when it
+   * fails — losing a typed reason because the database refused the change would
+   * make the person type it again for no reason.
+   */
+  function run(
+    action: () => Promise<{ ok: boolean; error?: string; warning?: string }>,
+    successMessage: string,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      startTransition(async () => {
+        const result = await action();
+        if (result.ok) {
+          toast({ title: successMessage, description: result.warning, variant: result.warning ? "warning" : "success" });
+          setReloadToken((token) => token + 1);
+          router.refresh();
+          resolve();
+        } else {
+          toast({ title: "Ação não concluída", description: result.error, variant: "danger" });
+          reject(new Error(result.error ?? successMessage));
+        }
+      });
     });
   }
 
@@ -427,7 +439,7 @@ function AccessTab({
   options: DirectoryOptions;
   pending: boolean;
   onGrant: (roleIds: string[], operationIds: string[]) => void;
-  onRoles: (roleIds: string[], reason: string) => void;
+  onRoles: (roleIds: string[], reason: string) => Promise<void>;
   onScopes: (operationIds: string[]) => void;
   onStatus: (status: "active" | "suspended") => void;
   onResend: () => void;

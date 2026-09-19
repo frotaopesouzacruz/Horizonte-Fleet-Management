@@ -30,6 +30,12 @@ export interface ConfirmDialogProps {
   destructive?: boolean;
   /** Externally controlled busy state, merged with the promise returned by `onConfirm`. */
   loading?: boolean;
+  /**
+   * Blocks confirming without making the button look busy. For a dialog that
+   * asks for something — a reason, a typed confirmation — this is what keeps
+   * the incomplete case out of `onConfirm` instead of having it reject.
+   */
+  confirmDisabled?: boolean;
   onConfirm: () => void | Promise<void>;
   /** Overrides the icon square. Pass `null` to drop it. */
   icon?: React.ReactNode | null;
@@ -46,6 +52,7 @@ export function ConfirmDialog({
   cancelLabel = "Cancelar",
   destructive = false,
   loading = false,
+  confirmDisabled = false,
   onConfirm,
   icon,
   children,
@@ -66,7 +73,7 @@ export function ConfirmDialog({
   const handleConfirm = (event: React.MouseEvent<HTMLButtonElement>) => {
     // Radix closes on click by default; keep it open until onConfirm settles.
     event.preventDefault();
-    if (busy) return;
+    if (busy || confirmDisabled) return;
     setPending(true);
     void Promise.resolve()
       .then(() => onConfirm())
@@ -138,7 +145,12 @@ export function ConfirmDialog({
               </Button>
             </AlertDialogPrimitive.Cancel>
             <AlertDialogPrimitive.Action asChild>
-              <Button variant={destructive ? "danger" : "primary"} loading={busy} onClick={handleConfirm}>
+              <Button
+                variant={destructive ? "danger" : "primary"}
+                loading={busy}
+                disabled={confirmDisabled}
+                onClick={handleConfirm}
+              >
                 {confirmLabel}
               </Button>
             </AlertDialogPrimitive.Action>

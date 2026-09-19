@@ -132,16 +132,29 @@ export function AccessProfilesView({
     return [...grouped.entries()].sort((a, b) => moduleLabel(a[0]).localeCompare(moduleLabel(b[0]), "pt-BR"));
   }, [matrix]);
 
-  const run = (action: () => Promise<{ ok: boolean; error?: string }>, success: string, done?: () => void) =>
-    startTransition(async () => {
-      const result = await action();
-      if (result.ok) {
-        toast({ title: success, variant: "success" });
-        done?.();
-        router.refresh();
-      } else {
-        toast({ title: result.error ?? "Não foi possível concluir a alteração.", variant: "danger" });
-      }
+  /**
+   * Returns a promise so the dialog that asked for a reason stays open when the
+   * change is refused: the reason the person typed is still there to correct,
+   * instead of having to be typed again.
+   */
+  const run = (
+    action: () => Promise<{ ok: boolean; error?: string }>,
+    success: string,
+    done?: () => void,
+  ): Promise<void> =>
+    new Promise((resolve, reject) => {
+      startTransition(async () => {
+        const result = await action();
+        if (result.ok) {
+          toast({ title: success, variant: "success" });
+          done?.();
+          router.refresh();
+          resolve();
+        } else {
+          toast({ title: result.error ?? "Não foi possível concluir a alteração.", variant: "danger" });
+          reject(new Error(result.error ?? success));
+        }
+      });
     });
 
   return (
@@ -530,7 +543,7 @@ export function AccessProfilesView({
         loading={pending}
         onConfirm={(reason) => {
           if (!restoring) return;
-          run(
+          return run(
             () => restoreProfileDefaults(restoring.roleId, reason),
             `Padrão do perfil ${restoring.name} restaurado.`,
             () => setRestoring(null),
@@ -565,7 +578,7 @@ function MatrixEditor({
   modules: [string, PermissionRow[]][];
   pending: boolean;
   onClose: () => void;
-  onSave: (codes: string[], reason: string) => void;
+  onSave: (codes: string[], reason: string) => Promise<void>;
 }) {
   const initial = React.useMemo(
     () => matrix.filter((row) => row.grantedCodes.includes(profile.code)).map((row) => row.code),
