@@ -330,6 +330,7 @@ declare
   v_op        uuid    := nullif(p_payload ->> 'operation_id', '')::uuid;
   v_state     smallint := nullif(p_payload ->> 'state_id', '')::smallint;
   v_city      integer := nullif(p_payload ->> 'city_id', '')::integer;
+  v_from      date    := coalesce(nullif(p_payload ->> 'assigned_from', '')::date, current_date);
   v_org       uuid;
 begin
   if v_is_new then
@@ -424,12 +425,11 @@ begin
         (organization_id, vehicle_id, operation_id, state_id, city_id, effective_from, reason)
       values
         (p_organization_id, v_id, v_op, v_state, v_city,
-         coalesce(nullif(p_payload ->> 'assigned_from', '')::date, current_date),
+         v_from,
          nullif(p_payload ->> 'assignment_reason', ''));
 
       perform private.emit_event(p_organization_id, 'vehicle.assignment_changed', 'vehicle', v_id,
-        jsonb_build_object('operation_id', v_op, 'city_id', v_city, 'effective_from',
-                           coalesce(nullif(p_payload ->> 'assigned_from', '')::date, current_date)));
+        jsonb_build_object('operation_id', v_op, 'city_id', v_city, 'effective_from', v_from));
     end if;
 
     if v_km is not null then

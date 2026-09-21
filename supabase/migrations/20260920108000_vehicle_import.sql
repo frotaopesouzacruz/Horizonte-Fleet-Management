@@ -186,22 +186,20 @@ begin
     end if;
 
     -- 2. duplicidade dentro da própria planilha
-    if exists (
+    if v_plate is not null and exists (
       select 1 from public.import_rows o
        where o.batch_id = p_batch_id and o.row_number < r.row_number
          and private.normalize_plate(o.normalized_data ->> 'license_plate') = v_plate
-         and v_plate is not null
     ) then
       insert into public.import_errors (organization_id, batch_id, row_number, level, field, code, message)
       values (v_org, p_batch_id, r.row_number, 'error', 'license_plate', 'duplicate_in_file',
               format('A placa %s aparece mais de uma vez no arquivo.', v_plate));
       v_status := 'error';
     end if;
-    if exists (
+    if v_code is not null and exists (
       select 1 from public.import_rows o
        where o.batch_id = p_batch_id and o.row_number < r.row_number
          and private.normalize_code(o.normalized_data ->> 'fleet_code') = v_code
-         and v_code is not null
     ) then
       insert into public.import_errors (organization_id, batch_id, row_number, level, field, code, message)
       values (v_org, p_batch_id, r.row_number, 'error', 'fleet_code', 'duplicate_in_file',
@@ -210,14 +208,23 @@ begin
     end if;
 
     -- 3. correspondência com a base: regra explícita, nunca aproximação
-    select id into v_by_plate from public.vehicles
-     where organization_id = v_org and license_plate = v_plate and deleted_at is null and v_plate is not null;
-    select id into v_by_code from public.vehicles
-     where organization_id = v_org and fleet_code = v_code and deleted_at is null and v_code is not null;
-    select id into v_by_vin from public.vehicles
-     where organization_id = v_org and vin = v_vin and deleted_at is null and v_vin is not null;
-    select id into v_by_ren from public.vehicles
-     where organization_id = v_org and renavam = v_renavam and deleted_at is null and v_renavam is not null;
+    v_by_plate := null; v_by_code := null; v_by_vin := null; v_by_ren := null;
+    if v_plate is not null then
+      select id into v_by_plate from public.vehicles
+       where organization_id = v_org and license_plate = v_plate and deleted_at is null;
+    end if;
+    if v_code is not null then
+      select id into v_by_code from public.vehicles
+       where organization_id = v_org and fleet_code = v_code and deleted_at is null;
+    end if;
+    if v_vin is not null then
+      select id into v_by_vin from public.vehicles
+       where organization_id = v_org and vin = v_vin and deleted_at is null;
+    end if;
+    if v_renavam is not null then
+      select id into v_by_ren from public.vehicles
+       where organization_id = v_org and renavam = v_renavam and deleted_at is null;
+    end if;
 
     if v_by_plate is not null and v_by_code is not null and v_by_plate <> v_by_code then
       insert into public.import_errors (organization_id, batch_id, row_number, level, field, code, message)
@@ -348,15 +355,12 @@ begin
            and (private.normalize_label(name) = private.normalize_label(d ->> 'operation_name')
                 or private.normalize_code(code) = private.normalize_code(d ->> 'operation_name'))
          limit 1;
-      end if;
-      if v_op_matches = 0 then
-        v_op_id := null;
+      elsif v_op_matches = 0 then
         insert into public.import_errors (organization_id, batch_id, row_number, level, field, code, message)
         values (v_org, p_batch_id, r.row_number, 'error', 'operation_name', 'unknown',
                 format('Operação "%s" não existe. Operações não são criadas por importação.', d ->> 'operation_name'));
         v_status := 'error';
-      elsif v_op_matches > 1 then
-        v_op_id := null;
+      else
         insert into public.import_errors (organization_id, batch_id, row_number, level, field, code, message)
         values (v_org, p_batch_id, r.row_number, 'error', 'operation_name', 'ambiguous',
                 format('"%s" corresponde a mais de uma operação. Resolva a ambiguidade no arquivo.', d ->> 'operation_name'));
@@ -389,6 +393,9 @@ begin
 
     -- 7. o que a importação NÃO vai fazer num veículo existente
     if v_target is not null then
+      v_cur_op   := null;
+      v_cur_city := null;
+      v_cur_km   := null;
       select a.operation_id, a.city_id into v_cur_op, v_cur_city
         from public.vehicle_operation_assignments a
        where a.vehicle_id = v_target
