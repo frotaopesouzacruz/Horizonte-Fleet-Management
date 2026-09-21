@@ -931,6 +931,200 @@ export type Database = {
           },
         ]
       }
+      fidelization_assignments: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          end_date: string | null
+          end_reason: string | null
+          id: string
+          operation_br_id: string
+          organization_id: string
+          reason: string | null
+          replaces_assignment_id: string | null
+          source: string
+          start_date: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+          vehicle_id: string
+          vehicle_role: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          end_reason?: string | null
+          id?: string
+          operation_br_id: string
+          organization_id: string
+          reason?: string | null
+          replaces_assignment_id?: string | null
+          source?: string
+          start_date: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_id: string
+          vehicle_role?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          end_reason?: string | null
+          id?: string
+          operation_br_id?: string
+          organization_id?: string
+          reason?: string | null
+          replaces_assignment_id?: string | null
+          source?: string
+          start_date?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_id?: string
+          vehicle_role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fidelization_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fidelization_assignments_replaces_assignment_id_fkey"
+            columns: ["replaces_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "fidelization_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fidelization_assignments_replaces_assignment_id_fkey"
+            columns: ["replaces_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "fidelization_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fidelization_br_fkey"
+            columns: ["organization_id", "operation_br_id"]
+            isOneToOne: false
+            referencedRelation: "operation_br_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "fidelization_br_fkey"
+            columns: ["organization_id", "operation_br_id"]
+            isOneToOne: false
+            referencedRelation: "operation_brs"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "fidelization_vehicle_fkey"
+            columns: ["organization_id", "vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "fidelization_vehicle_fkey"
+            columns: ["organization_id", "vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      fidelization_drivers: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          driver_role: string
+          employee_id: string
+          end_date: string | null
+          end_reason: string | null
+          fidelization_assignment_id: string
+          id: string
+          organization_id: string
+          reason: string | null
+          start_date: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          driver_role?: string
+          employee_id: string
+          end_date?: string | null
+          end_reason?: string | null
+          fidelization_assignment_id: string
+          id?: string
+          organization_id: string
+          reason?: string | null
+          start_date: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          driver_role?: string
+          employee_id?: string
+          end_date?: string | null
+          end_reason?: string | null
+          fidelization_assignment_id?: string
+          id?: string
+          organization_id?: string
+          reason?: string | null
+          start_date?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fidelization_drivers_assignment_fkey"
+            columns: ["organization_id", "fidelization_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "fidelization_assignments"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "fidelization_drivers_assignment_fkey"
+            columns: ["organization_id", "fidelization_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "fidelization_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "fidelization_drivers_employee_fkey"
+            columns: ["organization_id", "employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "fidelization_drivers_employee_fkey"
+            columns: ["organization_id", "employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "fidelization_drivers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       import_batches: {
         Row: {
           column_mapping: Json
@@ -1209,6 +1403,136 @@ export type Database = {
           },
         ]
       }
+      leadership_assignments: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          employee_id: string
+          end_reason: string | null
+          id: string
+          is_primary: boolean | null
+          notes: string | null
+          operation_br_id: string | null
+          operation_city_id: string | null
+          operation_id: string
+          organization_id: string
+          responsibility_type: string
+          scope_key: string | null
+          scope_level: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          employee_id: string
+          end_reason?: string | null
+          id?: string
+          is_primary?: boolean | null
+          notes?: string | null
+          operation_br_id?: string | null
+          operation_city_id?: string | null
+          operation_id: string
+          organization_id: string
+          responsibility_type?: string
+          scope_key?: string | null
+          scope_level: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          employee_id?: string
+          end_reason?: string | null
+          id?: string
+          is_primary?: boolean | null
+          notes?: string | null
+          operation_br_id?: string | null
+          operation_city_id?: string | null
+          operation_id?: string
+          organization_id?: string
+          responsibility_type?: string
+          scope_key?: string | null
+          scope_level?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leadership_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leadership_br_fkey"
+            columns: ["operation_br_id", "organization_id", "operation_city_id"]
+            isOneToOne: false
+            referencedRelation: "operation_br_directory"
+            referencedColumns: ["id", "organization_id", "operation_city_id"]
+          },
+          {
+            foreignKeyName: "leadership_br_fkey"
+            columns: ["operation_br_id", "organization_id", "operation_city_id"]
+            isOneToOne: false
+            referencedRelation: "operation_brs"
+            referencedColumns: ["id", "organization_id", "operation_city_id"]
+          },
+          {
+            foreignKeyName: "leadership_city_fkey"
+            columns: ["operation_city_id", "organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operation_cities"
+            referencedColumns: ["id", "organization_id", "operation_id"]
+          },
+          {
+            foreignKeyName: "leadership_city_fkey"
+            columns: ["operation_city_id", "organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operation_geography"
+            referencedColumns: ["id", "organization_id", "operation_id"]
+          },
+          {
+            foreignKeyName: "leadership_employee_fkey"
+            columns: ["organization_id", "employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "leadership_employee_fkey"
+            columns: ["organization_id", "employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "leadership_operation_fkey"
+            columns: ["organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operation_summary"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "leadership_operation_fkey"
+            columns: ["organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operations"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
       membership_operation_scopes: {
         Row: {
           created_at: string
@@ -1311,6 +1635,109 @@ export type Database = {
             columns: ["role_id"]
             isOneToOne: false
             referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      operation_brs: {
+        Row: {
+          city_id: number
+          code: string
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          description: string | null
+          id: string
+          notes: string | null
+          operation_city_id: string
+          operation_id: string
+          organization_id: string
+          state_id: number
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          city_id: number
+          code: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description?: string | null
+          id?: string
+          notes?: string | null
+          operation_city_id: string
+          operation_id: string
+          organization_id: string
+          state_id: number
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          city_id?: number
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description?: string | null
+          id?: string
+          notes?: string | null
+          operation_city_id?: string
+          operation_id?: string
+          organization_id?: string
+          state_id?: number
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operation_brs_coverage_fkey"
+            columns: [
+              "operation_city_id",
+              "organization_id",
+              "operation_id",
+              "state_id",
+              "city_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "operation_cities"
+            referencedColumns: [
+              "id",
+              "organization_id",
+              "operation_id",
+              "state_id",
+              "city_id",
+            ]
+          },
+          {
+            foreignKeyName: "operation_brs_coverage_fkey"
+            columns: [
+              "operation_city_id",
+              "organization_id",
+              "operation_id",
+              "state_id",
+              "city_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "operation_geography"
+            referencedColumns: [
+              "id",
+              "organization_id",
+              "operation_id",
+              "state_id",
+              "city_id",
+            ]
+          },
+          {
+            foreignKeyName: "operation_brs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -2957,6 +3384,268 @@ export type Database = {
           },
         ]
       }
+      fidelization_directory: {
+        Row: {
+          br_code: string | null
+          city_id: number | null
+          city_name: string | null
+          created_at: string | null
+          created_by: string | null
+          end_date: string | null
+          end_reason: string | null
+          fleet_code: string | null
+          id: string | null
+          is_current: boolean | null
+          license_plate: string | null
+          operation_br_id: string | null
+          operation_id: string | null
+          operation_name: string | null
+          organization_id: string | null
+          reason: string | null
+          replaces_assignment_id: string | null
+          source: string | null
+          start_date: string | null
+          state_id: number | null
+          state_uf: string | null
+          status: string | null
+          updated_at: string | null
+          updated_by: string | null
+          vehicle_id: string | null
+          vehicle_make_name: string | null
+          vehicle_model_name: string | null
+          vehicle_role: string | null
+          vehicle_type_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fidelization_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fidelization_assignments_replaces_assignment_id_fkey"
+            columns: ["replaces_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "fidelization_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fidelization_assignments_replaces_assignment_id_fkey"
+            columns: ["replaces_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "fidelization_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fidelization_br_fkey"
+            columns: ["organization_id", "operation_br_id"]
+            isOneToOne: false
+            referencedRelation: "operation_br_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "fidelization_br_fkey"
+            columns: ["organization_id", "operation_br_id"]
+            isOneToOne: false
+            referencedRelation: "operation_brs"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "fidelization_vehicle_fkey"
+            columns: ["organization_id", "vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "fidelization_vehicle_fkey"
+            columns: ["organization_id", "vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      leadership_directory: {
+        Row: {
+          br_code: string | null
+          city_id: number | null
+          city_name: string | null
+          created_at: string | null
+          created_by: string | null
+          effective_from: string | null
+          effective_to: string | null
+          employee_code: string | null
+          employee_email: string | null
+          employee_id: string | null
+          employee_name: string | null
+          employee_status: string | null
+          end_reason: string | null
+          id: string | null
+          is_current: boolean | null
+          is_primary: boolean | null
+          notes: string | null
+          operation_br_id: string | null
+          operation_city_id: string | null
+          operation_id: string | null
+          operation_name: string | null
+          operation_status: string | null
+          organization_id: string | null
+          responsibility_type: string | null
+          scope_level: string | null
+          state_id: number | null
+          state_uf: string | null
+          status: string | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leadership_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leadership_br_fkey"
+            columns: ["operation_br_id", "organization_id", "operation_city_id"]
+            isOneToOne: false
+            referencedRelation: "operation_br_directory"
+            referencedColumns: ["id", "organization_id", "operation_city_id"]
+          },
+          {
+            foreignKeyName: "leadership_br_fkey"
+            columns: ["operation_br_id", "organization_id", "operation_city_id"]
+            isOneToOne: false
+            referencedRelation: "operation_brs"
+            referencedColumns: ["id", "organization_id", "operation_city_id"]
+          },
+          {
+            foreignKeyName: "leadership_city_fkey"
+            columns: ["operation_city_id", "organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operation_cities"
+            referencedColumns: ["id", "organization_id", "operation_id"]
+          },
+          {
+            foreignKeyName: "leadership_city_fkey"
+            columns: ["operation_city_id", "organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operation_geography"
+            referencedColumns: ["id", "organization_id", "operation_id"]
+          },
+          {
+            foreignKeyName: "leadership_employee_fkey"
+            columns: ["organization_id", "employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "leadership_employee_fkey"
+            columns: ["organization_id", "employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "leadership_operation_fkey"
+            columns: ["organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operation_summary"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "leadership_operation_fkey"
+            columns: ["organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operations"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "operation_cities_city_fk"
+            columns: ["city_id", "state_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id", "state_id"]
+          },
+        ]
+      }
+      operation_br_directory: {
+        Row: {
+          city_id: number | null
+          city_name: string | null
+          code: string | null
+          created_at: string | null
+          current_fleet_code: string | null
+          current_leader_employee_id: string | null
+          current_leader_name: string | null
+          current_license_plate: string | null
+          current_vehicle_id: string | null
+          description: string | null
+          id: string | null
+          notes: string | null
+          operation_city_id: string | null
+          operation_id: string | null
+          operation_name: string | null
+          operation_status: string | null
+          organization_id: string | null
+          state_id: number | null
+          state_uf: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operation_brs_coverage_fkey"
+            columns: [
+              "operation_city_id",
+              "organization_id",
+              "operation_id",
+              "state_id",
+              "city_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "operation_cities"
+            referencedColumns: [
+              "id",
+              "organization_id",
+              "operation_id",
+              "state_id",
+              "city_id",
+            ]
+          },
+          {
+            foreignKeyName: "operation_brs_coverage_fkey"
+            columns: [
+              "operation_city_id",
+              "organization_id",
+              "operation_id",
+              "state_id",
+              "city_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "operation_geography"
+            referencedColumns: [
+              "id",
+              "organization_id",
+              "operation_id",
+              "state_id",
+              "city_id",
+            ]
+          },
+          {
+            foreignKeyName: "operation_brs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       operation_geography: {
         Row: {
           city_id: number | null
@@ -3216,14 +3905,14 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "vehicle_assignments_city_state_fkey"
-            columns: ["scheduled_city_id", "state_id"]
+            columns: ["city_id", "state_id"]
             isOneToOne: false
             referencedRelation: "cities"
             referencedColumns: ["id", "state_id"]
           },
           {
             foreignKeyName: "vehicle_assignments_city_state_fkey"
-            columns: ["city_id", "state_id"]
+            columns: ["scheduled_city_id", "state_id"]
             isOneToOne: false
             referencedRelation: "cities"
             referencedColumns: ["id", "state_id"]
@@ -3352,6 +4041,26 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: string[]
       }
+      eligible_fidelization_vehicles: {
+        Args: {
+          p_end_date?: string
+          p_exclude_id?: string
+          p_limit?: number
+          p_operation_br_id: string
+          p_search?: string
+          p_start_date: string
+        }
+        Returns: {
+          conflict_br: string
+          fleet_code: string
+          has_conflict: boolean
+          license_plate: string
+          make_name: string
+          model_name: string
+          vehicle_id: string
+          vehicle_type: string
+        }[]
+      }
       employee_directory_stats: {
         Args: { p_organization_id: string }
         Returns: {
@@ -3374,6 +4083,18 @@ export type Database = {
       employee_summary: {
         Args: { p_filters?: Json; p_organization_id: string }
         Returns: Json
+      }
+      end_fidelization_assignment: {
+        Args: { p_end_date: string; p_id: string; p_reason: string }
+        Returns: undefined
+      }
+      end_fidelization_driver: {
+        Args: { p_end_date: string; p_id: string; p_reason: string }
+        Returns: undefined
+      }
+      end_leadership_assignment: {
+        Args: { p_effective_to: string; p_id: string; p_reason?: string }
+        Returns: undefined
       }
       end_vehicle_assignment: {
         Args: {
@@ -3420,6 +4141,61 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: Json
       }
+      fidelization_calendar: {
+        Args: {
+          p_br_id?: string
+          p_city_id?: number
+          p_month: number
+          p_operation_id?: string
+          p_organization_id: string
+          p_state_id?: number
+          p_year: number
+        }
+        Returns: {
+          br_code: string
+          br_status: string
+          city_name: string
+          days: Json
+          days_with_vehicle: number
+          days_without_vehicle: number
+          leader_name: string
+          operation_br_id: string
+          operation_id: string
+          operation_name: string
+          state_uf: string
+          substitutions: number
+        }[]
+      }
+      fidelization_conflicts: {
+        Args: {
+          p_end_date?: string
+          p_exclude_id?: string
+          p_organization_id: string
+          p_start_date: string
+          p_vehicle_id: string
+        }
+        Returns: {
+          assignment_id: string
+          br_code: string
+          city_name: string
+          end_date: string
+          operation_br_id: string
+          operation_name: string
+          start_date: string
+          status: string
+        }[]
+      }
+      fidelization_indicators: {
+        Args: {
+          p_city_id?: number
+          p_month: number
+          p_operation_id?: string
+          p_organization_id: string
+          p_state_id?: number
+          p_year: number
+        }
+        Returns: Json
+      }
       flag_import_profile_divergences: {
         Args: { p_batch_id: string }
         Returns: number
@@ -3436,6 +4212,24 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      invert_fidelization_vehicles: {
+        Args: {
+          p_assignment_a: string
+          p_assignment_b: string
+          p_effective_from: string
+          p_reason: string
+        }
+        Returns: Json
+      }
+      leadership_indicators: {
+        Args: {
+          p_month: number
+          p_operation_id?: string
+          p_organization_id: string
+          p_year: number
+        }
+        Returns: Json
       }
       list_equipment_types: {
         Args: { p_filters?: Json; p_organization_id: string }
@@ -3479,6 +4273,14 @@ export type Database = {
         Args: { p_membership_id: string }
         Returns: Json
       }
+      operation_br_impact: {
+        Args: { p_operation_br_id: string }
+        Returns: Json
+      }
+      operational_hierarchy: {
+        Args: { p_operation_id?: string; p_organization_id: string }
+        Returns: Json
+      }
       prepare_employee_access: {
         Args: {
           p_employee_id: string
@@ -3509,6 +4311,19 @@ export type Database = {
         }[]
       }
       purge_expired_import_batches: { Args: never; Returns: number }
+      replicate_leadership_competence: {
+        Args: {
+          p_dry_run?: boolean
+          p_from_month: number
+          p_from_year: number
+          p_operation_id?: string
+          p_organization_id: string
+          p_overwrite?: boolean
+          p_to_month: number
+          p_to_year: number
+        }
+        Returns: Json
+      }
       restore_employee: { Args: { p_employee_id: string }; Returns: undefined }
       restore_role_defaults: {
         Args: { p_reason: string; p_role_id: string }
@@ -3523,7 +4338,23 @@ export type Database = {
         Args: { p_organization_id: string; p_payload: Json }
         Returns: string
       }
+      save_fidelization_assignment: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      save_fidelization_driver: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: string
+      }
+      save_leadership_assignment: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
       save_operation: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: string
+      }
+      save_operation_br: {
         Args: { p_organization_id: string; p_payload: Json }
         Returns: string
       }
@@ -3587,6 +4418,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_operation_br_status: {
+        Args: { p_operation_br_id: string; p_reason?: string; p_status: string }
+        Returns: undefined
+      }
       set_operation_status: {
         Args: { p_operation_id: string; p_status: string }
         Returns: undefined
@@ -3627,6 +4462,15 @@ export type Database = {
           profile_codes: string[]
           status: string
         }[]
+      }
+      substitute_fidelization_vehicle: {
+        Args: {
+          p_assignment_id: string
+          p_effective_from: string
+          p_new_vehicle_id: string
+          p_reason: string
+        }
+        Returns: Json
       }
       validate_employee_import: {
         Args: { p_batch_id: string }

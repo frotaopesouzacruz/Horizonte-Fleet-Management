@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
+  CalendarRange,
   CircleDot,
   ClipboardCheck,
   Fuel,
@@ -10,6 +11,7 @@ import {
   ShieldCheck,
   Shapes,
   Truck,
+  UserCog,
   Users,
   Wrench,
   type LucideProps,
@@ -53,25 +55,39 @@ export function visibleNavigation(permissions: string[], isPlatformAdmin = false
 /**
  * Navigation model of the product.
  *
- * Three groups, because there are three kinds of thing here. Administração is
- * what the company is — the operations it runs and the people attached to each.
- * Gestão de frota is the fleet itself: the vehicles those operations use, which
- * is a module and not a corner of administration. Módulos futuros is what the
- * product will do with all that, and every entry in it is still a placeholder.
+ * Four structures, because there are four kinds of thing here, and until now
+ * two of them were filed under the wrong heading.
+ *
+ * ADMINISTRAÇÃO is the platform itself: who has an account and what each
+ * account may do. Nothing operational lives here.
+ *
+ * ESTRUTURA OPERACIONAL is what the company *is* — the operations it runs, the
+ * branches it runs them from, and the catalogue that classifies the equipment
+ * those operations use. Operações sat under Administração and Tipos de
+ * equipamento under Gestão de frota; neither is administration and neither is
+ * fleet management. They are the skeleton the other modules hang off.
+ *
+ * GOVERNANÇA OPERACIONAL is who answers for that structure and how the fleet is
+ * committed to it month by month: Lideranças and Fidelização.
+ *
+ * GESTÃO DE FROTA is the fleet itself — the vehicles, and later everything done
+ * to them.
+ *
+ * Módulos futuros stays separate and every entry in it is still a placeholder.
+ * Mixed in with working modules they made the product look finished and the one
+ * screen that worked impossible to find.
+ *
+ * No module appears twice. An entry has exactly one home, and moving it here is
+ * the only way it moves — there is no second list to keep in step.
  *
  * Cadastro de frotas is the single source of truth for vehicles; Tipos de
- * equipamento is the single source of truth for how they are classified and
- * parameterised. Everything that comes later — checklist, manutenção, pneus,
- * abastecimento — references a vehicle by its id and reads its type from that
- * catalogue, and never re-registers either.
+ * equipamento for how they are classified; Operações for where they run; Filiais
+ * for the units they answer to. Everything that comes later references those by
+ * id and never re-registers any of them.
  *
  * There is no Estados or Cidades entry, and there must not be one. The IBGE
  * tables exist and are used, but a state is not something anyone administers:
  * it is a dimension of an operation's coverage, chosen inside the operation.
- *
- * Keeping the placeholders in one visibly separate group is the point: mixed in
- * with working modules they made the product look finished and the one screen
- * that worked impossible to find.
  *
  * Colaboradores and Usuários are one entry and one module. They are the same 143
  * people seen from two sides — the employee record and the HFM account — and
@@ -80,6 +96,10 @@ export function visibleNavigation(permissions: string[], isPlatformAdmin = false
  * Perfis e permissões is its own entry precisely because it is not that: the
  * access profile is what a person may do, and it must not be reachable only as
  * a tab inside the record of who they are.
+ *
+ * Routes did not change. Operações is still /organizacao/operacoes and Tipos de
+ * equipamento still /frota/tipos-equipamento — a link someone saved a month ago
+ * still opens the same screen.
  */
 export const navigation: NavGroup[] = [
   {
@@ -90,12 +110,6 @@ export const navigation: NavGroup[] = [
     id: "admin",
     label: "Administração",
     items: [
-      {
-        label: "Operações",
-        href: "/organizacao/operacoes",
-        icon: Network,
-        permission: "operations.view",
-      },
       {
         label: "Colaboradores e usuários",
         href: "/administracao/usuarios",
@@ -111,6 +125,42 @@ export const navigation: NavGroup[] = [
     ],
   },
   {
+    id: "structure",
+    label: "Estrutura operacional",
+    items: [
+      {
+        label: "Operações",
+        href: "/organizacao/operacoes",
+        icon: Network,
+        permission: "operations.view",
+      },
+      {
+        label: "Tipos de equipamento",
+        href: "/frota/tipos-equipamento",
+        icon: Shapes,
+        permission: "equipment_types.view",
+      },
+    ],
+  },
+  {
+    id: "governance",
+    label: "Governança operacional",
+    items: [
+      {
+        label: "Lideranças",
+        href: "/governanca/liderancas",
+        icon: UserCog,
+        permission: "leadership.view",
+      },
+      {
+        label: "Fidelização",
+        href: "/governanca/fidelizacao",
+        icon: CalendarRange,
+        permission: "fidelization.view",
+      },
+    ],
+  },
+  {
     id: "fleet",
     label: "Gestão de frota",
     items: [
@@ -119,12 +169,6 @@ export const navigation: NavGroup[] = [
         href: "/frota/cadastro",
         icon: Truck,
         permission: "vehicles.view",
-      },
-      {
-        label: "Tipos de equipamento",
-        href: "/frota/tipos-equipamento",
-        icon: Shapes,
-        permission: "equipment_types.view",
       },
     ],
   },
