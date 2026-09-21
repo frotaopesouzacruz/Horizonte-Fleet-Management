@@ -52,6 +52,9 @@ const publicSurfaces = [
   // colour; it is exactly the kind of thing that fails contrast in one theme
   // only and is never noticed.
   { name: "perfis (preview)", url: "/dev/preview-perfis" },
+  // Cadastro de frotas: dezesseis colunas, nove filtros, seis indicadores e
+  // três escalas de badge. Mais superfície colorida do que qualquer outra tela.
+  { name: "frota (preview)", url: "/dev/preview-frota" },
 ];
 
 /** Behind the app shell: need a real session against a reachable Supabase. */

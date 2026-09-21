@@ -1086,6 +1086,7 @@ export type Database = {
           raw_data: Json
           row_number: number
           status: string
+          vehicle_id: string | null
         }
         Insert: {
           action?: string
@@ -1098,6 +1099,7 @@ export type Database = {
           raw_data?: Json
           row_number: number
           status?: string
+          vehicle_id?: string | null
         }
         Update: {
           action?: string
@@ -1110,6 +1112,7 @@ export type Database = {
           raw_data?: Json
           row_number?: number
           status?: string
+          vehicle_id?: string | null
         }
         Relationships: [
           {
@@ -1138,6 +1141,20 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_rows_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_rows_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
             referencedColumns: ["id"]
           },
         ]
@@ -2029,6 +2046,165 @@ export type Database = {
           },
         ]
       }
+      vehicle_odometer_readings: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          odometer_km: number
+          organization_id: string
+          reading_date: string
+          source: string
+          superseded_by: string | null
+          vehicle_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          odometer_km: number
+          organization_id: string
+          reading_date?: string
+          source: string
+          superseded_by?: string | null
+          vehicle_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          odometer_km?: number
+          organization_id?: string
+          reading_date?: string
+          source?: string
+          superseded_by?: string | null
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_odometer_readings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_odometer_readings_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "vehicle_odometer_readings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_odometer_vehicle_fkey"
+            columns: ["organization_id", "vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "vehicle_odometer_vehicle_fkey"
+            columns: ["organization_id", "vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      vehicle_operation_assignments: {
+        Row: {
+          city_id: number
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          id: string
+          operation_id: string
+          organization_id: string
+          reason: string | null
+          state_id: number
+          updated_at: string
+          updated_by: string | null
+          vehicle_id: string
+        }
+        Insert: {
+          city_id: number
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          operation_id: string
+          organization_id: string
+          reason?: string | null
+          state_id: number
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_id: string
+        }
+        Update: {
+          city_id?: number
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          operation_id?: string
+          organization_id?: string
+          reason?: string | null
+          state_id?: number
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_assignments_city_state_fkey"
+            columns: ["city_id", "state_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id", "state_id"]
+          },
+          {
+            foreignKeyName: "vehicle_assignments_coverage_fkey"
+            columns: ["organization_id", "operation_id", "city_id"]
+            isOneToOne: false
+            referencedRelation: "operation_cities"
+            referencedColumns: ["organization_id", "operation_id", "city_id"]
+          },
+          {
+            foreignKeyName: "vehicle_assignments_coverage_fkey"
+            columns: ["organization_id", "operation_id", "city_id"]
+            isOneToOne: false
+            referencedRelation: "operation_geography"
+            referencedColumns: ["organization_id", "operation_id", "city_id"]
+          },
+          {
+            foreignKeyName: "vehicle_assignments_vehicle_fkey"
+            columns: ["organization_id", "vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "vehicle_assignments_vehicle_fkey"
+            columns: ["organization_id", "vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "vehicle_operation_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vehicle_status_history: {
         Row: {
           changed_at: string
@@ -2072,8 +2248,69 @@ export type Database = {
             foreignKeyName: "vehicle_status_history_vehicle_fkey"
             columns: ["organization_id", "vehicle_id"]
             isOneToOne: false
+            referencedRelation: "vehicle_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "vehicle_status_history_vehicle_fkey"
+            columns: ["organization_id", "vehicle_id"]
+            isOneToOne: false
             referencedRelation: "vehicles"
             referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      vehicle_subcategories: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string | null
+          sort_order: number
+          updated_at: string
+          updated_by: string | null
+          vehicle_type_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          organization_id?: string | null
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_type_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string | null
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_subcategories_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_subcategories_vehicle_type_id_fkey"
+            columns: ["vehicle_type_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_types"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -2109,68 +2346,86 @@ export type Database = {
       }
       vehicles: {
         Row: {
+          antt_code: string | null
+          asset_value: number | null
           cost_center_id: string | null
           created_at: string
           created_by: string | null
           deleted_at: string | null
           deleted_by: string | null
           fleet_code: string | null
+          has_tachograph: boolean
           id: string
           license_plate: string | null
           manufacture_year: number | null
           model_year: number | null
+          notes: string | null
           organization_id: string
           organization_unit_id: string | null
           ownership_type: string | null
           renavam: string | null
           status: string
+          tachograph_number: string | null
           updated_at: string
           updated_by: string | null
           vehicle_model_id: string | null
+          vehicle_subcategory_id: string | null
           vehicle_type_id: string
           vin: string | null
         }
         Insert: {
+          antt_code?: string | null
+          asset_value?: number | null
           cost_center_id?: string | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
           fleet_code?: string | null
+          has_tachograph?: boolean
           id?: string
           license_plate?: string | null
           manufacture_year?: number | null
           model_year?: number | null
+          notes?: string | null
           organization_id: string
           organization_unit_id?: string | null
           ownership_type?: string | null
           renavam?: string | null
           status?: string
+          tachograph_number?: string | null
           updated_at?: string
           updated_by?: string | null
           vehicle_model_id?: string | null
+          vehicle_subcategory_id?: string | null
           vehicle_type_id: string
           vin?: string | null
         }
         Update: {
+          antt_code?: string | null
+          asset_value?: number | null
           cost_center_id?: string | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
           fleet_code?: string | null
+          has_tachograph?: boolean
           id?: string
           license_plate?: string | null
           manufacture_year?: number | null
           model_year?: number | null
+          notes?: string | null
           organization_id?: string
           organization_unit_id?: string | null
           ownership_type?: string | null
           renavam?: string | null
           status?: string
+          tachograph_number?: string | null
           updated_at?: string
           updated_by?: string | null
           vehicle_model_id?: string | null
+          vehicle_subcategory_id?: string | null
           vehicle_type_id?: string
           vin?: string | null
         }
@@ -2195,6 +2450,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organization_units"
             referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "vehicles_subcategory_fkey"
+            columns: ["vehicle_subcategory_id", "vehicle_type_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_subcategories"
+            referencedColumns: ["id", "vehicle_type_id"]
           },
           {
             foreignKeyName: "vehicles_vehicle_model_id_fkey"
@@ -2499,6 +2761,208 @@ export type Database = {
         }
         Relationships: []
       }
+      vehicle_assignment_history: {
+        Row: {
+          city_id: number | null
+          city_name: string | null
+          created_at: string | null
+          created_by: string | null
+          created_by_name: string | null
+          effective_from: string | null
+          effective_to: string | null
+          id: string | null
+          is_current: boolean | null
+          is_scheduled: boolean | null
+          operation_id: string | null
+          operation_name: string | null
+          organization_id: string | null
+          reason: string | null
+          state_id: number | null
+          state_uf: string | null
+          vehicle_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_assignments_city_state_fkey"
+            columns: ["city_id", "state_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id", "state_id"]
+          },
+          {
+            foreignKeyName: "vehicle_assignments_coverage_fkey"
+            columns: ["organization_id", "operation_id", "city_id"]
+            isOneToOne: false
+            referencedRelation: "operation_cities"
+            referencedColumns: ["organization_id", "operation_id", "city_id"]
+          },
+          {
+            foreignKeyName: "vehicle_assignments_coverage_fkey"
+            columns: ["organization_id", "operation_id", "city_id"]
+            isOneToOne: false
+            referencedRelation: "operation_geography"
+            referencedColumns: ["organization_id", "operation_id", "city_id"]
+          },
+          {
+            foreignKeyName: "vehicle_assignments_vehicle_fkey"
+            columns: ["organization_id", "vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "vehicle_assignments_vehicle_fkey"
+            columns: ["organization_id", "vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "vehicle_operation_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicle_directory: {
+        Row: {
+          antt_code: string | null
+          asset_value: number | null
+          assigned_since: string | null
+          assigned_until: string | null
+          assignment_id: string | null
+          city_id: number | null
+          city_name: string | null
+          cost_center_id: string | null
+          cost_center_name: string | null
+          created_at: string | null
+          current_odometer_km: number | null
+          deleted_at: string | null
+          fleet_code: string | null
+          has_tachograph: boolean | null
+          id: string | null
+          license_plate: string | null
+          manufacture_year: number | null
+          model_year: number | null
+          notes: string | null
+          odometer_reading_date: string | null
+          odometer_source: string | null
+          operation_id: string | null
+          operation_name: string | null
+          organization_id: string | null
+          organization_unit_id: string | null
+          organization_unit_name: string | null
+          ownership_type: string | null
+          renavam: string | null
+          scheduled_assignment_id: string | null
+          scheduled_city_id: number | null
+          scheduled_city_name: string | null
+          scheduled_from: string | null
+          scheduled_operation_id: string | null
+          scheduled_operation_name: string | null
+          scheduled_state_uf: string | null
+          search_text: string | null
+          state_id: number | null
+          state_name: string | null
+          state_uf: string | null
+          status: string | null
+          tachograph_number: string | null
+          updated_at: string | null
+          vehicle_make_id: string | null
+          vehicle_make_name: string | null
+          vehicle_model_id: string | null
+          vehicle_model_name: string | null
+          vehicle_subcategory_id: string | null
+          vehicle_subcategory_name: string | null
+          vehicle_type_code: string | null
+          vehicle_type_id: string | null
+          vehicle_type_name: string | null
+          vin: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_assignments_city_state_fkey"
+            columns: ["scheduled_city_id", "state_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id", "state_id"]
+          },
+          {
+            foreignKeyName: "vehicle_assignments_city_state_fkey"
+            columns: ["city_id", "state_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id", "state_id"]
+          },
+          {
+            foreignKeyName: "vehicle_models_vehicle_make_id_fkey"
+            columns: ["vehicle_make_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_makes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicles_cost_center_fkey"
+            columns: ["organization_id", "cost_center_id"]
+            isOneToOne: false
+            referencedRelation: "cost_centers"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "vehicles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicles_organization_unit_fkey"
+            columns: ["organization_id", "organization_unit_id"]
+            isOneToOne: false
+            referencedRelation: "organization_units"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "vehicles_subcategory_fkey"
+            columns: ["vehicle_subcategory_id", "vehicle_type_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_subcategories"
+            referencedColumns: ["id", "vehicle_type_id"]
+          },
+          {
+            foreignKeyName: "vehicles_vehicle_model_id_fkey"
+            columns: ["vehicle_model_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_models"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicles_vehicle_type_id_fkey"
+            columns: ["vehicle_type_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicle_timeline: {
+        Row: {
+          actor_id: string | null
+          actor_name: string | null
+          event_type: string | null
+          fields: string[] | null
+          id: string | null
+          new_value: Json | null
+          occurred_at: string | null
+          organization_id: string | null
+          previous_value: Json | null
+          reason: string | null
+          vehicle_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       access_inconsistencies: {
@@ -2526,6 +2990,19 @@ export type Database = {
       archive_employee: {
         Args: { p_employee_id: string; p_suspend_access?: boolean }
         Returns: undefined
+      }
+      archive_vehicle: {
+        Args: { p_reason?: string; p_vehicle_id: string }
+        Returns: undefined
+      }
+      correct_vehicle_odometer: {
+        Args: {
+          p_odometer_km: number
+          p_reading_date: string
+          p_reason: string
+          p_vehicle_id: string
+        }
+        Returns: string
       }
       create_organization: {
         Args: {
@@ -2566,6 +3043,14 @@ export type Database = {
         Args: { p_filters?: Json; p_organization_id: string }
         Returns: Json
       }
+      end_vehicle_assignment: {
+        Args: {
+          p_effective_to?: string
+          p_reason?: string
+          p_vehicle_id: string
+        }
+        Returns: undefined
+      }
       flag_import_profile_divergences: {
         Args: { p_batch_id: string }
         Returns: number
@@ -2585,6 +3070,14 @@ export type Database = {
           p_organization_id: string
           p_row_count: number
           p_with_sensitive?: boolean
+        }
+        Returns: undefined
+      }
+      log_vehicle_export: {
+        Args: {
+          p_format: string
+          p_organization_id: string
+          p_row_count: number
         }
         Returns: undefined
       }
@@ -2613,17 +3106,30 @@ export type Database = {
           updated_rows: number
         }[]
       }
+      process_vehicle_import: {
+        Args: { p_batch_id: string }
+        Returns: {
+          created_rows: number
+          skipped_rows: number
+          updated_rows: number
+        }[]
+      }
       purge_expired_import_batches: { Args: never; Returns: number }
       restore_employee: { Args: { p_employee_id: string }; Returns: undefined }
       restore_role_defaults: {
         Args: { p_reason: string; p_role_id: string }
         Returns: undefined
       }
+      restore_vehicle: { Args: { p_vehicle_id: string }; Returns: undefined }
       save_employee: {
         Args: { p_organization_id: string; p_payload: Json }
         Returns: string
       }
       save_operation: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: string
+      }
+      save_vehicle: {
         Args: { p_organization_id: string; p_payload: Json }
         Returns: string
       }
@@ -2677,6 +3183,21 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_vehicle_assignment: {
+        Args: {
+          p_city_id: number
+          p_effective_from?: string
+          p_operation_id: string
+          p_reason?: string
+          p_state_id: number
+          p_vehicle_id: string
+        }
+        Returns: string
+      }
+      set_vehicle_registration_status: {
+        Args: { p_reason?: string; p_status: string; p_vehicle_id: string }
+        Returns: undefined
+      }
       set_vehicle_status: {
         Args: { p_reason?: string; p_status: string; p_vehicle_id: string }
         Returns: undefined
@@ -2700,6 +3221,29 @@ export type Database = {
           update_rows: number
           valid_rows: number
           warning_rows: number
+        }[]
+      }
+      validate_vehicle_import: {
+        Args: { p_batch_id: string }
+        Returns: {
+          create_rows: number
+          error_rows: number
+          total_rows: number
+          update_rows: number
+          valid_rows: number
+          warning_rows: number
+        }[]
+      }
+      vehicle_summary: {
+        Args: { p_filters?: Json; p_organization_id: string }
+        Returns: Json
+      }
+      vehicles_blocking_coverage_removal: {
+        Args: { p_city_ids: number[]; p_operation_id: string }
+        Returns: {
+          city_id: number
+          city_name: string
+          vehicle_count: number
         }[]
       }
     }

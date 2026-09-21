@@ -52,10 +52,15 @@ export function visibleNavigation(permissions: string[], isPlatformAdmin = false
 /**
  * Navigation model of the product.
  *
- * Two groups, because there are two kinds of thing here. Administração is what
- * the company is — the operations it runs, the people and the fleet attached to
- * each. Módulos futuros is what the product will do with all that, and every
- * entry in it is still a placeholder.
+ * Three groups, because there are three kinds of thing here. Administração is
+ * what the company is — the operations it runs and the people attached to each.
+ * Gestão de frota is the fleet itself: the vehicles those operations use, which
+ * is a module and not a corner of administration. Módulos futuros is what the
+ * product will do with all that, and every entry in it is still a placeholder.
+ *
+ * Cadastro de frotas is the single source of truth for vehicles. Everything
+ * that comes later — checklist, manutenção, pneus, abastecimento — references a
+ * vehicle by its id and never re-registers one.
  *
  * There is no Estados or Cidades entry, and there must not be one. The IBGE
  * tables exist and are used, but a state is not something anyone administers:
@@ -100,11 +105,16 @@ export const navigation: NavGroup[] = [
         icon: ShieldCheck,
         permission: "roles.view",
       },
+    ],
+  },
+  {
+    id: "fleet",
+    label: "Gestão de frota",
+    items: [
       {
-        label: "Frotas",
-        href: "/organizacao/frotas",
+        label: "Cadastro de frotas",
+        href: "/frota/cadastro",
         icon: Truck,
-        planned: true,
         permission: "vehicles.view",
       },
     ],
