@@ -444,6 +444,13 @@ export type Database = {
             foreignKeyName: "cost_centers_organization_unit_fkey"
             columns: ["organization_id", "organization_unit_id"]
             isOneToOne: false
+            referencedRelation: "branch_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "cost_centers_organization_unit_fkey"
+            columns: ["organization_id", "organization_unit_id"]
+            isOneToOne: false
             referencedRelation: "organization_units"
             referencedColumns: ["organization_id", "id"]
           },
@@ -600,6 +607,13 @@ export type Database = {
             foreignKeyName: "drivers_organization_unit_fkey"
             columns: ["organization_id", "organization_unit_id"]
             isOneToOne: false
+            referencedRelation: "branch_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "drivers_organization_unit_fkey"
+            columns: ["organization_id", "organization_unit_id"]
+            isOneToOne: false
             referencedRelation: "organization_units"
             referencedColumns: ["organization_id", "id"]
           },
@@ -739,6 +753,13 @@ export type Database = {
             columns: ["organization_id", "business_profile_id"]
             isOneToOne: false
             referencedRelation: "business_profiles"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "employee_assignments_unit_fk"
+            columns: ["organization_id", "organization_unit_id"]
+            isOneToOne: false
+            referencedRelation: "branch_directory"
             referencedColumns: ["organization_id", "id"]
           },
           {
@@ -995,20 +1016,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "fidelization_assignments_replaces_assignment_id_fkey"
-            columns: ["replaces_assignment_id"]
-            isOneToOne: false
-            referencedRelation: "fidelization_assignments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fidelization_assignments_replaces_assignment_id_fkey"
-            columns: ["replaces_assignment_id"]
-            isOneToOne: false
-            referencedRelation: "fidelization_directory"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "fidelization_br_fkey"
             columns: ["organization_id", "operation_br_id"]
             isOneToOne: false
@@ -1020,6 +1027,20 @@ export type Database = {
             columns: ["organization_id", "operation_br_id"]
             isOneToOne: false
             referencedRelation: "operation_brs"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "fidelization_replaces_fkey"
+            columns: ["organization_id", "replaces_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "fidelization_assignments"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "fidelization_replaces_fkey"
+            columns: ["organization_id", "replaces_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "fidelization_directory"
             referencedColumns: ["organization_id", "id"]
           },
           {
@@ -1655,6 +1676,7 @@ export type Database = {
           organization_id: string
           state_id: number
           status: string
+          status_reason: string | null
           updated_at: string
           updated_by: string | null
         }
@@ -1673,6 +1695,7 @@ export type Database = {
           organization_id: string
           state_id: number
           status?: string
+          status_reason?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -1691,6 +1714,7 @@ export type Database = {
           organization_id?: string
           state_id?: number
           status?: string
+          status_reason?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -2105,47 +2129,168 @@ export type Database = {
           },
         ]
       }
-      organization_units: {
+      organization_unit_operations: {
         Row: {
-          code: string | null
           created_at: string
           created_by: string | null
-          deleted_at: string | null
-          deleted_by: string | null
+          effective_from: string
+          effective_to: string | null
           id: string
-          name: string
+          notes: string | null
+          operation_id: string
           organization_id: string
-          status: string
+          organization_unit_id: string
           updated_at: string
           updated_by: string | null
         }
         Insert: {
-          code?: string | null
           created_at?: string
           created_by?: string | null
-          deleted_at?: string | null
-          deleted_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
           id?: string
-          name: string
+          notes?: string | null
+          operation_id: string
           organization_id: string
-          status?: string
+          organization_unit_id: string
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
-          code?: string | null
           created_at?: string
           created_by?: string | null
-          deleted_at?: string | null
-          deleted_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
           id?: string
-          name?: string
+          notes?: string | null
+          operation_id?: string
           organization_id?: string
-          status?: string
+          organization_unit_id?: string
           updated_at?: string
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "organization_unit_operations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "unit_operations_operation_fkey"
+            columns: ["organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operation_summary"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "unit_operations_operation_fkey"
+            columns: ["organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operations"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "unit_operations_unit_fkey"
+            columns: ["organization_id", "organization_unit_id"]
+            isOneToOne: false
+            referencedRelation: "branch_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "unit_operations_unit_fkey"
+            columns: ["organization_id", "organization_unit_id"]
+            isOneToOne: false
+            referencedRelation: "organization_units"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      organization_units: {
+        Row: {
+          city_id: number | null
+          code: string | null
+          complement: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          district: string | null
+          document_number: string | null
+          id: string
+          legal_name: string | null
+          name: string
+          notes: string | null
+          organization_id: string
+          postal_code: string | null
+          state_id: number | null
+          status: string
+          status_reason: string | null
+          street: string | null
+          street_number: string | null
+          unit_type: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          city_id?: number | null
+          code?: string | null
+          complement?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          district?: string | null
+          document_number?: string | null
+          id?: string
+          legal_name?: string | null
+          name: string
+          notes?: string | null
+          organization_id: string
+          postal_code?: string | null
+          state_id?: number | null
+          status?: string
+          status_reason?: string | null
+          street?: string | null
+          street_number?: string | null
+          unit_type?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          city_id?: number | null
+          code?: string | null
+          complement?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          district?: string | null
+          document_number?: string | null
+          id?: string
+          legal_name?: string | null
+          name?: string
+          notes?: string | null
+          organization_id?: string
+          postal_code?: string | null
+          state_id?: number | null
+          status?: string
+          status_reason?: string | null
+          street?: string | null
+          street_number?: string | null
+          unit_type?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_units_city_fkey"
+            columns: ["city_id", "state_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id", "state_id"]
+          },
           {
             foreignKeyName: "organization_units_organization_id_fkey"
             columns: ["organization_id"]
@@ -3103,6 +3248,84 @@ export type Database = {
           },
         ]
       }
+      vehicle_unit_assignments: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          id: string
+          organization_id: string
+          organization_unit_id: string
+          reason: string | null
+          updated_at: string
+          updated_by: string | null
+          vehicle_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          organization_id: string
+          organization_unit_id: string
+          reason?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          organization_id?: string
+          organization_unit_id?: string
+          reason?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_unit_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_unit_unit_fkey"
+            columns: ["organization_id", "organization_unit_id"]
+            isOneToOne: false
+            referencedRelation: "branch_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "vehicle_unit_unit_fkey"
+            columns: ["organization_id", "organization_unit_id"]
+            isOneToOne: false
+            referencedRelation: "organization_units"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "vehicle_unit_vehicle_fkey"
+            columns: ["organization_id", "vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "vehicle_unit_vehicle_fkey"
+            columns: ["organization_id", "vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
       vehicles: {
         Row: {
           antt_code: string | null
@@ -3207,6 +3430,13 @@ export type Database = {
             foreignKeyName: "vehicles_organization_unit_fkey"
             columns: ["organization_id", "organization_unit_id"]
             isOneToOne: false
+            referencedRelation: "branch_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "vehicles_organization_unit_fkey"
+            columns: ["organization_id", "organization_unit_id"]
+            isOneToOne: false
             referencedRelation: "organization_units"
             referencedColumns: ["organization_id", "id"]
           },
@@ -3295,6 +3525,13 @@ export type Database = {
             foreignKeyName: "work_locations_unit_fk"
             columns: ["organization_id", "organization_unit_id"]
             isOneToOne: false
+            referencedRelation: "branch_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "work_locations_unit_fk"
+            columns: ["organization_id", "organization_unit_id"]
+            isOneToOne: false
             referencedRelation: "organization_units"
             referencedColumns: ["organization_id", "id"]
           },
@@ -3325,6 +3562,113 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      branch_directory: {
+        Row: {
+          city_id: number | null
+          city_name: string | null
+          code: string | null
+          complement: string | null
+          cost_center_count: number | null
+          created_at: string | null
+          created_by: string | null
+          deleted_at: string | null
+          district: string | null
+          document_number: string | null
+          employee_count: number | null
+          id: string | null
+          legal_name: string | null
+          name: string | null
+          notes: string | null
+          operation_count: number | null
+          organization_id: string | null
+          postal_code: string | null
+          state_id: number | null
+          state_uf: string | null
+          status: string | null
+          status_reason: string | null
+          street: string | null
+          street_number: string | null
+          unit_type: string | null
+          updated_at: string | null
+          updated_by: string | null
+          vehicle_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_units_city_fkey"
+            columns: ["city_id", "state_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id", "state_id"]
+          },
+          {
+            foreignKeyName: "organization_units_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      branch_operation_directory: {
+        Row: {
+          branch_code: string | null
+          branch_name: string | null
+          created_at: string | null
+          created_by: string | null
+          effective_from: string | null
+          effective_to: string | null
+          id: string | null
+          is_current: boolean | null
+          notes: string | null
+          operation_code: string | null
+          operation_id: string | null
+          operation_name: string | null
+          operation_status: string | null
+          organization_id: string | null
+          organization_unit_id: string | null
+          updated_at: string | null
+          updated_by: string | null
+          vehicle_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_unit_operations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "unit_operations_operation_fkey"
+            columns: ["organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operation_summary"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "unit_operations_operation_fkey"
+            columns: ["organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operations"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "unit_operations_unit_fkey"
+            columns: ["organization_id", "organization_unit_id"]
+            isOneToOne: false
+            referencedRelation: "branch_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "unit_operations_unit_fkey"
+            columns: ["organization_id", "organization_unit_id"]
+            isOneToOne: false
+            referencedRelation: "organization_units"
+            referencedColumns: ["organization_id", "id"]
           },
         ]
       }
@@ -3425,20 +3769,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "fidelization_assignments_replaces_assignment_id_fkey"
-            columns: ["replaces_assignment_id"]
-            isOneToOne: false
-            referencedRelation: "fidelization_assignments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fidelization_assignments_replaces_assignment_id_fkey"
-            columns: ["replaces_assignment_id"]
-            isOneToOne: false
-            referencedRelation: "fidelization_directory"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "fidelization_br_fkey"
             columns: ["organization_id", "operation_br_id"]
             isOneToOne: false
@@ -3450,6 +3780,20 @@ export type Database = {
             columns: ["organization_id", "operation_br_id"]
             isOneToOne: false
             referencedRelation: "operation_brs"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "fidelization_replaces_fkey"
+            columns: ["organization_id", "replaces_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "fidelization_assignments"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "fidelization_replaces_fkey"
+            columns: ["organization_id", "replaces_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "fidelization_directory"
             referencedColumns: ["organization_id", "id"]
           },
           {
@@ -3905,14 +4249,14 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "vehicle_assignments_city_state_fkey"
-            columns: ["city_id", "state_id"]
+            columns: ["scheduled_city_id", "state_id"]
             isOneToOne: false
             referencedRelation: "cities"
             referencedColumns: ["id", "state_id"]
           },
           {
             foreignKeyName: "vehicle_assignments_city_state_fkey"
-            columns: ["scheduled_city_id", "state_id"]
+            columns: ["city_id", "state_id"]
             isOneToOne: false
             referencedRelation: "cities"
             referencedColumns: ["id", "state_id"]
@@ -3937,6 +4281,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicles_organization_unit_fkey"
+            columns: ["organization_id", "organization_unit_id"]
+            isOneToOne: false
+            referencedRelation: "branch_directory"
+            referencedColumns: ["organization_id", "id"]
           },
           {
             foreignKeyName: "vehicles_organization_unit_fkey"
@@ -4015,6 +4366,50 @@ export type Database = {
       archive_vehicle: {
         Args: { p_reason?: string; p_vehicle_id: string }
         Returns: undefined
+      }
+      branch_audit_trail: {
+        Args: { p_limit?: number; p_organization_unit_id: string }
+        Returns: {
+          action: string
+          actor_name: string
+          changed_fields: string[]
+          created_at: string
+          entity_type: string
+          id: string
+          new_data: Json
+          old_data: Json
+        }[]
+      }
+      branch_employees: {
+        Args: { p_limit?: number; p_organization_unit_id: string }
+        Returns: {
+          city_name: string
+          employee_code: string
+          employee_id: string
+          full_name: string
+          job_position: string
+          leader_name: string
+          operation_name: string
+          status: string
+        }[]
+      }
+      branch_impact: { Args: { p_organization_unit_id: string }; Returns: Json }
+      branch_operation_impact: {
+        Args: { p_operation_id: string; p_organization_unit_id: string }
+        Returns: Json
+      }
+      branch_summary: { Args: { p_organization_id: string }; Returns: Json }
+      branch_vehicles: {
+        Args: { p_limit?: number; p_organization_unit_id: string }
+        Returns: {
+          city_name: string
+          fleet_code: string
+          license_plate: string
+          operation_name: string
+          status: string
+          vehicle_id: string
+          vehicle_type: string
+        }[]
       }
       correct_vehicle_odometer: {
         Args: {
@@ -4204,6 +4599,18 @@ export type Database = {
         Args: { p_organization_id: string; p_vehicle_type_id: string }
         Returns: Json
       }
+      governance_audit_trail: {
+        Args: { p_entity_id: string; p_entity_type: string; p_limit?: number }
+        Returns: {
+          action: string
+          actor_name: string
+          changed_fields: string[]
+          created_at: string
+          id: string
+          new_data: Json
+          old_data: Json
+        }[]
+      }
       grant_employee_access: {
         Args: {
           p_employee_id: string
@@ -4330,6 +4737,10 @@ export type Database = {
         Returns: undefined
       }
       restore_vehicle: { Args: { p_vehicle_id: string }; Returns: undefined }
+      save_branch: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: string
+      }
       save_employee: {
         Args: { p_organization_id: string; p_payload: Json }
         Returns: string
@@ -4383,6 +4794,14 @@ export type Database = {
           total: number
           uf: string
         }[]
+      }
+      set_branch_status: {
+        Args: {
+          p_organization_unit_id: string
+          p_reason?: string
+          p_status: string
+        }
+        Returns: undefined
       }
       set_employee_access_status: {
         Args: { p_employee_id: string; p_status: string }
@@ -4469,6 +4888,15 @@ export type Database = {
           p_effective_from: string
           p_new_vehicle_id: string
           p_reason: string
+        }
+        Returns: Json
+      }
+      transfer_vehicle_branch: {
+        Args: {
+          p_effective_from: string
+          p_organization_unit_id: string
+          p_reason: string
+          p_vehicle_id: string
         }
         Returns: Json
       }

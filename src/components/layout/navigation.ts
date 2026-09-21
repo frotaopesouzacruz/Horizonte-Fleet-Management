@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
+  Building2,
   CalendarRange,
   CircleDot,
   ClipboardCheck,
@@ -66,6 +67,10 @@ export function visibleNavigation(permissions: string[], isPlatformAdmin = false
  * those operations use. Operações sat under Administração and Tipos de
  * equipamento under Gestão de frota; neither is administration and neither is
  * fleet management. They are the skeleton the other modules hang off.
+ *
+ * Filiais sits between them on purpose: an operation is what the company does,
+ * a filial is where it answers from, and one is not the other. A filial serves
+ * many operations and an operation is served by many filiais.
  *
  * GOVERNANÇA OPERACIONAL is who answers for that structure and how the fleet is
  * committed to it month by month: Lideranças and Fidelização.
@@ -133,6 +138,12 @@ export const navigation: NavGroup[] = [
         href: "/organizacao/operacoes",
         icon: Network,
         permission: "operations.view",
+      },
+      {
+        label: "Filiais",
+        href: "/estrutura/filiais",
+        icon: Building2,
+        permission: "branches.view",
       },
       {
         label: "Tipos de equipamento",
