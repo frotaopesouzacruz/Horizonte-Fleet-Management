@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
 import { FormField } from "@/components/ui/form-field";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectEmpty, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/feedback/alert";
@@ -563,11 +563,15 @@ function OptionSelect({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="__none">Não informado</SelectItem>
-          {options.map((option) => (
-            <SelectItem key={option.id} value={option.id}>
-              {option.hint ? `${option.hint} · ${option.label}` : option.label}
-            </SelectItem>
-          ))}
+          {options.length === 0 ? (
+            <SelectEmpty>Nenhum item cadastrado para {label.toLowerCase()}.</SelectEmpty>
+          ) : (
+            options.map((option) => (
+              <SelectItem key={option.id} value={option.id}>
+                {option.hint ? `${option.hint} · ${option.label}` : option.label}
+              </SelectItem>
+            ))
+          )}
         </SelectContent>
       </Select>
     </FormField>

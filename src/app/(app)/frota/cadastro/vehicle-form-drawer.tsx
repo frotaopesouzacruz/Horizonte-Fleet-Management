@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { DateInput } from "@/components/ui/date-input";
 import { FormField, FormGrid } from "@/components/ui/form-field";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectEmpty, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/feedback/alert";
@@ -466,12 +466,19 @@ export function VehicleFormDrawer({
                           <SelectValue placeholder="Selecione" />
                         </SelectTrigger>
                         <SelectContent>
-                          {typeOptions.map((type) => (
-                            <SelectItem key={type.id} value={type.id}>
-                              {type.label}
-                              {type.isActive ? "" : " (inativo)"}
-                            </SelectItem>
-                          ))}
+                          {typeOptions.length === 0 ? (
+                            <SelectEmpty>
+                              Nenhum tipo de equipamento cadastrado. Cadastre em Gestão de Frota →
+                              Tipos de Equipamento.
+                            </SelectEmpty>
+                          ) : (
+                            typeOptions.map((type) => (
+                              <SelectItem key={type.id} value={type.id}>
+                                {type.label}
+                                {type.isActive ? "" : " (inativo)"}
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                     </FormField>
@@ -502,11 +509,15 @@ export function VehicleFormDrawer({
                           {subcategoryRequired ? null : (
                             <SelectItem value={NONE}>Não informada</SelectItem>
                           )}
-                          {subcategories.map((item) => (
-                            <SelectItem key={item.id} value={item.id}>
-                              {item.label}
-                            </SelectItem>
-                          ))}
+                          {subcategories.length === 0 ? (
+                            <SelectEmpty>Nenhuma subcategoria para este tipo.</SelectEmpty>
+                          ) : (
+                            subcategories.map((item) => (
+                              <SelectItem key={item.id} value={item.id}>
+                                {item.label}
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                     </FormField>
@@ -524,11 +535,15 @@ export function VehicleFormDrawer({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value={NONE}>Não informada</SelectItem>
-                          {options.makes.map((make) => (
-                            <SelectItem key={make.id} value={make.id}>
-                              {make.label}
-                            </SelectItem>
-                          ))}
+                          {options.makes.length === 0 ? (
+                            <SelectEmpty>Nenhuma marca cadastrada.</SelectEmpty>
+                          ) : (
+                            options.makes.map((make) => (
+                              <SelectItem key={make.id} value={make.id}>
+                                {make.label}
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                     </FormField>
@@ -544,11 +559,15 @@ export function VehicleFormDrawer({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value={NONE}>Não informado</SelectItem>
-                          {models.map((model) => (
-                            <SelectItem key={model.id} value={model.id}>
-                              {model.label}
-                            </SelectItem>
-                          ))}
+                          {models.length === 0 ? (
+                            <SelectEmpty>Nenhum modelo para esta marca.</SelectEmpty>
+                          ) : (
+                            models.map((model) => (
+                              <SelectItem key={model.id} value={model.id}>
+                                {model.label}
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                     </FormField>
@@ -737,11 +756,17 @@ export function VehicleFormDrawer({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value={NONE}>Não informado</SelectItem>
-                          {options.costCenters.map((center) => (
-                            <SelectItem key={center.id} value={center.id}>
-                              {center.label}
-                            </SelectItem>
-                          ))}
+                          {options.costCenters.length === 0 ? (
+                            <SelectEmpty>
+                              Nenhum centro de custo cadastrado ainda.
+                            </SelectEmpty>
+                          ) : (
+                            options.costCenters.map((center) => (
+                              <SelectItem key={center.id} value={center.id}>
+                                {center.label}
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                     </FormField>

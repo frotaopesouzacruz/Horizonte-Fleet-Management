@@ -159,3 +159,19 @@ export const SelectSeparator = React.forwardRef<
 >(function SelectSeparator({ className, ...props }, ref) {
   return <SelectPrimitive.Separator ref={ref} className={cn("-mx-1 my-1 h-px bg-border", className)} {...props} />;
 });
+
+/**
+ * A linha que uma lista sem itens mostra no lugar do nada.
+ *
+ * Um menu que abre vazio e um menu que não abre são indistinguíveis para quem
+ * está preenchendo o formulário — os dois parecem defeito. Dizer "nenhum X
+ * cadastrado" transforma a ausência num fato do cadastro, que a pessoa sabe
+ * resolver, em vez de num sintoma que ela só pode reportar.
+ */
+export function SelectEmpty({ children }: { children: React.ReactNode }) {
+  return (
+    <p role="presentation" className="px-3 py-2 text-caption text-fg-muted">
+      {children}
+    </p>
+  );
+}

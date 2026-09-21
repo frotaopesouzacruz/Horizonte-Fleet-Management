@@ -280,3 +280,52 @@ Decisions that are easy to undo by accident:
   "Configurações" pointing at a route that does not exist teaches people to
   distrust the menu. Planned modules are visibly separate, muted, non-clickable,
   and say why in a tooltip.
+
+---
+
+## 17. Camadas (z-index)
+
+A escala vive em `shape.css` e é a única fonte. Nenhum componente escreve um
+`z-index` literal — quem precisa de camada usa o token.
+
+| Token | Valor | Quem ocupa |
+|---|---|---|
+| `--z-topbar` | 20 | Topbar |
+| `--z-sidebar` | 30 | Sidebar |
+| `--z-overlay` | 50 | Dialog, Drawer, ConfirmDialog (painel e fundo) |
+| `--z-dropdown` | 60 | Select, Popover, DropdownMenu, Tooltip |
+| `--z-toast` | 70 | Toast |
+
+### O menu fica acima do modal
+
+Esta é a regra que não é óbvia, e custou caro quando estava invertida.
+
+Select, popover, menu e tooltip são **portados para o fim do `body`**, fora da
+árvore do drawer ou do diálogo que os abriu. Enquanto a camada de menu ficou
+abaixo da camada de overlay (40 contra 50), **toda lista suspensa dentro de um
+formulário em painel abria atrás do painel**: a lista existia no DOM, o CSS a
+dava como `visible`, e ainda assim ninguém conseguia usá-la — ela era pintada
+por baixo e o clique caía no overlay, que fechava o formulário.
+
+O efeito atingia o sistema inteiro, não uma tela: cargo, área, operação,
+localidade, filial e perfil no cadastro de colaborador; tipo de equipamento,
+subcategoria, marca, modelo, operação e filial no cadastro de frota; e qualquer
+formulário em drawer construído depois.
+
+Pôr o menu acima do modal não cria o problema inverso: um menu só existe
+enquanto está aberto, e abrir um modal fecha o menu que estivesse aberto na
+página. O toast continua por cima de tudo, porque ele avisa sobre o que acabou
+de acontecer inclusive dentro de um modal.
+
+`tests/ui/overlays.spec.ts` guarda a regra. Ele não pergunta se a opção existe
+nem se ela está visível — as duas coisas eram verdade com o defeito no ar. Ele
+pergunta quem o navegador entrega em `elementFromPoint` no centro da opção, que
+é a única pergunta cuja resposta muda quando a camada está errada.
+
+### Lista vazia diz que está vazia
+
+Um menu que abre vazio e um menu que não abre são indistinguíveis para quem está
+preenchendo o formulário — os dois parecem defeito. Toda lista alimentada por
+cadastro usa `SelectEmpty` quando não tem itens, e diz o que falta cadastrar.
+Assim a ausência vira um fato do cadastro, que a pessoa sabe resolver, em vez de
+um sintoma que ela só pode reportar.

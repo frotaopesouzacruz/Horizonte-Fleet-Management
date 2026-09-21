@@ -48,12 +48,28 @@
   --control-height-md: 38px;
   --control-height-lg: 44px;
 
-  /* ---- Z-index ------------------------------------------------------------ */
-  --z-sidebar: 30;
+  /* ---- Z-index ------------------------------------------------------------
+     A ordem aqui é a ordem em que as camadas se cobrem, e ela tem uma regra
+     que não é óbvia: o MENU FICA ACIMA DO MODAL.
+
+     Select, popover, menu e tooltip são portados para o fim do `body`, fora da
+     árvore do drawer ou do diálogo que os abriu. Quando a camada de menu ficava
+     abaixo da camada de overlay, todo campo de lista suspensa dentro de um
+     formulário em painel abria ATRÁS do painel: a lista existia no DOM, mas era
+     pintada por baixo e o clique caía no overlay, que fechava o formulário.
+     Era o que impedia escolher cargo, área, operação, tipo de equipamento,
+     marca e modelo — em Usuários, em Frota e em toda tela com formulário em
+     drawer.
+
+     Um menu só existe enquanto está aberto, e abrir um modal fecha o menu que
+     estivesse aberto na página; então pôr o menu acima do modal não cria o
+     problema inverso. O toast continua por cima de tudo, porque ele avisa sobre
+     o que acabou de acontecer inclusive dentro de um modal. */
   --z-topbar: 20;
-  --z-dropdown: 40;
+  --z-sidebar: 30;
   --z-overlay: 50;
-  --z-toast: 60;
+  --z-dropdown: 60;
+  --z-toast: 70;
 }
 
 .dark {
