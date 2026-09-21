@@ -8,6 +8,7 @@ import {
   Network,
   ShieldAlert,
   ShieldCheck,
+  Shapes,
   Truck,
   Users,
   Wrench,
@@ -58,9 +59,11 @@ export function visibleNavigation(permissions: string[], isPlatformAdmin = false
  * is a module and not a corner of administration. Módulos futuros is what the
  * product will do with all that, and every entry in it is still a placeholder.
  *
- * Cadastro de frotas is the single source of truth for vehicles. Everything
- * that comes later — checklist, manutenção, pneus, abastecimento — references a
- * vehicle by its id and never re-registers one.
+ * Cadastro de frotas is the single source of truth for vehicles; Tipos de
+ * equipamento is the single source of truth for how they are classified and
+ * parameterised. Everything that comes later — checklist, manutenção, pneus,
+ * abastecimento — references a vehicle by its id and reads its type from that
+ * catalogue, and never re-registers either.
  *
  * There is no Estados or Cidades entry, and there must not be one. The IBGE
  * tables exist and are used, but a state is not something anyone administers:
@@ -116,6 +119,12 @@ export const navigation: NavGroup[] = [
         href: "/frota/cadastro",
         icon: Truck,
         permission: "vehicles.view",
+      },
+      {
+        label: "Tipos de equipamento",
+        href: "/frota/tipos-equipamento",
+        icon: Shapes,
+        permission: "equipment_types.view",
       },
     ],
   },

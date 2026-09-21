@@ -223,6 +223,20 @@ export function VehicleFormDrawer({
     () => options.subcategories.filter((item) => item.vehicleTypeId === form.vehicle_type_id),
     [options.subcategories, form.vehicle_type_id],
   );
+
+  /**
+   * Um tipo inativo não entra em cadastro novo, mas continua classificando os
+   * veículos que já o usam — então na edição ele permanece na lista, senão o
+   * formulário perderia a classificação do próprio veículo que está abrindo.
+   */
+  const typeOptions = React.useMemo(
+    () => options.types.filter((type) => type.isActive || type.id === form.vehicle_type_id),
+    [options.types, form.vehicle_type_id],
+  );
+
+  const selectedType = options.types.find((type) => type.id === form.vehicle_type_id);
+  const subcategoryRequired = Boolean(selectedType?.requiresSubcategory);
+
   const models = React.useMemo(
     () =>
       form.vehicle_make_id
@@ -248,6 +262,9 @@ export function VehicleFormDrawer({
     !renavamInvalid &&
     !assetInvalid &&
     form.vehicle_type_id.length > 0 &&
+    // §13: quando o tipo exige subcategoria, o formulário não deixa salvar sem
+    // ela — a mesma regra que o banco aplica, só que antes do erro.
+    (!subcategoryRequired || form.vehicle_subcategory_id.length > 0) &&
     // An allocation is all-or-nothing: an operation without a city would be a
     // vehicle allocated to nowhere in particular.
     (!form.operation_id || (form.state_id !== "" && form.city_id !== ""));
@@ -449,9 +466,10 @@ export function VehicleFormDrawer({
                           <SelectValue placeholder="Selecione" />
                         </SelectTrigger>
                         <SelectContent>
-                          {options.types.map((type) => (
+                          {typeOptions.map((type) => (
                             <SelectItem key={type.id} value={type.id}>
                               {type.label}
+                              {type.isActive ? "" : " (inativo)"}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -460,11 +478,14 @@ export function VehicleFormDrawer({
 
                     <FormField
                       label="Subcategoria / carroceria"
+                      required={subcategoryRequired}
                       disabled={!form.vehicle_type_id}
                       helperText={
-                        form.vehicle_type_id
-                          ? undefined
-                          : "Escolha o tipo de equipamento para ver as subcategorias."
+                        !form.vehicle_type_id
+                          ? "Escolha o tipo de equipamento para ver as subcategorias."
+                          : subcategoryRequired
+                            ? "Este tipo exige subcategoria, conforme a configuração em Tipos de Equipamento."
+                            : undefined
                       }
                     >
                       <Select
@@ -478,7 +499,9 @@ export function VehicleFormDrawer({
                           <SelectValue placeholder="Não informada" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value={NONE}>Não informada</SelectItem>
+                          {subcategoryRequired ? null : (
+                            <SelectItem value={NONE}>Não informada</SelectItem>
+                          )}
                           {subcategories.map((item) => (
                             <SelectItem key={item.id} value={item.id}>
                               {item.label}

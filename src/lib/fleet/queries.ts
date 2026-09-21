@@ -281,6 +281,13 @@ export interface Option {
   label: string;
 }
 
+export interface TypeOption extends Option {
+  /** Effective for this organization: the shared catalogue can be switched off. */
+  isActive: boolean;
+  /** When true, the Etapa 07 configuration demands a subcategory (§13). */
+  requiresSubcategory: boolean;
+}
+
 export interface SubcategoryOption extends Option {
   vehicleTypeId: string;
 }
@@ -290,7 +297,7 @@ export interface ModelOption extends Option {
 }
 
 export interface FleetOptions {
-  types: Option[];
+  types: TypeOption[];
   subcategories: SubcategoryOption[];
   makes: Option[];
   models: ModelOption[];
@@ -304,7 +311,13 @@ export async function getFleetOptions(organizationId: string): Promise<FleetOpti
   const alive = { organization_id: organizationId };
 
   const [types, subcategories, makes, models, operations, units, costCenters] = await Promise.all([
-    supabase.from("vehicle_types").select("id, name").eq("is_active", true).order("sort_order"),
+    // O catálogo de tipos é o da Etapa 07, com a situação e a exigência de
+    // subcategoria já resolvidas para esta organização. Ler `vehicle_types`
+    // direto devolveria também os tipos que a organização desligou para si.
+    supabase.rpc("list_equipment_types", {
+      p_organization_id: organizationId,
+      p_filters: {},
+    }),
     // Subcategories are global (organization_id null) plus whatever the tenant
     // added. Both are offered; the type filter is applied in the form.
     supabase
@@ -326,7 +339,12 @@ export async function getFleetOptions(organizationId: string): Promise<FleetOpti
   ]);
 
   return {
-    types: (types.data ?? []).map((row) => ({ id: row.id, label: row.name })),
+    types: (types.data ?? []).map((row) => ({
+      id: row.id,
+      label: row.name,
+      isActive: row.effective_status === "active",
+      requiresSubcategory: Boolean(row.requires_subcategory),
+    })),
     subcategories: (subcategories.data ?? []).map((row) => ({
       id: row.id,
       label: row.name,

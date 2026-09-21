@@ -55,6 +55,9 @@ const publicSurfaces = [
   // Cadastro de frotas: dezesseis colunas, nove filtros, seis indicadores e
   // três escalas de badge. Mais superfície colorida do que qualquer outra tela.
   { name: "frota (preview)", url: "/dev/preview-frota" },
+  // Três escalas de badge na mesma tabela — situação, origem e avisos de
+  // configuração —, que é a forma que falha contraste em um tema só.
+  { name: "tipos de equipamento (preview)", url: "/dev/preview-tipos-equipamento" },
 ];
 
 /** Behind the app shell: need a real session against a reachable Supabase. */

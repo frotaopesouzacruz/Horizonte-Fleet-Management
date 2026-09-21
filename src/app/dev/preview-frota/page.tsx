@@ -23,11 +23,11 @@ const enabled =
 
 const OPTIONS: FleetOptions = {
   types: [
-    { id: "t1", label: "Caminhão" },
-    { id: "t2", label: "Van" },
-    { id: "t3", label: "Utilitário" },
-    { id: "t4", label: "Automóvel" },
-    { id: "t5", label: "Motocicleta" },
+    { id: "t1", label: "Caminhão", isActive: true, requiresSubcategory: true },
+    { id: "t2", label: "Van", isActive: true, requiresSubcategory: false },
+    { id: "t3", label: "Utilitário", isActive: true, requiresSubcategory: false },
+    { id: "t4", label: "Automóvel", isActive: true, requiresSubcategory: false },
+    { id: "t5", label: "Motocicleta", isActive: false, requiresSubcategory: false },
   ],
   subcategories: [
     { id: "s1", label: "Baú", vehicleTypeId: "t1" },

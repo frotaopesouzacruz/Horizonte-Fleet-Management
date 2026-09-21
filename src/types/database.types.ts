@@ -1449,6 +1449,80 @@ export type Database = {
           },
         ]
       }
+      operational_apps: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          organization_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operational_apps_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      operational_modules: {
+        Row: {
+          code: string
+          description: string
+          is_available: boolean
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          code: string
+          description: string
+          is_available?: boolean
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          code?: string
+          description?: string
+          is_available?: boolean
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       operations: {
         Row: {
           code: string | null
@@ -2264,6 +2338,9 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          description: string | null
           id: string
           is_active: boolean
           name: string
@@ -2276,6 +2353,9 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description?: string | null
           id?: string
           is_active?: boolean
           name: string
@@ -2288,6 +2368,9 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description?: string | null
           id?: string
           is_active?: boolean
           name?: string
@@ -2314,35 +2397,284 @@ export type Database = {
           },
         ]
       }
+      vehicle_type_apps: {
+        Row: {
+          app_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          organization_id: string
+          vehicle_type_id: string
+        }
+        Insert: {
+          app_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id: string
+          vehicle_type_id: string
+        }
+        Update: {
+          app_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id?: string
+          vehicle_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_type_apps_app_fkey"
+            columns: ["app_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "operational_apps"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "vehicle_type_apps_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_type_apps_vehicle_type_id_fkey"
+            columns: ["vehicle_type_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicle_type_module_rules: {
+        Row: {
+          capability: string
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          id: string
+          is_eligible: boolean
+          module_code: string
+          organization_id: string
+          reason: string | null
+          vehicle_type_id: string
+        }
+        Insert: {
+          capability: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          is_eligible: boolean
+          module_code: string
+          organization_id: string
+          reason?: string | null
+          vehicle_type_id: string
+        }
+        Update: {
+          capability?: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          is_eligible?: boolean
+          module_code?: string
+          organization_id?: string
+          reason?: string | null
+          vehicle_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_type_module_rules_module_code_fkey"
+            columns: ["module_code"]
+            isOneToOne: false
+            referencedRelation: "operational_modules"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "vehicle_type_module_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_type_module_rules_vehicle_type_id_fkey"
+            columns: ["vehicle_type_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicle_type_operations: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          operation_id: string
+          organization_id: string
+          vehicle_type_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          operation_id: string
+          organization_id: string
+          vehicle_type_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          operation_id?: string
+          organization_id?: string
+          vehicle_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_type_operations_operation_fkey"
+            columns: ["organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operation_summary"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "vehicle_type_operations_operation_fkey"
+            columns: ["organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operations"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "vehicle_type_operations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_type_operations_vehicle_type_id_fkey"
+            columns: ["vehicle_type_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicle_type_settings: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          is_enabled: boolean
+          notes: string | null
+          operation_restriction_enabled: boolean
+          organization_id: string
+          requires_subcategory: boolean
+          updated_at: string
+          updated_by: string | null
+          vehicle_type_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          is_enabled?: boolean
+          notes?: string | null
+          operation_restriction_enabled?: boolean
+          organization_id: string
+          requires_subcategory?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_type_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          is_enabled?: boolean
+          notes?: string | null
+          operation_restriction_enabled?: boolean
+          organization_id?: string
+          requires_subcategory?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_type_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_type_settings_vehicle_type_id_fkey"
+            columns: ["vehicle_type_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vehicle_types: {
         Row: {
           code: string
           created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          description: string | null
           id: string
           is_active: boolean
           name: string
+          organization_id: string | null
           sort_order: number
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           code: string
           created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description?: string | null
           id?: string
           is_active?: boolean
           name: string
+          organization_id?: string | null
           sort_order?: number
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           code?: string
           created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description?: string | null
           id?: string
           is_active?: boolean
           name?: string
+          organization_id?: string | null
           sort_order?: number
           updated_at?: string
+          updated_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_types_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vehicles: {
         Row: {
@@ -3051,9 +3383,50 @@ export type Database = {
         }
         Returns: undefined
       }
+      equipment_subcategory_impact: {
+        Args: { p_organization_id: string; p_subcategory_id: string }
+        Returns: Json
+      }
+      equipment_type_history: {
+        Args: { p_organization_id: string; p_vehicle_type_id: string }
+        Returns: {
+          action: string
+          actor_name: string
+          entity: string
+          fields: string[]
+          id: string
+          new_value: Json
+          occurred_at: string
+          previous_value: Json
+        }[]
+      }
+      equipment_type_impact: {
+        Args: { p_organization_id: string; p_vehicle_type_id: string }
+        Returns: Json
+      }
+      equipment_type_operation_impact: {
+        Args: {
+          p_operation_ids: string[]
+          p_organization_id: string
+          p_vehicle_type_id: string
+        }
+        Returns: {
+          operation_id: string
+          operation_name: string
+          vehicle_count: number
+        }[]
+      }
+      equipment_type_summary: {
+        Args: { p_organization_id: string }
+        Returns: Json
+      }
       flag_import_profile_divergences: {
         Args: { p_batch_id: string }
         Returns: number
+      }
+      get_equipment_type: {
+        Args: { p_organization_id: string; p_vehicle_type_id: string }
+        Returns: Json
       }
       grant_employee_access: {
         Args: {
@@ -3063,6 +3436,27 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      list_equipment_types: {
+        Args: { p_filters?: Json; p_organization_id: string }
+        Returns: {
+          app_count: number
+          code: string
+          description: string
+          effective_status: string
+          id: string
+          is_active: boolean
+          is_enabled: boolean
+          module_rule_count: number
+          name: string
+          operation_count: number
+          operation_restriction_enabled: boolean
+          requires_subcategory: boolean
+          scope: string
+          subcategory_count: number
+          updated_at: string
+          vehicle_count: number
+        }[]
       }
       log_user_export: {
         Args: {
@@ -3125,6 +3519,10 @@ export type Database = {
         Args: { p_organization_id: string; p_payload: Json }
         Returns: string
       }
+      save_equipment_type: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: string
+      }
       save_operation: {
         Args: { p_organization_id: string; p_payload: Json }
         Returns: string
@@ -3157,6 +3555,24 @@ export type Database = {
       }
       set_employee_access_status: {
         Args: { p_employee_id: string; p_status: string }
+        Returns: undefined
+      }
+      set_equipment_subcategory_status: {
+        Args: {
+          p_is_active: boolean
+          p_organization_id: string
+          p_reason?: string
+          p_subcategory_id: string
+        }
+        Returns: undefined
+      }
+      set_equipment_type_status: {
+        Args: {
+          p_is_active: boolean
+          p_organization_id: string
+          p_reason?: string
+          p_vehicle_type_id: string
+        }
         Returns: undefined
       }
       set_membership_operation_scopes: {
@@ -3237,6 +3653,24 @@ export type Database = {
       vehicle_summary: {
         Args: { p_filters?: Json; p_organization_id: string }
         Returns: Json
+      }
+      vehicle_type_allows_operation: {
+        Args: {
+          p_operation_id: string
+          p_organization_id: string
+          p_vehicle_type_id: string
+        }
+        Returns: boolean
+      }
+      vehicle_type_module_eligibility: {
+        Args: {
+          p_capability: string
+          p_module_code: string
+          p_on_date?: string
+          p_organization_id: string
+          p_vehicle_type_id: string
+        }
+        Returns: boolean
       }
       vehicles_blocking_coverage_removal: {
         Args: { p_city_ids: number[]; p_operation_id: string }
