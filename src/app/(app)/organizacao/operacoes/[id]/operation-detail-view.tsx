@@ -2,9 +2,10 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Landmark, MapPin, Pencil, Users } from "lucide-react";
 import type { CoverageState, OperationDetail } from "@/lib/organization/operations";
-import type { CoverageInput } from "@/lib/organization/actions";
+import { saveOperation, type CoverageInput } from "@/lib/organization/actions";
 import { PageContent, PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,8 +21,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Alert, AlertDescription, AlertTitle } from "@/components/feedback/alert";
+import { useToast } from "@/components/feedback/toast";
 import { OperationFormDrawer } from "../operation-form-drawer";
-import type { PickerState } from "@/components/organization/operation-geography-picker";
+import {
+  OperationGeographyPicker,
+  type PickerState,
+} from "@/components/organization/operation-geography-picker";
 
 const number = new Intl.NumberFormat("pt-BR");
 
@@ -30,17 +36,32 @@ interface Props {
   coverage: CoverageState[];
   states: PickerState[];
   canUpdate: boolean;
+  canManageGeography: boolean;
 }
 
 /**
  * One operation: what it is, and where it runs.
  *
- * The coverage is shown here and edited in the same form that creates an
- * operation — one place decides what a coverage is, so the rules that apply
- * when it is created apply when it is changed.
+ * The coverage is edited right here, where it is read, instead of only inside
+ * the form that creates an operation — someone looking at the states of an
+ * operation is one click from changing them. The picker and the save call are
+ * the same ones the form uses, so the rule that an active operation must cover
+ * at least one municipality in every state it claims is checked either way.
  */
-export function OperationDetailView({ operation, coverage, states, canUpdate }: Props) {
+export function OperationDetailView({
+  operation,
+  coverage,
+  states,
+  canUpdate,
+  canManageGeography,
+}: Props) {
+  const router = useRouter();
+  const { toast } = useToast();
   const [formOpen, setFormOpen] = React.useState(false);
+  const [editingCoverage, setEditingCoverage] = React.useState(false);
+  const [draft, setDraft] = React.useState<CoverageInput[]>([]);
+  const [coverageError, setCoverageError] = React.useState<string | null>(null);
+  const [saving, startSaving] = React.useTransition();
 
   const totalCities = coverage.reduce((sum, state) => sum + state.cities.length, 0);
   const totalPeople = coverage.reduce(
@@ -62,6 +83,34 @@ export function OperationDetailView({ operation, coverage, states, canUpdate }: 
     }),
     [operation, coverage],
   );
+
+  const startEditing = () => {
+    setDraft(formValue.coverage);
+    setCoverageError(null);
+    setEditingCoverage(true);
+  };
+
+  const saveCoverage = () => {
+    startSaving(async () => {
+      // saveOperation takes the operation whole: name and status ride along
+      // unchanged so the coverage rule is checked against the operation as it
+      // actually is, not against a half-filled copy of it.
+      const result = await saveOperation({
+        id: operation.id,
+        name: formValue.name,
+        description: formValue.description,
+        status: formValue.status,
+        coverage: draft,
+      });
+      if (result.ok) {
+        toast({ title: "Abrangência atualizada.", variant: "success" });
+        setEditingCoverage(false);
+        router.refresh();
+      } else {
+        setCoverageError(result.error ?? "Não foi possível salvar a abrangência.");
+      }
+    });
+  };
 
   return (
     <>
@@ -103,13 +152,58 @@ export function OperationDetailView({ operation, coverage, states, canUpdate }: 
           <KpiCard label="Colaboradores alocados" value={number.format(totalPeople)} icon={<Users />} />
         </div>
 
-        {coverage.length === 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-h4 font-semibold text-fg">Abrangência</h2>
+            <p className="text-body-sm text-fg-secondary">
+              Os estados onde a operação atua e, dentro de cada um, os municípios.
+            </p>
+          </div>
+          {canManageGeography && !editingCoverage ? (
+            <Button variant="secondary" leadingIcon={<MapPin />} onClick={startEditing}>
+              {coverage.length === 0 ? "Definir abrangência" : "Editar abrangência"}
+            </Button>
+          ) : null}
+        </div>
+
+        {editingCoverage ? (
+          <Card>
+            <CardContent className="flex flex-col gap-4 pt-4">
+              {coverageError ? (
+                <Alert variant="danger">
+                  <AlertTitle>Não foi possível salvar</AlertTitle>
+                  <AlertDescription>{coverageError}</AlertDescription>
+                </Alert>
+              ) : null}
+
+              <OperationGeographyPicker
+                value={draft}
+                onChange={setDraft}
+                states={states}
+                disabled={saving}
+              />
+
+              <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4">
+                <Button
+                  variant="ghost"
+                  onClick={() => setEditingCoverage(false)}
+                  disabled={saving}
+                >
+                  Cancelar
+                </Button>
+                <Button onClick={saveCoverage} loading={saving}>
+                  Salvar abrangência
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : coverage.length === 0 ? (
           <EmptyState
             icon={<MapPin />}
             title="Nenhum estado na cobertura"
             description={
-              canUpdate
-                ? "Use “Editar operação” para definir os estados e, dentro de cada um, os municípios."
+              canManageGeography
+                ? "Use “Definir abrangência” para escolher os estados e, dentro de cada um, os municípios."
                 : "Esta operação ainda não teve sua cobertura definida."
             }
           />

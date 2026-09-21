@@ -95,6 +95,7 @@ export default function PreviewPage() {
         coverage={COVERAGE}
         states={STATES}
         canUpdate
+        canManageGeography
       />
     </AppShell>
   );

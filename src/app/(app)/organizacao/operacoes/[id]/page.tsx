@@ -37,6 +37,7 @@ export default async function OperationPage({ params }: { params: Promise<{ id: 
         region: state.region,
       }))}
       canUpdate={canManage || hasPermission(session, "operations.update")}
+      canManageGeography={canManage || hasPermission(session, "operations.manage_geography")}
     />
   );
 }

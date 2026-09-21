@@ -25,9 +25,19 @@ O que a tabela ganhou:
 | `created_by` / `updated_by` | autoria |
 | `deleted_at` / `deleted_by` | arquivamento, nunca exclusão física |
 
-O catálogo base (6 tipos, `organization_id is null`) é **compartilhado**: toda
-organização o enxerga e pode parametrizá-lo para si, mas nenhuma pode renomeá-lo
-ou descrevê-lo — isso mudaria o catálogo das outras.
+O catálogo base (`organization_id is null`) é **compartilhado**: toda organização
+o enxerga e pode parametrizá-lo para si, mas nenhuma pode renomeá-lo ou
+descrevê-lo — isso mudaria o catálogo das outras.
+
+> **Nesta instalação o catálogo base está vazio.** Com uma única organização,
+> um cadastro inteiramente somente leitura não servia a ninguém: a migration
+> `20260921130000` transferiu os 6 tipos e as 17 subcategorias para a Grupo
+> Horizonte, que passou a poder renomeá-los, descrevê-los e inativá-los. Foi
+> feito com zero veículos cadastrados, então nenhum veículo mudou de
+> classificação, e os `id` continuam os mesmos. Os códigos herdados (`van`,
+> `truck`, …) permanecem, porque código de tipo é imutável; tipos novos seguem
+> recebendo `EQ-00001` em diante. O modelo de catálogo compartilhado continua
+> no código, para quando existir uma segunda organização.
 
 ---
 
