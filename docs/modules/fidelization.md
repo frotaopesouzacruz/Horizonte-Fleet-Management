@@ -269,14 +269,25 @@ lideranças responsáveis. Números reais, nunca estimados.
 
 ---
 
-## 13. Pendências
+## 13. Continuação na Etapa 13
 
-* **Importação de fidelização** (§57–§60). As permissões `fidelization.import` e
-  `fidelization.export` existem e a infraestrutura de importação do HFM
-  (`import_batches` → `import_rows` → validar → processar) está pronta, mas o
-  fluxo específico da fidelização ainda não foi construído. Quando for: ele não
-  poderá criar veículos, BRs nem colaboradores, e não poderá alterar Perfil de
-  Acesso de ninguém.
+O **Planner de Locais e BRs** — cadastro em lote, visão por local, liderança
+vigente por BR e histórico de veículos da posição — está em
+[`fidelization-brs.md`](./fidelization-brs.md), junto com a carga da base
+histórica (239 vigências, 88 posições) e os dois ajustes que ela exigiu em
+`save_fidelization_assignment` e `assert_vehicle_fidelizable`.
+
+---
+
+## 14. Pendências
+
+* **Importação de fidelização pela tela** (§57–§60). As permissões
+  `fidelization.import` e `fidelization.export` existem e a infraestrutura de
+  importação do HFM (`import_batches` → `import_rows` → validar → processar)
+  está pronta; a carga histórica da Etapa 13 entrou por rotina transacional, não
+  por esse fluxo, que continua por construir. Quando for: ele não poderá criar
+  veículos, BRs nem colaboradores, e não poderá alterar Perfil de Acesso de
+  ninguém.
 * **Estabilidade da fidelização** (§56): fórmula pendente de validação funcional.
 * **Confirmação e execução**: os estados existem, mas não há origem confiável de
   confirmação ainda. Tudo nasce `planned`.

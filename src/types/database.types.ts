@@ -4367,6 +4367,66 @@ export type Database = {
         Args: { p_reason?: string; p_vehicle_id: string }
         Returns: undefined
       }
+      br_planner_indicators: {
+        Args: {
+          p_filters?: Json
+          p_month?: number
+          p_organization_id: string
+          p_year?: number
+        }
+        Returns: Json
+      }
+      br_planner_rows: {
+        Args: {
+          p_filters?: Json
+          p_month?: number
+          p_organization_id: string
+          p_year?: number
+        }
+        Returns: {
+          anchor_date: string
+          assignment_end: string
+          assignment_id: string
+          assignment_start: string
+          city_id: number
+          city_name: string
+          code: string
+          description: string
+          driver_employee_id: string
+          driver_name: string
+          fleet_code: string
+          id: string
+          leader_employee_id: string
+          leader_name: string
+          leader_scope: string
+          license_plate: string
+          operation_city_id: string
+          operation_id: string
+          operation_name: string
+          state_id: number
+          state_uf: string
+          status: string
+          vehicle_id: string
+        }[]
+      }
+      br_vehicle_history: {
+        Args: { p_operation_br_id: string }
+        Returns: {
+          assignment_id: string
+          created_at: string
+          end_date: string
+          end_reason: string
+          fleet_code: string
+          license_plate: string
+          reason: string
+          replaces_assignment_id: string
+          source: string
+          start_date: string
+          status: string
+          vehicle_id: string
+          vehicle_role: string
+        }[]
+      }
       branch_audit_trail: {
         Args: { p_limit?: number; p_organization_unit_id: string }
         Returns: {
@@ -4419,6 +4479,17 @@ export type Database = {
           p_vehicle_id: string
         }
         Returns: string
+      }
+      create_operation_brs_batch: {
+        Args: {
+          p_codes: string[]
+          p_description?: string
+          p_dry_run?: boolean
+          p_operation_city_id: string
+          p_operation_id: string
+          p_organization_id: string
+        }
+        Returns: Json
       }
       create_organization: {
         Args: {

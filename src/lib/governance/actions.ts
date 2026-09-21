@@ -636,3 +636,125 @@ export async function loadFidelizationDrivers(
     }),
   };
 }
+
+/* ------------------------------------------------- Planner de Locais e BRs */
+
+export interface BatchBrPreviewLine {
+  code: string;
+  result: "create" | "exists" | "duplicated_in_batch" | "invalid";
+  detail?: string;
+}
+
+export interface BatchBrResult {
+  dryRun: boolean;
+  created: number;
+  existing: number;
+  invalid: number;
+  details: BatchBrPreviewLine[];
+}
+
+/**
+ * §17 e §18: cadastrar vários BRs no mesmo local sem refazer a seleção de
+ * operação e cidade a cada um.
+ *
+ * `dryRun` devolve a prévia que a §58 exige — o que entra, o que já existe, o
+ * que está repetido no próprio lote — sem gravar nada. A rotina no banco repete
+ * exatamente a mesma contagem na execução, então a prévia não promete um número
+ * e a gravação entrega outro.
+ */
+export async function createBrsBatch(input: {
+  operationId: string;
+  operationCityId: string;
+  codes: string[];
+  description?: string;
+  dryRun: boolean;
+}): Promise<Result<BatchBrResult>> {
+  const context = await resolveOrganization("fidelization.manage_brs");
+  if (!context) return { ok: false, error: SESSION_LOST };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("create_operation_brs_batch", {
+    p_organization_id: context.organization.organizationId,
+    p_operation_id: input.operationId,
+    p_operation_city_id: input.operationCityId,
+    p_codes: input.codes,
+    p_description: input.description || undefined,
+    p_dry_run: input.dryRun,
+  });
+
+  if (error) return { ok: false, error: toMessage(error, "Não foi possível cadastrar as BRs.") };
+
+  const raw = (data ?? {}) as Record<string, unknown>;
+  const details = Array.isArray(raw.details) ? raw.details : [];
+
+  if (!input.dryRun) revalidatePath(FIDELIZATION_PATH);
+
+  return {
+    ok: true,
+    data: {
+      dryRun: Boolean(raw.dry_run),
+      created: Number(raw.created ?? 0),
+      existing: Number(raw.existing ?? 0),
+      invalid: Number(raw.invalid ?? 0),
+      details: details.map((entry) => {
+        const e = entry as Record<string, unknown>;
+        return {
+          code: String(e.code ?? ""),
+          result: (e.result as BatchBrPreviewLine["result"]) ?? "invalid",
+          detail: (e.detail as string) ?? undefined,
+        };
+      }),
+    },
+  };
+}
+
+export interface BrHistoryLine {
+  assignmentId: string;
+  fleetCode: string | null;
+  licensePlate: string | null;
+  vehicleRole: string;
+  startDate: string;
+  endDate: string | null;
+  status: string;
+  source: string;
+  reason: string | null;
+  endReason: string | null;
+}
+
+/**
+ * §34: o histórico de veículos de uma posição, carregado ao abrir o detalhe.
+ * Leitura acionada por clique, então uma sessão perdida diz isso em vez de
+ * tirar a pessoa da tela.
+ */
+export async function loadBrVehicleHistory(
+  operationBrId: string,
+): Promise<Result<BrHistoryLine[]>> {
+  const context = await resolveOrganization("fidelization.view");
+  if (!context) return { ok: false, error: SESSION_LOST };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("br_vehicle_history", {
+    p_operation_br_id: operationBrId,
+  });
+
+  if (error) return { ok: false, error: "Não foi possível carregar o histórico desta BR." };
+
+  return {
+    ok: true,
+    data: (data ?? []).map((row) => {
+      const r = row as Record<string, unknown>;
+      return {
+        assignmentId: String(r.assignment_id),
+        fleetCode: (r.fleet_code as string) ?? null,
+        licensePlate: (r.license_plate as string) ?? null,
+        vehicleRole: String(r.vehicle_role ?? "primary"),
+        startDate: String(r.start_date),
+        endDate: (r.end_date as string) ?? null,
+        status: String(r.status ?? ""),
+        source: String(r.source ?? ""),
+        reason: (r.reason as string) ?? null,
+        endReason: (r.end_reason as string) ?? null,
+      };
+    }),
+  };
+}

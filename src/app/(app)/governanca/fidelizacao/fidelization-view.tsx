@@ -3,10 +3,10 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  ArrowLeftRight, CalendarDays, CircleSlash, MapPin, Pencil, Plus, Power, Truck, UserRound,
+  ArrowLeftRight, CalendarDays, CircleSlash, MapPin, Plus, Truck, UserRound,
 } from "lucide-react";
 import { PageContent, PageHeader } from "@/components/layout/page-header";
-import { Button, IconButton } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { FilterBar } from "@/components/ui/filter-bar";
@@ -26,9 +26,11 @@ import type {
   CalendarRow, DriverPlanRow, FidelizationIndicators, FidelizationRow,
   HierarchyOperation, OperationBrRow,
 } from "@/lib/governance/queries";
+import type { BrPlannerIndicators, BrPlannerRow } from "@/lib/governance/br-planner";
 import { formatCompetence, type Competence } from "@/lib/governance/competence";
 import { CalendarLegend, CalendarMatrix } from "./calendar-matrix";
 import { BrFormDrawer, type BrFormValue } from "./br-form-drawer";
+import { BrPlanner } from "./br-planner";
 import { AssignmentDrawer } from "./assignment-drawer";
 import { InvertDialog } from "./invert-dialog";
 import { HierarchyPanel } from "./hierarchy-panel";
@@ -48,10 +50,23 @@ export interface FidelizationViewProps {
   driverPlans: DriverPlanRow[];
   hierarchy: HierarchyOperation[];
   indicators: FidelizationIndicators | null;
+  plannerRows: BrPlannerRow[];
+  plannerIndicators: BrPlannerIndicators | null;
+  leaders: { id: string; name: string }[];
   competence: Competence;
   operations: { id: string; name: string; status: string }[];
   coverage: CoverageEntry[];
-  filters: { operationId?: string; stateId?: string; cityId?: string; brId?: string };
+  filters: {
+    operationId?: string;
+    stateId?: string;
+    cityId?: string;
+    brId?: string;
+    q?: string;
+    status?: string;
+    leaderEmployeeId?: string;
+    vehicle?: string;
+    driver?: string;
+  };
   canManageBrs: boolean;
   canPlan: boolean;
   canChangeVehicle: boolean;
@@ -73,6 +88,9 @@ export function FidelizationView({
   driverPlans,
   hierarchy,
   indicators,
+  plannerRows,
+  plannerIndicators,
+  leaders,
   competence,
   operations,
   coverage,
@@ -95,6 +113,7 @@ export function FidelizationView({
   const [brFormKey, setBrFormKey] = React.useState(0);
   const [assignmentBr, setAssignmentBr] = React.useState<FidelizationViewProps["brs"][number] | null>(null);
   const [invertOpen, setInvertOpen] = React.useState(false);
+  const [onlyMobilisations, setOnlyMobilisations] = React.useState(false);
 
   const navigate = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(params.toString());
@@ -127,6 +146,7 @@ export function FidelizationView({
 
   const mobilisations = history.filter((h) => h.source === "substitution" || h.source === "inversion");
   const invertible = history.filter((h) => h.isCurrent && h.status !== "cancelled");
+  const visibleHistory = onlyMobilisations ? mobilisations : history;
 
   const openNewBr = () => {
     setEditingBr(undefined);
@@ -182,6 +202,29 @@ export function FidelizationView({
         toast({ title: result.error ?? "Não foi possível alterar a situação.", variant: "danger" });
       }
     });
+  };
+
+  /**
+   * O planner trabalha com a posição pelo id; as ações de cadastro precisam da
+   * linha completa do diretório de BRs. A ponte é feita aqui, e não duplicando
+   * os campos de cadastro dentro das linhas do planner — que seriam os mesmos
+   * dados em duas formas, livres para divergir.
+   */
+  const brById = (id: string) => brs.find((b) => b.id === id) ?? null;
+
+  const openPlanningById = (id: string) => {
+    const br = brById(id);
+    if (br) setAssignmentBr(br);
+  };
+
+  const openEditBrById = (id: string) => {
+    const br = brById(id);
+    if (br) openEditBr(br);
+  };
+
+  const toggleBrStatusById = (id: string) => {
+    const br = brById(id);
+    if (br) void toggleBrStatus(br);
   };
 
   const assignmentHistory = assignmentBr
@@ -302,15 +345,41 @@ export function FidelizationView({
           />
         </div>
 
-        <Tabs defaultValue="frotas">
+        {/* §5: a ordem das abas é a ordem da leitura — primeiro o panorama da
+            operação, depois as posições, depois os recursos que passam por elas
+            e por fim o que já aconteceu. */}
+        <Tabs defaultValue="visao-geral">
           <TabsList>
-            <TabsTrigger value="frotas">Planejamento de frotas</TabsTrigger>
-            <TabsTrigger value="motoristas">Planejamento de motoristas</TabsTrigger>
-            <TabsTrigger value="brs">Estrutura de BRs</TabsTrigger>
-            <TabsTrigger value="mobilizacoes">Mobilizações</TabsTrigger>
-            <TabsTrigger value="hierarquia">Hierarquia</TabsTrigger>
-            <TabsTrigger value="historico">Histórico</TabsTrigger>
+            <TabsTrigger value="visao-geral">Visão geral</TabsTrigger>
+            <TabsTrigger value="locais">Planner de locais e BRs</TabsTrigger>
+            <TabsTrigger value="frotas">Planner de frotas</TabsTrigger>
+            <TabsTrigger value="motoristas">Planner de motoristas</TabsTrigger>
+            <TabsTrigger value="historico">Histórico de movimentações</TabsTrigger>
           </TabsList>
+
+          {/* ----------------------------------------------------- visão geral */}
+          <TabsContent value="visao-geral">
+            <HierarchyPanel operations={hierarchy} />
+          </TabsContent>
+
+          {/* ------------------------------------------- planner de locais e BRs */}
+          <TabsContent value="locais">
+            <BrPlanner
+              rows={plannerRows}
+              indicators={plannerIndicators}
+              competence={competence}
+              operations={operations}
+              coverage={coverage}
+              leaders={leaders}
+              filters={filters}
+              onNavigate={navigate}
+              canManageBrs={canManageBrs}
+              pending={pending}
+              onOpenPlanning={openPlanningById}
+              onEdit={canManageBrs ? openEditBrById : undefined}
+              onToggleStatus={canManageBrs ? toggleBrStatusById : undefined}
+            />
+          </TabsContent>
 
           {/* ------------------------------------------------------ calendário */}
           <TabsContent value="frotas">
@@ -410,159 +479,35 @@ export function FidelizationView({
             </Card>
           </TabsContent>
 
-          {/* ------------------------------------------------------------- BRs */}
-          <TabsContent value="brs">
-            <Card>
-              <CardContent className="p-0">
-                <TableContainer className="rounded-none border-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead style={{ width: 110 }}>Código</TableHead>
-                        <TableHead>Descrição</TableHead>
-                        <TableHead style={{ width: 200 }}>Operação / cidade</TableHead>
-                        <TableHead style={{ width: 170 }}>Veículo de hoje</TableHead>
-                        <TableHead style={{ width: 180 }}>Responsável</TableHead>
-                        <TableHead style={{ width: 110 }}>Situação</TableHead>
-                        <TableHead style={{ width: 96 }}>Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {brs.length === 0 ? (
-                        <TableEmpty colSpan={7} icon={<MapPin />} message="Nenhuma BR cadastrada." />
-                      ) : (
-                        brs.map((br) => (
-                          <TableRow key={br.id} className="h-(--table-row-height)">
-                            <TableCell className="font-mono text-caption text-fg-secondary">
-                              {br.code}
-                            </TableCell>
-                            <TableCell className="truncate">{br.description ?? "—"}</TableCell>
-                            <TableCell className="truncate text-body-sm">
-                              {br.operationName}
-                              <span className="block text-caption text-fg-muted">
-                                {br.cityName}/{br.stateUf}
-                              </span>
-                            </TableCell>
-                            <TableCell className="truncate">
-                              {br.currentFleetCode ?? br.currentLicensePlate ?? (
-                                <span className="text-fg-muted">sem veículo</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="truncate">
-                              {br.currentLeaderName ?? <span className="text-fg-muted">—</span>}
-                            </TableCell>
-                            <TableCell>
-                              <StatusBadge status={br.status === "active" ? "success" : "neutral"}>
-                                {br.status === "active" ? "Ativa" : "Inativa"}
-                              </StatusBadge>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex gap-1">
-                                <IconButton
-                                  label="Abrir planejamento"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => setAssignmentBr(br)}
-                                >
-                                  <CalendarDays />
-                                </IconButton>
-                                {canManageBrs ? (
-                                  <>
-                                    <IconButton
-                                      label="Editar BR"
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => openEditBr(br)}
-                                    >
-                                      <Pencil />
-                                    </IconButton>
-                                    <IconButton
-                                      label={br.status === "active" ? "Inativar BR" : "Reativar BR"}
-                                      variant="ghost"
-                                      size="sm"
-                                      disabled={pending}
-                                      onClick={() => toggleBrStatus(br)}
-                                    >
-                                      <Power />
-                                    </IconButton>
-                                  </>
-                                ) : null}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* --------------------------------------------------- mobilizações */}
-          <TabsContent value="mobilizacoes">
-            <Card>
-              <CardContent className="p-0">
-                <TableContainer className="rounded-none border-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead style={{ width: 130 }}>Tipo</TableHead>
-                        <TableHead style={{ width: 180 }}>Posição</TableHead>
-                        <TableHead style={{ width: 170 }}>Veículo que entrou</TableHead>
-                        <TableHead style={{ width: 170 }}>A partir de</TableHead>
-                        <TableHead>Motivo</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {mobilisations.length === 0 ? (
-                        <TableEmpty
-                          colSpan={5}
-                          icon={<ArrowLeftRight />}
-                          message={`Nenhuma substituição ou inversão em ${formatCompetence(competence)}.`}
-                        />
-                      ) : (
-                        mobilisations.map((row) => (
-                          <TableRow key={row.id} className="h-(--table-row-height)">
-                            <TableCell>
-                              <Badge variant="info" appearance="soft">
-                                {row.source === "inversion" ? "Inversão" : "Substituição"}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="truncate">
-                              BR {row.brCode}
-                              <span className="block text-caption text-fg-muted">
-                                {row.cityName}/{row.stateUf}
-                              </span>
-                            </TableCell>
-                            <TableCell className="truncate">
-                              {row.fleetCode ?? row.licensePlate ?? "—"}
-                            </TableCell>
-                            <TableCell className="text-body-sm text-fg-secondary">
-                              {formatDate(row.startDate)}
-                            </TableCell>
-                            <TableCell className="text-body-sm text-fg-secondary">
-                              {row.reason ?? "—"}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* ------------------------------------------------------ hierarquia */}
-          <TabsContent value="hierarquia">
-            <HierarchyPanel operations={hierarchy} />
-          </TabsContent>
-
-          {/* ------------------------------------------------------- histórico */}
+          {/* ------------------------------------------ histórico e mobilizações */}
           <TabsContent value="historico">
             <Card>
-              <CardContent className="p-0">
+              <CardContent className="flex flex-col gap-0 p-0">
+                {/* Substituições e inversões são um recorte do histórico, não
+                    outra tabela: separá-las escondia que a linha anterior e a
+                    que a substituiu contam a mesma sequência. */}
+                <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
+                  <Button
+                    variant={onlyMobilisations ? "ghost" : "secondary"}
+                    size="sm"
+                    onClick={() => setOnlyMobilisations(false)}
+                    aria-pressed={!onlyMobilisations}
+                  >
+                    Todos os vínculos
+                    <Badge variant="neutral">{number.format(history.length)}</Badge>
+                  </Button>
+                  <Button
+                    variant={onlyMobilisations ? "secondary" : "ghost"}
+                    size="sm"
+                    leadingIcon={<ArrowLeftRight />}
+                    onClick={() => setOnlyMobilisations(true)}
+                    aria-pressed={onlyMobilisations}
+                  >
+                    Só substituições e inversões
+                    <Badge variant="neutral">{number.format(mobilisations.length)}</Badge>
+                  </Button>
+                </div>
+
                 <TableContainer className="rounded-none border-0">
                   <Table>
                     <TableHeader>
@@ -576,14 +521,18 @@ export function FidelizationView({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {history.length === 0 ? (
+                      {visibleHistory.length === 0 ? (
                         <TableEmpty
                           colSpan={6}
                           icon={<CalendarDays />}
-                          message={`Nenhum vínculo de fidelização em ${formatCompetence(competence)}.`}
+                          message={
+                            onlyMobilisations
+                              ? `Nenhuma substituição ou inversão em ${formatCompetence(competence)}.`
+                              : `Nenhum vínculo de fidelização em ${formatCompetence(competence)}.`
+                          }
                         />
                       ) : (
-                        history.map((row) => (
+                        visibleHistory.map((row) => (
                           <TableRow key={row.id} className="h-(--table-row-height)">
                             <TableCell className="truncate">
                               BR {row.brCode}

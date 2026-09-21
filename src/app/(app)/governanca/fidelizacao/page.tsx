@@ -11,6 +11,13 @@ import {
   type FidelizationIndicators,
   type HierarchyOperation,
 } from "@/lib/governance/queries";
+import {
+  getBrPlannerIndicators,
+  listBrPlannerRows,
+  listLeadershipOptions,
+  type BrPlannerIndicators,
+  type BrPlannerRow,
+} from "@/lib/governance/br-planner";
 import { parseCompetence } from "@/lib/governance/competence";
 import { FidelizationView } from "./fidelization-view";
 
@@ -49,9 +56,34 @@ export default async function FidelizationPage({
     brId: first(params, "br"),
   };
 
+  /**
+   * Os filtros próprios do Planner de Locais e BRs (§25). Somam-se ao recorte
+   * da tela — operação, estado e cidade —, não o substituem: quem filtra por
+   * "sem veículo" continua olhando a operação que escolheu no cabeçalho.
+   */
+  const plannerFilters = {
+    ...filters,
+    q: first(params, "q"),
+    status: first(params, "situacao"),
+    leaderEmployeeId: first(params, "lideranca"),
+    vehicle: first(params, "veiculo"),
+    driver: first(params, "motorista"),
+  };
+
   const orgId = organization.organizationId;
 
-  const [calendar, brs, history, driverPlans, options, hierarchy, indicators] = await Promise.all([
+  const [
+    calendar,
+    brs,
+    history,
+    driverPlans,
+    options,
+    hierarchy,
+    indicators,
+    plannerRows,
+    plannerIndicators,
+    leaders,
+  ] = await Promise.all([
     getFidelizationCalendar(orgId, competence, filters),
     listOperationBrs(orgId, {
       operationId: filters.operationId,
@@ -66,6 +98,11 @@ export default async function FidelizationPage({
     getFidelizationIndicators(orgId, competence, filters).catch(
       () => null as FidelizationIndicators | null,
     ),
+    listBrPlannerRows(orgId, competence, plannerFilters).catch(() => [] as BrPlannerRow[]),
+    getBrPlannerIndicators(orgId, competence, plannerFilters).catch(
+      () => null as BrPlannerIndicators | null,
+    ),
+    listLeadershipOptions(orgId).catch(() => [] as { id: string; name: string }[]),
   ]);
 
   const has = (code: string) => session.isPlatformAdmin || session.permissions.includes(code);
@@ -78,10 +115,13 @@ export default async function FidelizationPage({
       driverPlans={driverPlans}
       hierarchy={hierarchy}
       indicators={indicators}
+      plannerRows={plannerRows}
+      plannerIndicators={plannerIndicators}
+      leaders={leaders}
       competence={competence}
       operations={options.operations}
       coverage={options.coverage}
-      filters={filters}
+      filters={plannerFilters}
       canManageBrs={has("fidelization.manage_brs")}
       canPlan={has("fidelization.plan")}
       canChangeVehicle={has("fidelization.change_vehicle")}
