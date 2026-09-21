@@ -16,6 +16,7 @@ const surfaces = [
   { name: "login", url: "/login", full: false },
   { name: "dashboard", url: "/dashboard", full: true },
   { name: "design-system", url: "/dev/design-system", full: true },
+  { name: "navegacao", url: "/dev/preview-navegacao", full: false },
 ];
 
 const viewports = [

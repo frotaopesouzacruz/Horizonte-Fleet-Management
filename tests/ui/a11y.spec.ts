@@ -42,6 +42,10 @@ const publicSurfaces = [
   { name: "login", url: "/login" },
   { name: "recuperar-acesso", url: "/recuperar-acesso" },
   { name: "design-system", url: "/dev/design-system" },
+  // A Sidebar inteira, com todos os módulos visíveis: grupos como accordion,
+  // estado ativo, tooltips do modo recolhido e o rodapé com o controle de
+  // recolher. É a única superfície presente em todas as telas do produto.
+  { name: "navegacao (preview)", url: "/dev/preview-navegacao" },
   // Organização → Operações and Estados e cidades, rendered against fixed
   // data. The real routes need a session; this is the same markup.
   { name: "organizacao (preview)", url: "/dev/preview-organizacao" },

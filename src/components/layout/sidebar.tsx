@@ -3,9 +3,9 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, ChevronsLeft, ChevronsRight, Settings } from "lucide-react";
+import { ChevronDown, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { BrandLogo } from "@/components/brand/brand-logo";
+import { BrandLogo, BrandSymbol } from "@/components/brand/brand-logo";
 import { IconButton } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
@@ -49,7 +49,14 @@ function SidebarItem({ item, collapsed, onNavigate }: { item: NavItem; collapsed
         strokeWidth={active ? 2 : 1.75}
         aria-hidden
       />
-      {!collapsed ? <span className="truncate">{item.label}</span> : null}
+      {/* Recolhida, o ícone é aria-hidden e o rótulo não é pintado: sem isto o
+          link chega ao leitor de tela sem nome nenhum. O tooltip resolve para
+          quem vê o menu, não para quem o ouve. */}
+      {collapsed ? (
+        <span className="sr-only">{item.label}</span>
+      ) : (
+        <span className="truncate">{item.label}</span>
+      )}
       {!collapsed && item.badge ? (
         <span className="ml-auto rounded-xs bg-secondary px-1.5 text-caption tabular-nums text-fg-secondary">
           {item.badge}
@@ -136,15 +143,19 @@ function SidebarGroup({
           aria-expanded={open}
           aria-controls={listId}
           className={cn(
-            "group flex h-7 items-center gap-1 rounded-xs px-2.5 text-overline font-semibold uppercase",
+            "group relative flex h-7 w-full items-center rounded-xs pr-6 pl-2.5 text-overline font-semibold uppercase",
             "text-fg-muted hfm-transition hover:text-fg-secondary hfm-focus-ring",
           )}
         >
-          <span className="truncate">{group.label}</span>
+          {/* O rótulo carrega a hierarquia do menu, então ele leva a largura:
+              "GOVERNANÇA OPERACIONAL" cortado ao meio deixa de ser um título.
+              A seta sai do fluxo para não disputar espaço com ele. */}
+          <span className="min-w-0 flex-1 truncate text-left">{group.label}</span>
           <ChevronDown
             aria-hidden
             className={cn(
-              "size-3.5 shrink-0 opacity-0 hfm-transition group-hover:opacity-100 group-focus-visible:opacity-100",
+              "absolute inset-y-0 right-1.5 my-auto size-3.5 shrink-0 opacity-0 hfm-transition",
+              "group-hover:opacity-100 group-focus-visible:opacity-100",
               !open && "-rotate-90 opacity-100",
             )}
           />
@@ -179,7 +190,7 @@ export function SidebarNav({ collapsed = false, onNavigate }: { collapsed?: bool
   const [closed, toggle] = usePersistedSet(GROUPS_STORAGE_KEY, ALL_OPEN);
 
   return (
-    <nav aria-label="Navegação principal" className={cn("flex flex-col gap-3", collapsed ? "px-3" : "px-3")}>
+    <nav aria-label="Navegação principal" className="flex flex-col gap-3 px-3">
       {groups.map((group) => (
         <SidebarGroup
           key={group.id}
@@ -198,31 +209,55 @@ export function SidebarNav({ collapsed = false, onNavigate }: { collapsed?: bool
 /* Footer                                                                     */
 /* -------------------------------------------------------------------------- */
 
-function SidebarFooter({ collapsed }: { collapsed: boolean }) {
-  const settings = (
-    <span
-      className={cn(
-        "flex h-(--sidebar-item-height) items-center gap-2.5 rounded-sm text-body-sm font-medium text-fg-disabled",
-        collapsed ? "w-10 justify-center px-0" : "px-2.5",
-      )}
-    >
-      <Settings className="size-[18px] shrink-0" strokeWidth={1.75} aria-hidden />
-      {!collapsed ? <span className="truncate">Configurações</span> : null}
-    </span>
-  );
+/**
+ * Rodapé.
+ *
+ * Havia aqui um item "Configurações" desabilitado, que não levava a lugar nenhum
+ * porque a rota não existe. Um item de menu que não responde ensina a pessoa a
+ * desconfiar do menu — e a conta do usuário já está na Topbar, então duplicá-la
+ * aqui também não serviria. Sobra a versão, que é informação de verdade.
+ *
+ * O controle de recolher mora aqui, e não junto da marca: a faixa superior tem
+ * exatamente a altura da Topbar (56px) e recolhida ela precisa caber o símbolo
+ * oficial inteiro. Empilhar marca e botão nessa faixa estourava os 56px e o
+ * símbolo invadia a Topbar. Embaixo o botão tem a faixa inteira para si, fica
+ * na mesma posição nos dois estados e não disputa espaço com nada.
+ */
+function SidebarFooter({
+  collapsed,
+  onToggleCollapsed,
+}: {
+  collapsed: boolean;
+  onToggleCollapsed?: () => void;
+}) {
+  const label = collapsed ? "Expandir menu" : "Recolher menu";
 
   return (
-    <div className="shrink-0 border-t border-border px-3 py-2">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span aria-disabled="true" className="block cursor-default select-none">
-            {settings}
-          </span>
-        </TooltipTrigger>
-        <TooltipContent side="right">
-          {collapsed ? "Configurações · " : null}Módulo em desenvolvimento
-        </TooltipContent>
-      </Tooltip>
+    <div
+      className={cn(
+        "flex shrink-0 items-center gap-2 border-t border-border px-3 py-2",
+        collapsed ? "justify-center" : "justify-between",
+      )}
+    >
+      {!collapsed || !onToggleCollapsed ? (
+        <span className="truncate text-caption text-fg-muted">{collapsed ? "v0.1" : "HFM · v0.1"}</span>
+      ) : null}
+      {onToggleCollapsed ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <IconButton
+              label={label}
+              variant="ghost"
+              size="sm"
+              onClick={onToggleCollapsed}
+              aria-expanded={!collapsed}
+            >
+              {collapsed ? <ChevronsRight aria-hidden /> : <ChevronsLeft aria-hidden />}
+            </IconButton>
+          </TooltipTrigger>
+          <TooltipContent side="right">{label}</TooltipContent>
+        </Tooltip>
+      ) : null}
     </div>
   );
 }
@@ -242,10 +277,13 @@ export function Sidebar() {
         "w-(--sidebar-current-width) transition-[width] duration-(--duration-slow) ease-(--ease-standard)",
       )}
     >
+      {/* A faixa da marca tem a altura da Topbar para que as duas comecem na
+          mesma linha. Só a marca mora aqui — o controle de recolher está no
+          rodapé, porque nesses 56px não cabem os dois quando recolhida. */}
       <div
         className={cn(
-          "flex h-(--topbar-height) shrink-0 items-center border-b border-border",
-          collapsed ? "justify-center px-0" : "px-4",
+          "flex h-(--topbar-height) shrink-0 items-center overflow-hidden border-b border-border",
+          collapsed ? "justify-center px-2" : "px-4",
         )}
       >
         <Link
@@ -253,7 +291,9 @@ export function Sidebar() {
           className="flex items-center rounded-sm outline-none hfm-focus-ring"
           aria-label="Horizonte Fleet Management — início"
         >
-          <BrandLogo compact={collapsed} height={collapsed ? 28 : 36} />
+          {/* Recolhida, o lockup inteiro vira três pixels cinzentos: a faixa tem
+              68px. O que aparece é o símbolo oficial, o mesmo do favicon. */}
+          {collapsed ? <BrandSymbol height={20} /> : <BrandLogo height={36} />}
         </Link>
       </div>
 
@@ -261,25 +301,7 @@ export function Sidebar() {
         <SidebarNav collapsed={collapsed} />
       </div>
 
-      <SidebarFooter collapsed={collapsed} />
-
-      <div
-        className={cn(
-          "flex shrink-0 items-center border-t border-border p-2",
-          collapsed ? "justify-center" : "justify-between",
-        )}
-      >
-        {!collapsed ? <span className="px-1.5 text-caption text-fg-muted">HFM · v0.1</span> : null}
-        <IconButton
-          label={collapsed ? "Expandir menu" : "Recolher menu"}
-          variant="ghost"
-          size="sm"
-          onClick={toggleCollapsed}
-          aria-expanded={!collapsed}
-        >
-          {collapsed ? <ChevronsRight aria-hidden /> : <ChevronsLeft aria-hidden />}
-        </IconButton>
-      </div>
+      <SidebarFooter collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
     </aside>
   );
 }

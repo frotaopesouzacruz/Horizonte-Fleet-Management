@@ -15,17 +15,26 @@ recoloured, cropped or regenerated.
 | `background-light.webp` | Plano de Fundo Tema Claro | 1672 × 941 | login / onboarding / institutional (light) |
 | `background-dark.webp` | Plano de Fundo Tema Escuro | 1672 × 941 | login / onboarding / institutional (dark) |
 
-`BrandLogo` is the only component that decides which logo to show; `BrandBackground` is the only one that renders the
-photograph. While a file is missing, `BrandLogo` falls back to a plain wordmark — that fallback is not the logo and
-must not ship.
+Two derivatives are cut from those files and nothing else is: `symbol-light.png` and `symbol-dark.png`, the symbol
+band of the official lockup (rows 27–514, trimmed of transparent margin). They exist because the collapsed rail and
+the browser tab have no room for the `HORIZONTE` / `Logística` wordmark stacked under the mark. From
+`symbol-dark.png` on Azul Horizonte `#1F4B93` come the browser icons in `public/` — `favicon.ico` (16/32/48),
+`favicon-16x16.png`, `favicon-32x32.png`, `apple-touch-icon.png` and `android-chrome-192/512`. Regenerate them with
+`node scripts/brand-icons.mjs`; `public/brand/README.md` records the two decisions behind them (institutional
+background rather than transparency, and no crop of the mark).
+
+`BrandLogo` is the only component that decides which logo to show, `BrandSymbol` the only one that shows the mark
+alone, and `BrandBackground` the only one that renders the photograph. While a file is missing, they fall back to a
+plain wordmark or an `H` — those fallbacks are not the logo and must not ship.
 
 Rules that follow from the files themselves:
 
 - The logo is a **stacked lockup** (symbol, `HORIZONTE`, `Logística`) with a fixed 1.844:1 ratio, exported as
   `LOGO_RATIO`. Width always follows height; the image is never cropped to isolate the symbol, not even in the
   collapsed rail.
-- The wordmark band is ~23% of the lockup height, so **32px is the practical floor**. Current sizes: 46px on the
-  authentication screens, 38px in the sidebar header and the design-system header, 26px in the collapsed rail.
+- The wordmark band is ~23% of the lockup height, so **32px is the practical floor** for the lockup. Current sizes:
+  46px on the authentication screens, 36px in the sidebar header, the mobile drawer and the design-system header.
+  Below that floor the lockup is not shrunk — `BrandSymbol` takes over, at 20px in the collapsed rail.
 - Both files are ~140 KB. The logo goes through `next/image` at `quality={100}` — right-sized and visually lossless,
   because flat colour and hard edges ring at the default quality. The photographs use the default quality.
 - The background artwork is a composed scene with captions baked into it. It is therefore decorative
@@ -48,8 +57,13 @@ navy `#0B1426`.
 ## 3. Typography
 
 Montserrat (self-hosted, variable), weights 400/500/600/700. Base 14px for operational density.
-Scale: `text-display`, `text-h1`…`text-h4`, `text-body`, `text-body-sm`, `text-label`, `text-caption`, `text-helper`.
-Numeric columns use `tabular-nums`.
+Scale: `text-display`, `text-h1`…`text-h4`, `text-body`, `text-body-sm`, `text-label`, `text-caption`,
+`text-helper`, `text-overline`. Numeric columns use `tabular-nums`.
+
+Every name in that scale must also be listed in `FONT_SIZES` in `src/lib/cn.ts`. tailwind-merge cannot tell a custom
+size from a custom colour, so a name missing there is filed under `text-color`, and `cn("text-overline", …,
+"text-fg-muted")` silently drops the size — which is exactly how the sidebar group labels ended up rendering at 16px
+instead of 11px, wide enough to be truncated. Adding a size token is therefore two edits, not one.
 
 ## 4. Themes
 
@@ -84,7 +98,7 @@ ConfirmDialog.
 
 `src/components/layout/` — AppShell, Sidebar, Topbar, PageHeader, ThemeToggle, navigation model.
 
-`src/components/brand/` — BrandLogo, BrandBackground.
+`src/components/brand/` — BrandLogo, BrandSymbol, BrandBackground.
 
 Routes in place: `/login`, `/recuperar-acesso`, `/dashboard` (inside the app shell) and the reference page
 `/dev/design-system`. The reference page is served only outside production, or when
@@ -102,9 +116,13 @@ Routes in place: `/login`, `/recuperar-acesso`, `/dashboard` (inside the app she
 ## 9. Logo usage
 
 Light theme uses the colour version, dark theme the light-on-dark version, chosen automatically by
-`<BrandLogo variant="auto" />`. The lockup is never cropped, stretched, recoloured or placed on a surface that harms
-legibility — the collapsed rail shows the whole lockup scaled down to the rail width, not the symbol cut out of it.
-`compact` only marks the placement as space-constrained; it does not crop anything.
+`<BrandLogo variant="auto" />` and `<BrandSymbol variant="auto" />`. The lockup is never cropped, stretched or
+recoloured, and never placed on a surface that harms legibility.
+
+Where the lockup does not fit — the 68px collapsed rail, the browser tab — the answer is `BrandSymbol`, the official
+symbol band of the same files, not a shrunken lockup: at rail width `HORIZONTE` becomes three grey pixels. The
+symbol is a cut of the official artwork, never a redrawing of it, and the wordmark is not deleted from the lockup —
+it is simply outside that cut. `compact` only marks a placement as space-constrained; it does not crop anything.
 
 ## 10. Background usage
 
@@ -170,7 +188,7 @@ Scale in use:
 `text-overline` is the only size below 12px and it never carries data — sidebar
 group labels and section eyebrows, nothing else.
 
-Layout tokens live in `tokens/shape.css`: `--sidebar-width` (248) and
+Layout tokens live in `tokens/shape.css`: `--sidebar-width` (256) and
 `--sidebar-width-collapsed` (68), `--sidebar-item-height` (38), `--topbar-height`
 (56), `--table-row-height` (48), `--table-header-height` (42),
 `--content-max-width` (1760) and `--content-reading-width` (1120).
@@ -207,3 +225,58 @@ Four filters carry almost every real query; the rest belong behind **Mais
 filtros** with a count on the button. Eight selects on one line is how a toolbar
 turns into a row of unreadable stubs. Applied filters are echoed as chips under
 the bar, each removable, with a single "Limpar filtros".
+
+## 16. Navigation
+
+The Sidebar is the one surface present on every authenticated screen, so its
+model lives in a single file — `src/components/layout/navigation.ts` — and there
+is no second list to keep in step. An entry has exactly one home; moving it in
+that file is the only way it moves.
+
+Five groups, in this order: **Administração** (Colaboradores e usuários, Perfis
+e permissões), **Estrutura operacional** (Operações, Filiais, Tipos de
+equipamento), **Governança operacional** (Lideranças, Fidelização), **Gestão de
+frota** (Cadastro de frotas) and **Módulos futuros**, kept separate because
+every entry in it is still a placeholder. Mixed in with working modules they
+made the product look finished and the screens that worked hard to find.
+
+Anatomy, both modes:
+
+| | Expandida | Recolhida |
+| --- | --- | --- |
+| Faixa | `--sidebar-width` 256px | `--sidebar-width-collapsed` 68px |
+| Marca | lockup oficial, 36px | símbolo oficial, 20px |
+| Grupo | rótulo `text-overline` (11px) + accordion | régua de 1px, sem rótulo |
+| Item | ícone 18px + rótulo, 38px de altura | ícone centrado, rótulo em `sr-only` |
+| Rodapé | `HFM · v0.1` + controle de recolher | controle de expandir |
+
+Decisions that are easy to undo by accident:
+
+- **The brand band is exactly `--topbar-height`.** Sidebar and Topbar start on
+  the same line. Nothing else goes in that band: stacking the mark and the
+  collapse control there overflowed 56px and the symbol crossed into the Topbar.
+  The collapse control lives in the footer, same position in both modes.
+- **Group labels are never truncated.** The chevron is out of flow (absolute) so
+  the label takes the whole width, and 256px was chosen against the longest of
+  them, `GOVERNANÇA OPERACIONAL`. `tests/ui/navigation.spec.ts` asserts both the
+  11px size and zero overflow, at every supported width — the size matters
+  because the truncation was caused by the wrong font size, not by the width.
+- **Collapsed, every item carries an `sr-only` label.** The icon is
+  `aria-hidden`, so without it the link reaches a screen reader with no name at
+  all. The tooltip answers the person who sees the rail, not the one who hears
+  it.
+- **The active item is marked by a 3px rule on its own left edge**, plus the
+  soft primary surface and `aria-current="page"`. Never by colour alone.
+- **What is remembered is what someone chose**: `hfm.sidebar.collapsed`
+  (applied to `<html data-sidebar>` before first paint, so the rail never flashes
+  open) and `hfm.nav.closed`, which stores only the groups that were closed —
+  everything starts open, because a menu that hides its contents on first visit
+  is a menu nobody discovers.
+- **Below `lg` the Sidebar is replaced by a Drawer**, never by a squeezed rail.
+- **Hiding an entry is a courtesy, never the boundary.** `visibleNavigation`
+  filters by permission, the route re-checks it and RLS enforces it. A menu
+  hidden from someone is not a permission.
+- No fictitious entries, and no entry that does not respond: a disabled
+  "Configurações" pointing at a route that does not exist teaches people to
+  distrust the menu. Planned modules are visibly separate, muted, non-clickable,
+  and say why in a tooltip.

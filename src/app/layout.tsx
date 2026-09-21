@@ -11,7 +11,24 @@ export const metadata: Metadata = {
     template: "%s · Horizonte Fleet Management",
   },
   description: "Plataforma corporativa de gestão de frota.",
-  icons: { icon: "/brand/favicon.svg" },
+  /**
+   * O símbolo oficial da Horizonte, sobre o azul institucional. Gerado a partir
+   * do lockup oficial por `scripts/brand-icons.mjs` — a marca não é redesenhada
+   * em lugar nenhum, só recortada da faixa do símbolo e redimensionada.
+   *
+   * Não há SVG porque não existe vetor oficial no projeto, e embrulhar um PNG
+   * dentro de um `<svg>` para chamá-lo de vetorial seria mentira sem ganho:
+   * o .ico já carrega 16, 32 e 48 px, que é o que os navegadores pedem.
+   */
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "16x16 32x32 48x48" },
+      { url: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
+      { url: "/favicon-16x16.png", type: "image/png", sizes: "16x16" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: { url: "/apple-touch-icon.png", sizes: "180x180" },
+  },
 };
 
 export const viewport: Viewport = {

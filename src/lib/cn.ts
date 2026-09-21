@@ -21,6 +21,11 @@ const FONT_SIZES = [
   "label",
   "caption",
   "helper",
+  // Faltava aqui, e o efeito não era cosmético: em `cn("text-overline", …,
+  // "text-fg-muted")` o merge classificava `text-overline` como cor, descartava
+  // a classe e os rótulos de grupo da Sidebar renderizavam em 16px — não nos
+  // 11px do token. Todo nome da escala precisa estar nesta lista.
+  "overline",
 ] as const;
 
 const twMerge = extendTailwindMerge({

@@ -27,7 +27,10 @@
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
 
   /* ---- Layout ------------------------------------------------------------- */
-  --sidebar-width: 248px;
+  /* 256px porque "GOVERNANÇA OPERACIONAL" é o rótulo mais longo do menu e
+     precisa caber inteiro; 68px porque a faixa recolhida ainda mostra o
+     símbolo oficial. Ambos dentro da faixa prevista (240–260 / 64–76). */
+  --sidebar-width: 256px;
   --sidebar-width-collapsed: 68px;
   --sidebar-item-height: 38px;
   --topbar-height: 56px;

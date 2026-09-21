@@ -13,6 +13,8 @@ import { cn } from "@/lib/cn";
 export const brandAssets = {
   logoLight: "/brand/logo-light.png",
   logoDark: "/brand/logo-dark.png",
+  symbolLight: "/brand/symbol-light.png",
+  symbolDark: "/brand/symbol-dark.png",
   backgroundLight: "/brand/background-light.webp",
   backgroundDark: "/brand/background-dark.webp",
 } as const;
@@ -26,6 +28,14 @@ export const brandAssets = {
  * below ~32px tall turns the words into texture. Callers size accordingly.
  */
 export const LOGO_RATIO = 1920 / 1041;
+
+/**
+ * Ratio of the symbol alone (1364 × 488), cut from the top band of the same
+ * lockup by `scripts/brand-icons.mjs`. Nothing is redrawn — the wordmark is
+ * simply not in the crop, because a rail 68px wide cannot show it and shrinking
+ * the whole lockup to fit turns `HORIZONTE` into three grey pixels.
+ */
+export const SYMBOL_RATIO = 1364 / 488;
 
 export type BrandVariant = "auto" | "light" | "dark";
 
@@ -96,6 +106,70 @@ export function BrandLogo({
         alt={alt}
         width={w}
         height={h}
+        quality={100}
+        draggable={false}
+        onError={() => setFailed(true)}
+        className="block h-full w-auto select-none"
+      />
+    </span>
+  );
+}
+
+/**
+ * BrandSymbol — the mark without the wordmark.
+ *
+ * For the collapsed rail and anywhere else too narrow for the lockup. Picks the
+ * variant that matches the theme, exactly as BrandLogo does: the dark file is
+ * the official one where the navy elements are white, so the mark stays legible
+ * on a navy surface instead of disappearing into it.
+ */
+export interface BrandSymbolProps extends Omit<React.HTMLAttributes<HTMLSpanElement>, "children"> {
+  variant?: BrandVariant;
+  /** Rendered height in px; the width follows the official ratio. */
+  height?: number;
+  alt?: string;
+}
+
+export function BrandSymbol({
+  variant = "auto",
+  height = 26,
+  alt = "Horizonte",
+  className,
+  ...props
+}: BrandSymbolProps) {
+  const { resolved, mounted } = useTheme();
+  const [failed, setFailed] = React.useState(false);
+
+  const mode: "light" | "dark" | undefined = variant === "auto" ? resolved : variant;
+  const src = mode === "dark" ? brandAssets.symbolDark : brandAssets.symbolLight;
+  const w = Math.round(height * SYMBOL_RATIO);
+
+  if (variant === "auto" && !mounted) {
+    return <span aria-hidden className={cn("inline-block", className)} style={{ height, width: w }} />;
+  }
+
+  if (failed) {
+    return (
+      <span
+        role="img"
+        aria-label={alt}
+        className={cn("inline-flex items-center justify-center font-semibold text-fg", className)}
+        style={{ height, width: height, fontSize: Math.round(height * 0.7) }}
+        {...props}
+      >
+        H
+      </span>
+    );
+  }
+
+  return (
+    <span className={cn("inline-flex items-center", className)} style={{ height }} {...props}>
+      <Image
+        key={src}
+        src={src}
+        alt={alt}
+        width={w}
+        height={height}
         quality={100}
         draggable={false}
         onError={() => setFailed(true)}
