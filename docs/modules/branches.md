@@ -164,10 +164,26 @@ Duas regras que só aparecem quando se tenta:
   responsabilidade de uma filial que só atende Merchandising; isso não é uma
   transferência, é uma inconsistência que ninguém descobriria até o primeiro
   relatório por filial.
-* **Transferência agendada não muda o presente.** Marcada para o mês que vem,
-  ela grava a vigência futura e **não** troca `vehicles.organization_unit_id`
-  agora — senão, por dez dias, o veículo apareceria em uma filial na listagem e
-  em outra no próprio histórico.
+* **A transferência vale a partir de hoje.** Datas futuras são recusadas. A
+  versão anterior as aceitava, devolvia `scheduled: true` e prometia que "quando
+  a data chegar, a linha de vigência responde" — não responde: `vehicle_directory`,
+  `branch_vehicles`, o filtro por filial e `branch_impact` leem
+  `vehicles.organization_unit_id`, e não existe rotina que promova a linha
+  agendada. A transferência nunca acontecia, e ainda travava o veículo, porque a
+  linha nova passava a ser a única aberta. Retroagir continua valendo: é o
+  registro de algo que já ocorreu. Agendar de verdade é outra etapa — exige
+  resolver a filial corrente a partir de `vehicle_unit_assignments` em todos os
+  pontos de leitura, como a frota já faz para operações.
+
+**O histórico não depende de quem escreve.** `save_vehicle` e
+`apply_vehicle_import` gravam `vehicles.organization_unit_id` direto, e podem:
+o gatilho `vehicles_sync_unit` abre, encerra ou corrige a linha de vigência
+correspondente. Sem ele, o primeiro veículo que recebesse uma filial pelo
+formulário de frota produziria `active_vehicles: 1, total_vehicles: 0` — a
+coluna e o histórico contando coisas diferentes na mesma tela, que é o contador
+fictício da §51. O gatilho decide pela linha que **cobre hoje**: a que começou
+hoje é corrigida no lugar (é assim que tirar e repor a filial no mesmo dia
+funciona), a anterior encerra ontem.
 
 Fidelizar um veículo numa BR **não** muda a sua filial: são perguntas
 diferentes, em tabelas diferentes (Etapa 08, §38).
@@ -227,6 +243,33 @@ roda dentro de rotinas `SECURITY DEFINER` e nunca dependeu dessas políticas.
 
 ---
 
+### Os indicadores param no escopo
+
+`branch_impact` e `branch_operation_impact` são `security definer`, e isso
+atravessa dois eixos diferentes que é preciso não confundir.
+
+O eixo de **permissão** elas atravessam de propósito: quem tem `branches.view`
+vê o tamanho da filial sem precisar de `users.view`, `vehicles.view` ou
+`cost_centers.view`. Se dependessem dessas permissões, o painel de inativação
+mostraria zero para quem não as tem — e um zero falso antes de inativar é
+exatamente o contador fictício que a §51 proíbe.
+
+O eixo de **operação** elas não atravessam, e a primeira versão atravessava.
+Como a função pertence a `postgres`, que tem `rolbypassrls`, as políticas
+`employee_assignments_select` e `vehicles_select` não rodavam: um Liderança de
+Operações escopado em Merchandising recebia o efetivo e a frota da filial
+inteira. `branch_operation_impact` era pior — `p_operation_id` não era conferido
+contra nada, então com os ids que `unit_operations_select` devolve virava um
+oráculo operação a operação. Hoje os contadores repetem literalmente os
+predicados de escopo das políticas, e a operação é conferida contra a
+organização e contra `private.can_access_operation` antes de qualquer contagem
+(§64).
+
+Não é hipótese: `lideranca_operacoes` e `gestor_frota` recebem `branches.view`
+por padrão e nenhum dos dois tem `operations.access_all`.
+
+---
+
 ## 10. Transação
 
 Criar uma filial com operações vinculadas é **uma** chamada e **uma** transação
@@ -257,6 +300,9 @@ antes de devolver qualquer linha. Eventos de domínio (`branch.deactivated`,
 | `…_branches_rpcs.sql` | `save_branch`, `set_branch_status`, impactos, `transfer_vehicle_branch` |
 | `…_branches_read_model.sql` | `branch_directory`, `branch_operation_directory`, indicadores, abas |
 | `…_branch_audit_trail_fix.sql` | `id` ambíguo — a aba Histórico não abria |
+| `…_branches_hardening.sql` | escopo por operação nos indicadores, fim da transferência agendada, gatilho `vehicles_sync_unit`, índices duplicados |
+| `…_access_profile_defaults_sync.sql` | o catálogo padrão volta a chegar aos papéis (32 permissões de quatro módulos estavam em papel nenhum) |
+| `…_vehicle_unit_sync_same_day.sql` | tirar e repor a filial no mesmo dia deixa de violar a constraint de sobreposição |
 
 ---
 

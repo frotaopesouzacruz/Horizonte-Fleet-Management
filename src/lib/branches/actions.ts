@@ -315,17 +315,22 @@ export async function loadBranchAudit(id: string): Promise<Result<BranchAuditRow
  * §34: a real transfer of responsibility between branches, with the previous
  * branch, the new one, the start, the end of the previous link, the reason and
  * — through the audit trail — who did it.
+ *
+ * `effectiveFrom` may be today or a past date; the RPC refuses a future one.
+ * Scheduling was on the table and is not honest yet: every read path resolves a
+ * vehicle's branch from `vehicles.organization_unit_id`, and nothing promotes a
+ * future assignment into it, so a scheduled transfer would simply never happen.
  */
 export async function transferVehicleBranch(input: {
   vehicleId: string;
   organizationUnitId: string;
   effectiveFrom: string;
   reason: string;
-}): Promise<Result<{ scheduled: boolean }>> {
+}): Promise<Result<void>> {
   await requireOrganization("branches.update");
   const supabase = await createClient();
 
-  const { data, error } = await supabase.rpc("transfer_vehicle_branch", {
+  const { error } = await supabase.rpc("transfer_vehicle_branch", {
     p_vehicle_id: input.vehicleId,
     p_organization_unit_id: input.organizationUnitId,
     p_effective_from: input.effectiveFrom,
@@ -336,5 +341,5 @@ export async function transferVehicleBranch(input: {
 
   revalidatePath(MODULE_PATH);
   revalidatePath("/frota/cadastro");
-  return { ok: true, data: { scheduled: Boolean((data as { scheduled?: boolean })?.scheduled) } };
+  return { ok: true, data: undefined };
 }

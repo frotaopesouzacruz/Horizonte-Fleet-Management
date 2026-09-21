@@ -50,11 +50,48 @@ The official default matrix lives in `public.access_profile_defaults` — stored
 not hard-coded in a function, so "restaurar padrões" has something real to
 restore to and the screen can show which cells drifted.
 
+### How a new module's permissions reach the existing roles
+
+"Never rewrites a role that already exists" was right about customisation and
+wrong about everything else: a permission created **after** an organization was
+born never reached it at all. The catalogue grew, the roles did not, and the
+gap was invisible because the only account testing it was a platform admin,
+which bypasses permission checks entirely.
+
+It had already happened three times when it was found — `equipment_types.*` (9),
+`leadership.*` (5), `fidelization.*` (8) and `branches.*` (10): **32 permissions
+in the catalogue and in no role**, so Tipos de Equipamento, Lideranças,
+Fidelização and Filiais were shipped and unreachable for every real user,
+including an organization's own Administrador.
+
+`private.sync_access_profile_defaults(organization_id)` materialises the
+catalogue into the roles that already exist, and the statement-level trigger
+`access_profile_defaults_sync` runs it whenever a migration inserts into
+`access_profile_defaults` — so the next module cannot repeat the omission,
+rather than relying on remembering a line. `provision_access_profiles` calls it
+too.
+
+The sync is **additive and conservative**: it grants a code to an organization
+only when that code appears in none of its roles, which means the module is new
+to that tenant and nobody could have decided anything about it yet. A permission
+an administrador deliberately removed stays removed — `restore_role_defaults` is
+how one asks for the default back. It moves what a role may do; it never moves
+who holds which role, so §3 below is untouched.
+
+What that conservatism leaves behind, and should: after the sync, nine cells of
+the current organization still differ from the catalogue, all of them
+`vehicles.*` in Gestão, Gestor de Frota and Liderança de Operações. Those codes
+were already in use in the tenant, so the sync cannot tell "removed on purpose"
+from "never granted" and refuses to guess. The Perfis e Permissões screen shows
+exactly which cells drifted, and restoring them is a decision someone takes with
+a reason attached.
+
 ### Two rules about Administrador
 
 * **It always holds the whole catalogue.** A permission added by a future
-  migration is its the moment it exists, and `set_role_permissions` refuses to
-  reduce it. An organization that could carve permissions out of its own
+  migration becomes its the moment it exists — that is what the sync above makes
+  true in practice, and it was not true before — and `set_role_permissions`
+  refuses to reduce it. An organization that could carve permissions out of its own
   administrator profile could lock itself out.
 * **The last active one cannot be removed.** A trigger on `membership_roles` and
   on `organization_memberships.status` raises
