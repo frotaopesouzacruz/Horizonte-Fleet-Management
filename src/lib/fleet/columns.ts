@@ -198,6 +198,11 @@ const STATUS_MAP: Record<string, string> = {
   inactive: "inactive",
   arquivado: "inactive",
   baixado: "inactive",
+  // "Desativado" é como a frota do Grupo Horizonte escreve. Sem isto a situação
+  // vinha como desconhecida e o veículo entrava ativo — o oposto do que a
+  // planilha dizia, com um aviso fácil de perder no meio de noventa linhas.
+  desativado: "inactive",
+  desativada: "inactive",
 };
 
 const TRUE_MARKERS = new Set(["sim", "s", "true", "1", "yes", "y", "possui", "x"]);
