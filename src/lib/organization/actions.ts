@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireOrganization } from "@/lib/auth/session";
+import { getSessionContext, requireOrganization } from "@/lib/auth/session";
 import type { Json } from "@/types/database.types";
 
 /**
@@ -118,7 +118,14 @@ export interface CityChoice {
  * "select all" and "clear" instant without asking the server again.
  */
 export async function listCitiesOfState(stateId: number): Promise<CityChoice[]> {
-  await requireOrganization("operations.view");
+  // Deliberately not requireOrganization: that one redirects, and a redirect
+  // returned to a click handler navigates the person away with the coverage
+  // half-edited. A list that cannot be loaded comes back empty and the picker
+  // says so. Reading municipalities is not privileged anyway — the IBGE table
+  // is the same for everyone, and RLS still decides what the query returns.
+  const session = await getSessionContext();
+  if (!session?.activeOrganization) return [];
+
   const supabase = await createClient();
 
   const { data } = await supabase

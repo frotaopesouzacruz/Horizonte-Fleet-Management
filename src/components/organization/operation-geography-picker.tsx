@@ -6,7 +6,6 @@ import { listCitiesOfState, type CityChoice, type CoverageInput } from "@/lib/or
 import { Badge } from "@/components/ui/badge";
 import { Button, IconButton } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 
@@ -58,8 +57,8 @@ export function OperationGeographyPicker({
   const [loading, setLoading] = React.useState<Record<number, boolean>>({});
   const [open, setOpen] = React.useState<Record<number, boolean>>({});
   const [query, setQuery] = React.useState<Record<number, string>>({});
-  const [addOpen, setAddOpen] = React.useState(false);
   const [stateQuery, setStateQuery] = React.useState("");
+  const [cityError, setCityError] = React.useState<Record<number, boolean>>({});
 
   const byId = React.useMemo(() => new Map(states.map((s) => [s.stateId, s])), [states]);
   const chosen = React.useMemo(() => new Set(value.map((entry) => entry.stateId)), [value]);
@@ -69,9 +68,18 @@ export function OperationGeographyPicker({
     async (stateId: number) => {
       if (cities[stateId] || loading[stateId]) return;
       setLoading((current) => ({ ...current, [stateId]: true }));
-      const list = await listCitiesOfState(stateId);
-      setCities((current) => ({ ...current, [stateId]: list }));
-      setLoading((current) => ({ ...current, [stateId]: false }));
+      // A failed load is a failed load: it says so and the rest of the form
+      // survives. Letting it throw here would bubble out of a click handler and
+      // take the person somewhere else with the coverage half-edited.
+      try {
+        const list = await listCitiesOfState(stateId);
+        setCities((current) => ({ ...current, [stateId]: list }));
+        setCityError((current) => ({ ...current, [stateId]: false }));
+      } catch {
+        setCityError((current) => ({ ...current, [stateId]: true }));
+      } finally {
+        setLoading((current) => ({ ...current, [stateId]: false }));
+      }
     },
     [cities, loading],
   );
@@ -82,7 +90,6 @@ export function OperationGeographyPicker({
   const addState = async (stateId: number) => {
     onChange([...value, { stateId, cityIds: [] }]);
     setOpen((current) => ({ ...current, [stateId]: true }));
-    setAddOpen(false);
     setStateQuery("");
     await loadCities(stateId);
   };
@@ -111,53 +118,50 @@ export function OperationGeographyPicker({
           )}
         </p>
 
-        <Popover open={addOpen} onOpenChange={(next) => { setAddOpen(next); if (next) setStateQuery(""); }}>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              leadingIcon={<Plus />}
-              disabled={disabled || available.length === 0}
-            >
-              {available.length === 0 ? "Todas as UFs adicionadas" : "Adicionar estado"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-72">
-            <div className="flex flex-col gap-3">
-              <p className="text-h4 font-semibold text-fg">Estados disponíveis</p>
-              <SearchField
-                value={stateQuery}
-                onChange={(event) => setStateQuery(event.target.value)}
-                onClear={() => setStateQuery("")}
-                placeholder="Buscar estado"
-                aria-label="Buscar estado"
-                autoFocus
-              />
-              <div className="max-h-72 overflow-y-auto">
-                {stateMatches.length === 0 ? (
-                  <p className="px-1 py-3 text-body-sm text-fg-muted">Nenhum estado encontrado.</p>
-                ) : (
-                  <ul className="flex flex-col">
-                    {stateMatches.map((state) => (
-                      <li key={state.stateId}>
-                        <button
-                          type="button"
-                          onClick={() => void addState(state.stateId)}
-                          className="flex w-full items-center gap-2 rounded-xs px-2 py-1.5 text-left text-body-sm hfm-transition hfm-focus-ring hover:bg-hover-overlay"
-                        >
-                          <span className="w-7 shrink-0 font-mono text-caption text-fg-secondary">{state.uf}</span>
-                          <span className="min-w-0 flex-1 truncate">{state.name}</span>
-                          <span className="shrink-0 text-caption text-fg-muted">{state.region}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-          </PopoverContent>
-        </Popover>
+      </div>
+
+      {/* Escolher um estado não fica atrás de nada que precise abrir: a lista
+          está sempre à vista enquanto a abrangência é editada. Um controle que
+          só existe depois de um clique é um controle que pode não aparecer. */}
+      <div className="flex flex-col gap-2 rounded-md border border-border bg-surface-muted p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-body-sm font-medium text-fg">
+            {available.length === 0
+              ? "Todas as 27 unidades federativas já estão na abrangência."
+              : "Adicionar estado"}
+          </p>
+          {available.length > 8 ? (
+            <SearchField
+              value={stateQuery}
+              onChange={(event) => setStateQuery(event.target.value)}
+              onClear={() => setStateQuery("")}
+              placeholder="Buscar estado"
+              aria-label="Buscar estado"
+              className="w-full sm:w-56"
+            />
+          ) : null}
+        </div>
+
+        {available.length === 0 ? null : stateMatches.length === 0 ? (
+          <p className="text-body-sm text-fg-muted">Nenhum estado encontrado para essa busca.</p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {stateMatches.map((state) => (
+              <button
+                key={state.stateId}
+                type="button"
+                disabled={disabled}
+                onClick={() => void addState(state.stateId)}
+                title={`${state.name} · ${state.region}`}
+                className="inline-flex items-center gap-1.5 rounded-sm border border-border-strong bg-surface px-2.5 py-1.5 text-body-sm text-fg hfm-transition hfm-focus-ring hover:bg-secondary disabled:pointer-events-none disabled:opacity-55"
+              >
+                <Plus className="size-3.5 text-fg-muted" aria-hidden />
+                <span className="font-mono text-caption text-fg-secondary">{state.uf}</span>
+                <span className="truncate">{state.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {value.length === 0 ? (
@@ -282,6 +286,11 @@ export function OperationGeographyPicker({
 
                 {loading[entry.stateId] ? (
                   <p className="py-3 text-body-sm text-fg-muted">Carregando municípios…</p>
+                ) : cityError[entry.stateId] ? (
+                  <p className="py-3 text-body-sm text-danger">
+                    Não foi possível carregar os municípios deste estado. O estado continua na
+                    lista; tente recolher e abrir de novo.
+                  </p>
                 ) : matches.length === 0 ? (
                   <p className="py-3 text-body-sm text-fg-muted">Nenhum município encontrado.</p>
                 ) : (
