@@ -107,6 +107,25 @@ export async function requireOrganization(permission?: string) {
   return { session, organization: session.activeOrganization };
 }
 
+/**
+ * A mesma verificação de `requireOrganization`, sem redirecionar.
+ *
+ * `requireOrganization` responde com um redirect, que é o certo para uma
+ * página: quem não pode entrar vai para o login ou para "sem permissão". Numa
+ * ação de servidor chamada de dentro de uma tela já aberta, porém, o redirect
+ * não vira erro — vira navegação. A pessoa perde o que estava preenchendo e a
+ * tela "simplesmente para de funcionar", sem mensagem nenhuma.
+ *
+ * Leituras acionadas por clique usam esta aqui e devolvem um Result com o
+ * motivo, que a interface já sabe mostrar.
+ */
+export async function resolveOrganization(permission?: string) {
+  const session = await getSessionContext();
+  if (!session?.activeOrganization) return null;
+  if (permission && !hasPermission(session, permission)) return null;
+  return { session, organization: session.activeOrganization };
+}
+
 export function hasPermission(session: SessionContext, permission: string) {
   return session.isPlatformAdmin || session.permissions.includes(permission);
 }

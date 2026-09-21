@@ -2,8 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireOrganization } from "@/lib/auth/session";
+import { requireOrganization, resolveOrganization } from "@/lib/auth/session";
 import { parseDecimal } from "./columns";
+
+/** Uma leitura não redireciona: ela diz o que houve e deixa a tela de pé. */
+const SESSION_LOST =
+  "Sua sessão expirou ou o acesso mudou. Recarregue a página e tente de novo.";
 import {
   listStatesByOperation,
   listCitiesByOperationAndState,
@@ -258,7 +262,9 @@ export async function restoreVehicle(vehicleId: string): Promise<Result> {
  * the form cannot offer an invalid one in the first place.
  */
 export async function loadOperationStates(operationId: string): Promise<Result<StateOption[]>> {
-  const { organization } = await requireOrganization("vehicles.view");
+  const ctx = await resolveOrganization("vehicles.view");
+  if (!ctx) return { ok: false, error: SESSION_LOST };
+  const { organization } = ctx;
   try {
     const states = await listStatesByOperation(organization.organizationId, operationId);
     return { ok: true, data: states };
@@ -271,7 +277,9 @@ export async function loadOperationCities(
   operationId: string,
   stateId: number,
 ): Promise<Result<CityOption[]>> {
-  const { organization } = await requireOrganization("vehicles.view");
+  const ctx = await resolveOrganization("vehicles.view");
+  if (!ctx) return { ok: false, error: SESSION_LOST };
+  const { organization } = ctx;
   try {
     const cities = await listCitiesByOperationAndState(organization.organizationId, operationId, stateId);
     return { ok: true, data: cities };

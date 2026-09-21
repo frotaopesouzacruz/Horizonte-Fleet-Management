@@ -1,9 +1,13 @@
 "use server";
 
-import { requireOrganization } from "@/lib/auth/session";
+import { resolveOrganization } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { getVehicleDetail, type VehicleDetail } from "./queries";
 import type { Result } from "./actions";
+
+/** Uma leitura não redireciona: ela diz o que houve e deixa a tela de pé. */
+const SESSION_LOST =
+  "Sua sessão expirou ou o acesso mudou. Recarregue a página e tente de novo.";
 
 /**
  * Reads the drawers need, as server actions.
@@ -14,7 +18,9 @@ import type { Result } from "./actions";
  */
 
 export async function loadVehicleDetail(vehicleId: string): Promise<Result<VehicleDetail>> {
-  const { organization } = await requireOrganization("vehicles.view");
+  const ctx = await resolveOrganization("vehicles.view");
+  if (!ctx) return { ok: false, error: SESSION_LOST };
+  const { organization } = ctx;
   const detail = await getVehicleDetail(organization.organizationId, vehicleId);
   if (!detail) return { ok: false, error: "Veículo não encontrado ou fora do seu escopo de acesso." };
   return { ok: true, data: detail };
@@ -39,7 +45,9 @@ export interface TimelineEntry {
  * rows — the view does not widen anything, which is why it can be a view.
  */
 export async function loadVehicleTimeline(vehicleId: string): Promise<Result<TimelineEntry[]>> {
-  const { organization } = await requireOrganization("vehicles.view");
+  const ctx = await resolveOrganization("vehicles.view");
+  if (!ctx) return { ok: false, error: SESSION_LOST };
+  const { organization } = ctx;
   const supabase = await createClient();
 
   const { data, error } = await supabase

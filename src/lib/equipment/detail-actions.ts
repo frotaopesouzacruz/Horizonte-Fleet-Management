@@ -1,6 +1,6 @@
 "use server";
 
-import { requireOrganization } from "@/lib/auth/session";
+import { requireOrganization, resolveOrganization } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import {
   getEquipmentType,
@@ -10,13 +10,19 @@ import {
 } from "./queries";
 import type { Result } from "./actions";
 
+/** Uma leitura não redireciona: ela diz o que houve e deixa a tela de pé. */
+const SESSION_LOST =
+  "Sua sessão expirou ou o acesso mudou. Recarregue a página e tente de novo.";
+
 /**
  * Reads the drawers need, as server actions. Apart from the mutations so a
  * component can open a type without importing the module that deactivates one.
  */
 
 export async function loadEquipmentType(typeId: string): Promise<Result<EquipmentTypeDetail>> {
-  const { organization } = await requireOrganization("equipment_types.view");
+  const ctx = await resolveOrganization("equipment_types.view");
+  if (!ctx) return { ok: false, error: SESSION_LOST };
+  const { organization } = ctx;
   const detail = await getEquipmentType(organization.organizationId, typeId);
   if (!detail) return { ok: false, error: "Tipo de equipamento não encontrado." };
   return { ok: true, data: detail };
@@ -52,7 +58,9 @@ export interface HistoryEntry {
  * as seeing who changed what. The RLS on audit_logs still applies on top.
  */
 export async function loadEquipmentTypeHistory(typeId: string): Promise<Result<HistoryEntry[]>> {
-  const { organization } = await requireOrganization("equipment_types.view_audit");
+  const ctx = await resolveOrganization("equipment_types.view_audit");
+  if (!ctx) return { ok: false, error: SESSION_LOST };
+  const { organization } = ctx;
   const supabase = await createClient();
 
   const { data, error } = await supabase.rpc("equipment_type_history", {
