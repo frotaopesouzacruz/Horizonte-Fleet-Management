@@ -5,10 +5,12 @@ import { test, expect } from "@playwright/test";
  * municípios.
  *
  * O seletor de estados já esteve atrás de um popover e foi relatado como "não
- * abre". Um controle que só existe depois de um clique é um controle que pode
- * não aparecer, então ele passou a ficar sempre à vista — e é isso que estes
- * testes protegem, em três larguras, junto com o fato de que escolher um estado
- * não tira ninguém da tela.
+ * abre". Hoje é uma lista suspensa nativa — o único controle cuja abertura o
+ * navegador garante, e que no celular vira o seletor do sistema. Estes testes
+ * seguram o que importa em três larguras: o campo presente e habilitado sem
+ * nenhum clique prévio, com os estados que faltam dentro dele; escolher um
+ * entrando de fato na abrangência; e nada de navegar para outro lugar no
+ * caminho.
  */
 const WIDTHS = [
   { name: "desktop", width: 1440, height: 900 },
@@ -25,15 +27,17 @@ for (const size of WIDTHS) {
     await page.goto("/dev/preview-organizacao");
     await page.getByRole("button", { name: /Editar abrangência/i }).click();
 
-    // Sem nenhum clique intermediário: o rótulo e as opções estão na tela.
-    await expect(page.getByText("Adicionar estado", { exact: true })).toBeVisible();
-    const option = page.getByRole("button", { name: /SP São Paulo/ });
-    await expect(option).toBeVisible();
+    // Sem nenhum clique intermediário: o campo está na tela, habilitado, e já
+    // traz os estados que faltam.
+    const chooser = page.getByLabel("Adicionar estado");
+    await expect(chooser).toBeVisible();
+    await expect(chooser).toBeEnabled();
+    expect(await chooser.locator("option").count()).toBeGreaterThan(1);
 
     const summary = page.locator("p").filter({ hasText: /estados? ·/ }).first();
     const before = await summary.textContent();
 
-    await option.click();
+    await chooser.selectOption({ label: "SP · São Paulo" });
     await expect(summary).not.toHaveText(before ?? "");
 
     // Escolher um estado não navega para lugar nenhum.

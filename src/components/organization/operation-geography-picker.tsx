@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, MapPin, Plus, X } from "lucide-react";
+import { ChevronDown, MapPin, X } from "lucide-react";
 import { listCitiesOfState, type CityChoice, type CoverageInput } from "@/lib/organization/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button, IconButton } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { inputVariants } from "@/components/ui/input";
 import { SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 
@@ -13,6 +14,9 @@ const number = new Intl.NumberFormat("pt-BR");
 
 /** How many municipalities are rendered at once before asking for a narrower search. */
 const RENDER_LIMIT = 150;
+
+/** Norte to Sul, the order the IBGE uses and the one people read the country in. */
+const REGION_ORDER = ["Norte", "Nordeste", "Centro-Oeste", "Sudeste", "Sul"] as const;
 
 export interface PickerState {
   stateId: number;
@@ -57,8 +61,9 @@ export function OperationGeographyPicker({
   const [loading, setLoading] = React.useState<Record<number, boolean>>({});
   const [open, setOpen] = React.useState<Record<number, boolean>>({});
   const [query, setQuery] = React.useState<Record<number, string>>({});
-  const [stateQuery, setStateQuery] = React.useState("");
   const [cityError, setCityError] = React.useState<Record<number, boolean>>({});
+  const addStateId = React.useId();
+  const requested = React.useRef<Set<number>>(new Set());
 
   const byId = React.useMemo(() => new Map(states.map((s) => [s.stateId, s])), [states]);
   const chosen = React.useMemo(() => new Set(value.map((entry) => entry.stateId)), [value]);
@@ -84,13 +89,24 @@ export function OperationGeographyPicker({
     [cities, loading],
   );
 
+  // Uma abrangência que já existe chega com os ids dos municípios e mais nada.
+  // Sem buscar os nomes, as etiquetas mostrariam "3118601" no lugar de "Belo
+  // Horizonte" até alguém abrir o estado. Os estados presentes são carregados
+  // assim que o seletor aparece, cada um uma vez só.
+  React.useEffect(() => {
+    for (const entry of value) {
+      if (requested.current.has(entry.stateId)) continue;
+      requested.current.add(entry.stateId);
+      void loadCities(entry.stateId);
+    }
+  }, [value, loadCities]);
+
   const setCitiesFor = (stateId: number, cityIds: number[]) =>
     onChange(value.map((entry) => (entry.stateId === stateId ? { ...entry, cityIds } : entry)));
 
   const addState = async (stateId: number) => {
     onChange([...value, { stateId, cityIds: [] }]);
     setOpen((current) => ({ ...current, [stateId]: true }));
-    setStateQuery("");
     await loadCities(stateId);
   };
 
@@ -98,9 +114,22 @@ export function OperationGeographyPicker({
     onChange(value.filter((entry) => entry.stateId !== stateId));
 
   const totalCities = value.reduce((sum, entry) => sum + entry.cityIds.length, 0);
-  const stateMatches = available.filter((state) =>
-    fold(`${state.uf} ${state.name}`).includes(fold(stateQuery.trim())),
-  );
+
+  // Vinte e sete unidades federativas numa lista corrida é um paredão; por
+  // região, cada uma tem no máximo nove e a pessoa acha a sua de relance.
+  const byRegion = React.useMemo(() => {
+    const groups = new Map<string, PickerState[]>();
+    for (const state of available) {
+      const region = REGION_ORDER.includes(state.region as (typeof REGION_ORDER)[number])
+        ? state.region
+        : "Outras";
+      const list = groups.get(region);
+      if (list) list.push(state);
+      else groups.set(region, [state]);
+    }
+    for (const list of groups.values()) list.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    return groups;
+  }, [available]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -120,48 +149,54 @@ export function OperationGeographyPicker({
 
       </div>
 
-      {/* Escolher um estado não fica atrás de nada que precise abrir: a lista
-          está sempre à vista enquanto a abrangência é editada. Um controle que
-          só existe depois de um clique é um controle que pode não aparecer. */}
-      <div className="flex flex-col gap-2 rounded-md border border-border bg-surface-muted p-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-body-sm font-medium text-fg">
-            {available.length === 0
-              ? "Todas as 27 unidades federativas já estão na abrangência."
-              : "Adicionar estado"}
-          </p>
-          {available.length > 8 ? (
-            <SearchField
-              value={stateQuery}
-              onChange={(event) => setStateQuery(event.target.value)}
-              onClear={() => setStateQuery("")}
-              placeholder="Buscar estado"
-              aria-label="Buscar estado"
-              className="w-full sm:w-56"
-            />
-          ) : null}
-        </div>
-
-        {available.length === 0 ? null : stateMatches.length === 0 ? (
-          <p className="text-body-sm text-fg-muted">Nenhum estado encontrado para essa busca.</p>
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {stateMatches.map((state) => (
-              <button
-                key={state.stateId}
-                type="button"
-                disabled={disabled}
-                onClick={() => void addState(state.stateId)}
-                title={`${state.name} · ${state.region}`}
-                className="inline-flex items-center gap-1.5 rounded-sm border border-border-strong bg-surface px-2.5 py-1.5 text-body-sm text-fg hfm-transition hfm-focus-ring hover:bg-secondary disabled:pointer-events-none disabled:opacity-55"
-              >
-                <Plus className="size-3.5 text-fg-muted" aria-hidden />
-                <span className="font-mono text-caption text-fg-secondary">{state.uf}</span>
-                <span className="truncate">{state.name}</span>
-              </button>
+      {/* Uma lista suspensa nativa, e não um menu desenhado por nós: é o
+          controle que o navegador garante que abre, e no celular vira o
+          seletor do próprio sistema. Escolher já adiciona — não há um segundo
+          botão de confirmar para esquecer de apertar. */}
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor={addStateId} className="text-body-sm font-medium text-fg">
+          Adicionar estado
+        </label>
+        <div className="relative w-full sm:max-w-sm">
+          <select
+            id={addStateId}
+            value=""
+            disabled={disabled || available.length === 0}
+            onChange={(event) => {
+              const stateId = Number(event.target.value);
+              if (Number.isFinite(stateId) && stateId > 0) void addState(stateId);
+            }}
+            className={cn(
+              inputVariants({ size: "md" }),
+              "cursor-pointer appearance-none pr-9",
+              "disabled:cursor-not-allowed",
+            )}
+          >
+            <option value="">
+              {available.length === 0
+                ? "Todas as 27 unidades federativas já estão na abrangência"
+                : "Selecione um estado…"}
+            </option>
+            {[
+              ...REGION_ORDER.filter((region) => byRegion.has(region)),
+              ...[...byRegion.keys()].filter(
+                (region) => !REGION_ORDER.includes(region as (typeof REGION_ORDER)[number]),
+              ),
+            ].map((region) => (
+              <optgroup key={region} label={region}>
+                {byRegion.get(region)!.map((state) => (
+                  <option key={state.stateId} value={state.stateId}>
+                    {state.uf} · {state.name}
+                  </option>
+                ))}
+              </optgroup>
             ))}
-          </div>
-        )}
+          </select>
+          <ChevronDown
+            className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-fg-muted"
+            aria-hidden
+          />
+        </div>
       </div>
 
       {value.length === 0 ? (
@@ -226,11 +261,16 @@ export function OperationGeographyPicker({
                       key={cityId}
                       className="inline-flex h-7 max-w-full items-center gap-1 rounded-xs border border-border bg-surface-secondary pr-1 pl-2 text-caption text-fg-secondary"
                     >
-                      <span className="truncate">{city?.name ?? cityId}</span>
+                      <span className="truncate">
+                        {city?.name ??
+                          (cities[entry.stateId] === undefined && !cityError[entry.stateId]
+                            ? "…"
+                            : `Município ${cityId}`)}
+                      </span>
                       <button
                         type="button"
                         disabled={disabled}
-                        aria-label={`Remover ${city?.name ?? cityId}`}
+                        aria-label={city ? `Remover ${city.name}` : "Remover município"}
                         onClick={() =>
                           setCitiesFor(entry.stateId, entry.cityIds.filter((id) => id !== cityId))
                         }
