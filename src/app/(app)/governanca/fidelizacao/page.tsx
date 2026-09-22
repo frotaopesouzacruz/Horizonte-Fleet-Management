@@ -126,6 +126,8 @@ export default async function FidelizationPage({
       canPlan={has("fidelization.plan")}
       canChangeVehicle={has("fidelization.change_vehicle")}
       canChangeDriver={has("fidelization.change_driver")}
+      canImport={has("fidelization.import")}
+      canExport={has("fidelization.export")}
     />
   );
 }

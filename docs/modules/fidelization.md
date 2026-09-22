@@ -281,13 +281,10 @@ histórica (239 vigências, 88 posições) e os dois ajustes que ela exigiu em
 
 ## 14. Pendências
 
-* **Importação de fidelização pela tela** (§57–§60). As permissões
-  `fidelization.import` e `fidelization.export` existem e a infraestrutura de
-  importação do HFM (`import_batches` → `import_rows` → validar → processar)
-  está pronta; a carga histórica da Etapa 13 entrou por rotina transacional, não
-  por esse fluxo, que continua por construir. Quando for: ele não poderá criar
-  veículos, BRs nem colaboradores, e não poderá alterar Perfil de Acesso de
-  ninguém.
+* **Importação de fidelização pela tela** — construída na continuação da Etapa
+  13 (`docs/modules/fidelization-brs.md`, §13): BRs e alocações, prévia da §58,
+  sem criar veículo, BR ou colaborador, sem tocar em Perfil de Acesso.
 * **Estabilidade da fidelização** (§56): fórmula pendente de validação funcional.
-* **Confirmação e execução**: os estados existem, mas não há origem confiável de
-  confirmação ainda. Tudo nasce `planned`.
+* **Confirmação e execução**: as transições planejado → confirmado → executado
+  e o cancelamento com motivo existem (`set_fidelization_assignment_status`);
+  o que falta é uma origem externa de confirmação.

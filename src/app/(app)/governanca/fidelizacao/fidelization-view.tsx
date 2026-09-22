@@ -3,8 +3,11 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  ArrowLeftRight, CalendarDays, CircleSlash, MapPin, Plus, Truck, UserRound,
+  ArrowLeftRight, CalendarDays, ChevronDown, CircleSlash, Download, MapPin, Plus, Truck, Upload, UserRound,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { PageContent, PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -34,6 +37,7 @@ import { BrPlanner } from "./br-planner";
 import { AssignmentDrawer } from "./assignment-drawer";
 import { InvertDialog } from "./invert-dialog";
 import { HierarchyPanel } from "./hierarchy-panel";
+import { ImportDrawer } from "./import-drawer";
 
 const number = new Intl.NumberFormat("pt-BR");
 
@@ -71,6 +75,8 @@ export interface FidelizationViewProps {
   canPlan: boolean;
   canChangeVehicle: boolean;
   canChangeDriver: boolean;
+  canImport: boolean;
+  canExport: boolean;
 }
 
 /**
@@ -99,6 +105,8 @@ export function FidelizationView({
   canPlan,
   canChangeVehicle,
   canChangeDriver,
+  canImport,
+  canExport,
 }: FidelizationViewProps) {
   const router = useRouter();
   const params = useSearchParams();
@@ -113,7 +121,16 @@ export function FidelizationView({
   const [brFormKey, setBrFormKey] = React.useState(0);
   const [assignmentBr, setAssignmentBr] = React.useState<FidelizationViewProps["brs"][number] | null>(null);
   const [invertOpen, setInvertOpen] = React.useState(false);
+  const [importOpen, setImportOpen] = React.useState(false);
   const [onlyMobilisations, setOnlyMobilisations] = React.useState(false);
+
+  /** A exportação leva a competência e os filtros em tela: o arquivo é o que se vê. */
+  const exportHref = (kind: "planner" | "historico", format: "xlsx" | "csv") => {
+    const next = new URLSearchParams(params.toString());
+    next.set("tipo", kind);
+    next.set("format", format);
+    return `/governanca/fidelizacao/export?${next.toString()}`;
+  };
 
   const navigate = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(params.toString());
@@ -244,15 +261,48 @@ export function FidelizationView({
           ) : undefined
         }
         secondaryActions={
-          canChangeVehicle ? (
-            <Button
-              variant="secondary"
-              leadingIcon={<ArrowLeftRight />}
-              onClick={() => setInvertOpen(true)}
-            >
-              Inverter veículos
-            </Button>
-          ) : undefined
+          <>
+            {canExport ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="secondary" leadingIcon={<Download />} trailingIcon={<ChevronDown />}>
+                    Exportar
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Planner de locais e BRs</DropdownMenuLabel>
+                  <DropdownMenuItem onSelect={() => window.location.assign(exportHref("planner", "xlsx"))}>
+                    Planner (XLSX)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => window.location.assign(exportHref("planner", "csv"))}>
+                    Planner (CSV)
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Histórico de movimentações</DropdownMenuLabel>
+                  <DropdownMenuItem onSelect={() => window.location.assign(exportHref("historico", "xlsx"))}>
+                    Histórico (XLSX)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => window.location.assign(exportHref("historico", "csv"))}>
+                    Histórico (CSV)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+            {canImport ? (
+              <Button variant="secondary" leadingIcon={<Upload />} onClick={() => setImportOpen(true)}>
+                Importar
+              </Button>
+            ) : null}
+            {canChangeVehicle ? (
+              <Button
+                variant="secondary"
+                leadingIcon={<ArrowLeftRight />}
+                onClick={() => setInvertOpen(true)}
+              >
+                Inverter veículos
+              </Button>
+            ) : null}
+          </>
         }
         filters={
           <FilterBar className="flex-wrap items-end gap-3">
@@ -637,6 +687,12 @@ export function FidelizationView({
         onOpenChange={setInvertOpen}
         candidates={invertible}
         competence={competence}
+      />
+
+      <ImportDrawer
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        canImportBrs={canImport && canManageBrs}
       />
     </>
   );

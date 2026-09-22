@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeftRight, Plus, Square, Truck, UserRound } from "lucide-react";
+import { ArrowLeftRight, Check, CircleSlash, Flag, Plus, Square, Truck, UserRound } from "lucide-react";
 import {
   Drawer, DrawerBody, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
 } from "@/components/ui/drawer";
@@ -19,7 +19,7 @@ import { VehiclePicker } from "@/components/governance/vehicle-picker";
 import { EmployeePicker } from "@/components/governance/employee-picker";
 import {
   endFidelization, endFidelizationDriver, loadFidelizationDrivers, saveFidelization,
-  saveFidelizationDriver, substituteFidelizationVehicle,
+  saveFidelizationDriver, setFidelizationAssignmentStatus, substituteFidelizationVehicle,
   type AssignmentDriver, type EligibleVehicle, type EmployeeOption,
 } from "@/lib/governance/actions";
 import type { FidelizationRow } from "@/lib/governance/queries";
@@ -50,7 +50,16 @@ export interface AssignmentDrawerProps {
   canChangeDriver: boolean;
 }
 
-type Mode = "idle" | "plan" | "substitute" | "end";
+type Mode = "idle" | "plan" | "substitute" | "end" | "cancel";
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+const STATUS_TONE: Record<string, "neutral" | "primary" | "success" | "warning"> = {
+  planned: "neutral",
+  confirmed: "primary",
+  executed: "success",
+  cancelled: "warning",
+};
 
 /**
  * The planning detail of one position.
@@ -166,6 +175,36 @@ export function AssignmentDrawer({
     });
   };
 
+  /**
+   * Situação do vínculo (Etapa 13, continuação). Confirmar e executar são um
+   * clique; cancelar pede motivo, porque um mês depois a única pergunta que
+   * alguém faz sobre um planejamento cancelado é por quê.
+   */
+  const changeStatus = (status: "confirmed" | "executed" | "cancelled") => {
+    setError(null);
+    if (!current) return;
+    if (status === "cancelled" && !reason.trim()) return setError("Informe o motivo do cancelamento.");
+
+    startTransition(async () => {
+      const result = await setFidelizationAssignmentStatus({
+        id: current.id,
+        status,
+        reason: status === "cancelled" ? reason.trim() : null,
+      });
+      if (result.ok) {
+        done(
+          status === "confirmed"
+            ? "Planejamento confirmado."
+            : status === "executed"
+              ? "Execução registrada."
+              : "Planejamento cancelado.",
+        );
+      } else {
+        setError(result.error ?? "Não foi possível alterar a situação do vínculo.");
+      }
+    });
+  };
+
   const addDriver = () => {
     setError(null);
     if (!current) return;
@@ -255,7 +294,7 @@ export function AssignmentDrawer({
                         {current.endDate ? formatDate(current.endDate) : "em aberto"}
                       </p>
                     </div>
-                    <Badge variant="neutral" appearance="soft" size="sm">
+                    <Badge variant={STATUS_TONE[current.status] ?? "neutral"} appearance="soft" size="sm">
                       {STATUS_LABEL[current.status] ?? current.status}
                     </Badge>
                   </div>
@@ -265,6 +304,46 @@ export function AssignmentDrawer({
                   </p>
                 )}
               </div>
+
+              {mode === "idle" && current && canPlan && current.status !== "executed" && current.status !== "cancelled" ? (
+                <div className="flex flex-wrap gap-2" aria-label="Situação do planejamento">
+                  {current.status === "planned" ? (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      leadingIcon={<Check />}
+                      onClick={() => changeStatus("confirmed")}
+                      loading={busy}
+                    >
+                      Confirmar planejamento
+                    </Button>
+                  ) : null}
+                  {current.startDate <= todayIso() ? (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      leadingIcon={<Flag />}
+                      onClick={() => changeStatus("executed")}
+                      loading={busy}
+                    >
+                      Registrar execução
+                    </Button>
+                  ) : null}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    leadingIcon={<CircleSlash />}
+                    onClick={() => {
+                      setError(null);
+                      setReason("");
+                      setMode("cancel");
+                    }}
+                    disabled={busy}
+                  >
+                    Cancelar planejamento
+                  </Button>
+                </div>
+              ) : null}
 
               {mode === "idle" ? (
                 <div className="flex flex-wrap gap-2">
@@ -410,6 +489,34 @@ export function AssignmentDrawer({
                     </Button>
                     <Button variant="ghost" onClick={() => setMode("idle")} disabled={busy}>
                       Cancelar
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
+              {mode === "cancel" ? (
+                <div className="flex flex-col gap-3">
+                  <FormField
+                    label="Motivo do cancelamento"
+                    required
+                    id="assignment-cancel-reason"
+                    helperText="O vínculo deixa de valer por inteiro e os motoristas planejados nele são encerrados. O registro continua no histórico como cancelado."
+                  >
+                    <Textarea
+                      id="assignment-cancel-reason"
+                      rows={2}
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                      placeholder="Por que este planejamento não vale mais?"
+                    />
+                  </FormField>
+
+                  <div className="flex gap-2">
+                    <Button variant="danger" onClick={() => changeStatus("cancelled")} loading={busy}>
+                      Cancelar planejamento
+                    </Button>
+                    <Button variant="ghost" onClick={() => setMode("idle")} disabled={busy}>
+                      Voltar
                     </Button>
                   </div>
                 </div>

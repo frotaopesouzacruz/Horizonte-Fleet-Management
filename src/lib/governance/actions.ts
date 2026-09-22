@@ -458,6 +458,31 @@ export async function substituteFidelizationVehicle(input: {
 }
 
 /** §50: one call, one transaction. Never two independent substitutions. */
+/**
+ * Situação do vínculo (Etapa 13, continuação). Confirmar e executar seguem o
+ * planejamento; cancelar exige motivo e encerra os motoristas. Executado e
+ * cancelado são terminais — a rotina recusa, e a tela só oferece o que cabe.
+ */
+export async function setFidelizationAssignmentStatus(input: {
+  id: string;
+  status: "confirmed" | "executed" | "cancelled";
+  reason?: string | null;
+}): Promise<Result<{ id: string; status: string; changed: boolean }>> {
+  const context = await resolveOrganization("fidelization.plan");
+  if (!context) return { ok: false, error: SESSION_LOST };
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.rpc("set_fidelization_assignment_status", {
+    p_organization_id: context.organization.organizationId,
+    p_payload: { id: input.id, status: input.status, reason: input.reason ?? null } as Json,
+  });
+  if (error) return { ok: false, error: toMessage(error, "Não foi possível alterar a situação do vínculo.") };
+
+  revalidatePath(FIDELIZATION_PATH);
+  const r = (data ?? {}) as { id?: string; status?: string; changed?: boolean };
+  return { ok: true, data: { id: r.id ?? input.id, status: r.status ?? input.status, changed: r.changed === true } };
+}
+
 export async function invertFidelizationVehicles(input: {
   assignmentA: string;
   assignmentB: string;

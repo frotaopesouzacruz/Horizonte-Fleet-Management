@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageContent, PageHeader } from "@/components/layout/page-header";
 import { PreviewPlanner } from "./preview-planner";
+import { PreviewImport } from "./preview-import";
+import { PreviewAssignment } from "./preview-assignment";
 
 /**
  * Renders the Planner de Locais e BRs against fixed data.
@@ -26,10 +28,25 @@ export default function PreviewPage() {
   if (!enabled) notFound();
 
   return (
-    <AppShell permissions={["fidelization.view", "fidelization.manage_brs", "fidelization.plan"]}>
+    <AppShell
+      permissions={[
+        "fidelization.view",
+        "fidelization.manage_brs",
+        "fidelization.plan",
+        "fidelization.change_vehicle",
+        "fidelization.import",
+        "fidelization.export",
+      ]}
+    >
       <PageHeader
         title="Fidelização"
         description="Planner de Locais e BRs com dados fixos, para inspeção visual sem sessão."
+        secondaryActions={
+          <>
+            <PreviewImport />
+            <PreviewAssignment />
+          </>
+        }
       />
       <PageContent>
         <PreviewPlanner />

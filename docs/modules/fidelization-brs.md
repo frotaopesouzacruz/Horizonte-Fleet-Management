@@ -275,6 +275,7 @@ matriz mentir sobre o tamanho dela.
 | `…_fidelization_history_import.sql` | `assert_vehicle_fidelizable` ciente do período; `source` vindo do payload com lista branca |
 | `…_br_planner_types_fix.sql` | `state_id smallint`, `city_id integer` — os tipos reais das colunas |
 | `…_br_planner_uf_cast.sql` | `states.uf` é `character(2)`; a assinatura devolve `text` |
+| `…_fidelization_import_export_status.sql` | importação validada de BRs (§56) e de alocações (§57/§58); situação do vínculo; exportação auditada; dois defeitos pré-existentes corrigidos (§17) |
 
 As duas últimas corrigem erros meus na primeira: um `returns table` com o tipo
 errado só falha na **execução**, nunca na criação da função — a migration aplica
@@ -311,17 +312,89 @@ O cabeçalho passou a quebrar linha (`flex-wrap`) e os nomes a truncar.
 
 ---
 
-## 13. Pendências
+## 13. Importação pela tela (§56–§58, CA23)
 
-* **Importação de fidelização pela tela** (§57–§60). A carga histórica entrou por
-  rotina transacional, não pelo fluxo `import_batches` → `import_rows` →
-  validar → processar, que continua por construir. Quando for: não poderá criar
-  veículos, BRs nem colaboradores, e não poderá alterar Perfil de Acesso de
-  ninguém.
-* **Exportação do planner** (`fidelization.export`): a permissão existe, a tela
-  ainda não oferece o botão.
+Botão **Importar** na Fidelização (permissão `fidelization.import`), uma gaveta,
+dois tipos de arquivo, um fluxo: validar → ler a prévia → confirmar. Tudo passa
+pela esteira oficial `import_batches` → `import_rows` → `import_errors`, com os
+tipos `operation_brs` e `fidelization`, e por quatro rotinas `security definer`:
+
+| Rotina | O que faz |
+|---|---|
+| `stage_br_import` | valida o cadastro de BRs: operação (nome ou código, ativa, no escopo), cidade na cobertura, código, repetição no arquivo, identidade ambígua (mesmo código na mesma operação em outra cidade); BR existente vira *atualizar* (descrição/observações) ou *ignorar*; a situação de uma BR existente **nunca** muda por importação — só avisa |
+| `process_br_import` | cria pelas rotinas oficiais (`save_operation_br`, `set_operation_br_status`); nada de UUID novo para BR que já existe |
+| `stage_fidelization_import` | resolve BR (código, restrito por operação/cidade quando vierem; ambíguo é erro) e veículo (frota ou placa; **nunca cria**), confere elegibilidade, competência e situação; classifica cada linha nas sete categorias da §58 |
+| `process_fidelization_import` | grava os novos com `source = 'import'` e executa as substituições pela rotina oficial `substitute_fidelization_vehicle` (§33); o que a prévia marcou como erro fica de fora |
+
+**A prévia da §58** conta, por linha: registros existentes, novos vínculos,
+substituições, sobreposições, BRs desconhecidas, veículos não encontrados e
+erros de competência. Substituição é só isto: a BR tem um titular que cobre a
+data inicial do arquivo, começou antes dela e é outro veículo; o novo vínculo
+herda o fim do atual quando o arquivo não informa fim. Qualquer outra colisão
+é **sobreposição** e não grava — um vínculo histórico não é sobrescrito em
+silêncio. Uma linha que substituiria exige `fidelization.change_vehicle`.
+
+Situação de um vínculo importado sem coluna própria: período já encerrado entra
+como `executed` (fato), o resto como `planned`. Modelos vazios dos dois arquivos
+saem da própria exportação (`?tipo=modelo-brs` e `?tipo=modelo-alocacoes`).
+
+---
+
+## 14. Situação do vínculo
+
+`set_fidelization_assignment_status` (permissão `fidelization.plan`): planejado
+→ confirmado; planejado/confirmado → executado, só depois do início do período;
+planejado/confirmado → cancelado, com motivo obrigatório e encerrando os
+motoristas planejados. Executado e cancelado são terminais. Na gaveta da
+posição: "Confirmar planejamento", "Registrar execução" e "Cancelar
+planejamento" aparecem conforme a situação e a data.
+
+---
+
+## 15. Exportação (`fidelization.export`)
+
+Botão **Exportar** com quatro saídas: planner e histórico, em XLSX ou CSV, com
+a competência e os filtros em tela. As linhas vêm das mesmas consultas
+`security invoker` da página, e cada exportação passa por
+`log_fidelization_export` (auditoria `fidelization_export`, ação `EXPORT`).
+Sem registro não há arquivo.
+
+---
+
+## 16. Suíte 13b
+
+`supabase/tests/remote/13b_fidelization_import.sql` — 9 blocos, **9/9 PASS**
+contra o projeto de desenvolvimento em 22/09/2026. Cobre a prévia de BRs (I1),
+a gravação sem tocar na situação (I2), as sete categorias (I3), a substituição
+atômica com fim herdado e os novos de outubro (I4), veículos e BRs intocados
+pela importação de alocações (I5), as transições de situação (I6), a auditoria
+das exportações (I7), a recusa sem permissão (I8) e a substituição sem
+`change_vehicle` virando erro de linha (I9). `tests/ui/fidelization.spec.ts`
+ganhou 4 casos: as sete contagens e a confirmação que só conta o gravável, a
+prévia de BRs, as ações de situação (cancelar exige motivo) e o celular.
+
+---
+
+## 17. Dois defeitos pré-existentes corrigidos de passagem
+
+* **`assert_vehicle_fidelizable` ambígua.** A Etapa 13 criou a versão com o
+  parâmetro de período (com default) sem retirar a de três parâmetros; toda
+  chamada com três argumentos — a de `substitute_fidelization_vehicle` — dava
+  "function … is not unique". A substituição de veículo estava quebrada no
+  banco. A versão antiga foi retirada; a nova atende as duas formas.
+* **Exportações nunca auditadas.** `audit_logs.action` só aceitava INSERT,
+  UPDATE e DELETE; `log_vehicle_export` e `log_user_export` gravam EXPORT e as
+  rotas ignoram o erro — frotas e usuários eram exportados sem registro desde a
+  Etapa 03. O CHECK aceita EXPORT agora, e a rota da Fidelização recusa exportar
+  quando não consegue registrar.
+
+---
+
+## 18. Pendências
+
 * **Dois BRs de Belém sem liderança**, pelo gestor ausente de `employees` (§7).
-* **Confirmação e execução**: os estados existem; as 239 vigências importadas
-  entraram como `executed`/`confirmed` por serem fato consumado, mas para o
-  planejamento novo não há ainda origem confiável de confirmação, e tudo nasce
-  `planned`.
+* **Confirmação automática**: as transições existem e são manuais; não há
+  origem externa de confirmação (ex.: execução do checklist confirmando o
+  planejamento do dia).
+* **Alocações de apoio (`support`)** entram pela importação, mas o planner
+  segue mostrando só o titular.

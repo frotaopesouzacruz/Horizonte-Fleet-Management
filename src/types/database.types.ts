@@ -4668,6 +4668,35 @@ export type Database = {
         Args: { p_organization_id: string; p_payload: Json }
         Returns: Json
       }
+      stage_br_import: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      process_br_import: {
+        Args: { p_batch_id: string; p_organization_id: string }
+        Returns: Json
+      }
+      stage_fidelization_import: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      process_fidelization_import: {
+        Args: { p_batch_id: string; p_organization_id: string }
+        Returns: Json
+      }
+      set_fidelization_assignment_status: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      log_fidelization_export: {
+        Args: {
+          p_format: string
+          p_kind?: string
+          p_organization_id: string
+          p_row_count: number
+        }
+        Returns: undefined
+      }
       br_planner_indicators: {
         Args: {
           p_filters?: Json
