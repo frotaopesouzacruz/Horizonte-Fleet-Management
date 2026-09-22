@@ -4367,6 +4367,39 @@ export type Database = {
         Args: { p_reason?: string; p_vehicle_id: string }
         Returns: undefined
       }
+      checklist_execution_detail: {
+        Args: { p_execution_id: string }
+        Returns: Json
+      }
+      checklist_fleet_context: {
+        Args: { p_organization_id: string }
+        Returns: Json
+      }
+      checklist_fleet_form: {
+        Args: {
+          p_operation_id: string
+          p_organization_id: string
+          p_vehicle_id: string
+        }
+        Returns: Json
+      }
+      checklist_my_executions: {
+        Args: { p_limit?: number; p_organization_id: string }
+        Returns: Json
+      }
+      checklist_vehicle_options: {
+        Args: {
+          p_date?: string
+          p_operation_id: string
+          p_organization_id: string
+          p_search?: string
+        }
+        Returns: Json
+      }
+      submit_checklist_execution: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
       br_planner_indicators: {
         Args: {
           p_filters?: Json

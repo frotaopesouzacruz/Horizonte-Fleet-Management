@@ -47,6 +47,7 @@ test.describe("sidebar", () => {
       "Estrutura operacional",
       "Governança operacional",
       "Gestão de frota",
+      "Aplicativos",
       "Módulos futuros",
     ]);
 
@@ -76,7 +77,7 @@ test.describe("sidebar", () => {
         })),
       );
 
-      expect(labels.length, `viewport ${width}px`).toBe(5);
+      expect(labels.length, `viewport ${width}px`).toBe(6);
       for (const label of labels) {
         // 11px é o token `--text-overline`. Qualquer outro valor significa que
         // a classe de tamanho se perdeu de novo no merge.

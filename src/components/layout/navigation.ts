@@ -6,6 +6,7 @@ import {
   CircleDot,
   ClipboardCheck,
   Fuel,
+  Gauge,
   LayoutDashboard,
   Network,
   ShieldAlert,
@@ -184,10 +185,38 @@ export const navigation: NavGroup[] = [
     ],
   },
   {
+    /**
+     * Aplicativos são os módulos que o time OPERA no celular, não os que a
+     * administração configura. Por isso são um grupo próprio e não um item
+     * dentro de Gestão de frota: quem abre esta entrada está saindo para rota,
+     * não administrando cadastro.
+     *
+     * O grupo nasce com um aplicativo e foi desenhado para receber outros
+     * (Conferência de Pneus, Vistoria, MTCR) sem virar uma lista de exceções.
+     */
+    id: "applications",
+    label: "Aplicativos",
+    items: [
+      {
+        label: "Check List de Frota",
+        href: "/aplicativos/check-list-frota",
+        icon: ClipboardCheck,
+        permission: "applications.view",
+      },
+    ],
+  },
+  {
     id: "future",
     label: "Módulos futuros",
     items: [
-      { label: "Checklist", href: "/checklist", icon: ClipboardCheck, planned: true },
+      /*
+       * Era "Checklist → /checklist". O aplicativo real assumiu o endereço e o
+       * ícone; o que continua por construir é a ADERÊNCIA (Etapa 11), que é
+       * outra pergunta: o aplicativo registra a inspeção, a aderência cobra
+       * quem devia tê-la feito. Deixar os dois como "Checklist" faria o módulo
+       * aparecer duas vezes no menu.
+       */
+      { label: "Aderência de checklist", href: "/checklist/aderencia", icon: Gauge, planned: true },
       { label: "Manutenção", href: "/manutencao", icon: Wrench, planned: true },
       { label: "Pneus", href: "/pneus", icon: CircleDot, planned: true },
       { label: "Abastecimento", href: "/abastecimento", icon: Fuel, planned: true },

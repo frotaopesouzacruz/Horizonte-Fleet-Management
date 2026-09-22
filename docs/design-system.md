@@ -233,12 +233,25 @@ model lives in a single file — `src/components/layout/navigation.ts` — and t
 is no second list to keep in step. An entry has exactly one home; moving it in
 that file is the only way it moves.
 
-Five groups, in this order: **Administração** (Colaboradores e usuários, Perfis
+Six groups, in this order: **Administração** (Colaboradores e usuários, Perfis
 e permissões), **Estrutura operacional** (Operações, Filiais, Tipos de
 equipamento), **Governança operacional** (Lideranças, Fidelização), **Gestão de
-frota** (Cadastro de frotas) and **Módulos futuros**, kept separate because
-every entry in it is still a placeholder. Mixed in with working modules they
-made the product look finished and the screens that worked hard to find.
+frota** (Cadastro de frotas), **Aplicativos** (Check List de Frota) and
+**Módulos futuros**, kept separate because every entry in it is still a
+placeholder. Mixed in with working modules they made the product look finished
+and the screens that worked hard to find.
+
+**Aplicativos** é o grupo do que se OPERA no celular, não do que se administra.
+A separação não é estética: quem abre o Check List de Frota está saindo para
+rota, e encontrar isso no meio de telas de cadastro custa tempo em pé, ao lado
+do veículo. O grupo nasceu com um aplicativo e foi desenhado para receber
+outros sem virar lista de exceções.
+
+Quando o aplicativo assumiu o endereço `/checklist`, o item planejado de mesmo
+nome saiu de Módulos futuros e virou **Aderência de checklist** — que é outra
+pergunta, e continua por construir. O aplicativo registra a inspeção; a
+aderência cobra quem devia tê-la feito. Mantê-los homônimos faria o mesmo nome
+aparecer duas vezes no menu significando coisas diferentes.
 
 Anatomy, both modes:
 
