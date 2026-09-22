@@ -35,6 +35,7 @@ const ALL_PERMISSIONS = [
   "fidelization.view",
   "vehicles.view",
   "applications.view",
+  "adherence.view",
 ];
 
 export default function NavigationPreviewPage() {

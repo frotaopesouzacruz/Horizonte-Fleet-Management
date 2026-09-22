@@ -186,6 +186,24 @@ export const navigation: NavGroup[] = [
   },
   {
     /**
+     * GESTÃO DE CHECKLIST é a cobrança, não a inspeção. O aplicativo (grupo
+     * abaixo) registra o checklist que foi feito; a Aderência parte da frota
+     * prevista e diz quem devia tê-lo feito e não fez. Duas perguntas, dois
+     * lugares — e por isso "Checklist" não aparece duas vezes no menu.
+     */
+    id: "checklist",
+    label: "Gestão de checklist",
+    items: [
+      {
+        label: "Aderência",
+        href: "/checklist/aderencia",
+        icon: Gauge,
+        permission: "adherence.view",
+      },
+    ],
+  },
+  {
+    /**
      * Aplicativos são os módulos que o time OPERA no celular, não os que a
      * administração configura. Por isso são um grupo próprio e não um item
      * dentro de Gestão de frota: quem abre esta entrada está saindo para rota,
@@ -209,14 +227,6 @@ export const navigation: NavGroup[] = [
     id: "future",
     label: "Módulos futuros",
     items: [
-      /*
-       * Era "Checklist → /checklist". O aplicativo real assumiu o endereço e o
-       * ícone; o que continua por construir é a ADERÊNCIA (Etapa 11), que é
-       * outra pergunta: o aplicativo registra a inspeção, a aderência cobra
-       * quem devia tê-la feito. Deixar os dois como "Checklist" faria o módulo
-       * aparecer duas vezes no menu.
-       */
-      { label: "Aderência de checklist", href: "/checklist/aderencia", icon: Gauge, planned: true },
       { label: "Manutenção", href: "/manutencao", icon: Wrench, planned: true },
       { label: "Pneus", href: "/pneus", icon: CircleDot, planned: true },
       { label: "Abastecimento", href: "/abastecimento", icon: Fuel, planned: true },

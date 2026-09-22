@@ -3539,6 +3539,54 @@ export type Database = {
       }
     }
     Views: {
+      adherence_obligation_status: {
+        Row: {
+          approved_reason_id: string | null
+          approved_request_id: string | null
+          checklist_context: string
+          city_id: number | null
+          created_at: string
+          deadline_at: string
+          decision_effect: string | null
+          detected_condition: string | null
+          eligibility_rule_id: string | null
+          eligibility_rule_version: number | null
+          execution_id: string | null
+          expected_at: string
+          fidelization_assignment_id: string | null
+          fleet_code_snapshot: string | null
+          generation_run_id: string | null
+          has_pending_request: boolean
+          id: string
+          is_done: boolean
+          is_due: boolean
+          is_excluded: boolean
+          is_provisional: boolean
+          journey_seq: number
+          leader_employee_id: string | null
+          leadership_assignment_id: string | null
+          license_plate_snapshot: string | null
+          match_id: string | null
+          operation_br_id: string | null
+          operation_city_id: string | null
+          operation_id: string
+          operational_date: string
+          organization_id: string
+          organization_unit_id: string | null
+          pending_request_id: string | null
+          source: string
+          state_id: number | null
+          status_code: string
+          status_code_applied: string | null
+          today: string
+          updated_at: string
+          vehicle_id: string
+          vehicle_status_snapshot: string | null
+          vehicle_subcategory_id: string | null
+          vehicle_type_id: string | null
+        }
+        Relationships: []
+      }
       access_profile_overview: {
         Row: {
           added_permissions: string[] | null
@@ -4397,6 +4445,121 @@ export type Database = {
         Returns: Json
       }
       submit_checklist_execution: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      adherence_heatmap: {
+        Args: {
+          p_context?: string
+          p_filters?: Json
+          p_month: number
+          p_organization_id: string
+          p_year: number
+        }
+        Returns: Json
+      }
+      adherence_journey: {
+        Args: { p_date: string; p_filters?: Json; p_organization_id: string }
+        Returns: Json
+      }
+      adherence_matrix: {
+        Args: {
+          p_context?: string
+          p_filters?: Json
+          p_month: number
+          p_organization_id: string
+          p_page?: number
+          p_page_size?: number
+          p_year: number
+        }
+        Returns: Json
+      }
+      adherence_obligation_detail: {
+        Args: { p_obligation_id: string; p_organization_id: string }
+        Returns: Json
+      }
+      adherence_obligations_filtered: {
+        Args: {
+          p_context?: string
+          p_filters?: Json
+          p_from: string
+          p_organization_id: string
+          p_to: string
+        }
+        Returns: Database["public"]["Views"]["adherence_obligation_status"]["Row"][]
+      }
+      adherence_options: {
+        Args: { p_organization_id: string }
+        Returns: Json
+      }
+      adherence_pending_list: {
+        Args: {
+          p_context?: string
+          p_filters?: Json
+          p_from: string
+          p_limit?: number
+          p_organization_id: string
+          p_to: string
+        }
+        Returns: Json
+      }
+      adherence_requests_list: {
+        Args: {
+          p_filters?: Json
+          p_organization_id: string
+          p_page?: number
+          p_page_size?: number
+        }
+        Returns: Json
+      }
+      adherence_summary: {
+        Args: {
+          p_context?: string
+          p_filters?: Json
+          p_from: string
+          p_group_by?: string
+          p_organization_id: string
+          p_to: string
+        }
+        Returns: Json
+      }
+      bulk_adherence_override: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      cancel_adherence_request: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      decide_adherence_request: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      override_adherence_status: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      reconcile_adherence_period: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      request_adherence_exclusion: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      resolve_adherence_inconsistency: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      save_adherence_reason: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      save_adherence_rule: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      set_adherence_target: {
         Args: { p_organization_id: string; p_payload: Json }
         Returns: Json
       }
