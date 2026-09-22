@@ -204,13 +204,19 @@ posições. `assert_vehicle_fidelizable` passou a olhar o período: um vínculo 
 estava ativo enquanto durou. Um vínculo que alcança hoje ou o futuro continua
 exigindo veículo ativo, e o veículo arquivado segue recusado em qualquer caso.
 
-### O que a carga deliberadamente não fez
+### O que a carga deliberadamente não fez (e como a lacuna foi fechada)
 
-Duas posições de Belém aparecem **sem liderança** no planner. Não é defeito da
-resolução: o gestor responsável (Leandro Carvalho Silva) não existe em
-`employees`. Inventar o colaborador para "completar" a tela seria criar um
-cadastro fictício — a lacuna fica visível em vez de escondida, e some sozinha
-quando a pessoa for cadastrada.
+Na carga original, duas posições de Belém apareceram **sem liderança** no
+planner. Não era defeito da resolução: o gestor responsável (Leandro Carvalho
+Silva) não existia em `employees`, e inventar o colaborador para "completar" a
+tela seria criar um cadastro fictício. A lacuna ficou visível até o PO enviar o
+QLP complementar com os dois líderes já desligados; eles entraram como
+colaboradores **inativos**, sem e-mail nem conta de acesso, só para que as
+vigências históricas apontem para uma pessoa real
+(`supabase/loads/20260922_qlp_lideres_inativos.sql`). Desde então as posições
+de Belém resolvem para Leandro Carvalho Silva em qualquer competência de 2026,
+e as de Divinópolis, Mariana, Montes Claros, Pouso Alegre e Varginha resolvem
+para Vitor Souza Silva de janeiro a junho.
 
 ---
 

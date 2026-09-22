@@ -19,6 +19,8 @@
 --   · Leandro Carvalho Silva — Belém, jan–set (a operação tem 6 colaboradores
 --                              no cadastro, todos motoristas; o supervisor não
 --                              veio na base do QLP)
+--   Os 6 entraram depois, em 20260922_qlp_lideres_inativos.sql, quando o PO
+--   enviou o QLP complementar com os dois já como inativos.
 --
 -- Premissas assumidas, ambas reversíveis:
 --   · ano 2026 (a planilha traz só o nome do mês; set/2026 é o mês corrente);
