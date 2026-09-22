@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrganization, resolveOrganization } from "@/lib/auth/session";
 import type { Json } from "@/types/database.types";
+import type { Competence } from "./competence";
+import {
+  getBrDetail, getLeadershipScopeSummary, getVehicleBrHistory,
+  type BrDetail, type LeadershipScopeSummary, type VehicleBrHistory,
+} from "./brs";
 
 /**
  * Operational governance mutations.
@@ -20,6 +25,13 @@ import type { Json } from "@/types/database.types";
 
 const LEADERSHIP_PATH = "/governanca/liderancas";
 const FIDELIZATION_PATH = "/governanca/fidelizacao";
+/** O módulo BRs lê a mesma fonte: toda escrita em BR ou vínculo o invalida também (§38). */
+const BRS_PATH = "/governanca/brs";
+
+const revalidateFidelization = () => {
+  revalidatePath(FIDELIZATION_PATH);
+  revalidatePath(BRS_PATH);
+};
 
 /** A read triggered by a click does not redirect: it says what happened and leaves the screen standing. */
 const SESSION_LOST =
@@ -228,7 +240,7 @@ export async function saveOperationBr(input: SaveBrInput): Promise<Result<{ id: 
 
   if (error) return { ok: false, error: toMessage(error, "Não foi possível salvar a BR.") };
 
-  revalidatePath(FIDELIZATION_PATH);
+  revalidateFidelization();
   return { ok: true, data: { id: data as string } };
 }
 
@@ -247,7 +259,7 @@ export async function setOperationBrStatus(
   } as never);
 
   if (error) return { ok: false, error: toMessage(error, "Não foi possível alterar a situação da BR.") };
-  revalidatePath(FIDELIZATION_PATH);
+  revalidateFidelization();
   return { ok: true };
 }
 
@@ -411,7 +423,7 @@ export async function saveFidelization(input: SaveFidelizationInput): Promise<Re
 
   if (error) return { ok: false, error: toMessage(error, "Não foi possível salvar a fidelização.") };
 
-  revalidatePath(FIDELIZATION_PATH);
+  revalidateFidelization();
   return { ok: true, data: { id: ((data ?? {}) as { id?: string }).id ?? "" } };
 }
 
@@ -430,7 +442,7 @@ export async function endFidelization(
   } as never);
 
   if (error) return { ok: false, error: toMessage(error, "Não foi possível encerrar a fidelização.") };
-  revalidatePath(FIDELIZATION_PATH);
+  revalidateFidelization();
   return { ok: true };
 }
 
@@ -453,7 +465,7 @@ export async function substituteFidelizationVehicle(input: {
   if (error) return { ok: false, error: toMessage(error, "Não foi possível substituir o veículo.") };
 
   const d = (data ?? {}) as { previous_id?: string; new_id?: string };
-  revalidatePath(FIDELIZATION_PATH);
+  revalidateFidelization();
   return { ok: true, data: { previousId: d.previous_id ?? "", newId: d.new_id ?? "" } };
 }
 
@@ -478,7 +490,7 @@ export async function setFidelizationAssignmentStatus(input: {
   });
   if (error) return { ok: false, error: toMessage(error, "Não foi possível alterar a situação do vínculo.") };
 
-  revalidatePath(FIDELIZATION_PATH);
+  revalidateFidelization();
   const r = (data ?? {}) as { id?: string; status?: string; changed?: boolean };
   return { ok: true, data: { id: r.id ?? input.id, status: r.status ?? input.status, changed: r.changed === true } };
 }
@@ -502,7 +514,7 @@ export async function invertFidelizationVehicles(input: {
   if (error) return { ok: false, error: toMessage(error, "Não foi possível inverter os veículos.") };
 
   const d = (data ?? {}) as { created?: string[] };
-  revalidatePath(FIDELIZATION_PATH);
+  revalidateFidelization();
   return { ok: true, data: { created: d.created ?? [] } };
 }
 
@@ -533,7 +545,7 @@ export async function saveFidelizationDriver(input: {
 
   if (error) return { ok: false, error: toMessage(error, "Não foi possível salvar o motorista.") };
 
-  revalidatePath(FIDELIZATION_PATH);
+  revalidateFidelization();
   return { ok: true, data: { id: data as string } };
 }
 
@@ -552,7 +564,7 @@ export async function endFidelizationDriver(
   } as never);
 
   if (error) return { ok: false, error: toMessage(error, "Não foi possível encerrar o vínculo do motorista.") };
-  revalidatePath(FIDELIZATION_PATH);
+  revalidateFidelization();
   return { ok: true };
 }
 
@@ -712,7 +724,7 @@ export async function createBrsBatch(input: {
   const raw = (data ?? {}) as Record<string, unknown>;
   const details = Array.isArray(raw.details) ? raw.details : [];
 
-  if (!input.dryRun) revalidatePath(FIDELIZATION_PATH);
+  if (!input.dryRun) revalidateFidelization();
 
   return {
     ok: true,
@@ -781,5 +793,184 @@ export async function loadBrVehicleHistory(
         endReason: (r.end_reason as string) ?? null,
       };
     }),
+  };
+}
+
+/* ------------------------------------------------------- módulo BRs (13.1) */
+
+/**
+ * §29: o detalhe da BR, carregado ao abrir a gaveta. Leitura acionada por
+ * clique, então uma sessão perdida diz isso em vez de tirar a pessoa da tela.
+ */
+export async function loadBrDetail(
+  operationBrId: string,
+  competence: Competence,
+): Promise<Result<BrDetail>> {
+  const context = await resolveOrganization("fidelization.view");
+  if (!context) return { ok: false, error: SESSION_LOST };
+  try {
+    const detail = await getBrDetail(context.organization.organizationId, operationBrId, competence);
+    if (!detail) return { ok: false, error: "BR não encontrada ou fora do seu escopo de acesso." };
+    return { ok: true, data: detail };
+  } catch {
+    return { ok: false, error: "Não foi possível carregar o detalhe desta BR." };
+  }
+}
+
+/** §48: a aba Fidelização do Cadastro de Frotas — BR atual e anteriores pelo `vehicle_id`. */
+export async function loadVehicleBrHistory(vehicleId: string): Promise<Result<VehicleBrHistory>> {
+  const context = await resolveOrganization("fidelization.view");
+  if (!context) return { ok: false, error: SESSION_LOST };
+  try {
+    return { ok: true, data: await getVehicleBrHistory(context.organization.organizationId, vehicleId) };
+  } catch {
+    return { ok: false, error: "Não foi possível carregar a fidelização deste veículo." };
+  }
+}
+
+/** §35: o que uma liderança responde na competência. */
+export async function loadLeadershipScopeSummary(
+  employeeId: string,
+  competence: Competence,
+): Promise<Result<LeadershipScopeSummary>> {
+  const context = await resolveOrganization("leadership.view");
+  if (!context) return { ok: false, error: SESSION_LOST };
+  try {
+    return {
+      ok: true,
+      data: await getLeadershipScopeSummary(context.organization.organizationId, employeeId, competence),
+    };
+  } catch {
+    return { ok: false, error: "Não foi possível carregar o escopo desta liderança." };
+  }
+}
+
+/**
+ * §34/§35: substituição transacional de motorista. Fecha o anterior na véspera
+ * (ou cancela, se ainda não começou) e abre o novo no mesmo vínculo de veículo,
+ * em uma só transação, com motivo e responsável. Nada é apagado.
+ */
+export async function substituteFidelizationDriver(input: {
+  driverId: string;
+  newEmployeeId: string;
+  effectiveFrom: string;
+  endDate?: string | null;
+  reason: string;
+}): Promise<Result<{ previousId: string; newId: string; assignmentId: string }>> {
+  const { organization } = await requireOrganization("fidelization.change_driver");
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.rpc("substitute_fidelization_driver", {
+    p_organization_id: organization.organizationId,
+    p_payload: {
+      driver_id: input.driverId,
+      new_employee_id: input.newEmployeeId,
+      effective_from: input.effectiveFrom,
+      end_date: input.endDate ?? null,
+      reason: input.reason,
+    } as Json,
+  });
+
+  if (error) return { ok: false, error: toMessage(error, "Não foi possível substituir o motorista.") };
+  const d = (data ?? {}) as { previous_id?: string; new_id?: string; assignment_id?: string };
+  revalidateFidelization();
+  return {
+    ok: true,
+    data: { previousId: d.previous_id ?? "", newId: d.new_id ?? "", assignmentId: d.assignment_id ?? "" },
+  };
+}
+
+export type FidelizationReplicationStatus =
+  | "new" | "kept" | "conflict" | "skipped_inactive_br" | "skipped_inactive_vehicle";
+
+export interface FidelizationReplicationRow {
+  brId: string;
+  brCode: string;
+  vehicleId: string;
+  fleetCode: string | null;
+  licensePlate: string | null;
+  status: FidelizationReplicationStatus;
+  note: string | null;
+  driverEmployeeId: string | null;
+  driverName: string | null;
+  driverStatus: "new" | "kept" | "conflict" | "skipped_inactive_driver" | null;
+  driverNote: string | null;
+}
+
+export interface FidelizationReplicationPreview {
+  dryRun: boolean;
+  from: string;
+  to: string;
+  vehicles: { new: number; kept: number; conflicts: number; skipped: number };
+  drivers: { new: number; kept: number; conflicts: number; skipped: number };
+  rows: FidelizationReplicationRow[];
+}
+
+/**
+ * §37 / CA16: replicação da fidelização de uma competência para a seguinte,
+ * com prévia. O destino nunca é sobrescrito: o que já está planejado lá é
+ * "preservado", o veículo já usado em outra BR é "conflito", e só o que não
+ * existe é "novo". Motoristas seguem o mesmo critério, dentro do vínculo.
+ */
+export async function replicateFidelizationCompetence(input: {
+  from: Competence;
+  to: Competence;
+  operationId?: string | null;
+  includeDrivers: boolean;
+  dryRun: boolean;
+}): Promise<Result<FidelizationReplicationPreview>> {
+  const { organization } = await requireOrganization("fidelization.plan");
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.rpc("replicate_fidelization_competence", {
+    p_organization_id: organization.organizationId,
+    p_from_year: input.from.year,
+    p_from_month: input.from.month,
+    p_to_year: input.to.year,
+    p_to_month: input.to.month,
+    p_operation_id: input.operationId ?? undefined,
+    p_include_drivers: input.includeDrivers,
+    p_dry_run: input.dryRun,
+  });
+
+  if (error) return { ok: false, error: toMessage(error, "Não foi possível replicar a fidelização.") };
+
+  const d = (data ?? {}) as Record<string, unknown>;
+  const counts = (key: string) => {
+    const c = (d[key] ?? {}) as Record<string, unknown>;
+    return {
+      new: Number(c.new ?? 0),
+      kept: Number(c.kept ?? 0),
+      conflicts: Number(c.conflicts ?? 0),
+      skipped: Number(c.skipped ?? 0),
+    };
+  };
+  const rows = (Array.isArray(d.rows) ? (d.rows as Record<string, unknown>[]) : []).map(
+    (r): FidelizationReplicationRow => ({
+      brId: String(r.br_id),
+      brCode: String(r.br_code ?? ""),
+      vehicleId: String(r.vehicle_id),
+      fleetCode: (r.fleet_code as string) ?? null,
+      licensePlate: (r.license_plate as string) ?? null,
+      status: (r.status as FidelizationReplicationStatus) ?? "new",
+      note: (r.note as string) ?? null,
+      driverEmployeeId: (r.driver_employee_id as string) ?? null,
+      driverName: (r.driver_name as string) ?? null,
+      driverStatus: (r.driver_status as FidelizationReplicationRow["driverStatus"]) ?? null,
+      driverNote: (r.driver_note as string) ?? null,
+    }),
+  );
+
+  if (!input.dryRun) revalidateFidelization();
+  return {
+    ok: true,
+    data: {
+      dryRun: Boolean(d.dry_run),
+      from: String(d.from ?? ""),
+      to: String(d.to ?? ""),
+      vehicles: counts("vehicles"),
+      drivers: counts("drivers"),
+      rows,
+    },
   };
 }

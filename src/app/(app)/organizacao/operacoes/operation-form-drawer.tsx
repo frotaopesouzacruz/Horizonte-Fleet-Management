@@ -16,7 +16,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ApplicationLinksPanel } from "@/components/applications/application-links-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/feedback/alert";
+import { EmptyState } from "@/components/feedback/empty-state";
 import { useToast } from "@/components/feedback/toast";
 import {
   OperationGeographyPicker,
@@ -38,6 +41,10 @@ interface Props {
   /** Absent for a new operation. */
   operation?: OperationFormValue;
   states: PickerState[];
+  /** `applications.manage_operation_links`: pode habilitar/desabilitar aplicativos. */
+  canManageApps: boolean;
+  /** `audit.view` ou o gerenciamento acima: pode abrir o histórico dos vínculos. */
+  canViewAppHistory: boolean;
 }
 
 /**
@@ -47,8 +54,22 @@ interface Props {
  * one municipality in every state it claims is checked at save time, so letting
  * the two halves be saved separately would mean letting an operation exist in a
  * state the rule forbids.
+ *
+ * The "Aplicativos" tab is a different animal, on purpose: it mirrors the same
+ * tab in Tipos de Equipamento. Each toggle there is written and audited the
+ * moment it happens, in the same source the Gerenciador de Aplicativos and the
+ * operation's detail page read (§26). The footer's Save button only covers
+ * "Dados gerais" — a new operation has to exist before anything can be linked
+ * to it, so the tab says so instead of pretending to hold a draft.
  */
-export function OperationFormDrawer({ open, onOpenChange, operation, states }: Props) {
+export function OperationFormDrawer({
+  open,
+  onOpenChange,
+  operation,
+  states,
+  canManageApps,
+  canViewAppHistory,
+}: Props) {
   const router = useRouter();
   const { toast } = useToast();
   const [pending, startTransition] = React.useTransition();
@@ -112,7 +133,7 @@ export function OperationFormDrawer({ open, onOpenChange, operation, states }: P
           </DrawerTitle>
         </DrawerHeader>
 
-        <DrawerBody className="flex flex-col gap-6">
+        <DrawerBody className="flex min-h-0 flex-col gap-4">
           {error ? (
             <Alert variant="danger">
               <AlertTitle>Não foi possível salvar</AlertTitle>
@@ -120,64 +141,99 @@ export function OperationFormDrawer({ open, onOpenChange, operation, states }: P
             </Alert>
           ) : null}
 
-          <section className="flex flex-col gap-4">
-            <h3 className="text-h4 font-semibold text-fg">Dados gerais</h3>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <FormField label="Nome da operação" required error={nameError} className="sm:col-span-2">
-                <Input
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="Last Mile MG"
-                  maxLength={160}
+          {/* Same key as the form state: reopening for another operation lands
+              on "Dados gerais" again instead of on whatever tab was last open. */}
+          <Tabs key={key ?? "__closed__"} defaultValue="geral" className="flex min-h-0 flex-1 flex-col gap-4">
+            <TabsList>
+              <TabsTrigger value="geral">Dados gerais</TabsTrigger>
+              <TabsTrigger value="aplicativos">Aplicativos</TabsTrigger>
+            </TabsList>
+
+            {/* ------------------------------------------- dados gerais */}
+            <TabsContent value="geral" className="flex flex-col gap-6">
+              <section className="flex flex-col gap-4">
+                <h3 className="text-h4 font-semibold text-fg">Dados gerais</h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormField label="Nome da operação" required error={nameError} className="sm:col-span-2">
+                    <Input
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      placeholder="Last Mile MG"
+                      maxLength={160}
+                    />
+                  </FormField>
+
+                  <FormField
+                    label="Código"
+                    className="sm:col-span-1"
+                    helperText={isEdit ? "Gerado pelo sistema e imutável." : "Gerado automaticamente ao salvar."}
+                  >
+                    <Input value={operation?.code ?? "—"} readOnly disabled />
+                  </FormField>
+
+                  <FormField label="Situação">
+                    <Select value={status} onValueChange={(value) => setStatus(value as "active" | "inactive")}>
+                      <SelectTrigger aria-label="Situação da operação">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Ativa</SelectItem>
+                        <SelectItem value="inactive">Inativa</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+
+                  <FormField label="Descrição" className="sm:col-span-2">
+                    <Textarea
+                      value={description}
+                      onChange={(event) => setDescription(event.target.value)}
+                      placeholder="O que esta operação faz."
+                      maxLength={500}
+                      rows={2}
+                    />
+                  </FormField>
+                </div>
+              </section>
+
+              <section className="flex flex-col gap-3 border-t border-border pt-5">
+                <div>
+                  <h3 className="text-h4 font-semibold text-fg">Cobertura geográfica</h3>
+                  <p className="mt-1 text-body-sm text-fg-secondary">
+                    Uma operação ativa precisa de ao menos um estado, e cada estado de ao menos um município.
+                  </p>
+                </div>
+                <OperationGeographyPicker
+                  value={coverage}
+                  onChange={setCoverage}
+                  states={states}
+                  disabled={pending}
                 />
-              </FormField>
+              </section>
+            </TabsContent>
 
-              <FormField
-                label="Código"
-                className="sm:col-span-1"
-                helperText={isEdit ? "Gerado pelo sistema e imutável." : "Gerado automaticamente ao salvar."}
-              >
-                <Input value={operation?.code ?? "—"} readOnly disabled />
-              </FormField>
-
-              <FormField label="Situação">
-                <Select value={status} onValueChange={(value) => setStatus(value as "active" | "inactive")}>
-                  <SelectTrigger aria-label="Situação da operação">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Ativa</SelectItem>
-                    <SelectItem value="inactive">Inativa</SelectItem>
-                  </SelectContent>
-                </Select>
-              </FormField>
-
-              <FormField label="Descrição" className="sm:col-span-2">
-                <Textarea
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  placeholder="O que esta operação faz."
-                  maxLength={500}
-                  rows={2}
+            {/* -------------------------------------------- aplicativos */}
+            {/* Refinamento da Etapa 12 (§8–§14, §26): os aplicativos habilitados
+                da operação são gravados na hora, na MESMA fonte que a página de
+                detalhe da operação e o Gerenciador de Aplicativos leem. Uma
+                operação nova nasce sem aplicativo algum e continua válida assim. */}
+            <TabsContent value="aplicativos" className="flex flex-col gap-3">
+              {isEdit && operation?.id ? (
+                <ApplicationLinksPanel
+                  mode="operation"
+                  targetId={operation.id}
+                  canManage={canManageApps}
+                  canViewHistory={canViewAppHistory}
+                  title="Aplicativos habilitados"
+                  description="Quais aplicativos esta operação pode utilizar. Cada alteração é gravada e auditada imediatamente; não depende do botão Salvar."
                 />
-              </FormField>
-            </div>
-          </section>
-
-          <section className="flex flex-col gap-3 border-t border-border pt-5">
-            <div>
-              <h3 className="text-h4 font-semibold text-fg">Cobertura geográfica</h3>
-              <p className="mt-1 text-body-sm text-fg-secondary">
-                Uma operação ativa precisa de ao menos um estado, e cada estado de ao menos um município.
-              </p>
-            </div>
-            <OperationGeographyPicker
-              value={coverage}
-              onChange={setCoverage}
-              states={states}
-              disabled={pending}
-            />
-          </section>
+              ) : (
+                <EmptyState
+                  title="Salve a operação para habilitar aplicativos"
+                  description="Uma operação nasce sem aplicativo vinculado. Depois de salvar, habilite aqui os aplicativos que ela pode utilizar."
+                />
+              )}
+            </TabsContent>
+          </Tabs>
         </DrawerBody>
 
         <DrawerFooter>

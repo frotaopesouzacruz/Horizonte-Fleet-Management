@@ -45,3 +45,47 @@ for (const size of WIDTHS) {
     expect(crashes, crashes.join("\n")).toEqual([]);
   });
 }
+
+/**
+ * A mesma lógica de "Aplicativos habilitados" de Tipos de Equipamento, agora no
+ * formulário da operação: uma aba "Aplicativos" ao lado de "Dados gerais".
+ *
+ * A prévia não tem sessão, então o painel pode avisar que não conseguiu
+ * carregar os vínculos — o que se segura aqui é a aba existir, abrir e trazer o
+ * painel certo. O título é procurado dentro do drawer porque a página de
+ * detalhe, logo abaixo, mostra o mesmo cartão: as duas portas leem a mesma
+ * fonte, e encontrá-lo lá fora não provaria nada sobre o formulário.
+ */
+test("editar operação: abas Dados gerais e Aplicativos, com o painel de aplicativos", async ({ page }) => {
+  const crashes: string[] = [];
+  page.on("pageerror", (error) => crashes.push(error.message));
+
+  await page.goto("/dev/preview-organizacao");
+  await page.getByRole("button", { name: "Editar operação" }).click();
+
+  const drawer = page.getByRole("dialog");
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole("tab", { name: "Dados gerais" })).toBeVisible();
+  await expect(drawer.getByRole("tab", { name: "Aplicativos" })).toBeVisible();
+
+  // "Dados gerais" abre primeiro: o formulário continua sendo o formulário.
+  await expect(drawer.getByLabel("Nome da operação")).toHaveValue("Last Mille MG");
+
+  await drawer.getByRole("tab", { name: "Aplicativos" }).click();
+  await expect(drawer.getByRole("heading", { name: "Aplicativos habilitados" })).toBeVisible();
+
+  expect(new URL(page.url()).pathname).toBe("/dev/preview-organizacao");
+  expect(crashes, crashes.join("\n")).toEqual([]);
+});
+
+/**
+ * Da operação para as suas BRs em um clique: o atalho aponta para o módulo BRs
+ * já filtrado por esta operação, e só aparece para quem pode ver a fidelização.
+ */
+test("detalhe da operação: atalho para as BRs desta operação", async ({ page }) => {
+  await page.goto("/dev/preview-organizacao");
+
+  const link = page.getByRole("link", { name: "Consultar BRs desta operação" });
+  await expect(link).toBeVisible();
+  await expect(link).toHaveAttribute("href", "/governanca/brs?operacao=1");
+});

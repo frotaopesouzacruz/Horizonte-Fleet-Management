@@ -225,3 +225,21 @@ vínculo nunca é lida como autorização. Desabilitar um aplicativo retira a
 operação das novas execuções a partir da data; execuções, obrigações,
 fidelização e auditoria anteriores ficam intactas. Fonte e regras:
 `docs/modules/applications.md`, §8.
+
+---
+
+## Aba Aplicativos no formulário e atalho para BRs (Etapa 13.1)
+
+O formulário da operação ganhou abas — *Dados gerais* (nome, código, situação,
+descrição, cobertura geográfica, salvos juntos pelo botão Salvar) e
+*Aplicativos* — com a mesma lógica de Tipos de Equipamento: a aba mostra o
+`ApplicationLinksPanel` em modo `operation`, que grava e audita cada alteração
+na hora, na mesma fonte (`application_links`) que a página de detalhe e o
+Gerenciador de aplicativos leem. Uma operação nova nasce sem aplicativo e a
+aba explica que é preciso salvar antes de habilitar. As permissões são as de
+sempre (`applications.manage_operation_links`; histórico com `audit.view`).
+
+A página de detalhe ganhou "Consultar BRs desta operação", que abre o módulo
+Governança › BRs já filtrado pela operação (`/governanca/brs?operacao=…`),
+visível com `fidelization.view`. A operação não cadastra BR: aponta para a
+casa única da posição ([`operational-brs.md`](./operational-brs.md)).

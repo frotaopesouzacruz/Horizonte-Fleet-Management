@@ -83,6 +83,8 @@ export default function PreviewPage() {
         canCreate
         canUpdate
         canDeactivate
+        canManageApps
+        canViewAppHistory
       />
       <OperationDetailView
         operation={{
@@ -112,6 +114,7 @@ export default function PreviewPage() {
         }}
         canManageApps
         canViewAppHistory
+        canViewBrs
       />
     </AppShell>
   );

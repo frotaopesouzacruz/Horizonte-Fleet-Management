@@ -39,7 +39,9 @@ export const TabsList = React.forwardRef<
         // Scrolls sideways instead of pushing the page: four tabs at 390px are
         // wider than the viewport, and a page that scrolls horizontally because
         // of its own tab bar is a page nobody can read on a phone.
-        "flex items-center overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        // `shrink-0`: dentro de uma coluna flex (gaveta com corpo rolável), a lista
+        // de abas não pode encolher até 1px e deixar os botões fora da área clicável.
+        "flex shrink-0 items-center overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         appearance === "underline" && "gap-1 border-b border-border",
         appearance === "segmented" && "inline-flex w-fit gap-0.5 rounded-sm border border-border bg-surface-secondary p-0.5",
         className,

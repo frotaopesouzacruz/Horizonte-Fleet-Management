@@ -33,6 +33,7 @@ const ASSIGNMENT_STATUS: Record<string, string> = {
 };
 const SOURCE: Record<string, string> = {
   manual: "Manual", import: "Importação", substitution: "Substituição", inversion: "Inversão",
+  replication: "Replicação",
 };
 const LEADER_SCOPE: Record<string, string> = { br: "Exceção do BR", city: "Cidade", operation: "Operação" };
 

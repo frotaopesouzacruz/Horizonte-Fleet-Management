@@ -225,3 +225,13 @@ campos alterados. `audit_logs` é append-only.
   (`fidelization.export`) existe. Definir se Lideranças terá a sua.
 * Responsabilidade "de apoio" está no modelo (`responsibility_type = 'support'`)
   e na tela, mas nenhuma regra de negócio a distingue de substituto ainda.
+
+---
+
+## 13. Cobertura e escopo (Etapa 13 — complementar)
+
+`leadership_indicators` ganhou locais com/sem liderança, cobertura em %, e o
+que está sob responsabilidade (BRs, veículos, motoristas); a gaveta "O que
+esta liderança responde" lê `leadership_scope_summary`. Detalhes, definições e
+a comparação com o HFC estão em
+[`operational-leadership-planner.md`](./operational-leadership-planner.md).

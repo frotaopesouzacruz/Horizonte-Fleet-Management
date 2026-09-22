@@ -4697,6 +4697,28 @@ export type Database = {
         }
         Returns: undefined
       }
+      br_detail: {
+        Args: {
+          p_month?: number
+          p_operation_br_id: string
+          p_organization_id: string
+          p_year?: number
+        }
+        Returns: Json
+      }
+      br_directory: {
+        Args: {
+          p_dir?: string
+          p_filters?: Json
+          p_limit?: number
+          p_month?: number
+          p_offset?: number
+          p_organization_id: string
+          p_sort?: string
+          p_year?: number
+        }
+        Returns: Json
+      }
       br_planner_indicators: {
         Args: {
           p_filters?: Json
@@ -4992,6 +5014,15 @@ export type Database = {
         }
         Returns: Json
       }
+      fidelization_stability: {
+        Args: {
+          p_filters?: Json
+          p_month: number
+          p_organization_id: string
+          p_year: number
+        }
+        Returns: Json
+      }
       flag_import_profile_divergences: {
         Args: { p_batch_id: string }
         Returns: number
@@ -5034,6 +5065,15 @@ export type Database = {
         Args: {
           p_month: number
           p_operation_id?: string
+          p_organization_id: string
+          p_year: number
+        }
+        Returns: Json
+      }
+      leadership_scope_summary: {
+        Args: {
+          p_employee_id: string
+          p_month: number
           p_organization_id: string
           p_year: number
         }
@@ -5119,6 +5159,19 @@ export type Database = {
         }[]
       }
       purge_expired_import_batches: { Args: never; Returns: number }
+      replicate_fidelization_competence: {
+        Args: {
+          p_dry_run?: boolean
+          p_from_month: number
+          p_from_year: number
+          p_include_drivers?: boolean
+          p_operation_id?: string
+          p_organization_id: string
+          p_to_month: number
+          p_to_year: number
+        }
+        Returns: Json
+      }
       replicate_leadership_competence: {
         Args: {
           p_dry_run?: boolean
@@ -5129,6 +5182,14 @@ export type Database = {
           p_overwrite?: boolean
           p_to_month: number
           p_to_year: number
+        }
+        Returns: Json
+      }
+      resolve_operational_context: {
+        Args: {
+          p_date?: string
+          p_operation_br_id: string
+          p_organization_id: string
         }
         Returns: Json
       }
@@ -5283,6 +5344,13 @@ export type Database = {
           status: string
         }[]
       }
+      substitute_fidelization_driver: {
+        Args: {
+          p_organization_id: string
+          p_payload: Json
+        }
+        Returns: Json
+      }
       substitute_fidelization_vehicle: {
         Args: {
           p_assignment_id: string
@@ -5322,6 +5390,13 @@ export type Database = {
           valid_rows: number
           warning_rows: number
         }[]
+      }
+      vehicle_br_history: {
+        Args: {
+          p_organization_id: string
+          p_vehicle_id: string
+        }
+        Returns: Json
       }
       vehicle_summary: {
         Args: { p_filters?: Json; p_organization_id: string }

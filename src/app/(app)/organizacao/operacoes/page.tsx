@@ -45,6 +45,8 @@ export default async function OperationsPage({ searchParams }: { searchParams: P
   });
 
   const canManage = hasPermission(session, "operations.manage");
+  // Aba "Aplicativos" do formulário — a mesma regra da página de detalhe.
+  const canManageApps = hasPermission(session, "applications.manage_operation_links");
 
   return (
     <OperationsView
@@ -60,6 +62,8 @@ export default async function OperationsPage({ searchParams }: { searchParams: P
       canCreate={canManage || hasPermission(session, "operations.create")}
       canUpdate={canManage || hasPermission(session, "operations.update")}
       canDeactivate={canManage || hasPermission(session, "operations.deactivate")}
+      canManageApps={canManageApps}
+      canViewAppHistory={hasPermission(session, "audit.view") || canManageApps}
     />
   );
 }

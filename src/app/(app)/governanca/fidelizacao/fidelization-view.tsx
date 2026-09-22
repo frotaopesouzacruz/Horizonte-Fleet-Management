@@ -3,13 +3,14 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  ArrowLeftRight, CalendarDays, ChevronDown, CircleSlash, Download, MapPin, Plus, Truck, Upload, UserRound,
+  ArrowLeftRight, CalendarDays, ChevronDown, CircleSlash, CopyCheck, Download, MapPin, Truck, Upload,
+  UserRound, UserRoundPen,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PageContent, PageHeader } from "@/components/layout/page-header";
-import { Button } from "@/components/ui/button";
+import { Button, IconButton } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { FilterBar } from "@/components/ui/filter-bar";
@@ -19,25 +20,26 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table, TableBody, TableCell, TableContainer, TableEmpty, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { useToast } from "@/components/feedback/toast";
-import { useConfirm } from "@/components/feedback/confirm-dialog";
 import { CompetencePicker } from "@/components/governance/competence-picker";
 import { NativeSelect } from "@/components/governance/selects";
 import type { CoverageEntry } from "@/components/governance/scope-picker";
-import { loadBrImpact, setOperationBrStatus } from "@/lib/governance/actions";
 import type {
   CalendarRow, DriverPlanRow, FidelizationIndicators, FidelizationRow,
   HierarchyOperation, OperationBrRow,
 } from "@/lib/governance/queries";
 import type { BrPlannerIndicators, BrPlannerRow } from "@/lib/governance/br-planner";
+import type { FidelizationStability } from "@/lib/governance/brs";
 import { formatCompetence, type Competence } from "@/lib/governance/competence";
 import { CalendarLegend, CalendarMatrix } from "./calendar-matrix";
-import { BrFormDrawer, type BrFormValue } from "./br-form-drawer";
 import { BrPlanner } from "./br-planner";
+import { BrsModuleNotice } from "./brs-module-notice";
 import { AssignmentDrawer } from "./assignment-drawer";
 import { InvertDialog } from "./invert-dialog";
 import { HierarchyPanel } from "./hierarchy-panel";
 import { ImportDrawer } from "./import-drawer";
+import { StabilityDashboard } from "./stability-dashboard";
+import { DriverSubstituteDialog, canSubstituteDriver } from "./driver-substitute-dialog";
+import { ReplicateFidelizationDialog } from "./replicate-fidelization-dialog";
 
 const number = new Intl.NumberFormat("pt-BR");
 
@@ -47,6 +49,18 @@ function formatDate(value: string | null): string {
   return d ? `${d}/${m}/${y}` : value;
 }
 
+/** A origem de cada vínculo, com nome — a replicação (§37) não é uma substituição. */
+const SOURCE_LABEL: Record<string, string> = {
+  manual: "Manual",
+  import: "Importação",
+  substitution: "Substituição",
+  inversion: "Inversão",
+  replication: "Replicação",
+};
+
+/** Os filtros que o módulo BRs entende e que a pessoa não deve ter de refazer lá. */
+const BRS_MODULE_FILTERS = ["operacao", "uf", "cidade", "ano", "mes"] as const;
+
 export interface FidelizationViewProps {
   calendar: CalendarRow[];
   brs: OperationBrRow[];
@@ -54,6 +68,7 @@ export interface FidelizationViewProps {
   driverPlans: DriverPlanRow[];
   hierarchy: HierarchyOperation[];
   indicators: FidelizationIndicators | null;
+  stability: FidelizationStability | null;
   plannerRows: BrPlannerRow[];
   plannerIndicators: BrPlannerIndicators | null;
   leaders: { id: string; name: string }[];
@@ -71,7 +86,6 @@ export interface FidelizationViewProps {
     vehicle?: string;
     driver?: string;
   };
-  canManageBrs: boolean;
   canPlan: boolean;
   canChangeVehicle: boolean;
   canChangeDriver: boolean;
@@ -86,6 +100,10 @@ export interface FidelizationViewProps {
  * can occupy a position for two weeks without its operation or city changing,
  * and nothing on this screen writes to the vehicle's allocation. The two
  * questions stay in two tables and this screen only answers the second one.
+ *
+ * O cadastro de BRs (criar, editar, importar, inativar) saiu daqui para o
+ * módulo Governança › BRs (Etapa 13.1, §38). Esta tela consulta e planeja a
+ * posição; não a cria.
  */
 export function FidelizationView({
   calendar,
@@ -94,6 +112,7 @@ export function FidelizationView({
   driverPlans,
   hierarchy,
   indicators,
+  stability,
   plannerRows,
   plannerIndicators,
   leaders,
@@ -101,7 +120,6 @@ export function FidelizationView({
   operations,
   coverage,
   filters,
-  canManageBrs,
   canPlan,
   canChangeVehicle,
   canChangeDriver,
@@ -110,18 +128,13 @@ export function FidelizationView({
 }: FidelizationViewProps) {
   const router = useRouter();
   const params = useSearchParams();
-  const { toast } = useToast();
-  const confirm = useConfirm();
   const [pending, startTransition] = React.useTransition();
 
-  const [brFormOpen, setBrFormOpen] = React.useState(false);
-  const [editingBr, setEditingBr] = React.useState<BrFormValue | undefined>();
-  // Bumped on every open so the form remounts with fresh state instead of being
-  // reset from an effect after the first frame has already shown the old one.
-  const [brFormKey, setBrFormKey] = React.useState(0);
   const [assignmentBr, setAssignmentBr] = React.useState<FidelizationViewProps["brs"][number] | null>(null);
   const [invertOpen, setInvertOpen] = React.useState(false);
   const [importOpen, setImportOpen] = React.useState(false);
+  const [replicateOpen, setReplicateOpen] = React.useState(false);
+  const [substituteRow, setSubstituteRow] = React.useState<DriverPlanRow | null>(null);
   const [onlyMobilisations, setOnlyMobilisations] = React.useState(false);
 
   /** A exportação leva a competência e os filtros em tela: o arquivo é o que se vê. */
@@ -131,6 +144,17 @@ export function FidelizationView({
     next.set("format", format);
     return `/governanca/fidelizacao/export?${next.toString()}`;
   };
+
+  /** O atalho para o módulo BRs carrega o recorte atual — competência, operação, estado e cidade. */
+  const brsModuleHref = React.useMemo(() => {
+    const next = new URLSearchParams();
+    for (const key of BRS_MODULE_FILTERS) {
+      const value = params.get(key);
+      if (value) next.set(key, value);
+    }
+    const query = next.toString();
+    return query ? `/governanca/brs?${query}` : "/governanca/brs";
+  }, [params]);
 
   const navigate = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(params.toString());
@@ -165,83 +189,15 @@ export function FidelizationView({
   const invertible = history.filter((h) => h.isCurrent && h.status !== "cancelled");
   const visibleHistory = onlyMobilisations ? mobilisations : history;
 
-  const openNewBr = () => {
-    setEditingBr(undefined);
-    setBrFormKey((k) => k + 1);
-    setBrFormOpen(true);
-  };
-
-  const openEditBr = (br: OperationBrRow) => {
-    setEditingBr({
-      id: br.id,
-      operationId: br.operationId,
-      operationCityId: br.operationCityId,
-      code: br.code,
-      description: br.description,
-      notes: br.notes,
-      updatedAt: br.updatedAt,
-    });
-    setBrFormKey((k) => k + 1);
-    setBrFormOpen(true);
-  };
-
-  const toggleBrStatus = async (br: OperationBrRow) => {
-    const next = br.status === "active" ? "inactive" : "active";
-
-    if (next === "inactive") {
-      // §52 in spirit: the dependencies shown are counted from the tables, not
-      // guessed. Someone deciding to deactivate needs the real number.
-      const impact = await loadBrImpact(br.id);
-      const lines = impact.ok && impact.data
-        ? [
-            `${impact.data.currentVehicles} veículo(s) com vínculo vigente`,
-            `${impact.data.currentDrivers} motorista(s) planejado(s)`,
-            `${impact.data.currentLeaders} liderança(s) responsável(is)`,
-            `${impact.data.totalVehicles} vínculo(s) no histórico`,
-          ].join(" · ")
-        : "Não foi possível calcular as dependências agora.";
-
-      const confirmed = await confirm({
-        title: `Inativar a BR ${br.code}?`,
-        description: `A BR deixa de receber novo planejamento. O que já está vigente continua vigente e nada é apagado. Hoje ela tem: ${lines}.`,
-        confirmLabel: "Inativar",
-        destructive: true,
-      });
-      if (!confirmed) return;
-    }
-
-    startTransition(async () => {
-      const result = await setOperationBrStatus(br.id, next, null);
-      if (result.ok) {
-        toast({ title: next === "inactive" ? "BR inativada." : "BR reativada.", variant: "success" });
-        router.refresh();
-      } else {
-        toast({ title: result.error ?? "Não foi possível alterar a situação.", variant: "danger" });
-      }
-    });
-  };
-
   /**
-   * O planner trabalha com a posição pelo id; as ações de cadastro precisam da
-   * linha completa do diretório de BRs. A ponte é feita aqui, e não duplicando
-   * os campos de cadastro dentro das linhas do planner — que seriam os mesmos
+   * O planner trabalha com a posição pelo id; a gaveta de planejamento precisa
+   * da linha completa do diretório de BRs. A ponte é feita aqui, e não
+   * duplicando os campos dentro das linhas do planner — que seriam os mesmos
    * dados em duas formas, livres para divergir.
    */
-  const brById = (id: string) => brs.find((b) => b.id === id) ?? null;
-
   const openPlanningById = (id: string) => {
-    const br = brById(id);
+    const br = brs.find((b) => b.id === id) ?? null;
     if (br) setAssignmentBr(br);
-  };
-
-  const openEditBrById = (id: string) => {
-    const br = brById(id);
-    if (br) openEditBr(br);
-  };
-
-  const toggleBrStatusById = (id: string) => {
-    const br = brById(id);
-    if (br) void toggleBrStatus(br);
   };
 
   const assignmentHistory = assignmentBr
@@ -253,13 +209,6 @@ export function FidelizationView({
       <PageHeader
         title="Fidelização"
         description="Planejamento das posições operacionais por veículo e motorista. Fidelizar não transfere a operação nem a cidade do veículo — a alocação continua no Cadastro de Frotas."
-        primaryAction={
-          canManageBrs ? (
-            <Button leadingIcon={<Plus />} onClick={openNewBr}>
-              Nova BR
-            </Button>
-          ) : undefined
-        }
         secondaryActions={
           <>
             {canExport ? (
@@ -291,6 +240,11 @@ export function FidelizationView({
             {canImport ? (
               <Button variant="secondary" leadingIcon={<Upload />} onClick={() => setImportOpen(true)}>
                 Importar
+              </Button>
+            ) : null}
+            {canPlan ? (
+              <Button variant="secondary" leadingIcon={<CopyCheck />} onClick={() => setReplicateOpen(true)}>
+                Replicar competência
               </Button>
             ) : null}
             {canChangeVehicle ? (
@@ -384,6 +338,7 @@ export function FidelizationView({
           <KpiCard
             label="BRs sem veículo"
             value={number.format(indicators?.brsWithoutVehicle ?? 0)}
+            period={formatCompetence(competence)}
             status={(indicators?.brsWithoutVehicle ?? 0) > 0 ? "warning" : undefined}
             icon={<CircleSlash />}
           />
@@ -408,12 +363,20 @@ export function FidelizationView({
           </TabsList>
 
           {/* ----------------------------------------------------- visão geral */}
-          <TabsContent value="visao-geral">
-            <HierarchyPanel operations={hierarchy} />
+          <TabsContent value="visao-geral" className="flex flex-col gap-5">
+            <StabilityDashboard stability={stability} competence={competence} />
+
+            <section aria-labelledby="hierarquia-operacional" className="flex flex-col gap-3">
+              <h2 id="hierarquia-operacional" className="text-h4 font-semibold text-fg">
+                Hierarquia operacional
+              </h2>
+              <HierarchyPanel operations={hierarchy} />
+            </section>
           </TabsContent>
 
           {/* ------------------------------------------- planner de locais e BRs */}
-          <TabsContent value="locais">
+          <TabsContent value="locais" className="flex flex-col gap-4">
+            <BrsModuleNotice href={brsModuleHref} />
             <BrPlanner
               rows={plannerRows}
               indicators={plannerIndicators}
@@ -423,11 +386,9 @@ export function FidelizationView({
               leaders={leaders}
               filters={filters}
               onNavigate={navigate}
-              canManageBrs={canManageBrs}
+              canManageBrs={false}
               pending={pending}
               onOpenPlanning={openPlanningById}
-              onEdit={canManageBrs ? openEditBrById : undefined}
-              onToggleStatus={canManageBrs ? toggleBrStatusById : undefined}
             />
           </TabsContent>
 
@@ -437,8 +398,8 @@ export function FidelizationView({
               <CardContent className="p-0">
                 {calendar.length === 0 ? (
                   <p className="px-4 py-10 text-center text-body-sm text-fg-muted">
-                    Nenhuma posição operacional no filtro atual. Cadastre uma BR para começar o
-                    planejamento de {formatCompetence(competence)}.
+                    Nenhuma posição operacional no filtro atual. Cadastre uma BR no módulo BRs para
+                    começar o planejamento de {formatCompetence(competence)}.
                   </p>
                 ) : (
                   <>
@@ -473,12 +434,13 @@ export function FidelizationView({
                         <TableHead style={{ width: 160 }}>Veículo</TableHead>
                         <TableHead style={{ width: 170 }}>Período</TableHead>
                         <TableHead style={{ width: 110 }}>Situação</TableHead>
+                        {canChangeDriver ? <TableHead style={{ width: 72 }}>Ações</TableHead> : null}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {driverPlans.length === 0 ? (
                         <TableEmpty
-                          colSpan={6}
+                          colSpan={canChangeDriver ? 7 : 6}
                           icon={<UserRound />}
                           message={`Nenhum motorista planejado em ${formatCompetence(competence)}.`}
                         />
@@ -519,6 +481,22 @@ export function FidelizationView({
                                 {row.status === "cancelled" ? "Cancelado" : "Planejado"}
                               </StatusBadge>
                             </TableCell>
+                            {canChangeDriver ? (
+                              <TableCell>
+                                {/* §34/§35: um vínculo cancelado ou já terminado
+                                    não tem véspera para fechar — a ação fica
+                                    desabilitada, não escondida. */}
+                                <IconButton
+                                  label={`Substituir motorista ${row.employeeName}`}
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={!canSubstituteDriver(row)}
+                                  onClick={() => setSubstituteRow(row)}
+                                >
+                                  <UserRoundPen aria-hidden />
+                                </IconButton>
+                              </TableCell>
+                            ) : null}
                           </TableRow>
                         ))
                       )}
@@ -603,13 +581,7 @@ export function FidelizationView({
                               {row.endDate ? formatDate(row.endDate) : "em aberto"}
                             </TableCell>
                             <TableCell className="text-body-sm text-fg-secondary">
-                              {row.source === "manual"
-                                ? "Manual"
-                                : row.source === "import"
-                                  ? "Importação"
-                                  : row.source === "inversion"
-                                    ? "Inversão"
-                                    : "Substituição"}
+                              {SOURCE_LABEL[row.source] ?? row.source}
                             </TableCell>
                             <TableCell>
                               <StatusBadge
@@ -648,15 +620,6 @@ export function FidelizationView({
         </Tabs>
       </PageContent>
 
-      <BrFormDrawer
-        key={`br-${brFormKey}`}
-        open={brFormOpen}
-        onOpenChange={setBrFormOpen}
-        value={editingBr}
-        operations={operations}
-        coverage={coverage}
-      />
-
       <AssignmentDrawer
         key={`assignment-${assignmentBr?.id ?? "none"}`}
         open={assignmentBr !== null}
@@ -689,10 +652,28 @@ export function FidelizationView({
         competence={competence}
       />
 
+      {/* A importação aqui é só de alocações: o arquivo de BRs entra pelo módulo BRs (§38). */}
       <ImportDrawer
         open={importOpen}
         onOpenChange={setImportOpen}
-        canImportBrs={canImport && canManageBrs}
+        canImportBrs={false}
+      />
+
+      <ReplicateFidelizationDialog
+        key={`replicate-${replicateOpen}`}
+        open={replicateOpen}
+        onOpenChange={setReplicateOpen}
+        competence={competence}
+        operations={operations}
+        canChangeDriver={canChangeDriver}
+      />
+
+      {/* A linha é a chave: trocar de motorista remonta o diálogo com o
+          formulário limpo, em vez de mostrar o motivo digitado para outro. */}
+      <DriverSubstituteDialog
+        key={`substitute-${substituteRow?.id ?? "none"}`}
+        row={substituteRow}
+        onClose={() => setSubstituteRow(null)}
       />
     </>
   );

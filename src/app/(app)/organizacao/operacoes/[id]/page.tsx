@@ -47,6 +47,7 @@ export default async function OperationPage({ params }: { params: Promise<{ id: 
       canViewAppHistory={
         hasPermission(session, "audit.view") || hasPermission(session, "applications.manage_operation_links")
       }
+      canViewBrs={hasPermission(session, "fidelization.view")}
     />
   );
 }

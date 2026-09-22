@@ -377,6 +377,7 @@ export async function confirmImport(kind: ImportKind, batchId: string): Promise<
   if (error) return { ok: false, error: toMessage(error, "A importação falhou e nenhum registro foi alterado.") };
 
   revalidatePath(MODULE_PATH);
+  revalidatePath("/governanca/brs");
   const r = obj(data);
   return {
     ok: true,

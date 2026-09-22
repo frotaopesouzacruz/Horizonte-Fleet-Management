@@ -8,6 +8,7 @@ import {
   Fuel,
   Gauge,
   LayoutDashboard,
+  MapPin,
   Network,
   ShieldAlert,
   ShieldCheck,
@@ -74,7 +75,14 @@ export function visibleNavigation(permissions: string[], isPlatformAdmin = false
  * many operations and an operation is served by many filiais.
  *
  * GOVERNANÇA OPERACIONAL is who answers for that structure and how the fleet is
- * committed to it month by month: Lideranças and Fidelização.
+ * committed to it month by month: Lideranças, BRs and Fidelização.
+ *
+ * BRs is the single administrative home of the position (`operation_brs`): the
+ * permanent operational slot that vehicles, drivers and leaderships pass
+ * through. It is created, edited, inactivated and imported there and nowhere
+ * else. Operações and Fidelização only link to it — Operações because the BR
+ * belongs to an operation's coverage, Fidelização because it plans what
+ * occupies the BR — and neither carries a second cadastro of the same row.
  *
  * GESTÃO DE FROTA is the fleet itself — the vehicles, and later everything done
  * to them.
@@ -163,6 +171,12 @@ export const navigation: NavGroup[] = [
         href: "/governanca/liderancas",
         icon: UserCog,
         permission: "leadership.view",
+      },
+      {
+        label: "BRs",
+        href: "/governanca/brs",
+        icon: MapPin,
+        permission: "fidelization.view",
       },
       {
         label: "Fidelização",

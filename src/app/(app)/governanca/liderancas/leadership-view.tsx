@@ -3,7 +3,8 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  CalendarClock, CopyCheck, MapPin, Pencil, Plus, ShieldCheck, Square, UserRound, Users,
+  CalendarClock, CopyCheck, Gauge, Layers, ListTree, MapPin, MapPinOff, Pencil, Plus, ShieldCheck,
+  Square, UserRound, Users,
 } from "lucide-react";
 import { PageContent, PageHeader } from "@/components/layout/page-header";
 import { Button, IconButton } from "@/components/ui/button";
@@ -26,8 +27,21 @@ import type { LeadershipIndicators, LeadershipRow } from "@/lib/governance/queri
 import { formatCompetence, monthEnd, type Competence } from "@/lib/governance/competence";
 import { LeadershipFormDrawer, type LeadershipFormValue } from "./leadership-form-drawer";
 import { ReplicateDialog } from "./replicate-dialog";
+import { LeaderScopeDrawer, type LeaderScopeLoader } from "./leader-scope-drawer";
 
 const number = new Intl.NumberFormat("pt-BR");
+const percent = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
+
+/** "81,5%" em pt-BR; "—" quando não há local para cobrir. */
+const formatPct = (value: number | null | undefined): string =>
+  value === null || value === undefined ? "—" : `${percent.format(value)}%`;
+
+/** Quem a gaveta "o que esta liderança responde" descreve. */
+interface ScopeLeader {
+  id: string;
+  name: string;
+  code: string | null;
+}
 
 function formatDate(value: string | null): string {
   if (!value) return "—";
@@ -64,6 +78,8 @@ export interface LeadershipViewProps {
   canManage: boolean;
   canAssign: boolean;
   canReplicate: boolean;
+  /** A prévia de desenvolvimento injeta o escopo de uma liderança; a tela real usa a server action. */
+  scopeLoader?: LeaderScopeLoader;
 }
 
 /**
@@ -85,6 +101,7 @@ export function LeadershipView({
   canManage,
   canAssign,
   canReplicate,
+  scopeLoader,
 }: LeadershipViewProps) {
   const router = useRouter();
   const params = useSearchParams();
@@ -94,6 +111,7 @@ export function LeadershipView({
   const [formOpen, setFormOpen] = React.useState(false);
   const [replicateOpen, setReplicateOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<LeadershipFormValue | undefined>();
+  const [scopeLeader, setScopeLeader] = React.useState<ScopeLeader | null>(null);
   // Bumped on every open so the form remounts with fresh state. Resetting it
   // from an effect instead would re-render the whole drawer a second time on
   // each open, and would leave the previous edit visible for that first frame.
@@ -169,6 +187,21 @@ export function LeadershipView({
     setFormKey((k) => k + 1);
     setFormOpen(true);
   };
+
+  /** §35: o botão ao lado do nome abre o que aquela pessoa responde na competência. */
+  const openScope = (row: { employeeId: string; employeeName: string; employeeCode: string | null }) =>
+    setScopeLeader({ id: row.employeeId, name: row.employeeName, code: row.employeeCode });
+
+  const scopeButton = (row: { employeeId: string; employeeName: string; employeeCode: string | null }) => (
+    <IconButton
+      label={`O que esta liderança responde: ${row.employeeName}`}
+      variant="ghost"
+      size="sm"
+      onClick={() => openScope(row)}
+    >
+      <ListTree aria-hidden />
+    </IconButton>
+  );
 
   const openEdit = (row: LeadershipRow) => {
     setEditing({
@@ -309,7 +342,7 @@ export function LeadershipView({
       />
 
       <PageContent className="flex flex-col gap-5">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <KpiCard
             label="Responsabilidades"
             value={number.format(indicators?.assignments ?? active.length)}
@@ -335,6 +368,39 @@ export function LeadershipView({
             label="Substitutos e apoio"
             value={number.format(indicators?.substitutes ?? 0)}
             icon={<UserRound />}
+          />
+
+          {/* §12: um local (operação × cidade) sem liderança principal é uma
+              pendência, e a cobertura é a razão que a resume. "Sob
+              responsabilidade" é o que as lideranças alcançam na data-âncora —
+              BRs, e os veículos e motoristas que passam por elas. */}
+          <KpiCard
+            label="Locais sem liderança"
+            value={number.format(indicators?.placesWithoutLeader ?? 0)}
+            status={(indicators?.placesWithoutLeader ?? 0) > 0 ? "warning" : undefined}
+            period={
+              indicators
+                ? `${number.format(indicators.placesWithLeader)} de ${number.format(indicators.placesTotal)} com liderança`
+                : "—"
+            }
+            icon={<MapPinOff />}
+          />
+          <KpiCard
+            label="Cobertura"
+            value={formatPct(indicators?.coveragePct)}
+            period="Locais com liderança principal"
+            icon={<Gauge />}
+          />
+          <KpiCard
+            label="Sob responsabilidade"
+            value={number.format(indicators?.brsUnderLeadership ?? 0)}
+            unit="BRs"
+            period={
+              indicators
+                ? `${number.format(indicators.vehiclesLinked)} veículos · ${number.format(indicators.driversLinked)} motoristas`
+                : "—"
+            }
+            icon={<Layers />}
           />
         </div>
 
@@ -384,8 +450,11 @@ export function LeadershipView({
                               </TableCell>
                               <TableCell>
                                 {group.principal ? (
-                                  <span className="block truncate" title={group.principal.employeeName}>
-                                    {group.principal.employeeName}
+                                  <span className="flex items-center gap-1">
+                                    <span className="min-w-0 truncate" title={group.principal.employeeName}>
+                                      {group.principal.employeeName}
+                                    </span>
+                                    {scopeButton(group.principal)}
                                   </span>
                                 ) : (
                                   <span className="text-fg-muted">Sem responsável principal</span>
@@ -468,12 +537,17 @@ export function LeadershipView({
                         active.map((row) => (
                           <TableRow key={row.id} className="h-(--table-row-height)">
                             <TableCell>
-                              <span className="block truncate font-medium text-fg">{row.employeeName}</span>
-                              {row.employeeCode ? (
-                                <span className="block text-caption text-fg-muted">
-                                  Matrícula {row.employeeCode}
+                              <span className="flex items-center gap-1">
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate font-medium text-fg">{row.employeeName}</span>
+                                  {row.employeeCode ? (
+                                    <span className="block text-caption text-fg-muted">
+                                      Matrícula {row.employeeCode}
+                                    </span>
+                                  ) : null}
                                 </span>
-                              ) : null}
+                                {scopeButton(row)}
+                              </span>
                             </TableCell>
                             <TableCell>
                               <Badge variant="neutral" appearance="soft">
@@ -540,12 +614,24 @@ export function LeadershipView({
                 {byLeader.map((leader) => (
                   <Card key={leader.id}>
                     <CardContent className="flex flex-col gap-3">
-                      <div>
-                        <p className="text-body font-medium text-fg">{leader.name}</p>
-                        <p className="text-caption text-fg-muted">
-                          {leader.code ? `Matrícula ${leader.code} · ` : ""}
-                          {leader.rows.length} escopo(s) sob responsabilidade
-                        </p>
+                      <div className="flex items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-body font-medium text-fg">{leader.name}</p>
+                          <p className="text-caption text-fg-muted">
+                            {leader.code ? `Matrícula ${leader.code} · ` : ""}
+                            {leader.rows.length} escopo(s) sob responsabilidade
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          leadingIcon={<ListTree />}
+                          onClick={() =>
+                            openScope({ employeeId: leader.id, employeeName: leader.name, employeeCode: leader.code })
+                          }
+                        >
+                          O que responde
+                        </Button>
                       </div>
                       <ul className="flex flex-col gap-1.5">
                         {leader.rows.map((row) => (
@@ -638,6 +724,13 @@ export function LeadershipView({
         onOpenChange={setReplicateOpen}
         competence={competence}
         operations={operations}
+      />
+
+      <LeaderScopeDrawer
+        leader={scopeLeader}
+        competence={competence}
+        onClose={() => setScopeLeader(null)}
+        loader={scopeLoader}
       />
     </>
   );

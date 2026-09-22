@@ -43,6 +43,8 @@ interface Props {
   links: ApplicationLinks | null;
   canManageApps: boolean;
   canViewAppHistory: boolean;
+  /** `fidelization.view`: mostra o atalho para as BRs desta operação. */
+  canViewBrs: boolean;
 }
 
 /**
@@ -63,6 +65,7 @@ export function OperationDetailView({
   links,
   canManageApps,
   canViewAppHistory,
+  canViewBrs,
 }: Props) {
   const router = useRouter();
   const { toast } = useToast();
@@ -152,6 +155,18 @@ export function OperationDetailView({
             </Button>
           ) : undefined
         }
+        secondaryActions={
+          canViewBrs ? (
+            // asChild renders the child alone, so Button's leadingIcon slot is
+            // dropped: the icon has to live inside the link.
+            <Button asChild variant="secondary">
+              <Link href={`/governanca/brs?operacao=${encodeURIComponent(operation.id)}`}>
+                <MapPin className="size-4" aria-hidden />
+                Consultar BRs desta operação
+              </Link>
+            </Button>
+          ) : undefined
+        }
       />
 
       <PageContent className="flex flex-col gap-5">
@@ -163,7 +178,12 @@ export function OperationDetailView({
 
         {/* Refinamento da Etapa 12 (§8–§14): a operação decide quais aplicativos
             pode usar. Sem vínculo, o aplicativo não a lista — e uma operação nova
-            nasce sem vínculo algum. */}
+            nasce sem vínculo algum.
+
+            Duas portas, uma fonte: este cartão e a aba "Aplicativos" do
+            formulário (OperationFormDrawer) leem e gravam os MESMOS vínculos
+            (§26). Aqui a lista chega pré-carregada do servidor; no formulário o
+            painel carrega sozinho. Alterar num lado aparece no outro. */}
         {links ? (
           <Card>
             <CardContent className="pt-4">
@@ -304,6 +324,8 @@ export function OperationDetailView({
         onOpenChange={setFormOpen}
         operation={formValue}
         states={states}
+        canManageApps={canManageApps}
+        canViewAppHistory={canViewAppHistory}
       />
     </>
   );

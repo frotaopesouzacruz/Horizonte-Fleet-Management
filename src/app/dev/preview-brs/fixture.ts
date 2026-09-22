@@ -1,40 +1,36 @@
-"use client";
-
-import * as React from "react";
-import { BrPlanner } from "@/app/(app)/governanca/fidelizacao/br-planner";
 import type { CoverageEntry } from "@/components/governance/scope-picker";
-import type { BrPlannerIndicators, BrPlannerRow } from "@/lib/governance/br-planner";
+import type { BrDirectoryPage, BrDirectoryRow } from "@/lib/governance/brs";
+import type { BrPlannerIndicators } from "@/lib/governance/br-planner";
 
 /**
- * O planner recebe callbacks (navegar, abrir planejamento), e callback não
- * atravessa a fronteira servidor → cliente. Por isso os dados fixos e os
- * manipuladores inertes vivem aqui, e a rota fica sendo só a casca que exporta
- * o metadata e fecha o portão de produção.
+ * Dados fixos do módulo BRs, no formato exato que `getBrDirectory` e
+ * `getBrPlannerIndicators` devolvem.
+ *
+ * Três posições, escolhidas pelos estados que a tela precisa distinguir: uma
+ * completa (veículo, motorista e liderança vinda da cidade), uma vaga cuja
+ * liderança é exceção do próprio BR, e uma inativa. Nada aqui é estimado — os
+ * números fecham entre linhas e indicadores como fechariam no banco.
  */
-const OPERATIONS = [
+
+export const OPERATIONS = [
   { id: "op-1", name: "Last Mille MG", status: "active" },
   { id: "op-2", name: "Redespacho - Belém", status: "active" },
 ];
 
-const COVERAGE: CoverageEntry[] = [
+export const COVERAGE: CoverageEntry[] = [
   { operationId: "op-1", operationCityId: "oc-1", stateId: 31, uf: "MG", cityId: 3118601, cityName: "Contagem" },
   { operationId: "op-2", operationCityId: "oc-2", stateId: 15, uf: "PA", cityId: 1501402, cityName: "Belém" },
 ];
 
-const LEADERS = [
+export const LEADERS = [
   { id: "emp-1", name: "Daniela Ferreira Lima" },
   { id: "emp-2", name: "Walace Rodrigues Santos" },
 ];
 
-const base = {
-  description: null as string | null,
-  anchorDate: "2026-09-21",
-  assignmentEnd: null as string | null,
-};
+const ANCHOR = "2026-09-21";
 
-const ROWS: BrPlannerRow[] = [
+export const ROWS: BrDirectoryRow[] = [
   {
-    ...base,
     id: "br-1",
     code: "BR0024706",
     description: "Rota centro-sul",
@@ -53,14 +49,18 @@ const ROWS: BrPlannerRow[] = [
     fleetCode: "FR-0142",
     licensePlate: "SNO1J56",
     assignmentId: "as-1",
-    assignmentStart: "2026-08-14",
+    assignmentStart: "2026-09-10",
+    assignmentEnd: null,
     driverEmployeeId: "emp-9",
     driverName: "Rafael Souza Campos",
+    anchorDate: ANCHOR,
+    lastMovementAt: "2026-09-10T11:32:00.000Z",
+    swappedInPeriod: true,
   },
   {
-    ...base,
     id: "br-2",
     code: "BR0024901",
+    description: null,
     status: "active",
     operationId: "op-1",
     operationName: "Last Mille MG",
@@ -72,19 +72,23 @@ const ROWS: BrPlannerRow[] = [
     leaderEmployeeId: "emp-2",
     leaderName: "Walace Rodrigues Santos",
     leaderScope: "br",
-    vehicleId: "veh-2",
-    fleetCode: "FR-0143",
-    licensePlate: "RTA4C09",
-    assignmentId: "as-2",
-    assignmentStart: "2026-01-01",
+    vehicleId: null,
+    fleetCode: null,
+    licensePlate: null,
+    assignmentId: null,
+    assignmentStart: null,
+    assignmentEnd: null,
     driverEmployeeId: null,
     driverName: null,
+    anchorDate: ANCHOR,
+    lastMovementAt: "2026-08-31T18:05:00.000Z",
+    swappedInPeriod: false,
   },
   {
-    ...base,
     id: "br-3",
     code: "Redespacho Belem/Pa_1",
-    status: "active",
+    description: null,
+    status: "inactive",
     operationId: "op-2",
     operationName: "Redespacho - Belém",
     stateId: 15,
@@ -100,53 +104,50 @@ const ROWS: BrPlannerRow[] = [
     licensePlate: null,
     assignmentId: null,
     assignmentStart: null,
+    assignmentEnd: null,
     driverEmployeeId: null,
     driverName: null,
+    anchorDate: ANCHOR,
+    lastMovementAt: null,
+    swappedInPeriod: false,
   },
 ];
 
-const INDICATORS: BrPlannerIndicators = {
+export const PAGE: BrDirectoryPage = {
+  total: ROWS.length,
+  limit: 50,
+  offset: 0,
   competence: "2026-09",
-  anchorDate: "2026-09-21",
+  periodStart: "2026-09-01",
+  periodEnd: "2026-09-30",
+  rows: ROWS,
+};
+
+export const INDICATORS: BrPlannerIndicators = {
+  competence: "2026-09",
+  anchorDate: ANCHOR,
   total: 3,
-  active: 3,
-  inactive: 0,
-  withVehicle: 2,
-  withoutVehicle: 1,
-  withVehicleInPeriod: 2,
+  active: 2,
+  inactive: 1,
+  withVehicle: 1,
+  withoutVehicle: 2,
+  withVehicleInPeriod: 1,
   withDriver: 1,
   withoutDriver: 2,
   withLeader: 2,
-  withoutLeader: 1,
+  // Só BRs ativas contam como pendência: a inativa sem liderança não entra.
+  withoutLeader: 0,
   withVehicleSwapInPeriod: 1,
   byOperation: [
     { operationId: "op-1", operationName: "Last Mille MG", total: 2 },
     { operationId: "op-2", operationName: "Redespacho - Belém", total: 1 },
   ],
-  byLeader: [
-    { employeeId: "emp-1", leaderName: "Daniela Ferreira Lima", total: 1 },
-    { employeeId: "emp-2", leaderName: "Marcos Vinícius Andrade", total: 1 },
-  ],
   byCity: [
     { cityId: 1501402, cityName: "Belém", stateUf: "PA", total: 1 },
     { cityId: 3118601, cityName: "Contagem", stateUf: "MG", total: 2 },
   ],
+  byLeader: [
+    { employeeId: "emp-1", leaderName: "Daniela Ferreira Lima", total: 1 },
+    { employeeId: "emp-2", leaderName: "Walace Rodrigues Santos", total: 1 },
+  ],
 };
-
-export function PreviewPlanner() {
-  return (
-    <BrPlanner
-      rows={ROWS}
-      indicators={INDICATORS}
-      competence={{ year: 2026, month: 9 }}
-      operations={OPERATIONS}
-      coverage={COVERAGE}
-      leaders={LEADERS}
-      filters={{}}
-      onNavigate={() => {}}
-      // §38: na Fidelização o planner só consulta e planeja; cadastrar é no módulo BRs.
-      canManageBrs={false}
-      onOpenPlanning={() => {}}
-    />
-  );
-}

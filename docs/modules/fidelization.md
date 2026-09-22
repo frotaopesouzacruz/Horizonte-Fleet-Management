@@ -266,6 +266,7 @@ lideranças responsáveis. Números reais, nunca estimados.
 | `…_fidelization_rpcs.sql` | elegibilidade, `lock_br`, BRs, impacto, conflitos, planejamento, substituição, inversão, motoristas |
 | `…_governance_read_model.sql` | `operation_br_directory`, `fidelization_directory`, calendário, indicadores, hierarquia, veículos elegíveis |
 | `…_fidelization_reason_and_drivers.sql` | `end_reason`, `close_assignment_drivers`, correção da inversão |
+| `…_governance_brs_module.sql` (13.1) | `resolve_operational_context`, `br_directory`, `br_detail`, `vehicle_br_history`, `substitute_fidelization_driver`, `replicate_fidelization_competence`, `fidelization_stability`, indicadores de cobertura; origem `replication` |
 
 ---
 
@@ -281,10 +282,80 @@ histórica (239 vigências, 88 posições) e os dois ajustes que ela exigiu em
 
 ## 14. Pendências
 
-* **Importação de fidelização pela tela** — construída na continuação da Etapa
-  13 (`docs/modules/fidelization-brs.md`, §13): BRs e alocações, prévia da §58,
-  sem criar veículo, BR ou colaborador, sem tocar em Perfil de Acesso.
-* **Estabilidade da fidelização** (§56): fórmula pendente de validação funcional.
 * **Confirmação e execução**: as transições planejado → confirmado → executado
   e o cancelamento com motivo existem (`set_fidelization_assignment_status`);
   o que falta é uma origem externa de confirmação.
+* **Alocações de apoio (`support`)** entram pela importação e pelo formulário,
+  mas o planner e a estabilidade seguem olhando só o titular.
+* **Turnos** de motorista: o modelo tem `driver_role` principal/secundário; não
+  há turno por horário, e o HFC também não o usava (mapeamento §5).
+
+---
+
+## 15. Dashboard de Estabilidade (Etapa 13.1)
+
+Fica na aba *Visão geral* e lê `fidelization_stability(org, ano, mês, filtros)`.
+Todas as definições valem no banco; a tela as repete no rodapé, palavra por
+palavra.
+
+| Termo | Definição |
+|---|---|
+| universo | BRs ativas da organização, com os filtros (operação, estado, cidade, liderança) |
+| com veículo | BR com titular não cancelado que toca a competência |
+| troca de veículo | vínculo com `replaces_assignment_id` iniciado no mês — substituição, inversão ou importação-substituição. **Um evento por linha; a inversão gera duas linhas e conta como um evento (par)** |
+| BR com troca | BR com pelo menos uma troca no mês — conta **uma** vez |
+| estabilidade da frota | 1 − BRs com troca / BRs com veículo |
+| troca de motorista | motorista principal iniciado no mês cujo antecessor no mesmo BR terminou na véspera |
+| estabilidade de motoristas | 1 − BRs com troca de motorista / BRs com motorista |
+| cobertura de lideranças | BRs ativas com liderança na data-âncora / BRs ativas |
+| movimentação inferida | troca de titular observada entre vínculos consecutivos **sem** `replaces_assignment_id` — mostrada à parte, nunca somada às mobilizações |
+
+Por que a distinção: no HFC, "mobilizações" misturava linhas explícitas com
+trocas derivadas do grid, uma edição de N dias gerava N linhas idênticas, e
+sob filtro a taxa podia ficar negativa (mapeamento §3 e §7, problemas 04 e
+05). Aqui a substituição e a inversão são as únicas fontes de "mobilização",
+cada uma é **uma** transação e **uma** linha por BR, e a base histórica — que
+chegou por importação e tem 16 trocas de titular sem evento — aparece como
+"inferida", em número separado, para ninguém somar duas vezes.
+
+Nos recortes por operação, local e liderança, cada grupo conta os eventos que o
+tocaram; uma inversão entre BRs de cidades diferentes aparece nas duas cidades
+(cada uma teve uma BR trocada), então a soma dos recortes pode exceder o total.
+
+Faixas de cor (a mesma escala nos três cartões): ≥ 95 % verde, ≥ 85 % atenção,
+abaixo, alerta. Quando o denominador é zero, o cartão mostra "—", não 0 %.
+
+Prova: suíte 13c, C9 — uma substituição mais uma inversão (duas linhas) dão
+2 mobilizações, 3 BRs com troca, e as 16 inferidas ficam de fora.
+
+---
+
+## 16. Substituição de motorista e replicação da fidelização (Etapa 13.1)
+
+### Substituir motorista (`substitute_fidelization_driver`)
+Uma transação: confere a permissão (`fidelization.change_driver`) antes de
+qualquer leitura, trava a BR, fecha o vínculo anterior na véspera (ou o
+cancela, se ainda não tinha começado), abre o novo no **mesmo** vínculo de
+veículo com o mesmo papel, herdando o fim do anterior ou do vínculo do
+veículo, e exige motivo. Se o novo motorista já é principal em outra posição
+no período, a constraint de ocupação recusa e **nada** do fechamento persiste
+(13c, C8). Na tela: ação por linha no *Planner de motoristas*, desabilitada
+para vínculos cancelados ou já encerrados.
+
+### Replicar competência (`replicate_fidelization_competence`)
+Copia os titulares vigentes no último dia da competência de origem para a
+competência de destino, e, opcionalmente, o motorista principal de cada um.
+Nunca sobrescreve: o destino já planejado é **preservado**, o veículo já usado
+em outra BR no destino é **conflito**, BR ou veículo inativo é **ignorado**;
+só o resto é **novo**. A prévia (`dry_run`) não grava e devolve as mesmas
+contagens e as mesmas linhas da gravação; repetir devolve zero novos. Os
+vínculos criados nascem `planned`, `source = 'replication'`,
+`reason = 'Replicado de MM/AAAA'`, e os motoristas entram só onde o vínculo de
+destino existe e não tem principal. A tela ("Replicar competência", com
+`fidelization.plan`; motoristas só com `fidelization.change_driver`) só
+habilita "Replicar" depois de uma prévia calculada para os mesmos parâmetros.
+Prova: 13c, C10.
+
+O HFC replicava sem escopo, sem dedup e sem transação (mapeamento §5); aqui a
+rotina respeita `private.can_access_operation` por BR e roda inteira ou não
+roda.

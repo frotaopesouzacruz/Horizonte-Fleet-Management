@@ -622,7 +622,9 @@ export function AssignmentDrawer({
                               ? "Substituição"
                               : row.source === "inversion"
                                 ? "Inversão"
-                                : "Importação"}
+                                : row.source === "replication"
+                                  ? "Replicação"
+                                  : "Importação"}
                           </Badge>
                         ) : null}
                       </span>

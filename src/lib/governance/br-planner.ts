@@ -57,9 +57,11 @@ export interface BrPlannerFilters {
   vehicle?: string;
   /** 'with' | 'without' */
   driver?: string;
+  /** 'with' | 'without' — BR com substituição/inversão de veículo iniciada na competência (§22). */
+  swapped?: string;
 }
 
-const payload = (filters: BrPlannerFilters): Record<string, string> => {
+export const brPlannerPayload = (filters: BrPlannerFilters): Record<string, string> => {
   const out: Record<string, string> = {};
   if (filters.q) out.q = filters.q.trim();
   if (filters.operationId) out.operation_id = filters.operationId;
@@ -69,8 +71,41 @@ const payload = (filters: BrPlannerFilters): Record<string, string> => {
   if (filters.leaderEmployeeId) out.leader_employee_id = filters.leaderEmployeeId;
   if (filters.vehicle) out.vehicle = filters.vehicle;
   if (filters.driver) out.driver = filters.driver;
+  if (filters.swapped) out.swapped = filters.swapped;
   return out;
 };
+
+/** Uma linha do planner, lida do formato do banco. Compartilhada com o diretório do módulo BRs. */
+export function mapBrPlannerRow(row: unknown): BrPlannerRow {
+  const r = row as Record<string, unknown>;
+  const scope = r.leader_scope as string | null;
+  return {
+    id: String(r.id),
+    code: String(r.code),
+    description: (r.description as string) ?? null,
+    status: r.status === "inactive" ? "inactive" : "active",
+    operationId: String(r.operation_id),
+    operationName: (r.operation_name as string) ?? "—",
+    stateId: Number(r.state_id),
+    stateUf: ((r.state_uf as string) ?? "").trim(),
+    cityId: Number(r.city_id),
+    cityName: (r.city_name as string) ?? "",
+    operationCityId: String(r.operation_city_id),
+    leaderEmployeeId: (r.leader_employee_id as string) ?? null,
+    leaderName: (r.leader_name as string) ?? null,
+    leaderScope:
+      scope === "br" || scope === "city" || scope === "operation" ? scope : null,
+    vehicleId: (r.vehicle_id as string) ?? null,
+    fleetCode: (r.fleet_code as string) ?? null,
+    licensePlate: (r.license_plate as string) ?? null,
+    assignmentId: (r.assignment_id as string) ?? null,
+    assignmentStart: (r.assignment_start as string) ?? null,
+    assignmentEnd: (r.assignment_end as string) ?? null,
+    driverEmployeeId: (r.driver_employee_id as string) ?? null,
+    driverName: (r.driver_name as string) ?? null,
+    anchorDate: String(r.anchor_date),
+  };
+}
 
 export async function listBrPlannerRows(
   organizationId: string,
@@ -82,41 +117,12 @@ export async function listBrPlannerRows(
     p_organization_id: organizationId,
     p_year: competence.year,
     p_month: competence.month,
-    p_filters: payload(filters),
+    p_filters: brPlannerPayload(filters),
   });
 
   if (error) throw new Error(error.message);
 
-  return (data ?? []).map((row): BrPlannerRow => {
-    const r = row as Record<string, unknown>;
-    const scope = r.leader_scope as string | null;
-    return {
-      id: String(r.id),
-      code: String(r.code),
-      description: (r.description as string) ?? null,
-      status: r.status === "inactive" ? "inactive" : "active",
-      operationId: String(r.operation_id),
-      operationName: (r.operation_name as string) ?? "—",
-      stateId: Number(r.state_id),
-      stateUf: ((r.state_uf as string) ?? "").trim(),
-      cityId: Number(r.city_id),
-      cityName: (r.city_name as string) ?? "",
-      operationCityId: String(r.operation_city_id),
-      leaderEmployeeId: (r.leader_employee_id as string) ?? null,
-      leaderName: (r.leader_name as string) ?? null,
-      leaderScope:
-        scope === "br" || scope === "city" || scope === "operation" ? scope : null,
-      vehicleId: (r.vehicle_id as string) ?? null,
-      fleetCode: (r.fleet_code as string) ?? null,
-      licensePlate: (r.license_plate as string) ?? null,
-      assignmentId: (r.assignment_id as string) ?? null,
-      assignmentStart: (r.assignment_start as string) ?? null,
-      assignmentEnd: (r.assignment_end as string) ?? null,
-      driverEmployeeId: (r.driver_employee_id as string) ?? null,
-      driverName: (r.driver_name as string) ?? null,
-      anchorDate: String(r.anchor_date),
-    };
-  });
+  return (data ?? []).map(mapBrPlannerRow);
 }
 
 export interface BrPlannerIndicators {
@@ -132,8 +138,15 @@ export interface BrPlannerIndicators {
   withVehicleInPeriod: number;
   withDriver: number;
   withoutDriver: number;
+  /** Liderança resolvida na data-âncora (exceção do BR → cidade → operação). */
+  withLeader: number;
+  /** Só BRs ativas: uma inativa sem liderança não é pendência. */
+  withoutLeader: number;
+  /** BRs com substituição ou inversão de veículo iniciada no mês — cada BR conta uma vez. */
+  withVehicleSwapInPeriod: number;
   byOperation: { operationId: string; operationName: string; total: number }[];
   byCity: { cityId: number; cityName: string; stateUf: string; total: number }[];
+  byLeader: { employeeId: string; leaderName: string; total: number }[];
 }
 
 export async function getBrPlannerIndicators(
@@ -146,7 +159,7 @@ export async function getBrPlannerIndicators(
     p_organization_id: organizationId,
     p_year: competence.year,
     p_month: competence.month,
-    p_filters: payload(filters),
+    p_filters: brPlannerPayload(filters),
   });
   if (error) throw new Error(error.message);
 
@@ -165,6 +178,9 @@ export async function getBrPlannerIndicators(
     withVehicleInPeriod: num("with_vehicle_in_period"),
     withDriver: num("with_driver"),
     withoutDriver: num("without_driver"),
+    withLeader: num("with_leader"),
+    withoutLeader: num("without_leader"),
+    withVehicleSwapInPeriod: num("with_vehicle_swap_in_period"),
     byOperation: list("by_operation").map((entry) => {
       const e = entry as Record<string, unknown>;
       return {
@@ -182,6 +198,14 @@ export async function getBrPlannerIndicators(
         total: Number(e.total ?? 0),
       };
     }),
+    byLeader: list("by_leader").map((entry) => {
+      const e = entry as Record<string, unknown>;
+      return {
+        employeeId: String(e.employee_id),
+        leaderName: String(e.leader_name ?? "—"),
+        total: Number(e.total ?? 0),
+      };
+    }),
   };
 }
 
@@ -194,7 +218,7 @@ export interface BrVehicleHistoryRow {
   startDate: string;
   endDate: string | null;
   status: "planned" | "confirmed" | "executed" | "cancelled";
-  source: "manual" | "import" | "substitution" | "inversion";
+  source: "manual" | "import" | "substitution" | "inversion" | "replication";
   reason: string | null;
   endReason: string | null;
   replacesAssignmentId: string | null;

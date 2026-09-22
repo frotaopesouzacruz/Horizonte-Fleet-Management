@@ -18,6 +18,7 @@ import {
   type BrPlannerIndicators,
   type BrPlannerRow,
 } from "@/lib/governance/br-planner";
+import { getFidelizationStability, type FidelizationStability } from "@/lib/governance/brs";
 import { parseCompetence } from "@/lib/governance/competence";
 import { FidelizationView } from "./fidelization-view";
 
@@ -83,6 +84,7 @@ export default async function FidelizationPage({
     plannerRows,
     plannerIndicators,
     leaders,
+    stability,
   ] = await Promise.all([
     getFidelizationCalendar(orgId, competence, filters),
     listOperationBrs(orgId, {
@@ -103,6 +105,13 @@ export default async function FidelizationPage({
       () => null as BrPlannerIndicators | null,
     ),
     listLeadershipOptions(orgId).catch(() => [] as { id: string; name: string }[]),
+    // §39: o Dashboard de Estabilidade segue o recorte da tela — operação,
+    // estado e cidade — e nunca a BR isolada, que é filtro do calendário.
+    getFidelizationStability(orgId, competence, {
+      operationId: filters.operationId,
+      stateId: filters.stateId,
+      cityId: filters.cityId,
+    }).catch(() => null as FidelizationStability | null),
   ]);
 
   const has = (code: string) => session.isPlatformAdmin || session.permissions.includes(code);
@@ -115,6 +124,7 @@ export default async function FidelizationPage({
       driverPlans={driverPlans}
       hierarchy={hierarchy}
       indicators={indicators}
+      stability={stability}
       plannerRows={plannerRows}
       plannerIndicators={plannerIndicators}
       leaders={leaders}
@@ -122,7 +132,6 @@ export default async function FidelizationPage({
       operations={options.operations}
       coverage={options.coverage}
       filters={plannerFilters}
-      canManageBrs={has("fidelization.manage_brs")}
       canPlan={has("fidelization.plan")}
       canChangeVehicle={has("fidelization.change_vehicle")}
       canChangeDriver={has("fidelization.change_driver")}

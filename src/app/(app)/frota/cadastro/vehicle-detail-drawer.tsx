@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRightLeft, Gauge, Pencil } from "lucide-react";
+import { ArrowRightLeft, Gauge, MapPin, Pencil } from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
   Drawer,
@@ -22,6 +23,15 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/feedback/alert";
 import { LoadingState } from "@/components/feedback/loading-state";
 import { EmptyState } from "@/components/feedback/empty-state";
@@ -35,6 +45,8 @@ import type { VehicleDetail } from "@/lib/fleet/queries";
 import { correctOdometer, setVehicleAssignment } from "@/lib/fleet/actions";
 import { loadVehicleDetail, loadVehicleTimeline, type TimelineEntry } from "@/lib/fleet/detail-actions";
 import { listOperationsForFleet } from "@/lib/fleet/option-actions";
+import { loadVehicleBrHistory } from "@/lib/governance/actions";
+import type { VehicleBrHistory, VehicleBrRow } from "@/lib/governance/brs";
 import { useOperationGeography } from "./use-operation-geography";
 import { formatDate, formatPlate } from "./fleet-view";
 
@@ -51,6 +63,38 @@ const EVENT_LABELS: Record<string, string> = {
   "vehicle.odometer_recorded": "Leitura de quilometragem",
   "vehicle.odometer_corrected": "Correção de quilometragem",
 };
+
+/* Fidelização (Etapa 13): os mesmos rótulos da exportação e do módulo BRs. */
+const BR_ROLE_LABELS: Record<VehicleBrRow["vehicleRole"], string> = {
+  primary: "Titular",
+  support: "Apoio",
+};
+const BR_SOURCE_LABELS: Record<string, string> = {
+  manual: "Manual",
+  import: "Importação",
+  substitution: "Substituição",
+  inversion: "Inversão",
+  replication: "Replicação",
+};
+const BR_STATUS_LABELS: Record<string, string> = {
+  planned: "Planejado",
+  confirmed: "Confirmado",
+  executed: "Executado",
+  cancelled: "Cancelado",
+  active: "Ativo",
+  ended: "Encerrado",
+};
+
+/**
+ * What the Fidelização tab has for the vehicle it was opened for. Kept on the
+ * drawer (not on the tab) so switching tabs does not refetch; keyed by vehicle
+ * so a stale answer for the previous vehicle is never painted.
+ */
+interface VehicleBrState {
+  vehicleId: string;
+  history: VehicleBrHistory | null;
+  error: string | null;
+}
 
 /** A labelled fact. The dash is a value: it means "not informed". */
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
@@ -84,9 +128,27 @@ export function VehicleDetailDrawer({
   const [timeline, setTimeline] = React.useState<TimelineEntry[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [brState, setBrState] = React.useState<VehicleBrState | null>(null);
 
   const can = (permission: string) => isPlatformAdmin || permissions.includes(permission);
   const open = Boolean(vehicleId);
+  const canViewBrs = can("fidelization.view");
+
+  /**
+   * The Fidelização tab loads only when it is first shown for this vehicle
+   * (the tab mounts on select), and the answer is kept here so leaving and
+   * coming back does not ask again. Read by `vehicle_id`, never by plate (§48).
+   */
+  const applyBrHistory = React.useCallback(
+    (id: string, result: Awaited<ReturnType<typeof loadVehicleBrHistory>>) => {
+      setBrState({
+        vehicleId: id,
+        history: result.ok ? (result.data ?? null) : null,
+        error: result.ok ? null : (result.error ?? "Não foi possível carregar a fidelização deste veículo."),
+      });
+    },
+    [],
+  );
 
   /**
    * The two reads the drawer needs, together. It holds no state of its own, so
@@ -127,6 +189,7 @@ export function VehicleDetailDrawer({
     setDetail(null);
     setTimeline([]);
     setError(null);
+    setBrState(null);
     setLoading(Boolean(vehicleId));
   }
 
@@ -174,6 +237,7 @@ export function VehicleDetailDrawer({
               <TabsList>
                 <TabsTrigger value="resumo">Resumo</TabsTrigger>
                 <TabsTrigger value="operacao">Vínculo operacional</TabsTrigger>
+                {canViewBrs ? <TabsTrigger value="fidelizacao">Fidelização</TabsTrigger> : null}
                 <TabsTrigger value="km">Quilometragem</TabsTrigger>
                 <TabsTrigger value="historico">Histórico</TabsTrigger>
               </TabsList>
@@ -266,6 +330,20 @@ export function VehicleDetailDrawer({
                   }}
                 />
               </TabsContent>
+
+              {/* ---------------------------------------- fidelização ----- */}
+              {/* Etapa 13: a BR é a posição, o veículo é quem a ocupa hoje.
+                  Esta aba só consulta — mudar a fidelização é no módulo BRs.
+                  A leitura é por `vehicle_id`, nunca por placa (§48). */}
+              {canViewBrs && vehicleId ? (
+                <TabsContent value="fidelizacao" className="flex flex-col gap-4">
+                  <FidelizationPanel
+                    vehicleId={vehicleId}
+                    state={brState?.vehicleId === vehicleId ? brState : null}
+                    onLoaded={applyBrHistory}
+                  />
+                </TabsContent>
+              ) : null}
 
               {/* ------------------------------------------------- KM ----- */}
               <TabsContent value="km" className="flex flex-col gap-4">
@@ -634,6 +712,197 @@ function AssignmentPanel({
               </li>
             ))}
           </ol>
+        )}
+      </div>
+    </>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Fidelização of one vehicle: the BR it occupies today and the ones it held
+ * before (Etapa 13).
+ *
+ * Read-only, on purpose. A BR is a position that exists whether or not a
+ * vehicle sits in it; placing, substituting or ending a vehicle is done in the
+ * BRs module, where the rules (§34–§48) are checked. This tab never writes.
+ * The read is by `vehicle_id`, never by plate: a plate can change hands, the
+ * id cannot (§48).
+ *
+ * Loads on mount, which is the first time the tab is selected; the result
+ * lives on the drawer so returning to the tab does not ask again.
+ */
+function FidelizationPanel({
+  vehicleId,
+  state,
+  onLoaded,
+}: {
+  vehicleId: string;
+  state: VehicleBrState | null;
+  onLoaded: (vehicleId: string, result: Awaited<ReturnType<typeof loadVehicleBrHistory>>) => void;
+}) {
+  React.useEffect(() => {
+    if (state) return;
+
+    let active = true;
+    void loadVehicleBrHistory(vehicleId).then((result) => {
+      if (active) onLoaded(vehicleId, result);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [vehicleId, state, onLoaded]);
+
+  if (!state) {
+    return <LoadingState label="Carregando fidelização…" />;
+  }
+
+  if (state.error || !state.history) {
+    return (
+      <Alert variant="danger">
+        <AlertTitle>Não foi possível carregar a fidelização</AlertTitle>
+        <AlertDescription>
+          {state.error ?? "Não foi possível carregar a fidelização deste veículo."}
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  const { current, history, substitutions } = state.history;
+  const previous = history.filter(
+    (row) => !row.isCurrent && (current === null || row.assignmentId !== current.assignmentId),
+  );
+
+  return (
+    <>
+      <div className="flex flex-col gap-2">
+        <p className="text-body-sm font-semibold text-fg">BR atual</p>
+        {current ? (
+          <div className="flex flex-col gap-3 rounded-md border border-border-strong bg-surface p-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-body-sm font-medium text-fg">
+                  <span className="font-mono">{current.brCode}</span>
+                  {current.brDescription ? (
+                    <span className="ml-2 font-normal text-fg-secondary">{current.brDescription}</span>
+                  ) : null}
+                </p>
+                <p className="text-caption text-fg-secondary">
+                  {current.operationName} · {current.cityName}/{current.stateUf}
+                </p>
+              </div>
+              <Badge variant="success" size="sm">
+                Vigente
+              </Badge>
+            </div>
+
+            <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Fact label="Período">
+                <span className="tabular-nums">
+                  {formatDate(current.startDate)} —{" "}
+                  {current.endDate ? formatDate(current.endDate) : "em aberto"}
+                </span>
+              </Fact>
+              <Fact label="Papel">{BR_ROLE_LABELS[current.vehicleRole]}</Fact>
+              <Fact label="Origem">{BR_SOURCE_LABELS[current.source] ?? current.source}</Fact>
+              <Fact label="Situação">{BR_STATUS_LABELS[current.status] ?? current.status}</Fact>
+            </dl>
+
+            {current.reason ? (
+              <p className="text-caption text-fg-secondary">
+                <span className="text-fg-muted">Motivo: </span>
+                {current.reason}
+              </p>
+            ) : null}
+
+            <div>
+              <Button asChild variant="secondary" size="sm">
+                <Link href={`/governanca/brs?q=${encodeURIComponent(current.brCode)}`}>
+                  <MapPin className="size-4" aria-hidden />
+                  Abrir no módulo BRs
+                </Link>
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <EmptyState
+            size="sm"
+            variant="panel"
+            title="Sem BR vigente"
+            description="Este veículo não está fidelizado a nenhuma posição hoje."
+          />
+        )}
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-body-sm font-semibold text-fg">BRs anteriores</p>
+          <Badge variant="neutral" size="sm">
+            {numberFormat.format(substitutions)} {substitutions === 1 ? "substituição" : "substituições"}
+          </Badge>
+        </div>
+        {previous.length === 0 ? (
+          <p className="text-body-sm text-fg-muted">Nenhuma fidelização anterior registrada.</p>
+        ) : (
+          <TableContainer>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>BR</TableHead>
+                  <TableHead>Operação / cidade</TableHead>
+                  <TableHead>Período</TableHead>
+                  <TableHead>Situação</TableHead>
+                  <TableHead>Origem</TableHead>
+                  <TableHead>Motivo / encerramento</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {previous.map((row) => (
+                  <TableRow key={row.assignmentId}>
+                    <TableCell>
+                      <span className="font-mono text-caption text-fg">{row.brCode}</span>
+                      {row.brDescription ? (
+                        <span className="block truncate text-caption text-fg-muted" title={row.brDescription}>
+                          {row.brDescription}
+                        </span>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="text-body-sm text-fg-secondary">
+                      {row.operationName}
+                      <span className="block text-caption text-fg-muted">
+                        {row.cityName}/{row.stateUf} · {BR_ROLE_LABELS[row.vehicleRole]}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-caption tabular-nums text-fg-secondary">
+                      {formatDate(row.startDate)} — {row.endDate ? formatDate(row.endDate) : "em aberto"}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={row.status === "cancelled" ? "neutral" : "info"} size="sm">
+                        {BR_STATUS_LABELS[row.status] ?? row.status}
+                      </StatusBadge>
+                    </TableCell>
+                    <TableCell className="text-caption text-fg-secondary">
+                      {BR_SOURCE_LABELS[row.source] ?? row.source}
+                    </TableCell>
+                    <TableCell className="text-caption text-fg-secondary">
+                      {row.reason || row.endReason ? (
+                        <>
+                          {row.reason ? <span className="block">{row.reason}</span> : null}
+                          {row.endReason ? (
+                            <span className="block text-fg-muted">Encerramento: {row.endReason}</span>
+                          ) : null}
+                        </>
+                      ) : (
+                        <Dash />
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
       </div>
     </>

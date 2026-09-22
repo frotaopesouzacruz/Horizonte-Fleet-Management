@@ -161,6 +161,16 @@ export interface LeadershipIndicators {
   substitutes: number;
   brsTotal: number;
   brsWithLeader: number;
+  /** §12: locais (operação × cidade) de operações ativas e quantos têm liderança principal na competência. */
+  placesTotal: number;
+  placesWithLeader: number;
+  placesWithoutLeader: number;
+  /** % de locais com liderança; null quando não há local. */
+  coveragePct: number | null;
+  /** O que está sob responsabilidade de alguma liderança na data-âncora. */
+  brsUnderLeadership: number;
+  vehiclesLinked: number;
+  driversLinked: number;
 }
 
 export async function getLeadershipIndicators(
@@ -187,6 +197,13 @@ export async function getLeadershipIndicators(
     substitutes: Number(d.substitutes ?? 0),
     brsTotal: Number(d.brs_total ?? 0),
     brsWithLeader: Number(d.brs_with_leader ?? 0),
+    placesTotal: Number(d.places_total ?? 0),
+    placesWithLeader: Number(d.places_with_leader ?? 0),
+    placesWithoutLeader: Number(d.places_without_leader ?? 0),
+    coveragePct: d.coverage_pct === null || d.coverage_pct === undefined ? null : Number(d.coverage_pct),
+    brsUnderLeadership: Number(d.brs_under_leadership ?? 0),
+    vehiclesLinked: Number(d.vehicles_linked ?? 0),
+    driversLinked: Number(d.drivers_linked ?? 0),
   };
 }
 

@@ -20,8 +20,8 @@ import { NativeSelect } from "@/components/governance/selects";
 import type { CoverageEntry } from "@/components/governance/scope-picker";
 import { formatCompetence, type Competence } from "@/lib/governance/competence";
 import type { BrPlannerIndicators, BrPlannerRow } from "@/lib/governance/br-planner";
-import { BrBatchDrawer } from "./br-batch-drawer";
-import { BrHistoryDrawer } from "./br-history-drawer";
+import { BrBatchDrawer } from "@/components/governance/brs/br-batch-drawer";
+import { BrHistoryDrawer } from "@/components/governance/brs/br-history-drawer";
 
 const number = new Intl.NumberFormat("pt-BR");
 

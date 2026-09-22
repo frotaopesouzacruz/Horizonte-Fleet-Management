@@ -45,6 +45,9 @@ export interface OperationsViewProps {
   canCreate: boolean;
   canUpdate: boolean;
   canDeactivate: boolean;
+  /** Aba "Aplicativos" do formulário: quem pode habilitar e quem pode ver o histórico. */
+  canManageApps: boolean;
+  canViewAppHistory: boolean;
 }
 
 /**
@@ -63,6 +66,8 @@ export function OperationsView({
   canCreate,
   canUpdate,
   canDeactivate,
+  canManageApps,
+  canViewAppHistory,
 }: OperationsViewProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -263,6 +268,8 @@ export function OperationsView({
         onOpenChange={setFormOpen}
         operation={editing}
         states={states}
+        canManageApps={canManageApps}
+        canViewAppHistory={canViewAppHistory}
       />
     </>
   );

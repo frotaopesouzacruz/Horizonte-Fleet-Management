@@ -336,3 +336,16 @@ criar uma auditoria concorrente.
 - **Fornecedor/locadora.** `ownership_type` já distingue próprio, alugado e arrendado, mas não há entidade de fornecedor para vincular. A gestão de contratos de locação não é desta etapa.
 - **Custo do escopo em escala.** `private.vehicle_in_scope` é SECURITY DEFINER e portanto não é *inlined*: o planejador a executa por linha avaliada. Com a frota atual isso não aparece; acima de alguns milhares de veículos vale medir e, se necessário, materializar as operações acessíveis do chamador por transação.
 - **Elegibilidade em aplicativos.** O cadastro informa os atributos que influenciam elegibilidade (situação, tipo, subcategoria, alocação) e deliberadamente **não** guarda nenhuma marcação própria. Quem resolve é o módulo do aplicativo.
+
+---
+
+## 14. Aba Fidelização (Etapa 13.1)
+
+O detalhe do veículo ganhou a aba *Fidelização* (visível com
+`fidelization.view`): a BR atual — código, descrição, operação e cidade,
+período, papel (titular/apoio), origem e situação — e as BRs anteriores, com o
+número de substituições, tudo lido de `vehicle_br_history` pelo **`vehicle_id`**,
+nunca pela placa (uma placa pode trocar de dono; o id, não). A aba não grava
+nada: fidelizar continua sendo feito na Fidelização, e o link "Abrir no módulo
+BRs" leva à posição. Fidelização e alocação seguem sendo perguntas diferentes
+(§4 e [`fidelization.md`](./fidelization.md) §1).

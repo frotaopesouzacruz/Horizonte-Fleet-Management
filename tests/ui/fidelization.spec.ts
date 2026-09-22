@@ -86,6 +86,22 @@ test.describe("planner de locais e BRs", () => {
     await expect(page.getByText(/Recursos resolvidos em 21\/09\/2026/)).toBeVisible();
   });
 
+  test("o cadastro de BRs aponta para o módulo BRs, sem botão de cadastro aqui", async ({ page }) => {
+    await page.goto("/dev/preview-fidelizacao");
+
+    // §38: criar, editar, importar e inativar BRs saiu desta tela. O aviso diz
+    // para onde foi, e o atalho leva lá; o botão de cadastro não existe mais.
+    const aviso = page.getByRole("status").filter({ hasText: "O cadastro de BRs mudou de lugar" });
+    await expect(aviso).toBeVisible();
+    await expect(aviso).toContainText("Governança › BRs");
+    await expect(aviso.getByRole("link", { name: "Abrir módulo BRs" })).toHaveAttribute(
+      "href",
+      "/governanca/brs",
+    );
+    await expect(page.getByRole("button", { name: "Cadastrar BRs" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Nova BR" })).toHaveCount(0);
+  });
+
   for (const size of WIDTHS) {
     test(`não há rolagem horizontal (${size.name})`, async ({ page }) => {
       await page.setViewportSize({ width: size.width, height: size.height });
@@ -97,6 +113,76 @@ test.describe("planner de locais e BRs", () => {
       expect(overflow, `sobra de ${overflow}px na largura`).toBeLessThanOrEqual(0);
     });
   }
+});
+
+/**
+ * Dashboard de Estabilidade (§39–§43).
+ *
+ * O que se verifica aqui é a distinção da §42 na tela: mobilizações são os
+ * eventos explícitos (substituição e inversão), a troca inferida fica em número
+ * separado, e as fórmulas estão escritas para quem quiser conferir a conta.
+ */
+test.describe("dashboard de estabilidade", () => {
+  test("mostra a estabilidade da frota e as trocas inferidas à parte", async ({ page }) => {
+    const crashes: string[] = [];
+    page.on("pageerror", (error) => crashes.push(error.message));
+
+    await page.goto("/dev/preview-fidelizacao");
+    const painel = page.getByRole("region", { name: "Dashboard de estabilidade" });
+    await expect(painel).toBeVisible();
+
+    // Cada cartão é uma `section` com o rótulo em `h3`. Selecionar pelo título
+    // exato evita que "Mobilizações" também case com "Não somadas às
+    // mobilizações" no cartão vizinho.
+    const cartao = (nome: string) =>
+      painel.locator("section").filter({ has: page.getByRole("heading", { name: nome, exact: true }) });
+
+    // 1 − 3/88 = 96,6%, em pt-BR e com uma casa.
+    const frota = cartao("Estabilidade da frota");
+    await expect(frota).toContainText("96,6%");
+    await expect(frota).toContainText("3 de 88 BRs com troca de veículo");
+
+    // Sem motorista planejado não há razão — o cartão diz "—", não "100%".
+    await expect(cartao("Estabilidade de motoristas")).toContainText("—");
+
+    // 2 substituições + 1 inversão (um par) = 3 mobilizações.
+    const mobilizacoes = cartao("Mobilizações");
+    await expect(mobilizacoes).toContainText("3");
+    await expect(mobilizacoes).toContainText("2 substituições · 1 inversões");
+
+    // §42: as 16 trocas inferidas aparecem, e aparecem fora da soma.
+    const inferidas = cartao("Trocas inferidas");
+    await expect(inferidas).toContainText("16");
+    await expect(inferidas).toContainText("Não somadas às mobilizações");
+
+    expect(crashes, crashes.join("\n")).toEqual([]);
+  });
+
+  test("as fórmulas ficam escritas e a mobilização inferida é mostrada à parte", async ({ page }) => {
+    await page.goto("/dev/preview-fidelizacao");
+    const painel = page.getByRole("region", { name: "Dashboard de estabilidade" });
+
+    const formulas = painel.getByText("Como os indicadores são calculados");
+    await formulas.click();
+    await expect(painel.getByText("Estabilidade da frota = 1 − BRs com troca / BRs com veículo")).toBeVisible();
+    await expect(painel.getByText(/mostrada à parte — sem contagem dupla/)).toBeVisible();
+    await expect(painel.getByText(/A inversão gera duas linhas e conta como UM evento/)).toBeVisible();
+  });
+
+  test("os recortes por operação, local e liderança trazem as mesmas colunas", async ({ page }) => {
+    await page.goto("/dev/preview-fidelizacao");
+    const painel = page.getByRole("region", { name: "Dashboard de estabilidade" });
+
+    const porOperacao = painel.getByRole("table").first();
+    await expect(porOperacao.getByRole("row").filter({ hasText: "Last Mille MG" })).toContainText("95,2%");
+    await expect(porOperacao.getByRole("row").filter({ hasText: "Redespacho - Belém" })).toContainText("100%");
+
+    await painel.getByRole("tab", { name: "Por local" }).click();
+    await expect(painel.getByRole("cell", { name: /Contagem\/MG/ })).toBeVisible();
+
+    await painel.getByRole("tab", { name: "Por liderança" }).click();
+    await expect(painel.getByRole("cell", { name: /Marcos Vinícius Andrade/ })).toBeVisible();
+  });
 });
 
 /**

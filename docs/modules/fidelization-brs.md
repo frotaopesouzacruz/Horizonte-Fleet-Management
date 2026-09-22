@@ -398,3 +398,21 @@ prévia de BRs, as ações de situação (cancelar exige motivo) e o celular.
   planejamento do dia).
 * **Alocações de apoio (`support`)** entram pela importação, mas o planner
   segue mostrando só o titular.
+
+---
+
+## 19. O cadastro de BRs mudou para o módulo BRs (Etapa 13.1)
+
+Criar, editar, cadastrar em lote, importar, inativar e reativar BRs acontecem
+agora em **Governança › BRs** (`/governanca/brs`, [`operational-brs.md`](./operational-brs.md)).
+O *Planner de locais e BRs* desta tela continua existindo como consulta e
+porta de planejamento (veículo, motorista, histórico), com um aviso e um link
+para o módulo carregando os filtros em tela; "Nova BR" e "Cadastrar BRs"
+saíram daqui; a importação desta tela passou a aceitar só alocações. Os três
+drawers (`BrFormDrawer`, `BrBatchDrawer`, `BrHistoryDrawer`) moraram para
+`src/components/governance/brs/` e são os mesmos componentes — a regra "não
+criar três formulários administrativos para a mesma BR" vale literalmente.
+
+A regra central desta página (§1: a placa muda, o BR não) é a mesma que o
+módulo BRs protege; a listagem de lá reaproveita `br_planner_rows`, então as
+duas telas nunca discordam sobre a mesma posição.

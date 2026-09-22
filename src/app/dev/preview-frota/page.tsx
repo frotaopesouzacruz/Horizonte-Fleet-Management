@@ -238,6 +238,7 @@ export default function PreviewFleetPage() {
         "vehicles.export",
         "vehicles.manage_assignment",
         "vehicles.correct_odometer",
+        "fidelization.view",
       ]}
     >
       <FleetView
@@ -253,6 +254,8 @@ export default function PreviewFleetPage() {
           "vehicles.export",
           "vehicles.manage_assignment",
           "vehicles.correct_odometer",
+          // A aba "Fidelização" da ficha do veículo depende desta permissão.
+          "fidelization.view",
         ]}
         isPlatformAdmin={false}
         overview={
