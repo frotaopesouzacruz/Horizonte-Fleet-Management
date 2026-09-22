@@ -31,8 +31,14 @@
 --   T14     alteração em massa com prévia: só o que é elegível (§50)
 --   T15     meta parametrizável e diferença para a meta (§36)
 --   T16     execução sem obrigação vira inconsistência, nunca obrigação (§22)
+--   I1–I4   importação (2º bloco): prévia recusa status desconhecido, veículo
+--           desconhecido, data futura e evidência ausente; processar abre só
+--           solicitações PENDENTES sem solicitante; lote concluído não reprocessa;
+--           mesmo arquivo é reconhecido (§54–§56)
 --
--- Última execução: 23/23 PASS contra o projeto de desenvolvimento (22/09/2026).
+-- Última execução: 23/23 (bloco 1) + 4/4 (bloco 2) PASS contra o projeto de
+-- desenvolvimento (22/09/2026). Cada bloco é um `do` próprio e termina em
+-- ROLLBACK_TESTES: rode um de cada vez.
 -- As mensagens vão sem acento de propósito: voltam dentro de uma mensagem de
 -- erro do PostgreSQL, que atravessa clientes de codificação incerta.
 -- =============================================================================
@@ -340,6 +346,59 @@ begin
   if n = 0 and n2 = 1 then
     r := r || 'PASS T16 checklist de veiculo sem obrigacao: inconsistencia aberta, nenhuma obrigacao inventada'||chr(10);
   else r := r || format('FAIL T16 obrigacoes=%s inconsistencias=%s', n, n2)||chr(10); end if;
+
+  raise exception E'ROLLBACK_TESTES\n%', r;
+end $t$;
+
+-- =============================================================================
+-- Bloco 2 · Importação de bases externas (§54–§56)
+-- =============================================================================
+do $t$
+declare
+  v_org uuid; v_user uuid; v_today date; v_ob record; v_res jsonb; v_res2 jsonb; n int; n2 int; n3 int; r text := '';
+begin
+  select id into v_org from public.organizations where deleted_at is null and status = 'active' order by created_at limit 1;
+  select m.user_id into v_user from public.organization_memberships m where m.organization_id = v_org and m.status = 'active' and m.employee_id is not null limit 1;
+  v_today := private.adherence_today(v_org);
+  select s.* into v_ob from public.adherence_obligation_status s
+   where s.organization_id = v_org and s.operational_date = v_today - 1 and s.checklist_context = 'saida' and s.status_code = 'NAO_FEZ_CHECKLIST' and not s.has_pending_request
+   order by s.fleet_code_snapshot limit 1;
+  perform set_config('request.jwt.claims', json_build_object('sub', v_user, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+
+  v_res := public.stage_adherence_import(v_org, jsonb_build_object(
+    'file_name', 'teste.xlsx', 'file_hash', repeat('a', 64), 'file_size', 1234, 'column_mapping', '{}'::jsonb,
+    'rows', jsonb_build_array(
+      jsonb_build_object('row_number', 2, 'fleet_code', v_ob.fleet_code_snapshot, 'operational_date', v_today - 1, 'context', 'Saída', 'status', 'Sem rota', 'justification', 'Sem rota programada.'),
+      jsonb_build_object('row_number', 3, 'fleet_code', v_ob.fleet_code_snapshot, 'operational_date', v_today - 1, 'context', 'retorno', 'status', 'xyz'),
+      jsonb_build_object('row_number', 4, 'fleet_code', 'ZZZ999', 'operational_date', v_today - 1, 'status', 'Manutenção', 'evidence_reference', 'OS 1'),
+      jsonb_build_object('row_number', 5, 'fleet_code', v_ob.fleet_code_snapshot, 'operational_date', v_today + 3, 'status', 'FEZ'),
+      jsonb_build_object('row_number', 6, 'fleet_code', v_ob.fleet_code_snapshot, 'operational_date', v_today - 2, 'status', 'Manutenção')
+    )));
+  if (v_res->>'valid_rows')::int = 1 and (v_res->>'error_rows')::int = 4 and (v_res->>'total_rows')::int = 5 then
+    r := r || 'PASS I1 previa: 1 valida, 4 erros (status desconhecido, veiculo desconhecido, data futura, evidencia obrigatoria)'||chr(10);
+  else r := r || 'FAIL I1 ' || v_res::text || chr(10); end if;
+
+  v_res2 := public.process_adherence_import(v_org, (v_res->>'batch_id')::uuid);
+  select count(*) into n from public.adherence_requests q where q.import_batch_id = (v_res->>'batch_id')::uuid and q.status = 'pending' and q.requested_by is null and q.source = 'import';
+  reset role;
+  select count(*) into n2 from public.adherence_inconsistencies i where i.details ->> 'batch_id' = v_res->>'batch_id' and i.kind = 'import_unknown_status';
+  select count(*) into n3 from public.adherence_inconsistencies i where i.details ->> 'batch_id' = v_res->>'batch_id' and i.kind = 'import_unknown_vehicle';
+  set local role authenticated;
+  if (v_res2->>'requests_created')::int = 1 and n = 1 and n2 = 1 and n3 = 1 then
+    r := r || 'PASS I2 processamento: 1 solicitacao PENDENTE (sem solicitante), 1 inconsistencia de status, 1 de veiculo; nada aprovado'||chr(10);
+  else r := r || format('FAIL I2 %s req=%s inc_status=%s inc_vehicle=%s', v_res2::text, n, n2, n3)||chr(10); end if;
+
+  begin
+    perform public.process_adherence_import(v_org, (v_res->>'batch_id')::uuid);
+    r := r || 'FAIL I3 reprocessou lote concluido'||chr(10);
+  exception when others then r := r || 'PASS I3 lote concluido nao reprocessa'||chr(10); end;
+  v_res := public.stage_adherence_import(v_org, jsonb_build_object(
+    'file_name', 'teste.xlsx', 'file_hash', repeat('a', 64), 'rows', jsonb_build_array(
+      jsonb_build_object('row_number', 2, 'fleet_code', v_ob.fleet_code_snapshot, 'operational_date', v_today - 1, 'context', 'saida', 'status', 'Sem rota'))));
+  if (v_res->>'already_imported')::boolean and (v_res->>'warning_rows')::int = 1 and (v_res->>'valid_rows')::int = 0 then
+    r := r || 'PASS I4 mesmo arquivo de novo: avisa que ja foi importado e a linha vira conflito com pendente (idempotente)'||chr(10);
+  else r := r || 'FAIL I4 ' || v_res::text || chr(10); end if;
 
   raise exception E'ROLLBACK_TESTES\n%', r;
 end $t$;

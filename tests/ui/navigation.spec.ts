@@ -47,6 +47,7 @@ test.describe("sidebar", () => {
       "Estrutura operacional",
       "Governança operacional",
       "Gestão de frota",
+      "Gestão de checklist",
       "Aplicativos",
       "Módulos futuros",
     ]);

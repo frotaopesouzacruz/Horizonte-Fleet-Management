@@ -4563,6 +4563,14 @@ export type Database = {
         Args: { p_organization_id: string; p_payload: Json }
         Returns: Json
       }
+      process_adherence_import: {
+        Args: { p_batch_id: string; p_organization_id: string }
+        Returns: Json
+      }
+      stage_adherence_import: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
       br_planner_indicators: {
         Args: {
           p_filters?: Json

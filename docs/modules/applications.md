@@ -162,3 +162,11 @@ configuração são genéricas o bastante para servi-los, e específicas o basta
 para não virar um motor de formulários que ninguém entende.
 
 Esta etapa implementou **apenas** o Check List de Frota.
+
+
+## Consumidor do outbox: Aderência (Etapa 11)
+
+O evento `checklist.execution.submitted` é consumido pela Aderência na própria
+transação do envio (gatilho `outbox_adherence_consume`) e, como rede de
+segurança, pela rotina `private.adherence_cron_tick` a cada 15 minutos. A
+conciliação está descrita em `docs/modules/checklist-adherence.md`.
