@@ -23,6 +23,9 @@
 --   A16      NENHUMA coluna de anexo/foto/arquivo (§26, CA09) — por catálogo,
 --            não por leitura humana do código
 --
+-- Refinamento da Etapa 12: A3 passou a esperar a RECUSA do formulário para a
+-- Frota Leve ADM (tipo desabilitado para o aplicativo), A5 usa a prévia da
+-- versão e A11 aceita o evento já processado pela Aderência.
 -- Última execução: 15/15 PASS contra o projeto de desenvolvimento (22/09/2026).
 -- As mensagens vão sem acento de propósito: voltam dentro de uma mensagem de
 -- erro do PostgreSQL, que atravessa clientes de codificação incerta.
@@ -30,7 +33,7 @@
 do $t$
 declare
   v_org   uuid;
-  v_user  uuid; v_van uuid; v_truck uuid; v_car uuid; v_op uuid; v_merch uuid;
+  v_user  uuid; v_van uuid; v_truck uuid; v_car uuid; v_op uuid; v_merch uuid; v_redmg uuid; v_app uuid;
   f jsonb; v_res jsonb; v_ans jsonb; v_key text; v_exec uuid; v_qid uuid;
   n bigint; r text := '';
 begin
@@ -38,14 +41,28 @@ begin
    where deleted_at is null and status = 'active' order by created_at limit 1;
   select m.user_id into v_user from public.organization_memberships m
    where m.organization_id = v_org and m.status = 'active' and m.employee_id is not null limit 1;
-  select v.id into v_van from public.vehicles v join public.vehicle_types t on t.id = v.vehicle_type_id
-   where v.organization_id = v_org and v.deleted_at is null and t.code = 'van' limit 1;
-  select v.id into v_truck from public.vehicles v join public.vehicle_types t on t.id = v.vehicle_type_id
-   where v.organization_id = v_org and v.deleted_at is null and t.code = 'truck' limit 1;
-  select v.id into v_car from public.vehicles v join public.vehicle_types t on t.id = v.vehicle_type_id
-   where v.organization_id = v_org and v.deleted_at is null and t.code = 'car' limit 1;
   select id into v_op from public.operations where organization_id = v_org and code = 'OP-00004';
   select id into v_merch from public.operations where organization_id = v_org and code = 'OP-00005';
+  select id into v_redmg from public.operations where organization_id = v_org and code = 'OP-00006';
+  select a.id into v_app from public.operational_apps a
+   where a.organization_id = v_org and a.slug = 'check-list-frota' and a.deleted_at is null;
+  -- Refinamento: os veiculos de teste precisam ser ELEGIVEIS na operacao em
+  -- que serao usados (operacao habilitada, tipo habilitado, fidelizados no dia).
+  select v.id into v_van from public.vehicles v join public.vehicle_types t on t.id = v.vehicle_type_id
+   where v.organization_id = v_org and v.deleted_at is null and t.code = 'van'
+     and private.app_vehicle_eligible(v_org, v_app, v.id, v_op, current_date)
+     and private.app_vehicle_eligible(v_org, v_app, v.id, v_merch, current_date) is false
+   limit 1;
+  select v.id into v_truck from public.vehicles v join public.vehicle_types t on t.id = v.vehicle_type_id
+   where v.organization_id = v_org and v.deleted_at is null and t.code = 'truck'
+     and private.app_vehicle_eligible(v_org, v_app, v.id, v_redmg, current_date)
+   limit 1;
+  -- Frota Leve ADM esta DESABILITADA para o aplicativo (Refinamento, §17):
+  -- o carro existe e esta fidelizado, mas nao e elegivel.
+  select v.id into v_car from public.vehicles v join public.vehicle_types t on t.id = v.vehicle_type_id
+   where v.organization_id = v_org and v.deleted_at is null and t.code = 'car'
+     and private.vehicle_in_operation(v_org, v.id, v_op, current_date)
+   limit 1;
 
   if v_user is null or v_van is null or v_truck is null or v_car is null then
     raise exception 'FIXTURE incompleta: user=% van=% truck=% car=%', v_user, v_van, v_truck, v_car;
@@ -66,7 +83,7 @@ begin
   else r := r || format('FAIL A1 n=%s', n)||chr(10); end if;
 
   -- A2: Caminhao ve plataforma, mao amiga e ARLA; nao ve prateleiras
-  f := public.checklist_fleet_form(v_org, v_truck, v_op);
+  f := public.checklist_fleet_form(v_org, v_truck, v_redmg);
   select count(*) into n from jsonb_array_elements(f->'clusters') c,
        jsonb_array_elements(c->'questions') q
    where q->>'question_key' in ('implementos.plataforma_hidraulica','implementos.controle_auxiliar','mecanica.nivel_arla');
@@ -75,18 +92,25 @@ begin
     r := r || 'PASS A2 Caminhao: plataforma+mao-amiga+ARLA presentes, prateleiras ausente'||chr(10);
   else r := r || format('FAIL A2 n=%s', n)||chr(10); end if;
 
-  -- A3: Frota Leve ADM nao ve nenhuma das quatro condicionadas
-  f := public.checklist_fleet_form(v_org, v_car, v_op);
-  select count(*) into n from jsonb_array_elements(f->'clusters') c,
-       jsonb_array_elements(c->'questions') q
-   where q->>'question_key' in ('implementos.prateleiras','implementos.plataforma_hidraulica',
-                                'implementos.controle_auxiliar','mecanica.nivel_arla');
-  if n = 0 then r := r || 'PASS A3 Frota Leve ADM: nenhuma das 4 perguntas condicionadas'||chr(10);
-  else r := r || format('FAIL A3 apareceram %s', n)||chr(10); end if;
+  -- A3 (Refinamento §17, §38): Frota Leve ADM esta desabilitada para o
+  -- aplicativo; o formulario e recusado no servidor, mesmo pedido diretamente.
+  n := 0;
+  begin
+    f := public.checklist_fleet_form(v_org, v_car, v_op);
+  exception when others then
+    n := case when sqlerrm like '%n%o est% dispon%vel%' then 1 else 0 end;
+  end;
+  if n = 1 then r := r || 'PASS A3 Frota Leve ADM: formulario recusado (tipo desabilitado para o app)'||chr(10);
+  else r := r || format('FAIL A3 formulario abriu para Frota Leve ADM')||chr(10); end if;
 
   -- A5/A6: a orientacao de Merchandising orienta sem restringir
+  -- A5 usa a PREVIA da versao (mesmo construtor do executor): a van de teste
+  -- pertence a Last Mille MG, e o formulario real so abre na operacao do veiculo.
   select count(*) into n from jsonb_array_elements(
-         public.checklist_fleet_form(v_org, v_van, v_merch)->'clusters') c,
+         public.checklist_version_preview(v_org,
+           (select id from public.checklist_app_versions where app_id = v_app and status = 'published'),
+           v_merch, (select vehicle_type_id from public.vehicles where id = v_van),
+           (select vehicle_subcategory_id from public.vehicles where id = v_van))->'clusters') c,
        jsonb_array_elements(c->'questions') q
    where q->>'question_key' in ('implementos.camera_re','implementos.sirene_re')
      and q->>'guidance' is not null;
@@ -151,8 +175,9 @@ begin
 
   -- A11: evento no outbox
   select count(*) into n from public.outbox_events
-   where aggregate_id = v_exec and event_type = 'checklist.execution.submitted' and status = 'pending';
-  if n = 1 then r := r || 'PASS A11 evento de conciliacao gravado no outbox, pendente'||chr(10);
+   where aggregate_id = v_exec and event_type = 'checklist.execution.submitted' and status in ('pending', 'processed');
+  -- Desde a Etapa 11 o consumidor do outbox concilia na mesma transacao: o evento nasce e e processado.
+  if n = 1 then r := r || 'PASS A11 evento de conciliacao gravado no outbox'||chr(10);
   else r := r || format('FAIL A11 eventos=%s', n)||chr(10); end if;
 
   -- A12: pergunta obrigatoria faltando

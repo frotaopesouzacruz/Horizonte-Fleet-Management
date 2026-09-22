@@ -96,6 +96,22 @@ export default function PreviewPage() {
         states={STATES}
         canUpdate
         canManageGeography
+        links={{
+          apps: [
+            { id: "app-1", code: "checklist_frota", name: "Check List de Frota", slug: "check-list-frota", isActive: true },
+          ],
+          operations: [{ id: "1", code: "OP-00004", name: "Last Mille MG", status: "active" }],
+          vehicleTypes: [],
+          operationLinks: [
+            {
+              appId: "app-1", operationId: "1", isEnabled: true, effectiveFrom: null, effectiveTo: null,
+              updatedAt: "2026-09-22T10:00:00Z", inForce: true,
+            },
+          ],
+          typeLinks: [],
+        }}
+        canManageApps
+        canViewAppHistory
       />
     </AppShell>
   );

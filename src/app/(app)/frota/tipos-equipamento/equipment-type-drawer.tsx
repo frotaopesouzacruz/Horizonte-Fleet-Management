@@ -22,6 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ApplicationLinksPanel } from "@/components/applications/application-links-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/feedback/alert";
 import { LoadingState } from "@/components/feedback/loading-state";
 import { EmptyState } from "@/components/feedback/empty-state";
@@ -249,7 +250,6 @@ export function EquipmentTypeDrawer({
           }
         : {}),
       ...(can("equipment_types.manage_operations") ? { operations: form.operations } : {}),
-      ...(can("equipment_types.manage_apps") ? { apps: form.apps } : {}),
       ...(can("equipment_types.manage_eligibility") && moduleRules.length > 0 ? { moduleRules } : {}),
     });
 
@@ -267,10 +267,6 @@ export function EquipmentTypeDrawer({
 
   function toggleOperation(id: string, checked: boolean) {
     set("operations", checked ? [...form.operations, id] : form.operations.filter((item) => item !== id));
-  }
-
-  function toggleApp(id: string, checked: boolean) {
-    set("apps", checked ? [...form.apps, id] : form.apps.filter((item) => item !== id));
   }
 
   return (
@@ -546,32 +542,25 @@ export function EquipmentTypeDrawer({
                 </TabsContent>
 
                 {/* -------------------------------------------- aplicativos */}
+                {/* Refinamento da Etapa 12 (§15–§20): os aplicativos habilitados do
+                    tipo são gravados na hora, na MESMA fonte que Operações e o
+                    Gerenciador leem. Um tipo novo nasce sem aplicativo algum e
+                    continua válido assim. */}
                 <TabsContent value="aplicativos" className="flex flex-col gap-3">
-                  {options.apps.length === 0 ? (
-                    <EmptyState
-                      title="Nenhum aplicativo cadastrado"
-                      description="O Gerenciador de Aplicativos ainda não existe no HFM. Quando existir, os aplicativos aparecerão aqui e o vínculo já está preparado — nenhum aplicativo foi inventado para preencher esta tela."
+                  {isEdit && typeId ? (
+                    <ApplicationLinksPanel
+                      mode="vehicle_type"
+                      targetId={typeId}
+                      canManage={can("applications.manage_equipment_links")}
+                      canViewHistory={can("applications.manage_equipment_links") || can("audit.view")}
+                      title="Aplicativos habilitados"
+                      description="Quais aplicativos os veículos deste tipo podem utilizar. Cada alteração é gravada e auditada imediatamente; não depende do botão Salvar."
                     />
                   ) : (
-                    <>
-                      <p className="text-caption text-fg-muted">
-                        Aplicativos são opcionais: um tipo administrativo pode existir sem nenhum.
-                      </p>
-                      <ul className="flex flex-col gap-1.5">
-                        {options.apps.map((app) => (
-                          <li key={app.id}>
-                            <label className="flex items-center gap-2.5 rounded-md border border-border p-2.5 text-body-sm">
-                              <Checkbox
-                                checked={form.apps.includes(app.id)}
-                                onCheckedChange={(next) => toggleApp(app.id, Boolean(next))}
-                                disabled={!can("equipment_types.manage_apps")}
-                              />
-                              <span className="min-w-0 flex-1 truncate text-fg">{app.label}</span>
-                            </label>
-                          </li>
-                        ))}
-                      </ul>
-                    </>
+                    <EmptyState
+                      title="Salve o tipo para habilitar aplicativos"
+                      description="Um tipo de equipamento nasce sem aplicativo vinculado. Depois de salvar, habilite aqui os aplicativos que os veículos deste tipo podem utilizar."
+                    />
                   )}
                 </TabsContent>
 

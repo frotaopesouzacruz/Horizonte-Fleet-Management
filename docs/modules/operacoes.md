@@ -210,3 +210,18 @@ per-state counts against IBGE's published figures. That function has since been
 emptied: it answered to any holder of the publishable key, and the publishable key
 ships in the browser bundle, so a dormant service-role write path was not worth
 keeping for a job that runs once.
+
+---
+
+## Aplicativos habilitados (Refinamento da Etapa 12)
+
+Cada operação decide quais aplicativos pode utilizar. A seção "Aplicativos
+habilitados" na página da operação lista os aplicativos cadastrados com um
+interruptor, a vigência (opcional) e a última alteração; "Histórico" abre a
+trilha oficial de auditoria. Só quem tem
+`applications.manage_operation_links` altera; quem tem `operations.view`
+consulta. Uma operação nova nasce sem aplicativo habilitado — a ausência de
+vínculo nunca é lida como autorização. Desabilitar um aplicativo retira a
+operação das novas execuções a partir da data; execuções, obrigações,
+fidelização e auditoria anteriores ficam intactas. Fonte e regras:
+`docs/modules/applications.md`, §8.

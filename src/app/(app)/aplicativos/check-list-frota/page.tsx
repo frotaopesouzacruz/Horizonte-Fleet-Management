@@ -35,6 +35,7 @@ export default async function ChecklistFleetPage() {
       history={history}
       canExecute={has("applications.checklist_fleet.execute")}
       canViewOwn={has("applications.checklist_fleet.view_own")}
+      canViewScope={has("applications.checklist_fleet.view_details")}
       canConfigure={has("applications.checklist_fleet.configure")}
     />
   );

@@ -4441,10 +4441,107 @@ export type Database = {
           p_operation_id: string
           p_organization_id: string
           p_search?: string
+          p_vehicle_type_id: string
         }
         Returns: Json
       }
       submit_checklist_execution: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      application_links_overview: {
+        Args: { p_app_id?: string; p_operation_id?: string; p_organization_id: string; p_vehicle_type_id?: string }
+        Returns: Json
+      }
+      application_link_history: {
+        Args: { p_filters?: Json; p_organization_id: string }
+        Returns: Json
+      }
+      set_application_operation_link: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      set_application_vehicle_type_link: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      checklist_equipment_options: {
+        Args: { p_date?: string; p_operation_id: string; p_organization_id: string }
+        Returns: Json
+      }
+      checklist_scope_executions: {
+        Args: { p_filters?: Json; p_organization_id: string }
+        Returns: Json
+      }
+      checklist_admin_overview: {
+        Args: { p_organization_id: string }
+        Returns: Json
+      }
+      checklist_version_tree: {
+        Args: { p_organization_id: string; p_version_id: string }
+        Returns: Json
+      }
+      checklist_version_preview: {
+        Args: { p_operation_id?: string; p_organization_id: string; p_vehicle_subcategory_id?: string; p_vehicle_type_id?: string; p_version_id: string }
+        Returns: Json
+      }
+      create_checklist_version: {
+        Args: { p_organization_id: string; p_payload?: Json }
+        Returns: Json
+      }
+      update_checklist_version: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      discard_checklist_version: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      save_checklist_cluster: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      delete_checklist_cluster: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      reorder_checklist_clusters: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      save_checklist_question: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      delete_checklist_question: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      reorder_checklist_questions: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      save_checklist_conditional: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      delete_checklist_conditional: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      save_checklist_rule: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      delete_checklist_rule: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      validate_checklist_version: {
+        Args: { p_organization_id: string; p_version_id: string }
+        Returns: Json
+      }
+      publish_checklist_version: {
         Args: { p_organization_id: string; p_payload: Json }
         Returns: Json
       }

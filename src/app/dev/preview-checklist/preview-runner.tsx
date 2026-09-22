@@ -13,7 +13,7 @@ import type { ChecklistForm } from "@/lib/applications/queries";
  * pergunta com orientação operacional. São exatamente os seis comportamentos
  * que quebram sem ninguém perceber.
  */
-const FORM: ChecklistForm = {
+export const FORM: ChecklistForm = {
   appId: "app-1",
   appName: "Check List de Frota",
   versionId: "ver-1",

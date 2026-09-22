@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireOrganization, hasPermission } from "@/lib/auth/session";
 import { getOperation, getOperationCoverage } from "@/lib/organization/operations";
 import { listStates } from "@/lib/organization/queries";
+import { getApplicationLinks } from "@/lib/applications/links-queries";
 import { OperationDetailView } from "./operation-detail-view";
 
 export const metadata: Metadata = {
@@ -14,10 +15,13 @@ export default async function OperationPage({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const { session, organization } = await requireOrganization("operations.view");
 
-  const [operation, coverage, states] = await Promise.all([
+  const [operation, coverage, states, links] = await Promise.all([
     getOperation(organization.organizationId, id),
     getOperationCoverage(organization.organizationId, id),
     listStates(),
+    // Refinamento da Etapa 12 (§8–§9): os aplicativos habilitados nesta
+    // operação vêm da MESMA fonte que o Gerenciador de Aplicativos lê.
+    getApplicationLinks(organization.organizationId, { operationId: id }).catch(() => null),
   ]);
 
   // Not found and not permitted give the same answer on purpose: confirming an
@@ -38,6 +42,11 @@ export default async function OperationPage({ params }: { params: Promise<{ id: 
       }))}
       canUpdate={canManage || hasPermission(session, "operations.update")}
       canManageGeography={canManage || hasPermission(session, "operations.manage_geography")}
+      links={links}
+      canManageApps={hasPermission(session, "applications.manage_operation_links")}
+      canViewAppHistory={
+        hasPermission(session, "audit.view") || hasPermission(session, "applications.manage_operation_links")
+      }
     />
   );
 }

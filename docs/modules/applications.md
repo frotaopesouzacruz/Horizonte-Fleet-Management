@@ -170,3 +170,38 @@ O evento `checklist.execution.submitted` é consumido pela Aderência na própri
 transação do envio (gatilho `outbox_adherence_consume`) e, como rede de
 segurança, pela rotina `private.adherence_cron_tick` a cada 15 minutos. A
 conciliação está descrita em `docs/modules/checklist-adherence.md`.
+
+---
+
+## 8. Vínculos Aplicativo × Operação × Tipo de Equipamento (Refinamento da Etapa 12)
+
+A disponibilidade de um aplicativo é decidida por vínculo, nunca por lista no
+código. Duas tabelas que já existiam são a fonte única:
+
+| Vínculo | Tabela | Leitura | Gravação | Permissão |
+|---|---|---|---|---|
+| App × Operação | `checklist_app_operations` (nome histórico; FK genérica para `operational_apps`) | `application_links_overview` | `set_application_operation_link` | `applications.manage_operation_links` |
+| App × Tipo | `vehicle_type_apps` | `application_links_overview` | `set_application_vehicle_type_link` | `applications.manage_equipment_links` |
+
+Ambas carregam `is_enabled`, `effective_from`, `effective_to`, `updated_at/by`
+e auditoria com valor anterior e novo (`application_link_history`). **Sem linha
+= não habilitado**: operação e tipo novos nascem fora de todos os aplicativos.
+A leitura consolidada é liberada por `applications.manage_eligibility` (ou por
+quem já vê Operações, Tipos ou Aplicativos).
+
+A mesma leitura alimenta três telas — Operações (seção "Aplicativos
+habilitados"), Tipos de Equipamento (aba "Aplicativos") e o Gerenciador do
+aplicativo (abas "Operações" e "Tipos de equipamento") — pelo componente
+`ApplicationLinksPanel`. Nenhuma tela guarda cópia.
+
+A elegibilidade de um veículo para um aplicativo é uma rotina só,
+`private.app_vehicle_eligible(org, app, veículo, operação, data)`: aplicativo
+ativo, operação ativa e habilitada na data, tipo habilitado na data (e
+operação permitida ao tipo, quando o tipo restringe), veículo ativo e
+vinculado à operação na data por fidelização de BR primário ou alocação
+operacional. Contexto, tipos, placas, formulário e envio do Check List de Frota
+— e a geração de obrigações da Aderência — chamam essa rotina. Um aplicativo
+futuro reutiliza tudo isto sem nova estrutura: basta existir em
+`operational_apps` e receber vínculos.
+
+Detalhes, estado inicial aprovado e testes: `docs/apps/fleet-checklist.md`, §13.

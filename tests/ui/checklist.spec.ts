@@ -15,6 +15,16 @@ import { test, expect, type Page } from "@playwright/test";
  */
 const APP = "/dev/preview-checklist";
 
+/**
+ * O executor abre na visão de clusters (sequência do app de referência):
+ * as perguntas ficam a um toque. Abrir o primeiro cluster é o passo zero de
+ * todos os cenários abaixo.
+ */
+async function abrir(page: Page) {
+  await page.goto(APP);
+  await page.getByRole("button", { name: /^5S/ }).click();
+}
+
 /** O cartão de uma pergunta, pelo texto dela. */
 const card = (page: Page, texto: string | RegExp) =>
   page.locator("li").filter({ hasText: texto }).first();
@@ -28,7 +38,7 @@ async function avancar(page: Page) {
 
 test.describe("executor do Check List de Frota", () => {
   test("a pergunta invertida trata SIM como inconformidade", async ({ page }) => {
-    await page.goto(APP);
+    await abrir(page);
 
     // Cluster 1: pergunta positiva. SIM é conformidade e não alerta.
     await botao(page, /limpa externamente/, "SIM").click();
@@ -46,7 +56,7 @@ test.describe("executor do Check List de Frota", () => {
   });
 
   test("o condicional de texto é exigido e some ao trocar a resposta", async ({ page }) => {
-    await page.goto(APP);
+    await abrir(page);
     await botao(page, /limpa externamente/, "SIM").click();
     await avancar(page);
 
@@ -67,7 +77,7 @@ test.describe("executor do Check List de Frota", () => {
   });
 
   test("escolha única bloqueia e múltipla escolha aceita vários", async ({ page }) => {
-    await page.goto(APP);
+    await abrir(page);
     await botao(page, /limpa externamente/, "SIM").click();
     await avancar(page);
     await botao(page, /Possui alguma avaria/, "NÃO").click();
@@ -95,7 +105,7 @@ test.describe("executor do Check List de Frota", () => {
   });
 
   test("o item crítico é destacado como tal", async ({ page }) => {
-    await page.goto(APP);
+    await abrir(page);
     await botao(page, /limpa externamente/, "SIM").click();
     await avancar(page);
     await botao(page, /Possui alguma avaria/, "NÃO").click();
@@ -111,7 +121,7 @@ test.describe("executor do Check List de Frota", () => {
   });
 
   test("a orientação operacional aparece na pergunta que a tem", async ({ page }) => {
-    await page.goto(APP);
+    await abrir(page);
     await botao(page, /limpa externamente/, "SIM").click();
     await avancar(page);
     await botao(page, /Possui alguma avaria/, "NÃO").click();
@@ -123,7 +133,7 @@ test.describe("executor do Check List de Frota", () => {
   });
 
   test("não existe anexo, câmera ou upload em nenhum ponto do executor", async ({ page }) => {
-    await page.goto(APP);
+    await abrir(page);
 
     // Percorre os quatro clusters respondendo tudo, para que todo campo
     // condicional tenha sido renderizado ao menos uma vez.
@@ -162,7 +172,7 @@ test.describe("executor do Check List de Frota", () => {
 
   test("o alvo de toque de SIM e NÃO serve a quem responde em pé", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(APP);
+    await abrir(page);
 
     for (const valor of ["SIM", "NÃO"] as const) {
       const box = await botao(page, /limpa externamente/, valor).boundingBox();
@@ -174,7 +184,7 @@ test.describe("executor do Check List de Frota", () => {
 
   test("não há rolagem horizontal no telefone", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(APP);
+    await abrir(page);
     await botao(page, /limpa externamente/, "SIM").click();
 
     const overflow = await page.evaluate(

@@ -50,6 +50,8 @@ export interface ChecklistAnswerInput {
 
 export interface SubmitChecklistInput {
   idempotencyKey: string;
+  /** §48: a versão em que o formulário foi aberto acompanha o envio. */
+  versionId?: string | null;
   vehicleId: string;
   operationId: string;
   checklistType: ChecklistType;
@@ -86,6 +88,7 @@ export async function submitChecklist(
     p_organization_id: organization.organizationId,
     p_payload: {
       idempotency_key: input.idempotencyKey,
+      version_id: input.versionId ?? null,
       vehicle_id: input.vehicleId,
       operation_id: input.operationId,
       checklist_type: input.checklistType,
@@ -122,10 +125,56 @@ export async function submitChecklist(
   };
 }
 
+export interface EquipmentOption {
+  id: string;
+  code: string;
+  name: string;
+  /** Veículos elegíveis deste tipo na operação, no escopo de quem pergunta. */
+  vehicles: number;
+}
+
+/**
+ * §31: os tipos de equipamento disponíveis na operação escolhida — habilitados
+ * para o aplicativo E com veículo elegível. A lista nasce no servidor; a tela
+ * não conhece a regra, só o resultado.
+ */
+export async function loadEquipmentOptions(
+  operationId: string,
+  operationalDate: string,
+): Promise<Result<EquipmentOption[]>> {
+  const context = await resolveOrganization("applications.checklist_fleet.execute");
+  if (!context) return { ok: false, error: SESSION_LOST };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("checklist_equipment_options", {
+    p_organization_id: context.organization.organizationId,
+    p_operation_id: operationId,
+    p_date: operationalDate || undefined,
+  });
+
+  if (error) {
+    return { ok: false, error: toMessage(error, "Não foi possível carregar os tipos de equipamento.") };
+  }
+
+  return {
+    ok: true,
+    data: (Array.isArray(data) ? data : []).map((row) => {
+      const t = row as Record<string, unknown>;
+      return {
+        id: String(t.id),
+        code: String(t.code ?? ""),
+        name: String(t.name ?? "—"),
+        vehicles: Number(t.vehicles ?? 0),
+      };
+    }),
+  };
+}
+
 export interface VehicleOption {
   id: string;
   licensePlate: string | null;
   fleetCode: string | null;
+  vehicleTypeId: string;
   vehicleTypeName: string;
   brCode: string | null;
   /** Previsto pela fidelização para este dia (§33). */
@@ -133,13 +182,14 @@ export interface VehicleOption {
 }
 
 /**
- * Os veículos que esta pessoa pode inspecionar hoje.
+ * §33: as placas da operação E do tipo escolhidos, elegíveis para o aplicativo.
  *
  * Disparado por clique/digitação, então usa `resolveOrganization`: um redirect
  * no meio de um checklist em andamento apagaria o que já foi respondido.
  */
 export async function loadVehicleOptions(
   operationId: string,
+  vehicleTypeId: string,
   search: string,
   operationalDate: string,
 ): Promise<Result<VehicleOption[]>> {
@@ -150,6 +200,7 @@ export async function loadVehicleOptions(
   const { data, error } = await supabase.rpc("checklist_vehicle_options", {
     p_organization_id: context.organization.organizationId,
     p_operation_id: operationId,
+    p_vehicle_type_id: vehicleTypeId,
     p_search: search || undefined,
     p_date: operationalDate || undefined,
   });
@@ -166,6 +217,7 @@ export async function loadVehicleOptions(
         id: String(v.id),
         licensePlate: (v.license_plate as string) ?? null,
         fleetCode: (v.fleet_code as string) ?? null,
+        vehicleTypeId: String(v.vehicle_type_id ?? vehicleTypeId),
         vehicleTypeName: String(v.vehicle_type_name ?? "—"),
         brCode: (v.br_code as string) ?? null,
         expected: v.expected === true,

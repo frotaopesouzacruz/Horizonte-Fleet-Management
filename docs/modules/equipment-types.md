@@ -331,3 +331,19 @@ auditoria não passa a enxergá-la por este caminho.
   configuráveis e ainda não há consumidor que as leia.
 - **Impacto de módulos**: enquanto os módulos não existem, a análise responde
   "Não disponível nesta etapa" — e não zero.
+
+---
+
+## Aplicativos habilitados (Refinamento da Etapa 12)
+
+A aba "Aplicativos" do tipo de equipamento passou a gravar na hora, por
+aplicativo, na mesma fonte que Operações e o Gerenciador de Aplicativos leem
+(`vehicle_type_apps`, agora com `is_enabled` e vigência). A rotina
+`save_equipment_type` não recebe mais a lista de aplicativos; o interruptor da
+aba chama `set_application_vehicle_type_link` (permissão
+`applications.manage_equipment_links`) e cada mudança fica auditada com valor
+anterior e novo. Um tipo novo nasce sem aplicativo e continua válido assim
+(§20). Estado inicial aprovado: Frota Leve ADM (código `car`) desabilitada
+para o Check List de Frota; os demais tipos habilitados. A autorização do tipo
+não substitui as regras de aplicabilidade das perguntas — são responsabilidades
+diferentes (§41).

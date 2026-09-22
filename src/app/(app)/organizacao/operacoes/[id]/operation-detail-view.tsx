@@ -24,6 +24,8 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/feedback/alert";
 import { useToast } from "@/components/feedback/toast";
 import { OperationFormDrawer } from "../operation-form-drawer";
+import { ApplicationLinksPanel } from "@/components/applications/application-links-panel";
+import type { ApplicationLinks } from "@/lib/applications/links-queries";
 import {
   OperationGeographyPicker,
   type PickerState,
@@ -37,6 +39,10 @@ interface Props {
   states: PickerState[];
   canUpdate: boolean;
   canManageGeography: boolean;
+  /** Vínculos aplicativo × operação (null quando a leitura não foi autorizada). */
+  links: ApplicationLinks | null;
+  canManageApps: boolean;
+  canViewAppHistory: boolean;
 }
 
 /**
@@ -54,6 +60,9 @@ export function OperationDetailView({
   states,
   canUpdate,
   canManageGeography,
+  links,
+  canManageApps,
+  canViewAppHistory,
 }: Props) {
   const router = useRouter();
   const { toast } = useToast();
@@ -151,6 +160,23 @@ export function OperationDetailView({
           <KpiCard label="Municípios" value={number.format(totalCities)} icon={<MapPin />} />
           <KpiCard label="Colaboradores alocados" value={number.format(totalPeople)} icon={<Users />} />
         </div>
+
+        {/* Refinamento da Etapa 12 (§8–§14): a operação decide quais aplicativos
+            pode usar. Sem vínculo, o aplicativo não a lista — e uma operação nova
+            nasce sem vínculo algum. */}
+        {links ? (
+          <Card>
+            <CardContent className="pt-4">
+              <ApplicationLinksPanel
+                mode="operation"
+                targetId={operation.id}
+                links={links}
+                canManage={canManageApps}
+                canViewHistory={canViewAppHistory}
+              />
+            </CardContent>
+          </Card>
+        ) : null}
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
