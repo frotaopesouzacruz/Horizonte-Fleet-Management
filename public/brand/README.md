@@ -22,23 +22,39 @@ and trimmed of transparent margin. Nothing is redrawn, recolored or re-proportio
 they exist because the collapsed sidebar rail and the browser tab need the symbol
 without the `HORIZONTE` / `Logística` wordmark stacked under it.
 
-The browser icons in `public/` (`favicon.ico`, `favicon-16x16.png`,
-`favicon-32x32.png`, `apple-touch-icon.png`, `android-chrome-*.png`) come from
-`symbol-dark.png` centred on Azul Horizonte `#1F4B93`. Regenerate them with:
+The browser icons in `public/` come from the same two symbol derivatives.
+Regenerate them with:
 
 ```
 node scripts/brand-icons.mjs
 ```
 
-Two decisions worth knowing before changing them:
+## Ícones do navegador: transparentes, em duas variantes
 
-* **Institutional background, not transparent.** Transparent loses the navy stroke
-  of the H and the two navy blades against a dark tab strip. The official dark
-  variant on the official blue keeps every element legible on both.
-* **The mark is not cropped.** It is ~2.8:1, so in a square it fills about a third
-  of the height. At 32 px and above — what a HiDPI tab actually renders — it reads.
-  At a true 16 px it is small. Cropping to the H would read better there and would
-  mean cutting graphic elements out of the mark, which is not ours to do.
+| Arquivo | Origem | Fundo | Para |
+| --- | --- | --- | --- |
+| `favicon.ico` (16/32/48) | `symbol-light` | transparente | navegadores que não leem `media` |
+| `favicon-16x16.png`, `favicon-32x32.png` | `symbol-light` | transparente | barra de abas **clara** |
+| `favicon-dark-16x16.png`, `favicon-dark-32x32.png` | `symbol-dark` | transparente | barra de abas **escura** |
+| `apple-touch-icon.png` | `symbol-dark` | Azul Horizonte | tela de início do iOS |
+| `android-chrome-192/512.png` | `symbol-dark` | Azul Horizonte | Android, ícone mascarável |
 
-There is no `favicon.svg`: the project has no official vector, and wrapping a raster
-in an `<svg>` to call it one would be a lie with no benefit.
+**Por que duas variantes.** Uma versão anterior punha a marca sobre o azul
+institucional, porque transparente os elementos navy sumiam contra a barra de
+abas escura do Chrome e do Safari. O raciocínio estava certo para **um** arquivo
+só — e a saída é não ter um só. O lockup oficial já vem em duas versões
+justamente para isto: na variante escura os elementos navy são brancos. O
+`<link rel="icon" media="(prefers-color-scheme: dark)">` deixa o navegador
+escolher, e nenhuma cor é alterada: são os dois arquivos oficiais.
+
+Conferido pixel a pixel: os dois favicons têm canal alfa e 76% dos pixels
+completamente transparentes; os cantos têm alfa 0.
+
+**Por que o iOS e o Android continuam opacos.** Não é inconsistência. O iOS
+compõe transparência sobre **preto** e o Android recorta o ícone numa máscara —
+os dois precisam de área opaca. Um PNG transparente ali vira a marca flutuando
+sobre um quadrado preto na tela de início.
+
+**A marca não é cortada.** Ela é ~2,8:1, então num quadrado ocupa cerca de um
+terço da altura. Em 32px e acima — o que uma aba HiDPI realmente renderiza — ela
+lê. Cortar para isolar o H leria melhor em 16px puro e está proibido pela §6.

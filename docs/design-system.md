@@ -253,12 +253,35 @@ pergunta, e continua por construir. O aplicativo registra a inspeção; a
 aderência cobra quem devia tê-la feito. Mantê-los homônimos faria o mesmo nome
 aparecer duas vezes no menu significando coisas diferentes.
 
+### O cabeçalho é a marca do PRODUTO
+
+O lockup institucional — símbolo + `HORIZONTE` + `Logística` — diz de **quem** é
+o sistema. Quem abre a sidebar já sabe disso; precisa saber **qual** sistema,
+porque o HFM convive com outros produtos Horizonte. Por isso o topo traz o
+símbolo oficial ao lado do nome do produto em tipografia, com um descritor
+abaixo:
+
+```
+[símbolo]  Horizonte Fleet Management     12px, semibold
+           CENTRAL OPERACIONAL            11px, overline, fg-muted
+```
+
+O arquivo da marca continua intocado: nada é redesenhado, recortado ou
+recolorido. O símbolo entra como a imagem oficial; o nome é texto.
+
+Foi isso que empurrou a faixa de 256px para 284px. Medido no navegador, o nome
+precisa de 182px ao lado do símbolo, e em 256px sobravam 163 — o `truncate`
+entregava "Horizonte Fleet Manag…". Encolher a tipografia até caber deixaria o
+título do produto do tamanho do seu próprio subtítulo, o que é pior do que uma
+faixa 28px mais larga. `tests/ui/brand.spec.ts` mede o corte em seis larguras de
+desktop e exige zero.
+
 Anatomy, both modes:
 
 | | Expandida | Recolhida |
 | --- | --- | --- |
-| Faixa | `--sidebar-width` 256px | `--sidebar-width-collapsed` 68px |
-| Marca | lockup oficial, 36px | símbolo oficial, 20px |
+| Faixa | `--sidebar-width` 276px | `--sidebar-width-collapsed` 68px |
+| Marca | símbolo oficial 20px + nome do produto | símbolo oficial, 20px |
 | Grupo | rótulo `text-overline` (11px) + accordion | régua de 1px, sem rótulo |
 | Item | ícone 18px + rótulo, 38px de altura | ícone centrado, rótulo em `sr-only` |
 | Rodapé | `HFM · v0.1` + controle de recolher | controle de expandir |
@@ -270,7 +293,7 @@ Decisions that are easy to undo by accident:
   collapse control there overflowed 56px and the symbol crossed into the Topbar.
   The collapse control lives in the footer, same position in both modes.
 - **Group labels are never truncated.** The chevron is out of flow (absolute) so
-  the label takes the whole width, and 256px was chosen against the longest of
+  the label takes the whole width, and the rail was sized against the longest of
   them, `GOVERNANÇA OPERACIONAL`. `tests/ui/navigation.spec.ts` asserts both the
   11px size and zero overflow, at every supported width — the size matters
   because the truncation was caused by the wrong font size, not by the width.

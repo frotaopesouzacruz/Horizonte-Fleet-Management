@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { BrandLogo, BrandSymbol } from "@/components/brand/brand-logo";
+import { BrandSymbol } from "@/components/brand/brand-logo";
 import { IconButton } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
@@ -286,15 +286,7 @@ export function Sidebar() {
           collapsed ? "justify-center px-2" : "px-4",
         )}
       >
-        <Link
-          href="/dashboard"
-          className="flex items-center rounded-sm outline-none hfm-focus-ring"
-          aria-label="Horizonte Fleet Management — início"
-        >
-          {/* Recolhida, o lockup inteiro vira três pixels cinzentos: a faixa tem
-              68px. O que aparece é o símbolo oficial, o mesmo do favicon. */}
-          {collapsed ? <BrandSymbol height={20} /> : <BrandLogo height={36} />}
-        </Link>
+        <SidebarBrand collapsed={collapsed} />
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto py-4">
@@ -303,6 +295,45 @@ export function Sidebar() {
 
       <SidebarFooter collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
     </aside>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Brand                                                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A marca no topo da navegação: símbolo oficial + nome do produto.
+ *
+ * O lockup institucional (símbolo + HORIZONTE + Logística) diz de QUEM é o
+ * sistema. Quem abre a sidebar já sabe disso — precisa saber QUAL sistema,
+ * porque o HFM convive com outros produtos Horizonte. Por isso o que aparece
+ * aqui é o símbolo oficial acompanhado do nome do produto em tipografia.
+ *
+ * O arquivo da marca continua intocado: nada é redesenhado, recortado ou
+ * recolorido. O símbolo entra como imagem oficial; o nome é texto.
+ *
+ * Recolhida, a faixa tem 68px e só cabe o símbolo — o mesmo do favicon.
+ */
+function SidebarBrand({ collapsed }: { collapsed: boolean }) {
+  return (
+    <Link
+      href="/dashboard"
+      className="flex min-w-0 items-center gap-2.5 rounded-sm outline-none hfm-focus-ring"
+      aria-label="Horizonte Fleet Management — início"
+    >
+      <BrandSymbol height={20} alt="" />
+      {collapsed ? null : (
+        <span className="flex min-w-0 flex-col justify-center">
+          <span className="truncate text-caption leading-tight font-semibold text-fg">
+            Horizonte Fleet Management
+          </span>
+          <span className="truncate text-overline leading-tight font-medium text-fg-muted uppercase">
+            Central operacional
+          </span>
+        </span>
+      )}
+    </Link>
   );
 }
 
@@ -319,7 +350,7 @@ export function MobileSidebar() {
           <DrawerTitle>Menu de navegação</DrawerTitle>
         </VisuallyHidden>
         <div className="flex h-(--topbar-height) shrink-0 items-center border-b border-border px-4">
-          <BrandLogo height={36} />
+          <SidebarBrand collapsed={false} />
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto py-4">
           <SidebarNav onNavigate={() => setMobileOpen(false)} />

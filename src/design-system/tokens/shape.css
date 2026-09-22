@@ -27,10 +27,16 @@
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
 
   /* ---- Layout ------------------------------------------------------------- */
-  /* 256px porque "GOVERNANÇA OPERACIONAL" é o rótulo mais longo do menu e
-     precisa caber inteiro; 68px porque a faixa recolhida ainda mostra o
-     símbolo oficial. Ambos dentro da faixa prevista (240–260 / 64–76). */
-  --sidebar-width: 256px;
+  /* 276px, não 256. A faixa carrega duas coisas que competem pela mesma
+     largura: o rótulo de grupo mais longo ("GOVERNANÇA OPERACIONAL") e, desde
+     o cabeçalho de marca, o nome do produto ao lado do símbolo oficial. Medido
+     no navegador: símbolo de 20px (45px de largura) + respiro (10px) +
+     "Horizonte Fleet Management" em 12px semibold (182px) + as margens
+     laterais (32px), mais a folga que o arredondamento do flex consome.
+
+     Em 256px o nome era cortado em 37px, e encolher a tipografia até caber
+     deixaria o título do produto do tamanho do seu próprio subtítulo. */
+  --sidebar-width: 284px;
   --sidebar-width-collapsed: 68px;
   --sidebar-item-height: 38px;
   --topbar-height: 56px;

@@ -87,13 +87,13 @@ test.describe("sidebar", () => {
     }
   });
 
-  test("expandida fica entre 240 e 260px e os itens entre 38 e 44px", async ({ page }) => {
+  test("expandida fica entre 265 e 285px e os itens entre 38 e 44px", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(NAV);
 
     const width = await page.$eval("aside", (el) => el.getBoundingClientRect().width);
-    expect(width).toBeGreaterThanOrEqual(240);
-    expect(width).toBeLessThanOrEqual(260);
+    expect(width).toBeGreaterThanOrEqual(265);
+    expect(width).toBeLessThanOrEqual(285);
 
     const heights = await page.$$eval("aside nav a > span", (els) => [
       ...new Set(els.map((el) => Math.round(el.getBoundingClientRect().height))),

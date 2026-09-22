@@ -12,21 +12,51 @@ export const metadata: Metadata = {
   },
   description: "Plataforma corporativa de gestão de frota.",
   /**
-   * O símbolo oficial da Horizonte, sobre o azul institucional. Gerado a partir
-   * do lockup oficial por `scripts/brand-icons.mjs` — a marca não é redesenhada
-   * em lugar nenhum, só recortada da faixa do símbolo e redimensionada.
+   * O símbolo oficial da Horizonte, SEM FUNDO. Gerado a partir do lockup
+   * oficial por `scripts/brand-icons.mjs` — a marca não é redesenhada em lugar
+   * nenhum, só recortada da faixa do símbolo e redimensionada.
+   *
+   * DUAS VARIANTES, e é isso que faz a transparência funcionar. O lockup
+   * oficial já vem em versão clara e escura: na escura os elementos navy são
+   * brancos. Sem fundo, a variante clara some numa barra de abas escura e a
+   * escura some numa clara — então o navegador escolhe pela `media`.
+   *
+   * O .ico fica com a variante clara: é o que navegadores antigos pedem, e
+   * eles não entendem `media`.
    *
    * Não há SVG porque não existe vetor oficial no projeto, e embrulhar um PNG
-   * dentro de um `<svg>` para chamá-lo de vetorial seria mentira sem ganho:
-   * o .ico já carrega 16, 32 e 48 px, que é o que os navegadores pedem.
+   * dentro de um `<svg>` para chamá-lo de vetorial seria mentira sem ganho.
    */
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "16x16 32x32 48x48" },
-      { url: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
-      { url: "/favicon-16x16.png", type: "image/png", sizes: "16x16" },
+      {
+        url: "/favicon-dark-32x32.png",
+        type: "image/png",
+        sizes: "32x32",
+        media: "(prefers-color-scheme: dark)",
+      },
+      {
+        url: "/favicon-dark-16x16.png",
+        type: "image/png",
+        sizes: "16x16",
+        media: "(prefers-color-scheme: dark)",
+      },
+      {
+        url: "/favicon-32x32.png",
+        type: "image/png",
+        sizes: "32x32",
+        media: "(prefers-color-scheme: light)",
+      },
+      {
+        url: "/favicon-16x16.png",
+        type: "image/png",
+        sizes: "16x16",
+        media: "(prefers-color-scheme: light)",
+      },
     ],
     shortcut: "/favicon.ico",
+    // Opaco de propósito: o iOS compõe transparência sobre preto.
     apple: { url: "/apple-touch-icon.png", sizes: "180x180" },
   },
 };
