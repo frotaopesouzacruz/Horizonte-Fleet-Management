@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangle, CheckCircle2, ListChecks, ShieldAlert } from "lucide-react";
+import { AlertTriangle, CheckCircle2, History, ListChecks, PenLine, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
   Drawer, DrawerBody, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table, TableBody, TableCell, TableContainer, TableEmpty, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Alert, AlertDescription } from "@/components/feedback/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/feedback/alert";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { Skeleton } from "@/components/feedback/skeleton";
 import { loadExecutionDetail } from "@/lib/applications/history-actions";
@@ -21,6 +21,9 @@ import type {
   ConditionalValue, ExecutionAnswer, ExecutionCluster, ExecutionDetail,
 } from "@/lib/applications/history-queries";
 import type { ChecklistType } from "@/lib/applications/queries";
+import type { CorrectionResult } from "@/lib/applications/correction-model";
+import { CorrectionHistory, formatWhen } from "./correction-history";
+import { ExecutionCorrection, type CorrectionLoaders } from "./execution-correction";
 
 export type { ExecutionDetail } from "@/lib/applications/history-queries";
 
@@ -97,16 +100,27 @@ export interface ExecutionDetailDrawerProps {
   onOpenChange: (open: boolean) => void;
   /** Injetável para a prévia e os testes; em produção é a action. */
   loader?: ExecutionDetailLoader;
+  /**
+   * `applications.checklist_fleet.correct`: mostra "Corrigir execução". Sem
+   * ela, o detalhe é só leitura e não há campo editável algum.
+   */
+  canCorrect?: boolean;
+  /** Injetável para a prévia e os testes; em produção são as actions. */
+  correctionLoaders?: CorrectionLoaders;
 }
 
 /**
- * O detalhe de uma execução (§60), só leitura.
+ * O detalhe de uma execução (§60).
  *
- * Um checklist enviado é selado no banco (§53): não há aqui botão de editar,
- * salvar ou anexar — nem escondido atrás de permissão. Correções seguem o
- * procedimento administrativo, auditável, fora desta tela.
+ * Um checklist enviado é selado no banco (§53): não há edição livre, nem
+ * anexo. Quem tem a permissão de correção administrativa vê "Corrigir
+ * execução", que abre o procedimento próprio — itens escolhidos, motivo
+ * obrigatório, antes/depois e confirmação —, e o detalhe passa a mostrar
+ * "Corrigida" com o histórico. Sem a permissão, nada é editável.
  */
-export function ExecutionDetailDrawer({ executionId, onOpenChange, loader }: ExecutionDetailDrawerProps) {
+export function ExecutionDetailDrawer({
+  executionId, onOpenChange, loader, canCorrect = false, correctionLoaders,
+}: ExecutionDetailDrawerProps) {
   return (
     <Drawer open={Boolean(executionId)} onOpenChange={onOpenChange}>
       <DrawerContent size="lg">
@@ -117,6 +131,8 @@ export function ExecutionDetailDrawer({ executionId, onOpenChange, loader }: Exe
             key={executionId}
             executionId={executionId}
             loader={loader}
+            canCorrect={canCorrect}
+            correctionLoaders={correctionLoaders}
             onClose={() => onOpenChange(false)}
           />
         ) : null}
@@ -126,16 +142,30 @@ export function ExecutionDetailDrawer({ executionId, onOpenChange, loader }: Exe
 }
 
 function ExecutionDetailBody({
-  executionId, loader, onClose,
+  executionId, loader, canCorrect, correctionLoaders, onClose,
 }: {
   executionId: string;
   loader?: ExecutionDetailLoader;
+  canCorrect: boolean;
+  correctionLoaders?: CorrectionLoaders;
   onClose: () => void;
 }) {
   const load = loader ?? loadExecutionDetail;
   const [detail, setDetail] = React.useState<ExecutionDetail | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [correcting, setCorrecting] = React.useState(false);
+  const [reloadKey, setReloadKey] = React.useState(0);
+  const [registered, setRegistered] = React.useState<CorrectionResult | null>(null);
   const loading = detail === null && error === null;
+
+  const finishCorrection = (result: CorrectionResult) => {
+    setRegistered(result);
+    setCorrecting(false);
+    // Recarrega do servidor: o que aparece é o que ficou gravado.
+    setDetail(null);
+    setError(null);
+    setReloadKey((k) => k + 1);
+  };
 
   React.useEffect(() => {
     let cancelled = false;
@@ -156,7 +186,7 @@ function ExecutionDetailBody({
     return () => {
       cancelled = true;
     };
-  }, [executionId, load]);
+  }, [executionId, load, reloadKey]);
 
   return (
     <>
@@ -168,37 +198,72 @@ function ExecutionDetailBody({
         </DrawerTitle>
         <DrawerDescription>
           {detail
-            ? `${CHECKLIST_TYPE_LABEL[detail.checklistType]} · ${formatDateBr(detail.operationalDate)}`
+            ? `${correcting ? "Correção administrativa · " : ""}${CHECKLIST_TYPE_LABEL[detail.checklistType]} · ${formatDateBr(detail.operationalDate)}`
             : loading ? "Carregando…" : "Detalhe da execução"}
         </DrawerDescription>
       </DrawerHeader>
 
-      <DrawerBody className="flex flex-col gap-4">
-        {loading ? (
-          <div className="flex flex-col gap-3" aria-busy>
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-40 w-full" />
-          </div>
-        ) : null}
-        {error ? (
-          <Alert variant="danger">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-        {detail ? <ExecutionDetailContent detail={detail} /> : null}
-      </DrawerBody>
+      {correcting && detail ? (
+        <ExecutionCorrection
+          detail={detail}
+          loaders={correctionLoaders}
+          onCancel={() => setCorrecting(false)}
+          onDone={finishCorrection}
+        />
+      ) : (
+        <>
+          <DrawerBody className="flex flex-col gap-4">
+            {registered && !loading ? (
+              <Alert variant="success">
+                <AlertTitle>
+                  Correção registrada{registered.sequence ? ` (correção ${registered.sequence})` : ""}
+                </AlertTitle>
+                <AlertDescription>
+                  O checklist aparece como corrigido, com o motivo e os valores anteriores no histórico.
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            {loading ? (
+              <div className="flex flex-col gap-3" aria-busy>
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-40 w-full" />
+              </div>
+            ) : null}
+            {error ? (
+              <Alert variant="danger">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
+            {detail ? <ExecutionDetailContent detail={detail} /> : null}
+          </DrawerBody>
 
-      <DrawerFooter className="sm:items-center sm:justify-between">
-        <p className="text-caption text-fg-muted">
-          Um checklist enviado não pode ser editado. Correções administrativas seguem procedimento
-          próprio e auditável.
-        </p>
-        <Button variant="secondary" onClick={onClose} className="shrink-0">
-          Fechar
-        </Button>
-      </DrawerFooter>
+          <DrawerFooter className="sm:items-center sm:justify-between">
+            <p className="text-caption text-fg-muted">
+              Um checklist enviado não pode ser editado. Correções administrativas seguem procedimento
+              próprio e auditável.
+            </p>
+            <div className="flex shrink-0 flex-col-reverse gap-2 sm:flex-row">
+              <Button variant="secondary" onClick={onClose}>
+                Fechar
+              </Button>
+              {canCorrect && detail ? (
+                <Button
+                  variant="outline"
+                  leadingIcon={<PenLine />}
+                  onClick={() => {
+                    setRegistered(null);
+                    setCorrecting(true);
+                  }}
+                >
+                  Corrigir execução
+                </Button>
+              ) : null}
+            </div>
+          </DrawerFooter>
+        </>
+      )}
     </>
   );
 }
@@ -240,6 +305,9 @@ export function ExecutionDetailContent({ detail }: { detail: ExecutionDetail }) 
     ? `${detail.cityName}${detail.stateUf ? `/${detail.stateUf}` : ""}`
     : detail.stateUf;
 
+  const corrections = detail.corrections ?? [];
+  const lastCorrection = corrections[0];
+
   return (
     <div className="flex flex-col gap-4">
       <section
@@ -250,9 +318,24 @@ export function ExecutionDetailContent({ detail }: { detail: ExecutionDetail }) 
           <CheckCircle2 className="size-5" aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-caption font-medium text-success-soft-fg">Check List finalizado</p>
+          <p className="flex flex-wrap items-center gap-1.5 text-caption font-medium text-success-soft-fg">
+            Check List finalizado
+            {corrections.length > 0 ? (
+              <Badge variant="info" appearance="soft" size="sm" data-testid="execution-corrected-badge">
+                Corrigida
+              </Badge>
+            ) : null}
+          </p>
           <p className="truncate text-body font-semibold text-fg">{detail.employeeName ?? "—"}</p>
           <p className="text-caption text-fg-muted">{subtitle}</p>
+          {lastCorrection ? (
+            <p className="text-caption text-fg-muted">
+              {corrections.length === 1 ? "1 correção administrativa" : `${corrections.length} correções administrativas`}
+              {" · última em "}
+              {formatWhen(lastCorrection.correctedAt)}
+              {lastCorrection.correctedByName ? ` por ${lastCorrection.correctedByName}` : ""}
+            </p>
+          ) : null}
         </div>
         <div className="shrink-0 text-right">
           <p className="text-caption text-fg-muted">Duração</p>
@@ -313,10 +396,10 @@ export function ExecutionDetailContent({ detail }: { detail: ExecutionDetail }) 
                 key={c.clusterKey}
                 className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-body-sm tabular-nums"
               >
-                <span className="min-w-0 flex-1 font-medium text-fg">{c.name}</span>
-                <span className="text-fg-muted">{c.applicable} aplicáveis</span>
+                <span className="min-w-0 basis-full font-medium text-fg sm:flex-1 sm:basis-auto">{c.name}</span>
+                <span className="text-fg-secondary">{c.applicable} aplicáveis</span>
                 <span className="text-success-soft-fg">{c.applicable - c.nonConforming} conformes</span>
-                <span className={c.nonConforming > 0 ? "font-medium text-danger" : "text-fg-muted"}>
+                <span className={c.nonConforming > 0 ? "font-medium text-danger" : "text-fg-secondary"}>
                   {c.nonConforming} inconformes
                 </span>
               </li>
@@ -329,6 +412,9 @@ export function ExecutionDetailContent({ detail }: { detail: ExecutionDetail }) 
         <TabsList>
           <TabsTrigger value="completo">Checklist completo</TabsTrigger>
           <TabsTrigger value="inconformidades">Inconformidades ({nonConformingCount})</TabsTrigger>
+          {corrections.length > 0 ? (
+            <TabsTrigger value="correcoes">Correções ({corrections.length})</TabsTrigger>
+          ) : null}
         </TabsList>
 
         <TabsContent value="completo" className="flex flex-col gap-4">
@@ -369,6 +455,17 @@ export function ExecutionDetailContent({ detail }: { detail: ExecutionDetail }) 
             </div>
           )}
         </TabsContent>
+
+        {corrections.length > 0 ? (
+          <TabsContent value="correcoes" className="flex flex-col gap-3">
+            <p className="flex items-start gap-1.5 text-caption text-fg-secondary">
+              <History className="mt-px size-3.5 shrink-0" aria-hidden />
+              Cada correção guarda quem corrigiu, quando, o motivo e o valor anterior. Veículo, data, tipo,
+              operação e BR não são corrigidos por este procedimento.
+            </p>
+            <CorrectionHistory corrections={corrections} />
+          </TabsContent>
+        ) : null}
       </Tabs>
     </div>
   );
@@ -441,7 +538,14 @@ function ClusterTable({ cluster }: { cluster: ExecutionCluster }) {
               cluster.answers.map((a) => (
                 <TableRow key={a.questionKey} className={cn(!a.isConforming && "bg-danger-soft/30")}>
                   <TableCell className="py-2">
-                    <p className="text-body-sm text-fg">{a.text}</p>
+                    <p className="text-body-sm text-fg">
+                      {a.text}
+                      {a.corrected ? (
+                        <Badge variant="info" appearance="soft" size="sm" className="ml-1.5 align-middle">
+                          Corrigida
+                        </Badge>
+                      ) : null}
+                    </p>
                     <ConditionalLines value={a.conditionalValue} className="mt-1" />
                     <NoteLine note={a.note} />
                   </TableCell>

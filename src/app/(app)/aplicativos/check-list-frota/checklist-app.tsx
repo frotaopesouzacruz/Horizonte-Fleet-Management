@@ -44,6 +44,8 @@ export interface ChecklistLoaders {
   submit?: SubmitFn;
   loadExecutionDetail?: React.ComponentProps<typeof ExecutionDetailDrawer>["loader"];
   loadScopeExecutions?: React.ComponentProps<typeof ScopeHistory>["loader"];
+  /** Correção administrativa (§60): formulário e rotina. */
+  correction?: React.ComponentProps<typeof ExecutionDetailDrawer>["correctionLoaders"];
 }
 
 const DEFAULT_LOADERS: ChecklistLoaders = { loadEquipmentOptions, loadVehicleOptions, loadChecklistForm };
@@ -55,6 +57,8 @@ export interface ChecklistAppProps {
   canViewOwn: boolean;
   canViewScope?: boolean;
   canConfigure: boolean;
+  /** `applications.checklist_fleet.correct`: "Corrigir execução" no detalhe (§60). */
+  canCorrect?: boolean;
   loaders?: ChecklistLoaders;
 }
 
@@ -75,6 +79,7 @@ export function ChecklistApp({
   canViewOwn,
   canViewScope = false,
   canConfigure,
+  canCorrect = false,
   loaders = DEFAULT_LOADERS,
 }: ChecklistAppProps) {
   const router = useRouter();
@@ -459,6 +464,8 @@ export function ChecklistApp({
           if (!open) setDetailId(null);
         }}
         loader={loaders.loadExecutionDetail}
+        canCorrect={canCorrect}
+        correctionLoaders={loaders.correction}
       />
     </>
   );

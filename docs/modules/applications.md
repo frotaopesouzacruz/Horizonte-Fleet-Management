@@ -127,7 +127,7 @@ Medido na base real:
 
 ## 6. RBAC
 
-Nove permissões, todas no módulo `applications`:
+Dez permissões, todas no módulo `applications`:
 
 | Código | Para quê |
 |---|---|
@@ -140,6 +140,7 @@ Nove permissões, todas no módulo `applications`:
 | `applications.checklist_fleet.publish` | publicar versão |
 | `applications.checklist_fleet.manage_rules` | definir aplicabilidade |
 | `applications.checklist_fleet.view_audit` | ler a trilha de auditoria |
+| `applications.checklist_fleet.correct` | corrigir uma execução enviada pelo procedimento auditado (padrão: Administrador e Gestor de Frota; ver [`fleet-checklist.md`](../apps/fleet-checklist.md) §17) |
 
 A matriz padrão entra por `access_profile_defaults`, e o gatilho de
 sincronização da Etapa 09 as leva aos papéis reais da organização. Foi criado

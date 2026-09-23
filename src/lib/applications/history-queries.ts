@@ -2,6 +2,7 @@ import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 import type { Answer, ChecklistType, Criticality } from "./queries";
+import { toExecutionCorrection, type ExecutionCorrection } from "./correction-model";
 
 /**
  * Leituras do HISTÓRICO do Check List de Frota (§59, §60, §64).
@@ -25,6 +26,10 @@ export interface ExecutionAnswer {
   criticality: Criticality;
   conditionalValue: ConditionalValue | null;
   note: string | null;
+  /** Id da pergunta (correção administrativa, §60). */
+  questionId?: string;
+  /** Alterada por correção administrativa. */
+  corrected?: boolean;
 }
 
 export interface ExecutionCluster {
@@ -58,6 +63,8 @@ export interface ExecutionDetail {
   nonConforming: number;
   criticalNonConforming: number;
   clusters: ExecutionCluster[];
+  /** Correções administrativas registradas (§60), a mais recente primeiro. */
+  corrections?: ExecutionCorrection[];
 }
 
 export interface ScopeExecution {
@@ -167,8 +174,11 @@ export async function getExecutionDetail(executionId: string): Promise<Execution
         criticality: asCriticality(a.criticality),
         conditionalValue: toConditionalValue(a.conditional_value),
         note: strOrNull(a.note),
+        questionId: a.question_id == null ? undefined : str(a.question_id),
+        corrected: a.corrected === true,
       })),
     })),
+    corrections: arr(r.corrections).map(toExecutionCorrection),
   };
 }
 

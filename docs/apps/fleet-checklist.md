@@ -215,9 +215,14 @@ o que foi inspecionado em março (§34, §47).
 
 ### Selagem
 
-Um checklist enviado não se edita. O banco recusa alteração de execução e de
-respostas enviadas; a correção administrativa terá rotina própria, autorizada e
-auditável, que abrirá o portão `hfm.checklist_correction`.
+Um checklist enviado não se edita. O banco recusa alteração de execução, de
+respostas e do resumo por cluster de uma execução enviada. A única porta é a
+correção administrativa (§17): rotina própria, autorizada e auditável, que abre
+o portão `hfm.checklist_correction` só dentro da própria transação — e, mesmo
+com o portão aberto, o gatilho deixa mudar apenas resposta, conformidade,
+condicional, observação e os contadores de conformidade. Identidade (veículo,
+data, tipo, operação, BR, colaborador, versão, pergunta respondida) nunca muda;
+execução enviada não muda de situação; resposta enviada nunca é excluída.
 
 ---
 
@@ -250,7 +255,8 @@ estão testados juntos: `docs/modules/checklist-adherence.md`.
 | Multi-tenant | RLS em todas as tabelas; nenhuma policy de escrita; vínculo de aplicativo, operação e tipo só dentro da organização (tipos globais compartilhados) |
 | Escrita | só por rotina transacional `security definer` com permissão conferida no servidor |
 | Leitura | rotinas `security invoker` — a RLS decide |
-| Auditoria | versão, cluster, pergunta, condicional, regra, execução, vínculo × operação e vínculo × tipo (valor anterior e novo) |
+| Auditoria | versão, cluster, pergunta, condicional, regra, execução, vínculo × operação e vínculo × tipo (valor anterior e novo); correção administrativa (cabeçalho e itens, com o ator real) |
+| Correção administrativa | `applications.checklist_fleet.correct` (padrão: Administrador e Gestor de Frota), só pela rotina `correct_checklist_execution` |
 
 O operacional vê o que fez — comparado pelo colaborador da sessão. Quem tem
 `view_details` vê o escopo operacional autorizado. Ninguém atravessa organização.
@@ -267,6 +273,7 @@ contra o projeto de desenvolvimento em 22/09/2026, depois do refinamento.
 | `supabase/tests/remote/12_checklist_fleet.sql` | 15/15 PASS | aplicabilidade por vínculo (Van em Last Mille MG, Caminhão em Redespacho - MG), **Frota Leve ADM recusada no formulário**, orientação pela prévia, envio, invertidas, idempotência, outbox, recusas, tempo mínimo, imutabilidade, nenhuma coluna de anexo |
 | `supabase/tests/remote/12b_checklist_versioning.sql` | 16/16 PASS | versão de trabalho copia 9/34/7/7, rascunho único, identidade preservada e nova identidade, condicional ≥ 2 opções e um por pergunta, regra com alvo inexistente/repetida, validação, prévia = executor, publicação arquiva a anterior, imutabilidade pela rotina e pelo gatilho, §48, **usuário sem `configure` recusado (42501)**, descarte, auditoria, Meus Checklists e escopo |
 | `supabase/tests/remote/12c_application_links.sql` | 9/9 PASS | §51 só as 4 operações; §52 ADM fora dos tipos e das placas, formulário e envio recusados; §53 vans e caminhões filtrados; §54 habilitar/desabilitar com auditoria; §55 app novo sem vínculo até vincular; §56 saída conciliada, retorno intacto, ADM sem obrigação; §57 manipulação de ids recusada **e usuário sem permissão recusado nos dois vínculos**; §58 9/34/7/2 intactos |
+| `supabase/tests/remote/16c_checklist_correction.sql` (23/09/2026) | 12/12 PASS | correção administrativa (§17): motivo, prévia, antes/depois, resumo recalculado, identidade selada, auditoria com o ator real, imutabilidade, escrita direta bloqueada, sem permissão e outra organização recusados; validação da publicação só com vínculos vigentes |
 
 **Como o "usuário sem permissão" é testado sem inventar conta.** O banco de
 desenvolvimento só tem o administrador (que também é platform admin). As
@@ -314,6 +321,7 @@ inconformidades, condicionais e observações, só leitura). `npx tsc --noEmit`,
 | `…_application_links.sql` | vínculos App × Operação e App × Tipo (vigência, permissões, leitura única, gravação, histórico), elegibilidade, contexto/tipos/placas/formulário pela elegibilidade, estado inicial aprovado |
 | `…_checklist_eligibility_submit_adherence.sql` | elegibilidade no envio; Aderência respeita os vínculos |
 | `…_checklist_execution_detail_employee_code.sql` | o detalhe da execução devolve a matrícula (§60) |
+| `20260924140000_checklist_admin_correction.sql` (ledger `checklist_admin_correction`) | correção administrativa: permissão, registro de correções (cabeçalho + itens), selagem mais estrita, rotina com prévia, formulário, histórico no detalhe; vigência na validação da publicação |
 
 ---
 
@@ -322,17 +330,28 @@ inconformidades, condicionais e observações, só leitura). `npx tsc --noEmit`,
 * **Plano de Ação** (§61): `generates_action_plan` está preservado em todas as
   34 perguntas e a consulta por inconformidade tem índice próprio. O módulo em
   si não existe no HFM e não foi criado aqui.
-* **Correção administrativa de execução enviada** (§60): o portão
-  `hfm.checklist_correction` existe; a rotina e a tela não.
+* **Correção de identidade da execução** (veículo, data, tipo saída/retorno,
+  operação, BR, colaborador): fora do procedimento de correção administrativa
+  por decisão (§17). Esses campos alimentam a conciliação da Aderência; se um
+  dia for preciso corrigi-los, é outro procedimento — que reabra e reconcilie a
+  obrigação do dia, com a Aderência como dona da regra — e não uma extensão
+  deste.
+* **Resposta que faltou**: a correção altera respostas existentes. Uma pergunta
+  opcional que ficou sem resposta no envio não ganha resposta por correção
+  (não existe hoje: as 34 são obrigatórias).
+* **Lista do escopo sem marca de corrigida**: "Corrigida" aparece no detalhe
+  (selo, aba "Correções" e marca por pergunta); a lista de "Checklists do
+  escopo" e "Meus checklists" ainda não mostram a marca.
 * **Vínculo por subcategoria** (§19, §21 "quando necessário"): não criado. Os
   19 subcategorias herdam o comportamento do tipo; se um dia uma subcategoria
   precisar de comportamento próprio, o vínculo nasce sobre
   `vehicle_subcategories`, com a mesma leitura única.
-* **Vigência na validação da publicação**: `validate_checklist_version` conta
-  operações habilitadas por `is_enabled`, sem olhar a vigência do vínculo.
 * **Ledger vs. arquivos**: as migrations aplicadas pelo MCP carregam versão
   própria no ledger; os arquivos do repositório usam `20260922…`. Divergência
   conhecida desde a Etapa 11.
+
+Resolvidas na Etapa 12 (complemento, 23/09/2026): a **correção administrativa
+de execução enviada** (§17) e a **vigência na validação da publicação** (§15).
 
 ---
 
@@ -447,7 +466,13 @@ escolha com pelo menos duas opções; regras de aplicabilidade (incluir,
 excluir, orientação) só para quem tem `manage_rules`.
 
 **Publicar** abre a validação (`validate_checklist_version`): impedimentos
-bloqueiam o botão, avisos não. Publicada, a versão arquiva a anterior e vira
+bloqueiam o botão, avisos não. A contagem de operações habilitadas considera só
+vínculos **vigentes hoje** (`private.app_operation_enabled(app, operação,
+current_date)`, a mesma leitura do executor): um vínculo `is_enabled` vencido
+(`effective_to` < hoje) ou futuro (`effective_from` > hoje) não conta — todos
+fora da vigência é o impedimento "Nenhuma operação ativa está habilitada para o
+aplicativo". O aviso de regra que aponta para operação não habilitada usa a
+mesma leitura. O resto da validação não mudou. Publicada, a versão arquiva a anterior e vira
 imutável — pela rotina e pelo gatilho. A prévia da administração e o
 formulário do executor usam o mesmo construtor (`private.checklist_build_form`).
 
@@ -472,6 +497,107 @@ cluster; e duas abas — "Checklist completo" (cada pergunta com SIM/NÃO,
 situação Conforme/Inconforme · crítica, o valor dos condicionais por rótulo e a
 observação ou "sem observação") e "Inconformidades (n)". Não há editar,
 salvar, anexar nem campo de entrada: um checklist enviado não se edita (§60).
+Quem tem `applications.checklist_fleet.correct` vê, no rodapé, "Corrigir
+execução" — o procedimento da §17. Execução corrigida mostra o selo
+"Corrigida", a linha "n correções administrativas · última em … por …", a marca
+"Corrigida" nas perguntas alteradas e a aba "Correções (n)".
 
 Prévia com dados fixos: `/dev/preview-historico`; fluxo de seleção completo:
 `/dev/preview-checklist-fluxo`.
+
+---
+
+## 17. Correção administrativa de checklist enviado (§60, §62)
+
+> "Não permitir edição livre de um checklist definitivamente enviado.
+> Correções administrativas deverão utilizar procedimento específico,
+> autorizado e auditável."
+
+**Quem.** Permissão nova `applications.checklist_fleet.correct` ("Corrigir
+execução do Check List"), padrão só em **Administrador** e **Gestor de Frota**
+(via `access_profile_defaults` e o gatilho de sincronização; conferido depois de
+aplicar: chegou só a esses dois papéis). Nenhum acesso por nome de perfil. A
+rotina confere também a organização da execução e o escopo de operação de quem
+corrige.
+
+**O quê.** Só o conteúdo: **resposta** (SIM/NÃO), **campo condicional** e
+**observação**, pergunta a pergunta. A conformidade de cada item é recalculada
+pela resposta conforme **da pergunta** (§3) — a invertida continua invertida —,
+e o resumo da execução (conformes, inconformes, críticas) e o de cada cluster
+são recalculados na mesma transação. As regras são as do envio: o condicional
+só existe quando a resposta o aciona; trocar a resposta descarta o valor
+anterior; acionado e obrigatório, precisa de valor; escolha só entre as opções
+da pergunta; observação até 2000 caracteres. Item marcado sem mudança é
+recusado: a trilha registra só o que mudou. Nenhuma foto, arquivo ou anexo
+(§1).
+
+**Fora do escopo, de propósito:** veículo, data operacional, tipo
+(saída/retorno), operação, BR, colaborador e versão. São a identidade da
+execução e alimentam a conciliação da Aderência. A rotina recusa qualquer chave
+além de `execution_id`, `reason`, `items`, `dry_run` (e, no item, além de
+`question_id`, `answer`, `conditional_value`, `note`); o gatilho de selagem
+recusa mudar a identidade mesmo com o portão aberto.
+
+**Como fica registrado.** Nada é apagado nem sobrescrito sem rastro:
+
+| Tabela | O que guarda |
+|---|---|
+| `checklist_execution_corrections` | execução, sequência (1ª, 2ª…), **motivo** (10–1000 caracteres, obrigatório), **ator** (`auth.uid()`, nunca "Sistema") e o nome dele congelado, data/hora, nº de itens, resumo **antes** e **depois** |
+| `checklist_execution_correction_items` | por pergunta: o que mudou (`changed_fields`), resposta, conformidade, condicional e observação **antes** e **depois** |
+
+As duas: RLS de leitura (quem vê a execução vê as correções dela), sem política
+nem permissão de escrita (INSERT/UPDATE/DELETE revogados de `authenticated`),
+imutáveis por gatilho — nem o dono da tabela altera ou apaga — e com
+`private.tg_audit`. A atualização dos contadores da execução também cai na
+auditoria oficial (`checklist_executions_audit`), com valor anterior e novo e o
+ator real.
+
+**Rotinas.**
+
+| Rotina | Tipo | Para quê |
+|---|---|---|
+| `correct_checklist_execution(org, payload)` | `security definer`, `search_path = ''` | valida permissão, organização, escopo, motivo e cada item; `dry_run: true` devolve antes/depois e o resumo recalculado **sem gravar** (a prévia é a própria rotina); sem `dry_run`, grava tudo numa transação, abrindo o portão só ali dentro |
+| `checklist_execution_correction_form(org, execução)` | `security definer`, só com `correct` | o que pode ser corrigido: cada resposta com a resposta conforme, a criticidade e a definição do condicional |
+| `checklist_execution_detail(execução)` | `security invoker` (inalterada na essência) | ganhou `question_id` e `corrected` em cada resposta e `correction_count`, `last_corrected_at` e `corrections` (com os itens antes/depois) no topo |
+
+**A tela** (gaveta do detalhe, `execution-detail-drawer.tsx` →
+`execution-correction.tsx` + `correction-history.tsx`):
+
+1. **Corrigir execução** (só com a permissão; sem ela não há botão nem campo).
+2. **Editar** — a identidade aparece trancada ("Não corrigível por este
+   procedimento": placa, data, tipo, operação, BR, colaborador); cada pergunta,
+   agrupada por cluster, tem uma caixa "corrigir" com a resposta atual; marcada,
+   abre SIM/NÃO (48 px), o condicional quando acionado e a observação; **motivo
+   obrigatório**. A tela confere as mesmas regras antes de pedir a prévia.
+3. **Revisar** — resumo antes → depois e, por item, só o que muda (antes
+   riscado → depois), com o motivo. Calculado pela rotina em `dry_run`.
+4. **Confirmar** — diálogo "Registrar a correção administrativa?"; a recusa do
+   servidor aparece com as palavras dele.
+5. O detalhe recarrega do banco com **"Corrigida"** e a aba **"Correções (n)"**:
+   quem, quando, motivo, resumo e antes → depois de cada item.
+
+Mobile-first (sem rolagem horizontal a 390 px, alvos ≥ 44 px), claro/escuro,
+rótulos acessíveis (caixas nomeadas pela pergunta, grupos de rádio nomeados,
+"Antes:"/"Depois:" para leitor de tela).
+
+**Validação.**
+
+* Banco — `supabase/tests/remote/16c_checklist_correction.sql`, 23/09/2026,
+  **12/12 PASS**: permissão e padrão; sem motivo recusado; prévia sem gravar e
+  condicional obrigatório/opção inválida recusados; correção com antes/depois,
+  invertida, resumo e clusters recalculados, identidade intacta; auditoria com o
+  ator real; identidade recusada pela rotina e pelo gatilho (mesmo com o
+  portão); registro imutável; UPDATE/DELETE direto do usuário afeta 0 linhas e
+  INSERT direto é negado; segunda correção com o histórico preservado; usuário
+  sem a permissão recusado (42501); outra organização recusada; e a validação
+  da publicação ignorando vínculos vencidos e futuros. A execução corrigida nos
+  testes é criada pelo envio oficial dentro da transação desfeita.
+* Navegador — `tests/ui/checklist-correction.spec.ts` contra
+  `/dev/preview-checklist-correcao` (`?sem_permissao=1` para o detalhe sem a
+  permissão; a rotina em memória repete as recusas do banco): **9/9 PASS** —
+  sem permissão nada editável; fluxo completo com motivo obrigatório, revisão e
+  confirmação; recusa do servidor com as mesmas palavras; voltar e editar; item
+  sem mudança; execução já corrigida (também sem a permissão); sem anexo;
+  telefone 390 px; axe WCAG 2.1 AA claro e escuro. As suítes do checklist já
+  existentes (`checklist*.spec.ts`, 27) continuam passando.
+
