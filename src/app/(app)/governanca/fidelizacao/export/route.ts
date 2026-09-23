@@ -4,12 +4,14 @@ import { getSessionContext, hasPermission } from "@/lib/auth/session";
 import { buildWorkbook, buildCsv } from "@/lib/admin/spreadsheet";
 import { listBrPlannerRows, type BrPlannerFilters } from "@/lib/governance/br-planner";
 import { listFidelizationHistory } from "@/lib/governance/queries";
-import { parseCompetence, formatCompetence } from "@/lib/governance/competence";
+import { parseCompetence, formatCompetence, monthEnd, monthStart } from "@/lib/governance/competence";
+import { listMovements, MOVEMENT_TYPES, type MovementRow } from "@/lib/governance/fidelization-central";
 import { ALLOCATION_TEMPLATE_HEADERS, BR_TEMPLATE_HEADERS } from "@/lib/governance/import-columns";
 
 /**
- * Exporta o Planner de Locais e BRs ou o histórico de movimentações da
- * competência em tela (Etapa 13, continuação; permissão `fidelization.export`).
+ * Exporta o Planner de Locais e BRs, o histórico de vínculos da competência em
+ * tela (Etapa 13, continuação) ou o Histórico de Mobilizações com os filtros da
+ * aba (Etapa 15, §45) — sempre com a permissão `fidelization.export`.
  *
  * As linhas vêm das mesmas consultas `security invoker` que a página usa, então
  * o arquivo só pode conter o que quem exporta já enxergava — a exportação não
@@ -27,6 +29,21 @@ const HISTORY_HEADERS = [
   "Operação", "Estado", "Cidade", "Código BR", "Frota", "Placa", "Marca/Modelo", "Tipo de alocação",
   "Início", "Fim", "Situação", "Origem", "Motivo", "Motivo do encerramento",
 ];
+
+const MOVEMENT_HEADERS = [
+  "Data efetiva", "Tipo", "Operação", "Estado", "Cidade", "Código BR", "Liderança na data",
+  "Veículo anterior", "Placa anterior", "Veículo novo", "Placa nova",
+  "Motorista anterior", "Motorista novo", "Função do motorista", "Início do período", "Fim do período",
+  "Motivo", "Origem", "Inferido", "Registrado por", "Registrado em",
+];
+
+const MOVEMENT_LABEL = new Map<string, string>(MOVEMENT_TYPES.map((t) => [t.value, t.label]));
+const MOVEMENT_ORIGIN: Record<string, string> = {
+  user: "Usuário", import: "Importação", replication: "Replicação", system: "Sistema",
+  reconstructed: "Reconstruído do histórico",
+};
+/** Teto do arquivo: 50 páginas de 200 eventos. Acima disso, a pessoa refina o filtro. */
+const MOVEMENT_EXPORT_PAGES = 50;
 
 const ASSIGNMENT_STATUS: Record<string, string> = {
   planned: "Planejado", confirmed: "Confirmado", executed: "Executado", cancelled: "Cancelado",
@@ -98,7 +115,44 @@ export async function GET(request: NextRequest) {
   let data: (string | number | null)[][];
   let name: string;
 
-  if (kind === "historico") {
+  if (kind === "mobilizacoes") {
+    const dateFrom = params.get("mov_de") ?? undefined;
+    const dateTo = params.get("mov_ate") ?? undefined;
+    const range = dateFrom || dateTo
+      ? { dateFrom, dateTo }
+      : { dateFrom: monthStart(competence), dateTo: monthEnd(competence) };
+    const movementFilters = {
+      ...range,
+      operationId: filters.operationId,
+      stateId: filters.stateId,
+      cityId: filters.cityId,
+      brId: params.get("br") ?? undefined,
+      leaderEmployeeId: filters.leaderEmployeeId,
+      movementType: params.get("mov_tipo") ?? undefined,
+      subject: params.get("mov_assunto") ?? undefined,
+      vehicle: params.get("mov_veiculo") ?? undefined,
+      driver: params.get("mov_motorista") ?? undefined,
+    };
+    const rows: MovementRow[] = [];
+    for (let page = 1; page <= MOVEMENT_EXPORT_PAGES; page += 1) {
+      const result = await listMovements(organizationId, movementFilters, page, 200);
+      rows.push(...result.rows);
+      if (rows.length >= result.total || result.rows.length === 0) break;
+    }
+    headers = MOVEMENT_HEADERS;
+    data = rows.map((m) => [
+      formatDate(m.effectiveDate), MOVEMENT_LABEL.get(m.movementType) ?? m.movementType,
+      m.operationName, m.stateUf, m.cityName, m.brCode, m.leaderName ?? "",
+      m.previousVehicleLabel ?? "", m.previousPlate ?? "", m.newVehicleLabel ?? "", m.newPlate ?? "",
+      m.previousDriverName ?? "", m.newDriverName ?? "",
+      m.driverRole === "primary" ? "Principal" : m.driverRole === "secondary" ? "Secundário" : "",
+      formatDate(m.periodStart), m.periodEnd ? formatDate(m.periodEnd) : m.periodStart ? "em diante" : "",
+      m.reason ?? "", MOVEMENT_ORIGIN[m.origin] ?? m.origin, m.isInferred ? "Sim" : "Não",
+      m.actorName ?? "", m.recordedAt ? new Date(m.recordedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "",
+    ]);
+    const suffix = dateFrom || dateTo ? `${dateFrom ?? "inicio"}-a-${dateTo ?? "hoje"}` : label;
+    name = `fidelizacao-mobilizacoes-${suffix}.${format}`;
+  } else if (kind === "historico") {
     const rows = await listFidelizationHistory(organizationId, competence, {
       operationId: filters.operationId,
       stateId: filters.stateId,
@@ -133,7 +187,7 @@ export async function GET(request: NextRequest) {
     p_organization_id: organizationId,
     p_format: format,
     p_row_count: data.length,
-    p_kind: kind === "historico" ? "historico" : "planner",
+    p_kind: kind === "historico" || kind === "mobilizacoes" ? kind : "planner",
   });
   // Sem registro não há exportação: a auditoria é parte do contrato, não um extra.
   if (auditError) {
@@ -143,6 +197,10 @@ export async function GET(request: NextRequest) {
   const buffer =
     format === "csv"
       ? buildCsv(headers, data)
-      : await buildWorkbook(kind === "historico" ? "Histórico" : "Planner", headers, data);
+      : await buildWorkbook(
+          kind === "mobilizacoes" ? "Mobilizações" : kind === "historico" ? "Histórico" : "Planner",
+          headers,
+          data,
+        );
   return fileResponse(buffer, name, format);
 }

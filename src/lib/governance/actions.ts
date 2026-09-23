@@ -974,3 +974,134 @@ export async function replicateFidelizationCompetence(input: {
     },
   };
 }
+
+/* ------------------------------------------ edição por período (Etapa 15) */
+
+export type PeriodMode = "allocate" | "substitute" | "remove" | "invert" | "transfer" | "conflict";
+
+export interface PeriodAction {
+  /** trim: encurtado · cancel: cancelado (ficava todo dentro) · continue: recriado depois do período · create: novo vínculo. */
+  kind: "trim" | "cancel" | "continue" | "create";
+  assignmentId: string;
+  operationBrId: string;
+  brCode: string | null;
+  vehicleId: string | null;
+  vehicleLabel: string | null;
+  startDate: string;
+  endDate: string | null;
+  previousEndDate: string | null;
+  drivers: number | null;
+}
+
+export interface PeriodConflict {
+  assignmentId: string;
+  /** Nulo quando a BR está fora do escopo de quem consulta. */
+  operationBrId: string | null;
+  brCode: string;
+  operationName: string | null;
+  cityName: string | null;
+  vehicleRole: string;
+  startDate: string;
+  endDate: string | null;
+}
+
+export interface PeriodResult {
+  preview: boolean;
+  mode: PeriodMode;
+  operationBrId: string;
+  brCode: string;
+  vehicleId: string | null;
+  vehicleLabel: string | null;
+  dateFrom: string;
+  dateTo: string | null;
+  /** O período começa antes de hoje: correção histórica. */
+  historical: boolean;
+  conflicts: PeriodConflict[];
+  /** A inversão é inequívoca para este período. */
+  canInvert: boolean;
+  driversKept: number;
+  actions: PeriodAction[];
+}
+
+export interface ApplyPeriodInput {
+  operationBrId: string;
+  /** Nulo remove o titular no período. */
+  vehicleId: string | null;
+  dateFrom: string;
+  /** Nulo = daqui em diante. */
+  dateTo: string | null;
+  reason?: string | null;
+  notes?: string | null;
+  invert?: boolean;
+  keepDrivers?: boolean;
+  dryRun: boolean;
+}
+
+/**
+ * A célula do Planner de Frotas (§23–§28). Uma chamada, uma transação; a
+ * prévia é a mesma rotina, desfeita — o que ela mostra é o que a gravação
+ * fará, inclusive a recusa de uma constraint.
+ */
+export async function applyFidelizationPeriod(input: ApplyPeriodInput): Promise<Result<PeriodResult>> {
+  const ctx = await resolveOrganization("fidelization.view");
+  if (!ctx) return { ok: false, error: SESSION_LOST };
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.rpc("apply_fidelization_period", {
+    p_organization_id: ctx.organization.organizationId,
+    p_payload: {
+      operation_br_id: input.operationBrId,
+      vehicle_id: input.vehicleId,
+      date_from: input.dateFrom,
+      date_to: input.dateTo,
+      reason: input.reason ?? null,
+      notes: input.notes ?? null,
+      invert: Boolean(input.invert),
+      keep_drivers: input.keepDrivers ?? true,
+      dry_run: input.dryRun,
+    } as unknown as Json,
+  });
+
+  if (error) return { ok: false, error: toMessage(error, "Não foi possível aplicar a alteração no período.") };
+
+  const d = (data ?? {}) as Record<string, unknown>;
+  const s = (v: unknown) => (v === null || v === undefined || v === "" ? null : String(v));
+  const result: PeriodResult = {
+    preview: Boolean(d.preview),
+    mode: (String(d.mode ?? "allocate") as PeriodMode),
+    operationBrId: String(d.operation_br_id ?? input.operationBrId),
+    brCode: String(d.br_code ?? ""),
+    vehicleId: s(d.vehicle_id),
+    vehicleLabel: s(d.vehicle_label),
+    dateFrom: String(d.date_from ?? input.dateFrom),
+    dateTo: s(d.date_to),
+    historical: Boolean(d.historical),
+    canInvert: Boolean(d.can_invert),
+    driversKept: Number(d.drivers_kept ?? 0),
+    conflicts: (Array.isArray(d.conflicts) ? (d.conflicts as Record<string, unknown>[]) : []).map((c) => ({
+      assignmentId: String(c.assignment_id),
+      operationBrId: s(c.operation_br_id),
+      brCode: String(c.br_code ?? ""),
+      operationName: s(c.operation_name),
+      cityName: s(c.city_name),
+      vehicleRole: String(c.vehicle_role ?? "primary"),
+      startDate: String(c.start_date),
+      endDate: s(c.end_date),
+    })),
+    actions: (Array.isArray(d.actions) ? (d.actions as Record<string, unknown>[]) : []).map((a) => ({
+      kind: String(a.kind) as PeriodAction["kind"],
+      assignmentId: String(a.assignment_id),
+      operationBrId: String(a.operation_br_id),
+      brCode: s(a.br_code),
+      vehicleId: s(a.vehicle_id),
+      vehicleLabel: s(a.vehicle_label),
+      startDate: String(a.start_date),
+      endDate: s(a.end_date),
+      previousEndDate: s(a.previous_end_date),
+      drivers: a.drivers === undefined || a.drivers === null ? null : Number(a.drivers),
+    })),
+  };
+
+  if (!input.dryRun) revalidateFidelization();
+  return { ok: true, data: result };
+}

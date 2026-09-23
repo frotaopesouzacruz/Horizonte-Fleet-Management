@@ -1,22 +1,22 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeftRight, CalendarDays, ChevronDown, CircleSlash, CopyCheck, Download, MapPin, Truck, Upload,
-  UserRound, UserRoundPen,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PageContent, PageHeader } from "@/components/layout/page-header";
-import { Button, IconButton } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { FilterBar } from "@/components/ui/filter-bar";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription, AlertTitle } from "@/components/feedback/alert";
 import {
   Table, TableBody, TableCell, TableContainer, TableEmpty, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -24,13 +24,15 @@ import { CompetencePicker } from "@/components/governance/competence-picker";
 import { NativeSelect } from "@/components/governance/selects";
 import type { CoverageEntry } from "@/components/governance/scope-picker";
 import type {
-  CalendarRow, DriverPlanRow, FidelizationIndicators, FidelizationRow,
+  DriverPlanRow, FidelizationIndicators, FidelizationRow,
   HierarchyOperation, OperationBrRow,
 } from "@/lib/governance/queries";
 import type { BrPlannerIndicators, BrPlannerRow } from "@/lib/governance/br-planner";
 import type { FidelizationStability } from "@/lib/governance/brs";
+import type {
+  FidelizationImportBatch, MovementsPage, PlannerMatrix,
+} from "@/lib/governance/fidelization-central";
 import { formatCompetence, type Competence } from "@/lib/governance/competence";
-import { CalendarLegend, CalendarMatrix } from "./calendar-matrix";
 import { BrPlanner } from "./br-planner";
 import { BrsModuleNotice } from "./brs-module-notice";
 import { AssignmentDrawer } from "./assignment-drawer";
@@ -38,8 +40,12 @@ import { InvertDialog } from "./invert-dialog";
 import { HierarchyPanel } from "./hierarchy-panel";
 import { ImportDrawer } from "./import-drawer";
 import { StabilityDashboard } from "./stability-dashboard";
-import { DriverSubstituteDialog, canSubstituteDriver } from "./driver-substitute-dialog";
+import { DriverSubstituteDialog } from "./driver-substitute-dialog";
 import { ReplicateFidelizationDialog } from "./replicate-fidelization-dialog";
+import { FleetPlanner } from "./fleet-planner";
+import { DriversPlanner } from "./drivers-planner";
+import { MovementsPanel, type MovementsPanelFilters } from "./movements-panel";
+import { ImportPanel } from "./import-panel";
 
 const number = new Intl.NumberFormat("pt-BR");
 
@@ -61,8 +67,17 @@ const SOURCE_LABEL: Record<string, string> = {
 /** Os filtros que o módulo BRs entende e que a pessoa não deve ter de refazer lá. */
 const BRS_MODULE_FILTERS = ["operacao", "uf", "cidade", "ano", "mes"] as const;
 
+/**
+ * As áreas da Central de Fidelização (Etapa 15, §5), na ordem da leitura:
+ * o panorama, os dois planners, o que já aconteceu, a entrada de arquivos e,
+ * por fim, o Planner de Locais e BRs da Etapa 13, que continua aqui.
+ */
+const TABS = ["visao-geral", "frotas", "motoristas", "historico", "importacao", "locais"] as const;
+type TabValue = (typeof TABS)[number];
+const isTab = (value: string | null): value is TabValue =>
+  value !== null && (TABS as readonly string[]).includes(value);
+
 export interface FidelizationViewProps {
-  calendar: CalendarRow[];
   brs: OperationBrRow[];
   history: FidelizationRow[];
   driverPlans: DriverPlanRow[];
@@ -86,11 +101,27 @@ export interface FidelizationViewProps {
     vehicle?: string;
     driver?: string;
   };
+  /** Planner de Frotas. `null` quando a consulta falhou — a página segue sem ele. */
+  matrix: PlannerMatrix | null;
+  fleetFilters: {
+    q?: string;
+    leaderEmployeeId?: string;
+    vehicle?: string;
+    vehicleTypeId?: string;
+    situation?: string;
+  };
+  vehicleTypes: { id: string; name: string }[];
+  /** Histórico de Mobilizações. `null` quando a consulta falhou. */
+  movements: MovementsPage | null;
+  movementFilters: MovementsPanelFilters;
+  importHistory: FidelizationImportBatch[];
   canPlan: boolean;
   canChangeVehicle: boolean;
   canChangeDriver: boolean;
   canImport: boolean;
+  canAudit: boolean;
   canExport: boolean;
+  canManageHistorical: boolean;
 }
 
 /**
@@ -106,7 +137,6 @@ export interface FidelizationViewProps {
  * posição; não a cria.
  */
 export function FidelizationView({
-  calendar,
   brs,
   history,
   driverPlans,
@@ -120,13 +150,22 @@ export function FidelizationView({
   operations,
   coverage,
   filters,
+  matrix,
+  fleetFilters,
+  vehicleTypes,
+  movements,
+  movementFilters,
+  importHistory,
   canPlan,
   canChangeVehicle,
   canChangeDriver,
   canImport,
+  canAudit,
   canExport,
+  canManageHistorical,
 }: FidelizationViewProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const params = useSearchParams();
   const [pending, startTransition] = React.useTransition();
 
@@ -138,7 +177,7 @@ export function FidelizationView({
   const [onlyMobilisations, setOnlyMobilisations] = React.useState(false);
 
   /** A exportação leva a competência e os filtros em tela: o arquivo é o que se vê. */
-  const exportHref = (kind: "planner" | "historico", format: "xlsx" | "csv") => {
+  const exportHref = (kind: "planner" | "historico" | "mobilizacoes", format: "xlsx" | "csv") => {
     const next = new URLSearchParams(params.toString());
     next.set("tipo", kind);
     next.set("format", format);
@@ -162,8 +201,29 @@ export function FidelizationView({
       if (value === null || value === "") next.delete(key);
       else next.set(key, value);
     }
-    startTransition(() => router.push(`/governanca/fidelizacao?${next.toString()}`, { scroll: false }));
+    const query = next.toString();
+    startTransition(() => router.push(query ? `${pathname}?${query}` : pathname, { scroll: false }));
   };
+
+  /**
+   * A área aberta fica na URL (`aba`). Trocar de área não consulta o servidor —
+   * todas já chegaram com a página — e por isso usa o histórico do navegador,
+   * que o roteador acompanha; mudar a competência ou um filtro, que consulta,
+   * leva a `aba` junto e a pessoa continua onde estava (§5).
+   */
+  const showImport = canImport || canAudit;
+  const requestedTab = params.get("aba");
+  const tab: TabValue =
+    isTab(requestedTab) && (requestedTab !== "importacao" || showImport) ? requestedTab : "visao-geral";
+  const selectTab = (value: string) => {
+    if (!isTab(value)) return;
+    const next = new URLSearchParams(params.toString());
+    if (value === "visao-geral") next.delete("aba");
+    else next.set("aba", value);
+    const query = next.toString();
+    window.history.replaceState(null, "", query ? `${pathname}?${query}` : pathname);
+  };
+  const competenceLabel = formatCompetence(competence);
 
   const statesOfOperation = React.useMemo(() => {
     const scoped = filters.operationId
@@ -207,8 +267,8 @@ export function FidelizationView({
   return (
     <>
       <PageHeader
-        title="Fidelização"
-        description="Planejamento das posições operacionais por veículo e motorista. Fidelizar não transfere a operação nem a cidade do veículo — a alocação continua no Cadastro de Frotas."
+        title="Central de Fidelização"
+        description="Planejamento das BRs por veículo e motorista, por competência, com o histórico de cada mobilização. Fidelizar não transfere a operação nem a cidade do veículo — a alocação continua no Cadastro de Frotas."
         secondaryActions={
           <>
             {canExport ? (
@@ -227,12 +287,20 @@ export function FidelizationView({
                     Planner (CSV)
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Histórico de movimentações</DropdownMenuLabel>
+                  <DropdownMenuLabel>Histórico de mobilizações</DropdownMenuLabel>
+                  <DropdownMenuItem onSelect={() => window.location.assign(exportHref("mobilizacoes", "xlsx"))}>
+                    Mobilizações (XLSX)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => window.location.assign(exportHref("mobilizacoes", "csv"))}>
+                    Mobilizações (CSV)
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Vínculos da competência</DropdownMenuLabel>
                   <DropdownMenuItem onSelect={() => window.location.assign(exportHref("historico", "xlsx"))}>
-                    Histórico (XLSX)
+                    Vínculos (XLSX)
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => window.location.assign(exportHref("historico", "csv"))}>
-                    Histórico (CSV)
+                    Vínculos (CSV)
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -350,16 +418,16 @@ export function FidelizationView({
           />
         </div>
 
-        {/* §5: a ordem das abas é a ordem da leitura — primeiro o panorama da
-            operação, depois as posições, depois os recursos que passam por elas
-            e por fim o que já aconteceu. */}
-        <Tabs defaultValue="visao-geral">
-          <TabsList>
+        {/* §5: a ordem das abas é a ordem da leitura — primeiro o panorama,
+            depois os planners, o que já aconteceu e a entrada de arquivos. */}
+        <Tabs value={tab} onValueChange={selectTab}>
+          <TabsList aria-label="Áreas da Central de Fidelização">
             <TabsTrigger value="visao-geral">Visão geral</TabsTrigger>
-            <TabsTrigger value="locais">Planner de locais e BRs</TabsTrigger>
             <TabsTrigger value="frotas">Planner de frotas</TabsTrigger>
             <TabsTrigger value="motoristas">Planner de motoristas</TabsTrigger>
-            <TabsTrigger value="historico">Histórico de movimentações</TabsTrigger>
+            <TabsTrigger value="historico">Histórico de mobilizações</TabsTrigger>
+            {showImport ? <TabsTrigger value="importacao">Importação</TabsTrigger> : null}
+            <TabsTrigger value="locais">Planner de locais e BRs</TabsTrigger>
           </TabsList>
 
           {/* ----------------------------------------------------- visão geral */}
@@ -373,6 +441,75 @@ export function FidelizationView({
               <HierarchyPanel operations={hierarchy} />
             </section>
           </TabsContent>
+
+          {/* ------------------------------------------------ planner de frotas */}
+          <TabsContent value="frotas" className="flex flex-col gap-4">
+            {matrix ? (
+              <FleetPlanner
+                matrix={matrix}
+                competence={competence}
+                filters={fleetFilters}
+                leaders={leaders}
+                vehicleTypes={vehicleTypes}
+                onNavigate={navigate}
+                pending={pending}
+                canEdit={canPlan || canChangeVehicle}
+                canManageHistorical={canManageHistorical}
+                onOpenBr={openPlanningById}
+              />
+            ) : (
+              <LoadFailure area="o Planner de Frotas" />
+            )}
+          </TabsContent>
+
+          {/* -------------------------------------------- planner de motoristas */}
+          <TabsContent value="motoristas" className="flex flex-col gap-4">
+            {matrix ? (
+              <DriversPlanner
+                matrix={matrix}
+                driverPlans={driverPlans}
+                competenceLabel={competenceLabel}
+                canChangeDriver={canChangeDriver}
+                onOpenBr={openPlanningById}
+                onSubstitute={setSubstituteRow}
+              />
+            ) : (
+              <LoadFailure area="o Planner de Motoristas" />
+            )}
+          </TabsContent>
+
+          {/* --------------------------------------- histórico de mobilizações */}
+          <TabsContent value="historico" className="flex flex-col gap-4">
+            <MovementsPanel
+              movements={movements}
+              filters={movementFilters}
+              competenceLabel={competenceLabel}
+              onNavigate={navigate}
+              pending={pending}
+              leaders={leaders}
+              leaderEmployeeId={fleetFilters.leaderEmployeeId}
+            />
+            <AssignmentsSection
+              history={history}
+              mobilisations={mobilisations}
+              competenceLabel={competenceLabel}
+              onlyMobilisations={onlyMobilisations}
+              onOnlyMobilisationsChange={setOnlyMobilisations}
+              visibleHistory={visibleHistory}
+            />
+          </TabsContent>
+
+          {/* ------------------------------------------------------ importação */}
+          {showImport ? (
+            <TabsContent value="importacao" className="flex flex-col gap-4">
+              <ImportPanel
+                history={importHistory}
+                canImport={canImport}
+                brsModuleHref={brsModuleHref}
+                onOpenImport={() => setImportOpen(true)}
+              />
+            </TabsContent>
+          ) : null}
 
           {/* ------------------------------------------- planner de locais e BRs */}
           <TabsContent value="locais" className="flex flex-col gap-4">
@@ -390,232 +527,6 @@ export function FidelizationView({
               pending={pending}
               onOpenPlanning={openPlanningById}
             />
-          </TabsContent>
-
-          {/* ------------------------------------------------------ calendário */}
-          <TabsContent value="frotas">
-            <Card>
-              <CardContent className="p-0">
-                {calendar.length === 0 ? (
-                  <p className="px-4 py-10 text-center text-body-sm text-fg-muted">
-                    Nenhuma posição operacional no filtro atual. Cadastre uma BR no módulo BRs para
-                    começar o planejamento de {formatCompetence(competence)}.
-                  </p>
-                ) : (
-                  <>
-                    <CalendarMatrix
-                      rows={calendar}
-                      competence={competence}
-                      onSelect={({ row }) => {
-                        const br = brs.find((b) => b.id === row.operationBrId);
-                        if (br) setAssignmentBr(br);
-                      }}
-                    />
-                    <div className="border-t border-border">
-                      <CalendarLegend />
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* ------------------------------------------------------ motoristas */}
-          <TabsContent value="motoristas">
-            <Card>
-              <CardContent className="p-0">
-                <TableContainer className="rounded-none border-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead style={{ width: 220 }}>Colaborador</TableHead>
-                        <TableHead style={{ width: 110 }}>Função</TableHead>
-                        <TableHead style={{ width: 200 }}>Posição</TableHead>
-                        <TableHead style={{ width: 160 }}>Veículo</TableHead>
-                        <TableHead style={{ width: 170 }}>Período</TableHead>
-                        <TableHead style={{ width: 110 }}>Situação</TableHead>
-                        {canChangeDriver ? <TableHead style={{ width: 72 }}>Ações</TableHead> : null}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {driverPlans.length === 0 ? (
-                        <TableEmpty
-                          colSpan={canChangeDriver ? 7 : 6}
-                          icon={<UserRound />}
-                          message={`Nenhum motorista planejado em ${formatCompetence(competence)}.`}
-                        />
-                      ) : (
-                        driverPlans.map((row) => (
-                          <TableRow key={row.id} className="h-(--table-row-height)">
-                            <TableCell>
-                              <span className="block truncate font-medium text-fg">{row.employeeName}</span>
-                              {row.employeeCode ? (
-                                <span className="block text-caption text-fg-muted">
-                                  Matrícula {row.employeeCode}
-                                </span>
-                              ) : null}
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={row.driverRole === "primary" ? "primary" : "neutral"}
-                                appearance="soft"
-                              >
-                                {row.driverRole === "primary" ? "Principal" : "Secundário"}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="truncate">
-                              BR {row.brCode}
-                              <span className="block text-caption text-fg-muted">
-                                {row.cityName}/{row.stateUf} · {row.operationName}
-                              </span>
-                            </TableCell>
-                            <TableCell className="truncate">
-                              {row.fleetCode ?? row.licensePlate ?? "—"}
-                            </TableCell>
-                            <TableCell className="text-body-sm text-fg-secondary">
-                              {formatDate(row.startDate)} —{" "}
-                              {row.endDate ? formatDate(row.endDate) : "em aberto"}
-                            </TableCell>
-                            <TableCell>
-                              <StatusBadge status={row.status === "cancelled" ? "neutral" : "info"}>
-                                {row.status === "cancelled" ? "Cancelado" : "Planejado"}
-                              </StatusBadge>
-                            </TableCell>
-                            {canChangeDriver ? (
-                              <TableCell>
-                                {/* §34/§35: um vínculo cancelado ou já terminado
-                                    não tem véspera para fechar — a ação fica
-                                    desabilitada, não escondida. */}
-                                <IconButton
-                                  label={`Substituir motorista ${row.employeeName}`}
-                                  variant="ghost"
-                                  size="sm"
-                                  disabled={!canSubstituteDriver(row)}
-                                  onClick={() => setSubstituteRow(row)}
-                                >
-                                  <UserRoundPen aria-hidden />
-                                </IconButton>
-                              </TableCell>
-                            ) : null}
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* ------------------------------------------ histórico e mobilizações */}
-          <TabsContent value="historico">
-            <Card>
-              <CardContent className="flex flex-col gap-0 p-0">
-                {/* Substituições e inversões são um recorte do histórico, não
-                    outra tabela: separá-las escondia que a linha anterior e a
-                    que a substituiu contam a mesma sequência. */}
-                <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
-                  <Button
-                    variant={onlyMobilisations ? "ghost" : "secondary"}
-                    size="sm"
-                    onClick={() => setOnlyMobilisations(false)}
-                    aria-pressed={!onlyMobilisations}
-                  >
-                    Todos os vínculos
-                    <Badge variant="neutral">{number.format(history.length)}</Badge>
-                  </Button>
-                  <Button
-                    variant={onlyMobilisations ? "secondary" : "ghost"}
-                    size="sm"
-                    leadingIcon={<ArrowLeftRight />}
-                    onClick={() => setOnlyMobilisations(true)}
-                    aria-pressed={onlyMobilisations}
-                  >
-                    Só substituições e inversões
-                    <Badge variant="neutral">{number.format(mobilisations.length)}</Badge>
-                  </Button>
-                </div>
-
-                <TableContainer className="rounded-none border-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead style={{ width: 180 }}>Posição</TableHead>
-                        <TableHead style={{ width: 190 }}>Veículo</TableHead>
-                        <TableHead style={{ width: 180 }}>Período</TableHead>
-                        <TableHead style={{ width: 120 }}>Origem</TableHead>
-                        <TableHead style={{ width: 120 }}>Situação</TableHead>
-                        <TableHead>Motivo</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {visibleHistory.length === 0 ? (
-                        <TableEmpty
-                          colSpan={6}
-                          icon={<CalendarDays />}
-                          message={
-                            onlyMobilisations
-                              ? `Nenhuma substituição ou inversão em ${formatCompetence(competence)}.`
-                              : `Nenhum vínculo de fidelização em ${formatCompetence(competence)}.`
-                          }
-                        />
-                      ) : (
-                        visibleHistory.map((row) => (
-                          <TableRow key={row.id} className="h-(--table-row-height)">
-                            <TableCell className="truncate">
-                              BR {row.brCode}
-                              <span className="block text-caption text-fg-muted">
-                                {row.cityName}/{row.stateUf} · {row.operationName}
-                              </span>
-                            </TableCell>
-                            <TableCell className="truncate">
-                              {row.fleetCode ?? row.licensePlate ?? "—"}
-                              {row.vehicleModelName ? (
-                                <span className="block text-caption text-fg-muted">
-                                  {[row.vehicleMakeName, row.vehicleModelName].filter(Boolean).join(" ")}
-                                </span>
-                              ) : null}
-                            </TableCell>
-                            <TableCell className="text-body-sm text-fg-secondary">
-                              {formatDate(row.startDate)} —{" "}
-                              {row.endDate ? formatDate(row.endDate) : "em aberto"}
-                            </TableCell>
-                            <TableCell className="text-body-sm text-fg-secondary">
-                              {SOURCE_LABEL[row.source] ?? row.source}
-                            </TableCell>
-                            <TableCell>
-                              <StatusBadge
-                                status={
-                                  row.status === "cancelled"
-                                    ? "neutral"
-                                    : row.isCurrent
-                                      ? "success"
-                                      : "info"
-                                }
-                              >
-                                {row.status === "cancelled"
-                                  ? "Cancelado"
-                                  : row.isCurrent
-                                    ? "Vigente"
-                                    : "Planejado"}
-                              </StatusBadge>
-                            </TableCell>
-                            <TableCell className="text-body-sm text-fg-secondary">
-                              {row.endReason ?? row.reason ?? "—"}
-                              {row.endReason && row.reason ? (
-                                <span className="block text-caption text-fg-muted">
-                                  Entrou por: {row.reason}
-                                </span>
-                              ) : null}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
           </TabsContent>
         </Tabs>
       </PageContent>
@@ -676,5 +587,147 @@ export function FidelizationView({
         onClose={() => setSubstituteRow(null)}
       />
     </>
+  );
+}
+
+/** Uma área cuja consulta falhou diz isso, em vez de aparecer vazia como se não houvesse dados. */
+function LoadFailure({ area }: { area: string }) {
+  return (
+    <Alert variant="danger">
+      <AlertTitle>Não foi possível carregar {area}.</AlertTitle>
+      <AlertDescription>
+        As outras áreas continuam disponíveis. Recarregue a página; se o erro continuar, avise o administrador.
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+/**
+ * Os vínculos da competência — os períodos planejados, com origem e situação —
+ * ficam abaixo do Histórico de Mobilizações, recolhidos. São a outra face do
+ * mesmo registro: a mobilização é o evento, o vínculo é o período que ele abriu
+ * ou fechou. Substituições e inversões são um recorte desta lista, não outra.
+ */
+function AssignmentsSection({
+  history,
+  mobilisations,
+  visibleHistory,
+  competenceLabel,
+  onlyMobilisations,
+  onOnlyMobilisationsChange,
+}: {
+  history: FidelizationRow[];
+  mobilisations: FidelizationRow[];
+  visibleHistory: FidelizationRow[];
+  competenceLabel: string;
+  onlyMobilisations: boolean;
+  onOnlyMobilisationsChange: (value: boolean) => void;
+}) {
+  return (
+    <Card>
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 hfm-focus-ring [&::-webkit-details-marker]:hidden">
+          <span className="flex min-w-0 flex-col">
+            <span className="text-body font-semibold text-fg">Vínculos da competência</span>
+            <span className="text-caption text-fg-muted">
+              Os períodos planejados em {competenceLabel}, com origem e situação de cada um.
+            </span>
+          </span>
+          <span className="flex shrink-0 items-center gap-2">
+            <Badge variant="neutral">{number.format(history.length)}</Badge>
+            <ChevronDown aria-hidden className="size-4 text-fg-muted transition-transform group-open:rotate-180" />
+          </span>
+        </summary>
+        <CardContent className="flex flex-col gap-0 border-t border-border p-0">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
+            <Button
+              variant={onlyMobilisations ? "ghost" : "secondary"}
+              size="sm"
+              onClick={() => onOnlyMobilisationsChange(false)}
+              aria-pressed={!onlyMobilisations}
+            >
+              Todos os vínculos
+              <Badge variant="neutral">{number.format(history.length)}</Badge>
+            </Button>
+            <Button
+              variant={onlyMobilisations ? "secondary" : "ghost"}
+              size="sm"
+              leadingIcon={<ArrowLeftRight />}
+              onClick={() => onOnlyMobilisationsChange(true)}
+              aria-pressed={onlyMobilisations}
+            >
+              Só substituições e inversões
+              <Badge variant="neutral">{number.format(mobilisations.length)}</Badge>
+            </Button>
+          </div>
+
+          <TableContainer className="rounded-none border-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead style={{ width: 180 }}>Posição</TableHead>
+                  <TableHead style={{ width: 190 }}>Veículo</TableHead>
+                  <TableHead style={{ width: 180 }}>Período</TableHead>
+                  <TableHead style={{ width: 120 }}>Origem</TableHead>
+                  <TableHead style={{ width: 120 }}>Situação</TableHead>
+                  <TableHead>Motivo</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visibleHistory.length === 0 ? (
+                  <TableEmpty
+                    colSpan={6}
+                    icon={<CalendarDays />}
+                    message={
+                      onlyMobilisations
+                        ? `Nenhuma substituição ou inversão em ${competenceLabel}.`
+                        : `Nenhum vínculo de fidelização em ${competenceLabel}.`
+                    }
+                  />
+                ) : (
+                  visibleHistory.map((row) => (
+                    <TableRow key={row.id} className="h-(--table-row-height)">
+                      <TableCell className="truncate">
+                        BR {row.brCode}
+                        <span className="block text-caption text-fg-muted">
+                          {row.cityName}/{row.stateUf} · {row.operationName}
+                        </span>
+                      </TableCell>
+                      <TableCell className="truncate">
+                        {row.fleetCode ?? row.licensePlate ?? "—"}
+                        {row.vehicleModelName ? (
+                          <span className="block text-caption text-fg-muted">
+                            {[row.vehicleMakeName, row.vehicleModelName].filter(Boolean).join(" ")}
+                          </span>
+                        ) : null}
+                      </TableCell>
+                      <TableCell className="text-body-sm text-fg-secondary">
+                        {formatDate(row.startDate)} — {row.endDate ? formatDate(row.endDate) : "em aberto"}
+                      </TableCell>
+                      <TableCell className="text-body-sm text-fg-secondary">
+                        {SOURCE_LABEL[row.source] ?? row.source}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge
+                          status={row.status === "cancelled" ? "neutral" : row.isCurrent ? "success" : "info"}
+                        >
+                          {row.status === "cancelled" ? "Cancelado" : row.isCurrent ? "Vigente" : "Planejado"}
+                        </StatusBadge>
+                      </TableCell>
+                      <TableCell className="text-body-sm text-fg-secondary">
+                        {row.endReason ?? row.reason ?? "—"}
+                        {row.endReason && row.reason ? (
+                          <span className="block text-caption text-fg-muted">Entrou por: {row.reason}</span>
+                        ) : null}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </CardContent>
+      </details>
+    </Card>
   );
 }

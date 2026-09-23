@@ -4407,6 +4407,10 @@ export type Database = {
           reserved: boolean
         }[]
       }
+      apply_fidelization_period: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
       archive_employee: {
         Args: { p_employee_id: string; p_suspend_access?: boolean }
         Returns: undefined
@@ -4442,6 +4446,28 @@ export type Database = {
           p_organization_id: string
           p_search?: string
           p_vehicle_type_id: string
+        }
+        Returns: Json
+      }
+      fidelization_import_history: {
+        Args: { p_limit?: number; p_organization_id: string }
+        Returns: Json
+      }
+      fidelization_movements_list: {
+        Args: {
+          p_filters?: Json
+          p_organization_id: string
+          p_page?: number
+          p_page_size?: number
+        }
+        Returns: Json
+      }
+      fidelization_planner_matrix: {
+        Args: {
+          p_filters?: Json
+          p_month: number
+          p_organization_id: string
+          p_year: number
         }
         Returns: Json
       }

@@ -293,72 +293,11 @@ export async function listOperationBrs(
 
 /* ---------------------------------------------------------------- calendário */
 
-export interface CalendarCell {
-  date: string;
-  assignmentId: string | null;
-  vehicleId: string | null;
-  fleetCode: string | null;
-  licensePlate: string | null;
-  status: "planned" | "confirmed" | "executed" | "cancelled" | "unplanned";
-  source: string | null;
-  startsHere: boolean;
-  weekend: boolean;
-}
-
-export interface CalendarRow {
-  operationBrId: string;
-  brCode: string;
-  brStatus: string;
-  operationId: string;
-  operationName: string;
-  stateUf: string;
-  cityName: string;
-  leaderName: string | null;
-  days: Record<string, CalendarCell>;
-  daysWithVehicle: number;
-  daysWithoutVehicle: number;
-  substitutions: number;
-}
-
 export interface CalendarFilters {
   operationId?: string;
   stateId?: string;
   cityId?: string;
   brId?: string;
-}
-
-export async function getFidelizationCalendar(
-  organizationId: string,
-  competence: Competence,
-  filters: CalendarFilters = {},
-): Promise<CalendarRow[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("fidelization_calendar", {
-    p_organization_id: organizationId,
-    p_year: competence.year,
-    p_month: competence.month,
-    p_operation_id: filters.operationId ?? undefined,
-    p_state_id: filters.stateId ? Number(filters.stateId) : undefined,
-    p_city_id: filters.cityId ? Number(filters.cityId) : undefined,
-    p_br_id: filters.brId ?? undefined,
-  } as never);
-
-  if (error) throw new Error(error.message);
-
-  return ((data ?? []) as Record<string, unknown>[]).map((row): CalendarRow => ({
-    operationBrId: row.operation_br_id as string,
-    brCode: row.br_code as string,
-    brStatus: (row.br_status as string) ?? "active",
-    operationId: row.operation_id as string,
-    operationName: (row.operation_name as string) ?? "—",
-    stateUf: (row.state_uf as string) ?? "",
-    cityName: (row.city_name as string) ?? "",
-    leaderName: (row.leader_name as string) ?? null,
-    days: (row.days ?? {}) as Record<string, CalendarCell>,
-    daysWithVehicle: Number(row.days_with_vehicle ?? 0),
-    daysWithoutVehicle: Number(row.days_without_vehicle ?? 0),
-    substitutions: Number(row.substitutions ?? 0),
-  }));
 }
 
 export interface FidelizationIndicators {

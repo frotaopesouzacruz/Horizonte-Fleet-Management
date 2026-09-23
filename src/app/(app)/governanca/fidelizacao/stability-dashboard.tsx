@@ -1,7 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { Activity, ArrowLeftRight, ChevronDown, Gauge, ShieldCheck, Shuffle, Truck, UserRound } from "lucide-react";
+import {
+  Activity, ArrowLeftRight, CarFront, ChevronDown, Gauge, MapPin, ShieldCheck, Shuffle, Truck, UserRound,
+  UserRoundX, Users,
+} from "lucide-react";
 import { KpiCard, type KpiStatus } from "@/components/ui/kpi-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -57,6 +60,37 @@ export function StabilityDashboard({ stability, competence }: StabilityDashboard
     <section aria-label="Dashboard de estabilidade" className="flex flex-col gap-4">
       {stability ? (
         <>
+          {/* Etapa 15 (§14, §17): o tamanho do recorte antes das razões — quantas
+              posições existem, quantos veículos e motoristas passaram por elas no
+              mês e quantas BRs ativas estão sem motorista. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiCard
+              label="BRs cadastradas"
+              value={number.format(stability.brsRegistered)}
+              period={`${number.format(stability.brsTotal)} ${stability.brsTotal === 1 ? "ativa" : "ativas"}`}
+              icon={<MapPin />}
+            />
+            <KpiCard
+              label="Veículos fidelizados"
+              value={number.format(stability.vehiclesFidelized)}
+              period="Titulares distintos no mês"
+              icon={<CarFront />}
+            />
+            <KpiCard
+              label="Motoristas fidelizados"
+              value={number.format(stability.driversFidelized)}
+              period="Principal ou secundário, no mês"
+              icon={<Users />}
+            />
+            <KpiCard
+              label="BRs sem motorista"
+              value={number.format(stability.brsWithoutDriver)}
+              status={stability.brsWithoutDriver > 0 ? "warning" : undefined}
+              period={`de ${number.format(stability.brsTotal)} BRs ativas`}
+              icon={<UserRoundX />}
+            />
+          </div>
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <KpiCard
               label="Estabilidade da frota"
@@ -119,7 +153,7 @@ export function StabilityDashboard({ stability, competence }: StabilityDashboard
           <Card>
             <CardHeader
               title="Estabilidade por recorte"
-              description="As mesmas contas, abertas por operação, por local e por liderança vigente na data-âncora."
+              description="As mesmas contas, abertas por operação, por local, por liderança vigente na data-âncora, por estado e por tipo de equipamento."
             />
             <CardContent>
               <Tabs defaultValue="operacao">
@@ -127,6 +161,8 @@ export function StabilityDashboard({ stability, competence }: StabilityDashboard
                   <TabsTrigger value="operacao">Por operação</TabsTrigger>
                   <TabsTrigger value="local">Por local</TabsTrigger>
                   <TabsTrigger value="lideranca">Por liderança</TabsTrigger>
+                  <TabsTrigger value="estado">Por estado</TabsTrigger>
+                  <TabsTrigger value="equipamento">Por tipo de equipamento</TabsTrigger>
                 </TabsList>
                 <TabsContent value="operacao">
                   <BreakdownTable rows={stability.byOperation} firstColumn="Operação" />
@@ -136,6 +172,12 @@ export function StabilityDashboard({ stability, competence }: StabilityDashboard
                 </TabsContent>
                 <TabsContent value="lideranca">
                   <BreakdownTable rows={stability.byLeader} firstColumn="Liderança" />
+                </TabsContent>
+                <TabsContent value="estado">
+                  <BreakdownTable rows={stability.byState} firstColumn="Estado" />
+                </TabsContent>
+                <TabsContent value="equipamento">
+                  <BreakdownTable rows={stability.byVehicleType} firstColumn="Tipo de equipamento" />
                 </TabsContent>
               </Tabs>
             </CardContent>
@@ -217,6 +259,12 @@ function FormulasCard() {
           <ul className="flex list-disc flex-col gap-1.5 pl-5 text-body-sm text-fg-secondary">
             <li>
               <strong className="text-fg">Universo</strong> = BRs ativas do filtro.
+            </li>
+            <li>
+              <strong className="text-fg">BRs cadastradas</strong> = todas as BRs do recorte, inclusive inativas.{" "}
+              <strong className="text-fg">Veículos fidelizados</strong> = veículos distintos com vínculo titular não
+              cancelado que toca a competência. <strong className="text-fg">Motoristas fidelizados</strong> =
+              colaboradores distintos com vínculo de motorista, principal ou secundário, na competência.
             </li>
             <li>
               <strong className="text-fg">Com veículo</strong> = BR com titular não cancelado que toca a

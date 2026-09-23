@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { requireOrganization } from "@/lib/auth/session";
 import {
-  getFidelizationCalendar,
   getFidelizationIndicators,
   getGovernanceOptions,
   getOperationalHierarchy,
@@ -19,13 +18,25 @@ import {
   type BrPlannerRow,
 } from "@/lib/governance/br-planner";
 import { getFidelizationStability, type FidelizationStability } from "@/lib/governance/brs";
-import { parseCompetence } from "@/lib/governance/competence";
+import {
+  getPlannerMatrix,
+  listFidelizationImportHistory,
+  listMovements,
+  listVehicleTypeOptions,
+  type FidelizationImportBatch,
+  type MovementsPage,
+  type PlannerMatrix,
+} from "@/lib/governance/fidelization-central";
+import { monthEnd, monthStart, parseCompetence } from "@/lib/governance/competence";
 import { FidelizationView } from "./fidelization-view";
 
 export const metadata: Metadata = {
-  title: "Fidelização",
-  description: "Planejamento das posições operacionais por veículo e motorista, por competência.",
+  title: "Central de Fidelização",
+  description: "Planejamento das BRs por veículo e motorista, por competência, com o histórico de mobilizações.",
 };
+
+/** Tamanho de página do Histórico de Mobilizações. */
+const MOVEMENTS_PAGE_SIZE = 50;
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -35,11 +46,11 @@ const first = (params: SearchParams, key: string): string | undefined => {
 };
 
 /**
- * Governança Operacional → Fidelização.
+ * Governança Operacional → Fidelização (Central de Fidelização, Etapa 15).
  *
- * The route re-checks `fidelization.view` server-side, and every query runs
- * under the caller's own client — so the operation scope decides which
- * positions, vehicles and drivers come back, not this page.
+ * A rota confere `fidelization.view` no servidor e toda consulta roda com o
+ * cliente da própria pessoa — é o escopo de operação dela que decide quais
+ * BRs, veículos, motoristas e eventos voltam, não esta página.
  */
 export default async function FidelizationPage({
   searchParams,
@@ -71,10 +82,46 @@ export default async function FidelizationPage({
     driver: first(params, "motorista"),
   };
 
+  /**
+   * Os filtros do Planner de Frotas (§25). Busca, liderança e situação somam-se
+   * ao recorte do cabeçalho. `q` e `lideranca` têm o mesmo sentido no Planner de
+   * Locais e por isso são compartilhados; a placa digitada é `placa`, porque
+   * `veiculo` já quer dizer "com / sem veículo" no Planner de Locais.
+   */
+  const fleetFilters = {
+    ...filters,
+    q: first(params, "q"),
+    leaderEmployeeId: first(params, "lideranca"),
+    vehicle: first(params, "placa"),
+    vehicleTypeId: first(params, "tipo_equipamento"),
+    situation: first(params, "alocacao"),
+  };
+
+  /**
+   * Histórico de Mobilizações (§45). Sem "De" e "Até", o histórico mostra a
+   * competência em tela — a mesma que as outras áreas mostram. Operação,
+   * estado, cidade e liderança vêm do cabeçalho e do planner.
+   */
+  const movementFilters = {
+    dateFrom: first(params, "mov_de"),
+    dateTo: first(params, "mov_ate"),
+    movementType: first(params, "mov_tipo"),
+    subject: first(params, "mov_assunto"),
+    vehicle: first(params, "mov_veiculo"),
+    driver: first(params, "mov_motorista"),
+  };
+  const movementPage = Math.max(1, Number(first(params, "mov_pagina") ?? "1") || 1);
+  const movementRange =
+    movementFilters.dateFrom || movementFilters.dateTo
+      ? { dateFrom: movementFilters.dateFrom, dateTo: movementFilters.dateTo }
+      : { dateFrom: monthStart(competence), dateTo: monthEnd(competence) };
+
   const orgId = organization.organizationId;
+  const has = (code: string) => session.isPlatformAdmin || session.permissions.includes(code);
+  const canImport = has("fidelization.import");
+  const canAudit = has("fidelization.audit");
 
   const [
-    calendar,
     brs,
     history,
     driverPlans,
@@ -85,8 +132,11 @@ export default async function FidelizationPage({
     plannerIndicators,
     leaders,
     stability,
+    matrix,
+    vehicleTypes,
+    movements,
+    importHistory,
   ] = await Promise.all([
-    getFidelizationCalendar(orgId, competence, filters),
     listOperationBrs(orgId, {
       operationId: filters.operationId,
       stateId: filters.stateId,
@@ -95,7 +145,7 @@ export default async function FidelizationPage({
     listFidelizationHistory(orgId, competence, filters),
     listDriverPlans(orgId, competence, filters),
     getGovernanceOptions(orgId),
-    // Losing a panel is never a reason to lose the calendar.
+    // Perder um painel nunca é motivo para perder a página inteira.
     getOperationalHierarchy(orgId, filters.operationId).catch(() => [] as HierarchyOperation[]),
     getFidelizationIndicators(orgId, competence, filters).catch(
       () => null as FidelizationIndicators | null,
@@ -106,19 +156,35 @@ export default async function FidelizationPage({
     ),
     listLeadershipOptions(orgId).catch(() => [] as { id: string; name: string }[]),
     // §39: o Dashboard de Estabilidade segue o recorte da tela — operação,
-    // estado e cidade — e nunca a BR isolada, que é filtro do calendário.
+    // estado e cidade — e nunca a BR isolada, que é filtro do planner.
     getFidelizationStability(orgId, competence, {
       operationId: filters.operationId,
       stateId: filters.stateId,
       cityId: filters.cityId,
     }).catch(() => null as FidelizationStability | null),
+    getPlannerMatrix(orgId, competence, fleetFilters).catch(() => null as PlannerMatrix | null),
+    listVehicleTypeOptions(orgId).catch(() => [] as { id: string; name: string }[]),
+    listMovements(
+      orgId,
+      {
+        ...movementFilters,
+        ...movementRange,
+        operationId: filters.operationId,
+        stateId: filters.stateId,
+        cityId: filters.cityId,
+        brId: filters.brId,
+        leaderEmployeeId: fleetFilters.leaderEmployeeId,
+      },
+      movementPage,
+      MOVEMENTS_PAGE_SIZE,
+    ).catch(() => null as MovementsPage | null),
+    canImport || canAudit
+      ? listFidelizationImportHistory(orgId, 20).catch(() => [] as FidelizationImportBatch[])
+      : Promise.resolve([] as FidelizationImportBatch[]),
   ]);
-
-  const has = (code: string) => session.isPlatformAdmin || session.permissions.includes(code);
 
   return (
     <FidelizationView
-      calendar={calendar}
       brs={brs}
       history={history}
       driverPlans={driverPlans}
@@ -132,11 +198,19 @@ export default async function FidelizationPage({
       operations={options.operations}
       coverage={options.coverage}
       filters={plannerFilters}
+      matrix={matrix}
+      fleetFilters={fleetFilters}
+      vehicleTypes={vehicleTypes}
+      movements={movements}
+      movementFilters={movementFilters}
+      importHistory={importHistory}
       canPlan={has("fidelization.plan")}
       canChangeVehicle={has("fidelization.change_vehicle")}
       canChangeDriver={has("fidelization.change_driver")}
-      canImport={has("fidelization.import")}
+      canImport={canImport}
+      canAudit={canAudit}
       canExport={has("fidelization.export")}
+      canManageHistorical={has("fidelization.manage_historical_data")}
     />
   );
 }

@@ -592,6 +592,14 @@ export interface FidelizationStability {
   byOperation: StabilityBreakdownRow[];
   byCity: StabilityBreakdownRow[];
   byLeader: StabilityBreakdownRow[];
+  /** Etapa 15 (§14, §17): BRs cadastradas — inclusive inativas — no recorte geográfico. */
+  brsRegistered: number;
+  /** Veículos distintos com vínculo titular que toca a competência. */
+  vehiclesFidelized: number;
+  /** Colaboradores distintos com vínculo de motorista (principal ou secundário) na competência. */
+  driversFidelized: number;
+  byState: StabilityBreakdownRow[];
+  byVehicleType: StabilityBreakdownRow[];
 }
 
 export interface StabilityFilters {
@@ -655,6 +663,13 @@ export function mapFidelizationStability(raw: unknown): FidelizationStability {
     ),
     byLeader: list("by_leader").map((e) =>
       row(e, String(e.employee_id ?? "none"), String(e.leader_name ?? "Sem liderança"), null),
+    ),
+    brsRegistered: num("brs_registered"),
+    vehiclesFidelized: num("vehicles_fidelized"),
+    driversFidelized: num("drivers_fidelized"),
+    byState: list("by_state").map((e) => row(e, String(e.state_uf ?? "").trim(), String(e.state_uf ?? "—").trim(), null)),
+    byVehicleType: list("by_vehicle_type").map((e) =>
+      row(e, String(e.vehicle_type_id ?? "none"), String(e.vehicle_type_name ?? "Sem veículo"), null),
     ),
   };
 }

@@ -42,6 +42,17 @@ const STABILITY: FidelizationStability = {
     { key: "emp-1", label: "Marcos Vinícius Andrade", sublabel: null, brs: 62, withVehicle: 62, mobilizations: 3, brsWithChange: 3, stabilityPct: 95.2 },
     { key: "emp-2", label: "Walace Rodrigues Santos", sublabel: null, brs: 26, withVehicle: 26, mobilizations: 0, brsWithChange: 0, stabilityPct: 100 },
   ],
+  brsRegistered: 90,
+  vehiclesFidelized: 91,
+  driversFidelized: 12,
+  byState: [
+    { key: "MG", label: "MG", sublabel: null, brs: 62, withVehicle: 62, mobilizations: 3, brsWithChange: 3, stabilityPct: 95.2 },
+    { key: "PA", label: "PA", sublabel: null, brs: 26, withVehicle: 26, mobilizations: 0, brsWithChange: 0, stabilityPct: 100 },
+  ],
+  byVehicleType: [
+    { key: "t-van", label: "Van", sublabel: null, brs: 80, withVehicle: 80, mobilizations: 3, brsWithChange: 3, stabilityPct: 96.3 },
+    { key: "t-truck", label: "Caminhão 3/4", sublabel: null, brs: 8, withVehicle: 8, mobilizations: 0, brsWithChange: 0, stabilityPct: 100 },
+  ],
 };
 
 export function PreviewStability() {
