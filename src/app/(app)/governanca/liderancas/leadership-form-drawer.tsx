@@ -21,8 +21,16 @@ import { useToast } from "@/components/feedback/toast";
 import { NativeSelect } from "@/components/governance/selects";
 import { EmployeePicker } from "@/components/governance/employee-picker";
 import { ScopePicker, type BrEntry, type CoverageEntry } from "@/components/governance/scope-picker";
-import { saveLeadership, type EmployeeOption } from "@/lib/governance/actions";
+import {
+  saveLeadership,
+  type EmployeeOption,
+  type Result,
+  type SaveLeadershipInput,
+} from "@/lib/governance/actions";
+import { previewLeadershipChange } from "@/lib/governance/leadership-impact";
+import type { LeadershipImpact } from "@/lib/governance/leadership-impact-types";
 import { monthStart, monthEnd, type Competence } from "@/lib/governance/competence";
+import { ImpactPreview } from "./impact-preview";
 
 export interface LeadershipFormValue {
   id?: string;
@@ -38,6 +46,11 @@ export interface LeadershipFormValue {
   updatedAt?: string | null;
 }
 
+/** A prévia de impacto (Etapa 13 §14); a tela real usa a ação de servidor. */
+export type LeadershipImpactLoader = (input: SaveLeadershipInput) => Promise<Result<LeadershipImpact>>;
+/** A gravação; a prévia de desenvolvimento injeta uma que não sai do navegador. */
+export type LeadershipSaver = (input: SaveLeadershipInput) => Promise<Result<{ id: string }>>;
+
 export interface LeadershipFormDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -46,6 +59,10 @@ export interface LeadershipFormDrawerProps {
   operations: { id: string; name: string; status: string }[];
   coverage: CoverageEntry[];
   brs: BrEntry[];
+  /** Quem não tem a permissão de correção histórica é avisado antes de tentar. */
+  canManageHistorical?: boolean;
+  impactLoader?: LeadershipImpactLoader;
+  saver?: LeadershipSaver;
 }
 
 const SCOPE_LABELS: Record<LeadershipFormValue["scopeLevel"], string> = {
@@ -60,6 +77,16 @@ const RESPONSIBILITY_LABELS: Record<LeadershipFormValue["responsibilityType"], s
   support: "Responsável de apoio",
 };
 
+/** Hoje em São Paulo, como o banco conta "o passado". */
+function todayInSaoPaulo(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 /**
  * Creating and editing a responsibility.
  *
@@ -68,6 +95,13 @@ const RESPONSIBILITY_LABELS: Record<LeadershipFormValue["responsibilityType"], s
  * change the person's access profile, and it does not offer to change who
  * their line manager is. Neither belongs to an operational responsibility, and
  * neither is reachable from here.
+ *
+ * Etapa 13 §14: before saving, the form asks the database what the change does
+ * to days that already passed. When the answer is "nothing", it saves as it
+ * always did. When the change is retroactive, the impact is shown in place —
+ * BRs, vehicles, drivers, checklists, adherence obligations — and the save only
+ * goes through with a reason and an explicit confirmation. Changing any field
+ * after that throws the preview away: what is confirmed is what was previewed.
  */
 export function LeadershipFormDrawer({
   open,
@@ -77,40 +111,106 @@ export function LeadershipFormDrawer({
   operations,
   coverage,
   brs,
+  canManageHistorical = true,
+  impactLoader = previewLeadershipChange,
+  saver = saveLeadership,
 }: LeadershipFormDrawerProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [saving, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
   const [warnings, setWarnings] = React.useState<string[]>([]);
+  const [impact, setImpact] = React.useState<LeadershipImpact | null>(null);
+  const [reason, setReason] = React.useState("");
+  const [confirmed, setConfirmed] = React.useState(false);
+  const [reasonError, setReasonError] = React.useState<string | null>(null);
+  const impactRef = React.useRef<HTMLDivElement | null>(null);
 
-  const blank = React.useCallback(
-    (): LeadershipFormValue => ({
+  const blank = React.useCallback((): LeadershipFormValue => {
+    // A new responsibility defaults to the competence being planned. In the
+    // current month it starts today: starting on the 1st would rewrite who
+    // answered for days that already passed, which is a historical correction
+    // and not what "new responsibility" means.
+    const today = todayInSaoPaulo();
+    const first = monthStart(competence);
+    const last = monthEnd(competence);
+    return {
       employee: null,
       scopeLevel: "operation",
       operationId: operations.find((o) => o.status === "active")?.id ?? "",
       operationCityId: null,
       operationBrId: null,
       responsibilityType: "principal",
-      // A new responsibility defaults to the competence being planned, which
-      // is what someone opening the form from a month's screen means.
-      effectiveFrom: monthStart(competence),
-      effectiveTo: monthEnd(competence),
+      effectiveFrom: today > first && today <= last ? today : first,
+      effectiveTo: last,
       notes: null,
-    }),
-    [competence, operations],
-  );
+    };
+  }, [competence, operations]);
 
   // Initialised once, at mount. The parent remounts this drawer on every open
   // (see the `key` it passes), so there is nothing to reset and no effect that
   // could fire a cascading render.
   const [form, setForm] = React.useState<LeadershipFormValue>(value ?? blank());
 
-  const patch = (next: Partial<LeadershipFormValue>) => setForm((f) => ({ ...f, ...next }));
+  /** Any change invalidates a preview: what is confirmed is what was previewed. */
+  const patch = (next: Partial<LeadershipFormValue>) => {
+    setForm((f) => ({ ...f, ...next }));
+    if (impact) {
+      setImpact(null);
+      setConfirmed(false);
+    }
+  };
+
+  // The preview appears below the fields; bring it into view and move focus
+  // there, so keyboard and screen-reader users land on what changed.
+  React.useEffect(() => {
+    if (!impact) return;
+    impactRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    impactRef.current?.focus({ preventScroll: true });
+  }, [impact]);
+
+  const input = (changeReason: string | null): SaveLeadershipInput => ({
+    id: form.id ?? null,
+    employeeId: form.employee!.id,
+    scopeLevel: form.scopeLevel,
+    operationId: form.operationId,
+    operationCityId: form.scopeLevel === "operation" ? null : form.operationCityId,
+    operationBrId: form.scopeLevel === "br" ? form.operationBrId : null,
+    responsibilityType: form.responsibilityType,
+    effectiveFrom: form.effectiveFrom,
+    effectiveTo: form.effectiveTo,
+    notes: form.notes,
+    expectedUpdatedAt: form.updatedAt ?? null,
+    changeReason,
+  });
+
+  const save = async (changeReason: string | null) => {
+    const result = await saver(input(changeReason));
+
+    if (!result.ok) {
+      setError(result.error ?? "Não foi possível salvar.");
+      return;
+    }
+
+    const retro = changeReason !== null;
+    // §19: a warning is not a refusal. The save happened; the person is told
+    // what the system noticed about it and decides what to do next.
+    if (result.warnings?.length) {
+      setWarnings(result.warnings);
+      setImpact(null);
+      setConfirmed(false);
+      toast({ title: retro ? "Correção histórica salva com observações." : "Vínculo salvo com observações.", variant: "warning" });
+    } else {
+      toast({ title: retro ? "Correção histórica salva." : "Vínculo de liderança salvo.", variant: "success" });
+      onOpenChange(false);
+    }
+    router.refresh();
+  };
 
   const submit = () => {
     setError(null);
     setWarnings([]);
+    setReasonError(null);
 
     if (!form.employee) return setError("Escolha o colaborador responsável.");
     if (!form.operationId) return setError("Escolha a operação.");
@@ -121,39 +221,36 @@ export function LeadershipFormDrawer({
       return setError("Escolha a BR da responsabilidade.");
     }
     if (!form.effectiveFrom) return setError("Informe a data de início.");
+    if (form.effectiveTo && form.effectiveTo < form.effectiveFrom) {
+      return setError("O fim da vigência não pode ser anterior ao início.");
+    }
 
+    // Second step: the preview is on screen and the person confirmed it.
+    if (impact) {
+      const trimmed = reason.trim();
+      if (!trimmed) return setReasonError("Informe o motivo da correção histórica.");
+      if (!confirmed) return setError("Confirme que revisou o impacto antes de salvar.");
+      startTransition(() => save(trimmed));
+      return;
+    }
+
+    // First step: ask what the change does to the past before writing anything.
     startTransition(async () => {
-      const result = await saveLeadership({
-        id: form.id ?? null,
-        employeeId: form.employee!.id,
-        scopeLevel: form.scopeLevel,
-        operationId: form.operationId,
-        operationCityId: form.scopeLevel === "operation" ? null : form.operationCityId,
-        operationBrId: form.scopeLevel === "br" ? form.operationBrId : null,
-        responsibilityType: form.responsibilityType,
-        effectiveFrom: form.effectiveFrom,
-        effectiveTo: form.effectiveTo,
-        notes: form.notes,
-        expectedUpdatedAt: form.updatedAt ?? null,
-      });
-
-      if (!result.ok) {
-        setError(result.error ?? "Não foi possível salvar.");
+      const preview = await impactLoader(input(null));
+      if (!preview.ok || !preview.data) {
+        setError(preview.error ?? "Não foi possível calcular o impacto da alteração.");
         return;
       }
-
-      // §19: a warning is not a refusal. The save happened; the person is told
-      // what the system noticed about it and decides what to do next.
-      if (result.warnings?.length) {
-        setWarnings(result.warnings);
-        toast({ title: "Vínculo salvo com observações.", variant: "warning" });
-      } else {
-        toast({ title: "Vínculo de liderança salvo.", variant: "success" });
-        onOpenChange(false);
+      if (preview.data.retroactive) {
+        setImpact(preview.data);
+        setConfirmed(false);
+        return;
       }
-      router.refresh();
+      await save(null);
     });
   };
+
+  const confirming = impact !== null;
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -258,7 +355,16 @@ export function LeadershipFormDrawer({
           />
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <FormField label="Início da vigência" required id="leadership-from">
+            <FormField
+              label="Início da vigência"
+              required
+              id="leadership-from"
+              helperText={
+                canManageHistorical
+                  ? "Uma data anterior a hoje é correção histórica: o impacto aparece antes de salvar."
+                  : "Datas anteriores a hoje exigem a permissão “Corrigir dados históricos da liderança”."
+              }
+            >
               <DateInput
                 id="leadership-from"
                 value={form.effectiveFrom}
@@ -288,15 +394,51 @@ export function LeadershipFormDrawer({
               onChange={(e) => patch({ notes: e.target.value || null })}
             />
           </FormField>
+
+          {impact ? (
+            <div ref={impactRef} tabIndex={-1} className="scroll-mt-2 outline-none">
+              <ImpactPreview
+                impact={impact}
+                reason={reason}
+                onReasonChange={(next) => {
+                  setReason(next);
+                  if (reasonError && next.trim()) setReasonError(null);
+                }}
+                confirmed={confirmed}
+                onConfirmedChange={setConfirmed}
+                reasonError={reasonError}
+              />
+            </div>
+          ) : null}
         </DrawerBody>
 
         <DrawerFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancelar
-          </Button>
-          <Button onClick={submit} loading={saving}>
-            {form.id ? "Salvar alterações" : "Criar vínculo"}
-          </Button>
+          {confirming ? (
+            <>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setImpact(null);
+                  setConfirmed(false);
+                }}
+                disabled={saving}
+              >
+                Voltar e ajustar
+              </Button>
+              <Button onClick={submit} loading={saving} disabled={!confirmed}>
+                Confirmar correção
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
+                Cancelar
+              </Button>
+              <Button onClick={submit} loading={saving}>
+                {form.id ? "Salvar alterações" : "Criar vínculo"}
+              </Button>
+            </>
+          )}
         </DrawerFooter>
       </DrawerContent>
     </Drawer>

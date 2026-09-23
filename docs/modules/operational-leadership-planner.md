@@ -1,7 +1,8 @@
 # Planner de Lideranças Operacionais (Etapa 13 — complementar)
 
 Rota: `/governanca/liderancas` · Permissões: `leadership.view`, `leadership.assign`,
-`leadership.manage`, `leadership.replicate`, `leadership.audit`.
+`leadership.manage`, `leadership.replicate`, `leadership.audit`, `leadership.export`,
+`leadership.manage_historical_data`.
 
 O modelo de base — designação como vínculo colaborador × escopo × vigência,
 três níveis (operação, cidade, BR), um responsável principal por escopo e por
@@ -82,9 +83,28 @@ Uma designação passada pode ser corrigida (`save_leadership_assignment` com
 `id`) e encerrada com data e motivo; a auditoria guarda antes e depois. O
 impacto de uma correção aparece na consulta seguinte de todo módulo, porque
 nenhum módulo guarda o nome — é a garantia de que "corrigir a liderança de
-julho" não exige regravar caches. Uma prévia de impacto dedicada (quantas
-obrigações de aderência, checklists ou BRs mudam de liderança) não foi
-construída nesta etapa; ver pendências.
+julho" não exige regravar caches.
+
+**§14 — permissão específica, prévia e motivo** (migração
+`20260924130000_leadership_export_impact.sql`, detalhes em
+[`leadership.md`](./leadership.md) §15):
+
+* Alterar a liderança de um dia anterior a hoje exige
+  `leadership.manage_historical_data` ("Corrigir dados históricos da
+  liderança", padrão só do Administrador). A regra está num gatilho
+  (`leadership_historical_guard`), então vale para editar, encerrar e
+  replicar. Antes não havia guarda nenhuma para a edição retroativa.
+* Antes de gravar, o formulário mostra a prévia de
+  `leadership_change_impact`: **BRs** cuja liderança resolvida muda (antes →
+  depois, dia a dia, pela mesma precedência da §43), **veículos** e
+  **motoristas** fidelizados nelas nesses dias, **checklists executados** e
+  **obrigações da Aderência** do período — contagens e amostra. A função é
+  somente leitura (`STABLE`).
+* A gravação exige motivo (`change_reason`, também na auditoria) e a
+  confirmação explícita. Qualquer campo alterado depois descarta a prévia.
+* **Contexto histórico preservado:** checklists e obrigações guardam a
+  liderança do momento em que foram gerados e não são regravados pela
+  correção — a prévia diz isso antes da confirmação.
 
 ---
 
@@ -96,12 +116,29 @@ sem `leadership.view` (C11). `tests/ui/leadership.spec.ts` cobre os cartões, a
 gaveta de escopo (uma BR coberta por cidade e outra por exceção do BR) e a
 ausência de rolagem horizontal em desktop e celular.
 
+Suíte 16b (`16b_leadership_export_impact.sql`, 12 verificações) cobre a
+exportação (padrões iguais aos de `fidelization.export`, auditoria
+obrigatória, recusa por perfil e organização) e a prévia de impacto (números
+iguais aos do resolvedor oficial num período real, nada gravado, recusa sem a
+permissão de correção histórica, fora do escopo e em outra organização).
+`tests/ui/leadership-export-impact.spec.ts` (13 testes) cobre o botão
+Exportar com os filtros da tela, a prévia com motivo e confirmação, o descarte
+da prévia ao mudar um campo, a recusa sem permissão, 390 px e axe (WCAG AA) da prévia nos dois temas.
+
 ---
 
 ## 8. Pendências
 
-* **Prévia de impacto da edição histórica** (quantos registros de outros
-  módulos mudam de liderança ao corrigir uma vigência passada).
-* **Exportação de lideranças** — permanece a pendência da Etapa 08.
+* ~~Prévia de impacto da edição histórica~~ — construída (§6).
+* ~~Exportação de lideranças~~ — construída ([`leadership.md`](./leadership.md) §14).
+* **Encerrar pela tela sem prévia.** O botão "Encerrar" de uma competência
+  passada é correção histórica (o gatilho exige a permissão), mas não mostra
+  a prévia nem pede motivo; a correção com prévia se faz pelo formulário.
+* **Vínculo `ended` não responde pelo período em que valeu** na resolução
+  (`br_leadership_at`, `adherence_leader_at` filtram `status = 'active'`). A
+  prévia segue a regra vigente; a correção pertence às rotinas de resolução.
+* **Replicar para a competência corrente** cria vínculos a partir do dia 1º,
+  que já passou: quem não tem a correção histórica recebe a recusa na
+  execução (a prévia da replicação não grava e por isso não a antecipa).
 * **Dois BRs de Belém sem liderança**, pelo gestor ausente do cadastro de
   colaboradores (`fidelization-brs.md` §7).

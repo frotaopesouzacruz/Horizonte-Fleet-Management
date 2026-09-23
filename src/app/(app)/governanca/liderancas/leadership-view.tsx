@@ -25,7 +25,14 @@ import type { BrEntry, CoverageEntry } from "@/components/governance/scope-picke
 import { endLeadership } from "@/lib/governance/actions";
 import type { LeadershipIndicators, LeadershipRow } from "@/lib/governance/queries";
 import { formatCompetence, monthEnd, type Competence } from "@/lib/governance/competence";
-import { LeadershipFormDrawer, type LeadershipFormValue } from "./leadership-form-drawer";
+import type { LeaderOption } from "@/lib/governance/leadership-export";
+import {
+  LeadershipFormDrawer,
+  type LeadershipFormValue,
+  type LeadershipImpactLoader,
+  type LeadershipSaver,
+} from "./leadership-form-drawer";
+import { LeadershipExportMenu } from "./export-menu";
 import { ReplicateDialog } from "./replicate-dialog";
 import { LeaderScopeDrawer, type LeaderScopeLoader } from "./leader-scope-drawer";
 
@@ -74,12 +81,28 @@ export interface LeadershipViewProps {
   operations: { id: string; name: string; status: string }[];
   coverage: CoverageEntry[];
   brs: BrEntry[];
-  filters: { operationId?: string; stateId?: string; cityId?: string; scope?: string; status?: string };
+  filters: {
+    operationId?: string;
+    stateId?: string;
+    cityId?: string;
+    scope?: string;
+    status?: string;
+    employeeId?: string;
+  };
+  /** Lideranças da competência, para o filtro "Liderança" (§20). */
+  leaders?: LeaderOption[];
   canManage: boolean;
   canAssign: boolean;
   canReplicate: boolean;
+  /** `leadership.export` — "Exportar, quando autorizado" (§20). */
+  canExport?: boolean;
+  /** `leadership.manage_historical_data` — correção de datas passadas (Etapa 13 §14). */
+  canManageHistorical?: boolean;
   /** A prévia de desenvolvimento injeta o escopo de uma liderança; a tela real usa a server action. */
   scopeLoader?: LeaderScopeLoader;
+  /** Idem para a prévia de impacto e para a gravação do formulário. */
+  impactLoader?: LeadershipImpactLoader;
+  saver?: LeadershipSaver;
 }
 
 /**
@@ -98,10 +121,15 @@ export function LeadershipView({
   coverage,
   brs,
   filters,
+  leaders = [],
   canManage,
   canAssign,
   canReplicate,
+  canExport = false,
+  canManageHistorical = false,
   scopeLoader,
+  impactLoader,
+  saver,
 }: LeadershipViewProps) {
   const router = useRouter();
   const params = useSearchParams();
@@ -148,6 +176,21 @@ export function LeadershipView({
       )
       .sort((a, b) => a.cityName.localeCompare(b.cityName));
   }, [coverage, filters.stateId, filters.operationId]);
+
+  /** A query da tela, sem formato: a exportação recebe exatamente os mesmos filtros. */
+  const exportQuery = React.useMemo(() => {
+    const query = new URLSearchParams({ ano: String(competence.year), mes: String(competence.month) });
+    const entries: [string, string | undefined][] = [
+      ["operacao", filters.operationId],
+      ["uf", filters.stateId],
+      ["cidade", filters.cityId],
+      ["nivel", filters.scope],
+      ["situacao", filters.status],
+      ["lideranca", filters.employeeId],
+    ];
+    for (const [key, value] of entries) if (value) query.set(key, value);
+    return query.toString();
+  }, [competence, filters]);
 
   const active = rows.filter((r) => r.status === "active");
   const history = rows.filter((r) => r.status !== "active");
@@ -260,10 +303,15 @@ export function LeadershipView({
           ) : undefined
         }
         secondaryActions={
-          canReplicate ? (
-            <Button variant="secondary" leadingIcon={<CopyCheck />} onClick={() => setReplicateOpen(true)}>
-              Replicar competência
-            </Button>
+          canReplicate || canExport ? (
+            <>
+              {canExport ? <LeadershipExportMenu query={exportQuery} rowCount={rows.length} /> : null}
+              {canReplicate ? (
+                <Button variant="secondary" leadingIcon={<CopyCheck />} onClick={() => setReplicateOpen(true)}>
+                  Replicar competência
+                </Button>
+              ) : null}
+            </>
           ) : undefined
         }
         filters={
@@ -335,6 +383,41 @@ export function LeadershipView({
                 <option value="operation">Operação</option>
                 <option value="city">Cidade</option>
                 <option value="br">BR</option>
+              </NativeSelect>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <span className="text-caption text-fg-muted">Liderança</span>
+              <NativeSelect
+                fieldSize="sm"
+                aria-label="Filtrar por liderança"
+                value={filters.employeeId ?? ""}
+                onChange={(e) => navigate({ lideranca: e.target.value || null })}
+                className="min-w-[12rem] max-w-[18rem]"
+              >
+                <option value="">Todas as lideranças</option>
+                {leaders.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.code ? `${l.name} (${l.code})` : l.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <span className="text-caption text-fg-muted">Situação</span>
+              <NativeSelect
+                fieldSize="sm"
+                aria-label="Filtrar por situação"
+                value={filters.status ?? ""}
+                onChange={(e) => navigate({ situacao: e.target.value || null })}
+                className="min-w-[10rem]"
+              >
+                <option value="">Todas</option>
+                <option value="current">Vigentes hoje</option>
+                <option value="active">Ativas na competência</option>
+                <option value="ended">Encerradas</option>
+                <option value="cancelled">Canceladas</option>
               </NativeSelect>
             </div>
           </FilterBar>
@@ -716,6 +799,9 @@ export function LeadershipView({
         operations={operations}
         coverage={coverage}
         brs={brs}
+        canManageHistorical={canManageHistorical}
+        impactLoader={impactLoader}
+        saver={saver}
       />
 
       <ReplicateDialog

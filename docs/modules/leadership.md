@@ -184,6 +184,8 @@ quando.
 | `leadership.assign` | escolher **quem** é o responsável |
 | `leadership.replicate` | copiar planejamento entre competências |
 | `leadership.audit` | ler a trilha de auditoria |
+| `leadership.export` | exportar a tela em XLSX/CSV (§20) — padrão: Administrador, Gestão, Gestor de Frota, Liderança Operações (os mesmos de `fidelization.export`) |
+| `leadership.manage_historical_data` | corrigir a liderança de dias que já passaram (Etapa 13 §14) — padrão: Administrador |
 
 `manage` e `assign` são separadas de propósito: quem corrige datas e observações
 não necessariamente decide quem responde por uma operação. Trocar a pessoa de um
@@ -215,16 +217,30 @@ campos alterados. `audit_logs` é append-only.
 | `…_operational_governance_rbac_rls.sql` | 13 permissões, matriz padrão, `private.br_in_scope`, RLS e grants |
 | `…_leadership_rpcs.sql` | `competence_range`, `assert_governance_access`, `save_leadership_assignment`, `end_leadership_assignment`, `replicate_leadership_competence` |
 | `…_governance_read_model.sql` | `leadership_directory`, `leadership_indicators` |
+| `20260924130000_leadership_export_impact.sql` | `leadership.export`, `leadership.manage_historical_data`, `change_reason`, gatilho `leadership_historical_guard`, `leadership_change_impact`, `log_leadership_export`; `save_leadership_assignment` exige motivo na correção histórica (ledger extra `leadership_export_impact_sample_order`: ordem da amostra) |
 
 ---
 
 ## 12. Pendências
 
-* Exportação de lideranças (§20 prevê "Exportar, quando autorizado"). A
-  permissão de exportação não foi criada para este módulo; a da fidelização
-  (`fidelization.export`) existe. Definir se Lideranças terá a sua.
 * Responsabilidade "de apoio" está no modelo (`responsibility_type = 'support'`)
   e na tela, mas nenhuma regra de negócio a distingue de substituto ainda.
+* **Encerrar pela tela não mostra a prévia de impacto.** O botão "Encerrar"
+  sugere o último dia da competência e, numa competência passada, isso é
+  correção histórica: o gatilho exige a permissão, mas a tela não mostra a
+  prévia nem pede motivo (o `end_reason` segue opcional). A correção com
+  prévia hoje se faz editando o fim da vigência no formulário.
+* **A resolução ignora vínculos `ended`.** `private.br_leadership_at` e
+  `private.adherence_leader_at` só consideram `status = 'active'`; um vínculo
+  encerrado por `end_leadership_assignment` deixa de responder também pelo
+  período em que valeu, o que contraria o §4 deste documento. A prévia de
+  impacto segue a regra vigente (é o que os módulos calculam). Hoje não há
+  nenhum vínculo `ended` no banco; a correção pertence às rotinas de
+  resolução (Planner de BRs / Aderência).
+* **Contraste no tema escuro, dentro da gaveta.** O axe acusa o texto
+  auxiliar dos campos (`text-fg-muted` sobre a gaveta: 4,38:1) e o botão
+  primário (4,14:1) — componentes do design system, não desta tela. A prévia
+  de impacto em si passa WCAG AA nos dois temas.
 
 ---
 
@@ -235,3 +251,77 @@ que está sob responsabilidade (BRs, veículos, motoristas); a gaveta "O que
 esta liderança responde" lê `leadership_scope_summary`. Detalhes, definições e
 a comparação com o HFC estão em
 [`operational-leadership-planner.md`](./operational-leadership-planner.md).
+
+---
+
+## 14. Exportação (Etapa 08 §20)
+
+"Exportar, quando autorizado": botão **Exportar** (XLSX ou CSV) no cabeçalho,
+visível só com `leadership.export`. O arquivo é a tela:
+
+* a rota `/governanca/liderancas/export` lê as linhas pela mesma função da
+  página (`loadLeadershipScreen`, em `src/lib/governance/leadership-export.ts`),
+  com os mesmos filtros da URL — competência, operação, estado, cidade, nível,
+  situação e liderança — e sob o cliente de quem pede (`leadership_directory`
+  é `security_invoker`): nenhuma linha fora do escopo da pessoa;
+* a tela ganhou os filtros **Liderança** e **Situação** (vigentes hoje,
+  ativas, encerradas, canceladas), que a exportação repete;
+* toda exportação é registrada por `log_leadership_export` em `audit_logs`
+  (`EXPORT`, ator real, formato, quantidade de linhas e só os filtros da
+  tela). Sem o registro, a rota responde 403 e o arquivo não sai;
+* texto livre que começa com `=`, `+`, `-` ou `@` sai com apóstrofo, para a
+  planilha não o ler como fórmula;
+* uma recusa (sem permissão, sessão expirada, auditoria indisponível) vira
+  aviso na tela, não uma página de erro.
+
+Colunas: competência, nível, operação, estado, cidade, BR, colaborador,
+matrícula, função, início, fim, situação, vigente hoje, observações, motivo do
+encerramento.
+
+---
+
+## 15. Correção histórica e prévia de impacto (Etapa 13 §13–§14)
+
+Até a Etapa 13 nada distinguia uma edição retroativa: quem tinha
+`leadership.manage` mexia em qualquer data. Agora, com a mesma convenção da
+fidelização (§44 da Etapa 15, "hoje" de São Paulo):
+
+* **Retroativa** é a alteração que muda a cobertura de um dia anterior a hoje
+  (`private.leadership_changed_days`): criar com início no passado; mudar
+  pessoa, escopo ou função de um vínculo que já valeu; recuar o início;
+  encurtar o fim para antes de ontem; estender um fim que já passou. Mudar só
+  a observação não é retroativo; encerrar ontem também não.
+* **Permissão específica.** O gatilho `leadership_historical_guard` recusa a
+  alteração retroativa sem `leadership.manage_historical_data`, venha ela do
+  formulário, do encerramento, da replicação ou de uma chamada direta.
+* **Motivo obrigatório.** `save_leadership_assignment` recusa a alteração
+  retroativa sem `change_reason`, que fica na linha e, pela auditoria, com o
+  antes, o depois e o usuário autenticado.
+* **Prévia antes de gravar.** O formulário chama
+  `leadership_change_impact(org, payload)` — o mesmo payload da gravação —
+  antes de salvar. Não sendo retroativa, grava como sempre. Sendo, mostra no
+  próprio formulário: os períodos passados alcançados, as **BRs cuja liderança
+  resolvida muda** (dia a dia, pela precedência exceção do BR › cidade ›
+  operação, antes → depois), os **veículos** e **motoristas** fidelizados
+  nelas nesses dias, os **checklists executados** e as **obrigações da
+  Aderência** desses dias — contagem e uma amostra curta. A gravação só segue
+  com motivo e a confirmação "Revisei o impacto". Mudar qualquer campo depois
+  descarta a prévia.
+* **O contexto histórico não é reescrito.** Checklists e obrigações guardam a
+  liderança do momento em que foram gerados; a correção não os altera, e a
+  prévia diz isso antes da confirmação. A exceção, também dita na prévia, são
+  as obrigações de ontem ainda sem checklist nem decisão, que a rotina
+  automática da Aderência (ontem e hoje) ainda pode realinhar.
+* A prévia é somente leitura (função `STABLE`: o banco recusa escrita), exige
+  `leadership.manage` no escopo da operação (a do vínculo atual e a nova) e,
+  quando retroativa, a permissão de correção histórica.
+* **Novo vínculo na competência corrente começa hoje**, não no dia 1º: o dia
+  1º reescreveria quem respondia pelos dias que já passaram, o que é correção
+  histórica e não "novo vínculo". Numa competência passada o formulário
+  continua sugerindo o dia 1º — e a prévia aparece.
+
+A suíte `supabase/tests/remote/16b_leadership_export_impact.sql` confere os
+números da prévia contra o resolvedor oficial num período real (01/01 a
+17/09/2026: 38 BRs, 60 veículos, 1.156 obrigações) e as recusas por perfil,
+escopo e organização. `tests/ui/leadership-export-impact.spec.ts` cobre a tela
+em `/dev/preview-liderancas-impacto`.

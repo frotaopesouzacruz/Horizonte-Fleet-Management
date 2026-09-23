@@ -3,11 +3,11 @@ import { requireOrganization } from "@/lib/auth/session";
 import {
   getGovernanceOptions,
   getLeadershipIndicators,
-  listLeadership,
   listOperationBrs,
   type LeadershipIndicators,
 } from "@/lib/governance/queries";
 import { parseCompetence } from "@/lib/governance/competence";
+import { loadLeadershipScreen, readLeadershipFilters } from "@/lib/governance/leadership-export";
 import { LeadershipView } from "./leadership-view";
 
 export const metadata: Metadata = {
@@ -38,16 +38,11 @@ export default async function LeadershipPage({
   const { session, organization } = await requireOrganization("leadership.view");
 
   const competence = parseCompetence(first(params, "ano"), first(params, "mes"));
-  const filters = {
-    operationId: first(params, "operacao"),
-    stateId: first(params, "uf"),
-    cityId: first(params, "cidade"),
-    scope: first(params, "nivel"),
-    status: first(params, "situacao"),
-  };
+  // Os mesmos filtros que a exportação lê (Etapa 08 §20): o arquivo é a tela.
+  const filters = readLeadershipFilters((key) => first(params, key));
 
-  const [rows, options, brs, indicators] = await Promise.all([
-    listLeadership(organization.organizationId, competence, filters),
+  const [{ rows, leaders }, options, brs, indicators] = await Promise.all([
+    loadLeadershipScreen(organization.organizationId, competence, filters),
     getGovernanceOptions(organization.organizationId),
     listOperationBrs(organization.organizationId),
     // Losing the four cards is not a reason to lose the list under them.
@@ -73,9 +68,12 @@ export default async function LeadershipPage({
         status: br.status,
       }))}
       filters={filters}
+      leaders={leaders}
       canManage={has("leadership.manage")}
       canAssign={has("leadership.assign")}
       canReplicate={has("leadership.replicate")}
+      canExport={has("leadership.export")}
+      canManageHistorical={has("leadership.manage_historical_data")}
     />
   );
 }

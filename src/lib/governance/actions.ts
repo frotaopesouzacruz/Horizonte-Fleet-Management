@@ -103,6 +103,8 @@ export interface SaveLeadershipInput {
   effectiveTo?: string | null;
   notes?: string | null;
   expectedUpdatedAt?: string | null;
+  /** Etapa 13 §14: obrigatório quando a alteração muda a liderança de dias que já passaram. */
+  changeReason?: string | null;
 }
 
 export async function saveLeadership(input: SaveLeadershipInput): Promise<Result<{ id: string }>> {
@@ -121,6 +123,7 @@ export async function saveLeadership(input: SaveLeadershipInput): Promise<Result
     effective_to: input.effectiveTo ?? null,
     notes: input.notes ?? null,
     expected_updated_at: input.expectedUpdatedAt ?? null,
+    change_reason: input.changeReason ?? null,
   };
 
   const { data, error } = await supabase.rpc("save_leadership_assignment", {
