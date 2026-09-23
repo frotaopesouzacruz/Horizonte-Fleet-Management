@@ -31,11 +31,13 @@
 --        recusado pela rotina E pelo gatilho (vale para qualquer caminho)
 --   Bloco 2 (motoristas, replicação, liderança, aderência) — ver bloco
 --   Bloco 3 (segurança por perfil e organização) — ver bloco
+--   Bloco 4 (layouts salvos da importação) — ver bloco
 --
--- Última execução: 23/09/2026 (projeto jgyvaltwqntpcjqounty), 22/22 PASS
+-- Última execução: 23/09/2026 (projeto jgyvaltwqntpcjqounty), 28/28 PASS
 --   Bloco 1: P1–P10 PASS (P8 achou 5 eventos pela placa)
 --   Bloco 2: M1–M6 PASS (M4 replicou 88 vínculos na 1ª vez, 0 na 2ª)
 --   Bloco 3: S1–S6 PASS (S3: 73 BRs na operação do escopo; S4: 89 BRs)
+--   Bloco 4: L1–L6 PASS (layouts salvos da importação)
 -- =============================================================================
 do $t$
 declare
@@ -614,5 +616,104 @@ begin
   exception when others then r := r || 'FAIL S6 ' || sqlerrm || chr(10); end;
   reset role;
 
+  raise exception E'ROLLBACK_TESTES\n%', r;
+end $t$;
+
+-- =============================================================================
+-- Bloco 4 · Layouts salvos da importação (§46–§54)
+--   L1  salvar: devolve o id, a linha é lida pela RLS, cabeçalhos normalizados,
+--       autor registrado e auditoria gravada
+--   L2  mesmo nome (outra caixa) atualiza o mesmo layout, não cria outro
+--   L3  campo inexistente, campo em duas colunas e campo de outro tipo de
+--       arquivo: recusados
+--   L4  organização trocada: recusada
+--   L5  sem fidelization.import: salvar, ler e excluir recusados
+--   L6  excluir: some da leitura e fica na auditoria
+-- =============================================================================
+do $t$
+declare
+  v_org uuid; v_user uuid; v_rand uuid := gen_random_uuid();
+  v_id uuid; v_id2 uuid; n int; n2 int; n3 int; v_map jsonb; r text := '';
+begin
+  select id into v_org from public.organizations where deleted_at is null and status = 'active' order by created_at limit 1;
+  select m.user_id into v_user from public.organization_memberships m
+   where m.organization_id = v_org and m.status = 'active' and m.employee_id is not null limit 1;
+  perform set_config('request.jwt.claims', json_build_object('sub', v_user, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+
+  -- L1
+  v_id := public.save_import_layout(v_org, 'fidelization_allocations', 'Planilha do cliente',
+    jsonb_build_object(' Código Posição ', 'br_code', 'Placa Veículo', 'license_plate', 'Início', 'start_date', 'Obs', ''));
+  select count(*), max(l.mapping::text) into n, v_map from public.import_layouts l where l.id = v_id;
+  reset role;
+  select count(*) into n2 from public.audit_logs where entity_type = 'public.import_layouts' and entity_id = v_id::text and user_id = v_user;
+  select count(*) into n3 from public.import_layouts where id = v_id and created_by = v_user;
+  set local role authenticated;
+  if n = 1 and v_map ? 'código posição' and v_map ->> 'código posição' = 'br_code' and v_map ->> 'obs' = '' and n2 >= 1 and n3 = 1 then
+    r := r || 'PASS L1 layout salvo: lido pela RLS, cabecalhos normalizados, autor e auditoria registrados' || chr(10);
+  else r := r || format('FAIL L1 visivel=%s mapa=%s auditoria=%s autor=%s', n, v_map, n2, n3) || chr(10); end if;
+
+  -- L2
+  v_id2 := public.save_import_layout(v_org, 'fidelization_allocations', 'PLANILHA DO CLIENTE',
+    jsonb_build_object('Código Posição', 'br_code', 'Frota', 'fleet_code', 'Início', 'start_date'));
+  select count(*) into n from public.import_layouts where organization_id = v_org and kind = 'fidelization_allocations' and lower(name) = 'planilha do cliente';
+  select l.mapping into v_map from public.import_layouts l where l.id = v_id;
+  if v_id2 = v_id and n = 1 and v_map ->> 'frota' = 'fleet_code' and not (v_map ? 'placa veículo') then
+    r := r || 'PASS L2 mesmo nome atualiza o mesmo layout (um so registro)' || chr(10);
+  else r := r || format('FAIL L2 mesmo_id=%s registros=%s mapa=%s', v_id2 = v_id, n, v_map) || chr(10); end if;
+
+  -- L3
+  n := 0;
+  begin perform public.save_import_layout(v_org, 'fidelization_allocations', 'x', '{"A":"inventado"}'::jsonb);
+  exception when others then n := n + 1; end;
+  begin perform public.save_import_layout(v_org, 'fidelization_allocations', 'x', '{"A":"br_code","B":"br_code"}'::jsonb);
+  exception when others then n := n + 1; end;
+  begin perform public.save_import_layout(v_org, 'fidelization_brs', 'x', '{"A":"br_code"}'::jsonb);
+  exception when others then n := n + 1; end;
+  if n = 3 then
+    r := r || 'PASS L3 campo inexistente, campo repetido e campo de outro tipo de arquivo recusados' || chr(10);
+  else r := r || format('FAIL L3 recusas=%s de 3', n) || chr(10); end if;
+
+  -- L4
+  begin
+    perform public.save_import_layout(v_rand, 'fidelization_allocations', 'Outra org', '{"A":"br_code"}'::jsonb);
+    r := r || 'FAIL L4 organizacao trocada aceita' || chr(10);
+  exception when others then
+    r := r || 'PASS L4 organizacao trocada recusada' || chr(10);
+  end;
+  reset role;
+
+  -- L5: sem a permissão de importar (desfeito no fim).
+  perform set_config('hfm.access_change', 'on', true);
+  update public.platform_admins set revoked_at = now() where user_id = v_user and revoked_at is null;
+  delete from public.role_permissions rp using public.roles ro, public.permissions p
+   where rp.role_id = ro.id and rp.permission_id = p.id and p.code = 'fidelization.import';
+  perform set_config('hfm.access_change', '', true);
+  set local role authenticated;
+  n := 0;
+  begin perform public.save_import_layout(v_org, 'fidelization_allocations', 'Sem permissao', '{"A":"br_code"}'::jsonb);
+  exception when others then n := n + 1; end;
+  begin perform public.delete_import_layout(v_org, v_id);
+  exception when others then n := n + 1; end;
+  select count(*) into n2 from public.import_layouts;
+  reset role;
+  select count(*) into n3 from public.import_layouts where id = v_id;
+  if n = 2 and n2 = 0 and n3 = 1 then
+    r := r || 'PASS L5 sem fidelization.import: salvar e excluir recusados, leitura vazia, layout intacto' || chr(10);
+  else r := r || format('FAIL L5 recusas=%s visiveis=%s intacto=%s', n, n2, n3) || chr(10); end if;
+  raise exception using errcode = 'HF000', message = r;
+exception when sqlstate 'HF000' then
+  r := sqlerrm;
+  -- L6 (fora do sub-bloco de L5, que foi desfeito: o layout e a permissão voltaram).
+  perform set_config('request.jwt.claims', json_build_object('sub', v_user, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  v_id := public.save_import_layout(v_org, 'fidelization_allocations', 'Para excluir', '{"A":"br_code"}'::jsonb);
+  perform public.delete_import_layout(v_org, v_id);
+  select count(*) into n from public.import_layouts where id = v_id;
+  reset role;
+  select count(*) into n2 from public.audit_logs where entity_type = 'public.import_layouts' and entity_id = v_id::text and action ilike '%delete%';
+  if n = 0 and n2 = 1 then
+    r := r || 'PASS L6 layout excluido some da leitura e a exclusao fica na auditoria' || chr(10);
+  else r := r || format('FAIL L6 ainda_visivel=%s auditoria_exclusao=%s', n, n2) || chr(10); end if;
   raise exception E'ROLLBACK_TESTES\n%', r;
 end $t$;

@@ -49,6 +49,7 @@ export default function PreviewPage() {
         secondaryActions={
           <>
             <PreviewImport />
+            <PreviewImport withMapping />
             <PreviewAssignment />
           </>
         }

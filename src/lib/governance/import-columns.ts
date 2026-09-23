@@ -8,9 +8,22 @@
  */
 import { cellToText, normalizeHeader, toIsoDate } from "@/lib/adherence/import-columns";
 
-export { cellToText, toIsoDate };
+export { cellToText, normalizeHeader, toIsoDate };
 
 export type ImportKind = "brs" | "allocations";
+
+/** O tipo de layout salvo (`import_layouts.kind`) de cada arquivo. */
+export const IMPORT_LAYOUT_KIND: Record<ImportKind, "fidelization_allocations" | "fidelization_brs"> = {
+  allocations: "fidelization_allocations",
+  brs: "fidelization_brs",
+};
+
+/**
+ * Ligação explícita coluna → campo, escolhida na tela ou vinda de um layout
+ * salvo (Etapa 15, §46–§54). A chave é o cabeçalho normalizado
+ * (`normalizeHeader`); o valor é o campo, ou "" para ignorar a coluna.
+ */
+export type ColumnOverrides = Record<string, string>;
 
 export type BrImportField =
   | "operation" | "state" | "city" | "code" | "description" | "status" | "notes";
@@ -82,13 +95,32 @@ export function mapColumns<F extends string>(
   headers: string[],
   columns: ImportColumn<F>[],
   requiredGroups: { label: string; fields: F[] }[],
+  overrides: ColumnOverrides = {},
 ): ColumnMapping<F> {
   const mapping: Record<number, F> = {};
   const taken = new Set<F>();
   const mapped: ColumnMapping<F>["mapped"] = [];
   const unmapped: string[] = [];
+  const decided = new Set<number>();
 
+  // 1º: o que a pessoa ligou (ou mandou ignorar) vale antes de qualquer alias.
   headers.forEach((header, index) => {
+    const key = normalizeHeader(header ?? "");
+    if (!key || !Object.prototype.hasOwnProperty.call(overrides, key)) return;
+    decided.add(index);
+    const column = columns.find((c) => c.field === overrides[key]);
+    if (!column || taken.has(column.field)) {
+      unmapped.push(header);
+      return;
+    }
+    mapping[index] = column.field;
+    taken.add(column.field);
+    mapped.push({ header, field: column.field, label: column.label });
+  });
+
+  // 2º: o resto pelo nome, como na Etapa 13.
+  headers.forEach((header, index) => {
+    if (decided.has(index)) return;
     const key = normalizeHeader(header ?? "");
     if (!key) return;
     const column =

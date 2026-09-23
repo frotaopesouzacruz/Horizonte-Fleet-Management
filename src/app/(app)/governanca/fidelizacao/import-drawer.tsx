@@ -18,9 +18,12 @@ import { useToast } from "@/components/feedback/toast";
 import { useConfirm } from "@/components/feedback/confirm-dialog";
 import type { Result } from "@/lib/governance/actions";
 import {
-  confirmImport, uploadAllocationImport, uploadBrImport,
-  type AllocationImportPreview, type BrImportPreview, type ImportOutcome, type ImportPreview,
+  confirmImport, deleteImportLayout, inspectImportFile, listImportLayouts, saveImportLayout,
+  uploadAllocationImport, uploadBrImport,
+  type AllocationImportPreview, type BrImportPreview, type ImportFileColumns, type ImportLayout,
+  type ImportOutcome, type ImportPreview,
 } from "@/lib/governance/import-actions";
+import { ColumnMappingPanel, mappingProblems, type HeaderMapping } from "./import-mapping";
 import {
   ALLOCATION_IMPORT_COLUMNS, BR_IMPORT_COLUMNS, type ImportKind,
 } from "@/lib/governance/import-columns";
@@ -41,6 +44,14 @@ import {
 export interface ImportLoaders {
   upload: (kind: ImportKind, formData: FormData) => Promise<Result<ImportPreview>>;
   confirm: (kind: ImportKind, batchId: string) => Promise<Result<ImportOutcome>>;
+  /**
+   * Mapeamento de colunas e layouts salvos (Etapa 15). Opcionais: sem
+   * `inspect`, a gaveta reconhece as colunas só pelo nome, como na Etapa 13.
+   */
+  inspect?: (kind: ImportKind, formData: FormData) => Promise<Result<ImportFileColumns>>;
+  listLayouts?: (kind: ImportKind) => Promise<Result<ImportLayout[]>>;
+  saveLayout?: (kind: ImportKind, name: string, mapping: Record<string, string>) => Promise<Result<{ id: string }>>;
+  deleteLayout?: (layoutId: string) => Promise<Result>;
 }
 
 export interface ImportDrawerProps {
@@ -60,6 +71,10 @@ const defaultLoaders: ImportLoaders = {
       ? (uploadBrImport(formData) as Promise<Result<ImportPreview>>)
       : (uploadAllocationImport(formData) as Promise<Result<ImportPreview>>),
   confirm: (kind, batchId) => confirmImport(kind, batchId),
+  inspect: (kind, formData) => inspectImportFile(kind, formData),
+  listLayouts: (kind) => listImportLayouts(kind),
+  saveLayout: (kind, name, mapping) => saveImportLayout(kind, name, mapping),
+  deleteLayout: (layoutId) => deleteImportLayout(layoutId),
 };
 
 const formatInt = (n: number) => n.toLocaleString("pt-BR");
@@ -132,12 +147,85 @@ function ImportBody({
   const [preview, setPreview] = React.useState<ImportPreview | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [busy, startTransition] = React.useTransition();
+  const [fileColumns, setFileColumns] = React.useState<ImportFileColumns | null>(null);
+  const [headerMapping, setHeaderMapping] = React.useState<HeaderMapping>({});
+  const [layouts, setLayouts] = React.useState<ImportLayout[]>([]);
 
   const columns = kind === "brs" ? BR_IMPORT_COLUMNS : ALLOCATION_IMPORT_COLUMNS;
+  const problems = fileColumns ? mappingProblems(kind, headerMapping) : { missing: [], repeated: [] };
+  const mappingBlocked = problems.missing.length > 0 || problems.repeated.length > 0;
+
+  // Os layouts salvos são por tipo de arquivo: trocar o tipo recarrega a lista.
+  const { listLayouts } = loaders;
+  const [layoutsVersion, setLayoutsVersion] = React.useState(0);
+  const reloadLayouts = () => setLayoutsVersion((v) => v + 1);
+  React.useEffect(() => {
+    if (!listLayouts) return;
+    let active = true;
+    listLayouts(kind).then((result) => {
+      if (active) setLayouts(result.ok && result.data ? result.data : []);
+    });
+    return () => {
+      active = false;
+    };
+  }, [listLayouts, kind, layoutsVersion]);
+
+  /** Escolher o arquivo lê os cabeçalhos e sugere a ligação — antes de qualquer validação. */
+  const inspectFile = (file: File | null) => {
+    setPreview(null);
+    setError(null);
+    setFileColumns(null);
+    setHeaderMapping({});
+    if (!file || !loaders.inspect) return;
+    const data = new FormData();
+    data.set("file", file);
+    startTransition(async () => {
+      const result = await loaders.inspect!(kind, data);
+      if (result.ok && result.data) {
+        setFileColumns(result.data);
+        setHeaderMapping(result.data.suggestion);
+      } else {
+        setError(result.error ?? "Não foi possível ler as colunas do arquivo.");
+      }
+    });
+  };
+
+  const saveLayout = async (name: string): Promise<boolean> => {
+    if (!loaders.saveLayout) return false;
+    const result = await loaders.saveLayout(kind, name, headerMapping);
+    if (!result.ok) {
+      setError(result.error ?? "Não foi possível salvar o layout.");
+      return false;
+    }
+    toast({ title: `Layout "${name}" salvo.`, variant: "success" });
+    reloadLayouts();
+    return true;
+  };
+
+  const deleteLayout = async (layout: { id: string; name: string }): Promise<boolean> => {
+    if (!loaders.deleteLayout) return false;
+    const ok = await confirm({
+      title: `Excluir o layout "${layout.name}"?`,
+      description: "A ligação salva deixa de aparecer para todos da organização. Importações já feitas não mudam.",
+      confirmLabel: "Excluir",
+      destructive: true,
+    });
+    if (!ok) return false;
+    const result = await loaders.deleteLayout(layout.id);
+    if (!result.ok) {
+      setError(result.error ?? "Não foi possível excluir o layout.");
+      return false;
+    }
+    toast({ title: `Layout "${layout.name}" excluído.`, variant: "success" });
+    reloadLayouts();
+    return true;
+  };
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (fileColumns && mappingBlocked) return;
     const data = new FormData(event.currentTarget);
+    if (fileColumns) data.set("mapping", JSON.stringify(headerMapping));
     setError(null);
     startTransition(async () => {
       const result = await loaders.upload(kind, data);
@@ -203,6 +291,8 @@ function ImportBody({
               setKind(v as ImportKind);
               setPreview(null);
               setError(null);
+              setFileColumns(null);
+              setHeaderMapping({});
               formRef.current?.reset();
             }}
           >
@@ -256,13 +346,37 @@ function ImportBody({
             name="file"
             accept=".xlsx,.csv"
             required
+            onChange={(e) => inspectFile(e.currentTarget.files?.[0] ?? null)}
             aria-label={kind === "brs" ? "Arquivo de BRs" : "Arquivo de alocações"}
             className="text-body-sm text-fg file:mr-3 file:rounded-sm file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-label file:text-fg hover:file:bg-secondary"
           />
-          <Button type="submit" variant="secondary" leadingIcon={<Upload />} loading={busy}>
+          <Button
+            type="submit"
+            variant="secondary"
+            leadingIcon={<Upload />}
+            loading={busy}
+            disabled={Boolean(fileColumns) && mappingBlocked}
+          >
             Validar arquivo
           </Button>
         </form>
+
+        {fileColumns ? (
+          <ColumnMappingPanel
+            kind={kind}
+            headers={fileColumns.headers}
+            rowCount={fileColumns.rowCount}
+            mapping={headerMapping}
+            onChange={(next) => {
+              setHeaderMapping(next);
+              setPreview(null);
+            }}
+            layouts={layouts}
+            onSaveLayout={loaders.saveLayout ? saveLayout : undefined}
+            onDeleteLayout={loaders.deleteLayout ? deleteLayout : undefined}
+            busy={busy}
+          />
+        ) : null}
 
         {error ? (
           <Alert variant="danger">

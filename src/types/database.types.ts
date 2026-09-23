@@ -1289,6 +1289,50 @@ export type Database = {
           },
         ]
       }
+      import_layouts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          kind: string
+          mapping: Json
+          name: string
+          organization_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind: string
+          mapping?: Json
+          name: string
+          organization_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: string
+          mapping?: Json
+          name?: string
+          organization_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_layouts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       import_rows: {
         Row: {
           action: string
@@ -5311,6 +5355,19 @@ export type Database = {
       save_fidelization_assignment: {
         Args: { p_organization_id: string; p_payload: Json }
         Returns: Json
+      }
+      save_import_layout: {
+        Args: {
+          p_kind: string
+          p_mapping: Json
+          p_name: string
+          p_organization_id: string
+        }
+        Returns: string
+      }
+      delete_import_layout: {
+        Args: { p_layout_id: string; p_organization_id: string }
+        Returns: undefined
       }
       save_fidelization_driver: {
         Args: { p_organization_id: string; p_payload: Json }

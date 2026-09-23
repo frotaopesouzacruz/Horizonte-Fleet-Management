@@ -4,7 +4,7 @@ import * as React from "react";
 import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ImportDrawer, type ImportLoaders } from "@/app/(app)/governanca/fidelizacao/import-drawer";
-import type { AllocationImportPreview, BrImportPreview } from "@/lib/governance/import-actions";
+import type { AllocationImportPreview, BrImportPreview, ImportLayout } from "@/lib/governance/import-actions";
 
 /**
  * A gaveta de importação com uma prévia fixa em memória — o formato exato que
@@ -104,14 +104,80 @@ const loaders: ImportLoaders = {
   }),
 };
 
-export function PreviewImport() {
+/**
+ * Etapa 15: a mesma gaveta com o passo de mapeamento. O arquivo "lido" tem
+ * cabeçalhos que nenhum alias reconhece (Rota, Carro, Entrada) e um que
+ * reconhece (Obs → Motivo), e há um layout salvo que liga os três. Os
+ * layouts vivem em memória, como a lista do banco viveria para a sessão.
+ */
+function useMappingLoaders(): ImportLoaders {
+  const layoutsRef = React.useRef<ImportLayout[]>([
+    {
+      id: "layout-1",
+      name: "Planilha do cliente",
+      mapping: { rota: "br_code", carro: "license_plate", entrada: "start_date", obs: "" },
+      updatedAt: "2026-09-20T12:00:00Z",
+    },
+  ]);
+  return React.useMemo<ImportLoaders>(
+    () => ({
+      upload: async (kind, formData) => {
+        const mapping = formData.get("mapping");
+        if (typeof mapping !== "string" || !mapping) {
+          return { ok: false, error: "A prévia esperava o mapeamento das colunas." };
+        }
+        return { ok: true, data: kind === "brs" ? BRS : ALLOCATIONS };
+      },
+      confirm: loaders.confirm,
+      inspect: async () => ({
+        ok: true,
+        data: {
+          headers: ["Rota", "Carro", "Entrada", "Obs"],
+          suggestion: { Rota: "", Carro: "", Entrada: "", Obs: "reason" },
+          rowCount: 8,
+        },
+      }),
+      listLayouts: async () => ({ ok: true, data: [...layoutsRef.current] }),
+      saveLayout: async (_kind, name, mapping) => {
+        const normalized = Object.fromEntries(
+          Object.entries(mapping).map(([k, v]) => [k.toLowerCase().trim(), v]),
+        );
+        const existing = layoutsRef.current.find((l) => l.name.toLowerCase() === name.toLowerCase());
+        if (existing) {
+          existing.mapping = normalized;
+          return { ok: true, data: { id: existing.id } };
+        }
+        const id = `layout-${layoutsRef.current.length + 1}`;
+        layoutsRef.current = [
+          ...layoutsRef.current,
+          { id, name, mapping: normalized, updatedAt: "2026-09-23T12:00:00Z" },
+        ].sort((a, b) => a.name.localeCompare(b.name));
+        return { ok: true, data: { id } };
+      },
+      deleteLayout: async (layoutId) => {
+        layoutsRef.current = layoutsRef.current.filter((l) => l.id !== layoutId);
+        return { ok: true };
+      },
+    }),
+    [],
+  );
+}
+
+export function PreviewImport({ withMapping = false }: { withMapping?: boolean }) {
   const [open, setOpen] = React.useState(false);
+  const mappingLoaders = useMappingLoaders();
   return (
     <>
       <Button variant="secondary" leadingIcon={<Upload />} onClick={() => setOpen(true)}>
-        Importar (prévia)
+        {withMapping ? "Importar com mapeamento (prévia)" : "Importar (prévia)"}
       </Button>
-      <ImportDrawer open={open} onOpenChange={setOpen} canImportBrs loaders={loaders} exportPath="#modelo" />
+      <ImportDrawer
+        open={open}
+        onOpenChange={setOpen}
+        canImportBrs
+        loaders={withMapping ? mappingLoaders : loaders}
+        exportPath="#modelo"
+      />
     </>
   );
 }

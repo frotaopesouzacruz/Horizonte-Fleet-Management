@@ -8,9 +8,9 @@ import { parseSpreadsheet } from "@/lib/admin/spreadsheet";
 import type { Json } from "@/types/database.types";
 import type { Result } from "./actions";
 import {
-  ALLOCATION_IMPORT_COLUMNS, ALLOCATION_REQUIRED, BR_IMPORT_COLUMNS, BR_REQUIRED,
-  cellToText, mapColumns, toIsoDate,
-  type AllocationImportField, type BrImportField, type ImportKind,
+  ALLOCATION_IMPORT_COLUMNS, ALLOCATION_REQUIRED, BR_IMPORT_COLUMNS, BR_REQUIRED, IMPORT_LAYOUT_KIND,
+  cellToText, mapColumns, normalizeHeader, toIsoDate,
+  type AllocationImportField, type BrImportField, type ColumnOverrides, type ImportColumn, type ImportKind,
 } from "./import-columns";
 
 /**
@@ -139,6 +139,30 @@ function toMessage(error: { code?: string; message?: string }, fallback: string)
   return fallback;
 }
 
+/**
+ * A ligação coluna → campo que a tela mandou (`mapping`, JSON). Só passa o
+ * que é campo deste arquivo, ou "" (ignorar); o resto é descartado em
+ * silêncio, porque o servidor nunca confia no que o formulário diz.
+ */
+function readOverrides<F extends string>(formData: FormData, columns: ImportColumn<F>[]): ColumnOverrides {
+  const raw = formData.get("mapping");
+  if (typeof raw !== "string" || !raw) return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return {};
+  }
+  const allowed = new Set<string>(columns.map((c) => c.field));
+  const overrides: ColumnOverrides = {};
+  for (const [header, field] of Object.entries(obj(parsed))) {
+    const key = normalizeHeader(header);
+    if (!key || typeof field !== "string") continue;
+    if (field === "" || allowed.has(field)) overrides[key] = field;
+  }
+  return overrides;
+}
+
 function findings(v: unknown): ImportFinding[] {
   return arr(v).map((f) => ({
     rowNumber: f.row_number == null ? null : num(f.row_number),
@@ -182,7 +206,9 @@ export async function uploadBrImport(formData: FormData): Promise<Result<BrImpor
   if (!read.ok) return { ok: false, error: read.error };
   const { file, hash, sheet } = read;
 
-  const columns = mapColumns<BrImportField>(sheet.headers, BR_IMPORT_COLUMNS, BR_REQUIRED);
+  const columns = mapColumns<BrImportField>(
+    sheet.headers, BR_IMPORT_COLUMNS, BR_REQUIRED, readOverrides(formData, BR_IMPORT_COLUMNS),
+  );
   if (columns.missing.length) {
     return { ok: false, error: `Colunas obrigatórias não encontradas: ${columns.missing.join(", ")}.` };
   }
@@ -269,7 +295,9 @@ export async function uploadAllocationImport(formData: FormData): Promise<Result
   if (!read.ok) return { ok: false, error: read.error };
   const { file, hash, sheet } = read;
 
-  const columns = mapColumns<AllocationImportField>(sheet.headers, ALLOCATION_IMPORT_COLUMNS, ALLOCATION_REQUIRED);
+  const columns = mapColumns<AllocationImportField>(
+    sheet.headers, ALLOCATION_IMPORT_COLUMNS, ALLOCATION_REQUIRED, readOverrides(formData, ALLOCATION_IMPORT_COLUMNS),
+  );
   if (columns.missing.length) {
     return { ok: false, error: `Colunas obrigatórias não encontradas: ${columns.missing.join(", ")}.` };
   }
@@ -388,4 +416,103 @@ export async function confirmImport(kind: ImportKind, batchId: string): Promise<
       skipped: num(r.skipped),
     },
   };
+}
+
+/* ------------------------------------------ mapeamento e layouts (Etapa 15) */
+
+export interface ImportFileColumns {
+  /** Cabeçalhos do arquivo, na ordem da planilha. */
+  headers: string[];
+  /** Sugestão por nome: cabeçalho → campo, ou "" quando nenhum alias bate. */
+  suggestion: Record<string, string>;
+  rowCount: number;
+}
+
+/**
+ * Lê só os cabeçalhos do arquivo e sugere a ligação de cada coluna pelos
+ * aliases (§47). Nada é gravado: a prévia continua sendo `upload*Import`.
+ */
+export async function inspectImportFile(kind: ImportKind, formData: FormData): Promise<Result<ImportFileColumns>> {
+  const context = await resolveOrganization("fidelization.import");
+  if (!context) return { ok: false, error: SESSION_LOST };
+  const read = await readFile(formData);
+  if (!read.ok) return { ok: false, error: read.error };
+  const { sheet } = read;
+  const columns = kind === "brs" ? BR_IMPORT_COLUMNS : ALLOCATION_IMPORT_COLUMNS;
+  const required = kind === "brs" ? BR_REQUIRED : ALLOCATION_REQUIRED;
+  const auto = mapColumns<string>(sheet.headers, columns as ImportColumn<string>[], required as { label: string; fields: string[] }[]);
+  const suggestion: Record<string, string> = {};
+  sheet.headers.forEach((header, index) => {
+    if (!header) return;
+    suggestion[header] = auto.mapping[index] ?? "";
+  });
+  return { ok: true, data: { headers: sheet.headers.filter(Boolean), suggestion, rowCount: sheet.rows.length } };
+}
+
+export interface ImportLayout {
+  id: string;
+  name: string;
+  /** Cabeçalho normalizado → campo ("" = ignorar). */
+  mapping: Record<string, string>;
+  updatedAt: string;
+}
+
+export async function listImportLayouts(kind: ImportKind): Promise<Result<ImportLayout[]>> {
+  const context = await resolveOrganization("fidelization.import");
+  if (!context) return { ok: false, error: SESSION_LOST };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("import_layouts")
+    .select("id, name, mapping, updated_at")
+    .eq("organization_id", context.organization.organizationId)
+    .eq("kind", IMPORT_LAYOUT_KIND[kind])
+    .order("name");
+  if (error) return { ok: false, error: toMessage(error, "Não foi possível carregar os layouts salvos.") };
+  return {
+    ok: true,
+    data: (data ?? []).map((l) => ({
+      id: l.id,
+      name: l.name,
+      mapping: Object.fromEntries(
+        Object.entries(obj(l.mapping)).map(([k, v]) => [k, typeof v === "string" ? v : ""]),
+      ),
+      updatedAt: l.updated_at,
+    })),
+  };
+}
+
+/** Salva (ou atualiza, pelo nome) a ligação atual como layout da organização. */
+export async function saveImportLayout(
+  kind: ImportKind,
+  name: string,
+  mapping: Record<string, string>,
+): Promise<Result<{ id: string }>> {
+  const context = await resolveOrganization("fidelization.import");
+  if (!context) return { ok: false, error: SESSION_LOST };
+  const normalized: Record<string, string> = {};
+  for (const [header, field] of Object.entries(mapping)) {
+    const key = normalizeHeader(header);
+    if (key) normalized[key] = field;
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("save_import_layout", {
+    p_organization_id: context.organization.organizationId,
+    p_kind: IMPORT_LAYOUT_KIND[kind],
+    p_name: name,
+    p_mapping: normalized,
+  });
+  if (error) return { ok: false, error: toMessage(error, "Não foi possível salvar o layout.") };
+  return { ok: true, data: { id: String(data) } };
+}
+
+export async function deleteImportLayout(layoutId: string): Promise<Result> {
+  const context = await resolveOrganization("fidelization.import");
+  if (!context) return { ok: false, error: SESSION_LOST };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("delete_import_layout", {
+    p_organization_id: context.organization.organizationId,
+    p_layout_id: layoutId,
+  });
+  if (error) return { ok: false, error: toMessage(error, "Não foi possível excluir o layout.") };
+  return { ok: true };
 }

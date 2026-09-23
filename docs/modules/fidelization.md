@@ -2,6 +2,8 @@
 
 Rota: `/governanca/fidelizacao` · Permissão de entrada: `fidelization.view`
 
+Desde a Etapa 15 a tela é a **Central de Fidelização** — ver [§17](#17-central-de-fidelização-etapa-15).
+
 O planejamento das posições operacionais: qual veículo ocupa qual BR, em que
 dias, e quem dirige. O módulo acrescenta os dois últimos degraus da hierarquia
 oficial do HFM:
@@ -289,6 +291,9 @@ histórica (239 vigências, 88 posições) e os dois ajustes que ela exigiu em
   mas o planner e a estabilidade seguem olhando só o titular.
 * **Turnos** de motorista: o modelo tem `driver_role` principal/secundário; não
   há turno por horário, e o HFC também não o usava (mapeamento §5).
+* **Planos de Ação** (Etapa 15, §68): o módulo ainda não existe no HFM. Quando
+  existir, lê a BR, a liderança e o veículo gravados em cada execução de
+  checklist — nenhuma mudança na fidelização é necessária para isso.
 
 ---
 
@@ -359,3 +364,280 @@ Prova: 13c, C10.
 O HFC replicava sem escopo, sem dedup e sem transação (mapeamento §5); aqui a
 rotina respeita `private.can_access_operation` por BR e roda inteira ou não
 roda.
+
+---
+
+## 17. Central de Fidelização (Etapa 15)
+
+### 17.1 Mapeamento do HFC
+
+O HFC foi lido sem alteração nenhuma; o que ele faz, os 13 deltas em relação ao
+mapeamento da Etapa 13, os 15 problemas verificados e as limitações da
+inspeção (o banco do HFC parou de responder às 11:44 UTC) estão em
+[`hfc-fidelization-mapping.md`](./hfc-fidelization-mapping.md).
+
+### 17.2 Diagnóstico do HFM antes da etapa
+
+Já existiam e continuam sendo a fonte oficial: `operation_brs` (BR permanente,
+Etapa 13.1), `fidelization_assignments` e `fidelization_drivers` com as
+constraints de ocupação (§3), a liderança por BR com exceção
+(`private.br_leadership_at`), a importação com prévia (Etapa 13), a
+substituição de motorista e a replicação da competência (§16), o Dashboard de
+Estabilidade (§15) e o Planner de Locais e BRs.
+
+Faltavam:
+
+* **Histórico de mobilizações**: as trocas eram deduzidas dos vínculos; não
+  havia evento imutável com liderança na data, ator e origem.
+* **Edição por período** a partir da célula do dia, com prévia, conflito
+  nomeado e inversão numa transação.
+* **Proteção de dados históricos**: qualquer quem planejava podia mexer em
+  datas passadas.
+* **Matriz agrupada** por operação → liderança → cidade e filtros por
+  liderança, placa, tipo de equipamento e situação da alocação.
+* **Indicadores** da §14 que o dashboard não trazia (BRs cadastradas,
+  veículos e motoristas fidelizados, recortes por estado e tipo).
+* **Mapeamento de colunas e layouts salvos** na importação.
+
+Nada foi recriado: não há tabela paralela de BRs, veículos, motoristas,
+operações ou lideranças. As tabelas novas são o histórico
+(`fidelization_movements`) e os layouts de importação (`import_layouts`).
+
+### 17.3 Áreas da tela
+
+| Área (aba, `aba=`) | O que mostra | Parâmetros próprios na URL |
+|---|---|---|
+| Visão geral (padrão) | Dashboard de Estabilidade e hierarquia operacional | — |
+| Planner de frotas (`frotas`) | matriz BR × dia, agrupada por operação → liderança → cidade | `q`, `lideranca`, `placa`, `tipo_equipamento`, `alocacao` |
+| Planner de motoristas (`motoristas`) | motoristas por BR, substituir e encerrar | — |
+| Histórico de mobilizações (`historico`) | eventos imutáveis, paginados; vínculos da competência recolhidos abaixo | `mov_de`, `mov_ate`, `mov_tipo`, `mov_assunto`, `mov_veiculo`, `mov_motorista`, `mov_pagina`, `lideranca` |
+| Importação (`importacao`) | histórico de lotes e entrada de arquivos | — |
+| Planner de locais e BRs (`locais`) | o planner da Etapa 13, inalterado | `q`, `situacao`, `lideranca`, `veiculo`, `motorista` |
+
+* O cabeçalho (competência, operação, estado, cidade) vale para todas as
+  áreas. Trocar de área não consulta o servidor e mantém a competência;
+  trocar a competência mantém a área (`aba` segue na URL).
+* `q` e `lideranca` têm o mesmo sentido nos dois planners e são
+  compartilhados. A placa digitada é `placa`, porque `veiculo` já quer dizer
+  "com / sem veículo" no Planner de Locais.
+* Sem "De" e "Até", o histórico mostra a competência em tela.
+* No celular, o Planner de Frotas vira um cartão por BR com os períodos
+  escritos; nenhuma área rola a página na horizontal (390 e 1440 px, testado).
+* O calendário da Etapa 8 (`calendar-matrix`) foi substituído pelo Planner de
+  Frotas; o vínculo da BR continua abrindo pela gaveta de planejamento.
+
+### 17.4 BR e hierarquia
+
+A BR é a identidade permanente (`operation_brs.id`); nada na Central cria BR.
+A hierarquia é Organização → Operação → Estado → Cidade → BR → Veículo →
+Motorista. A liderança de cada BR numa data vem de `private.br_leadership_at`
+(exceção da BR, depois cidade, depois operação); a matriz usa a data âncora da
+competência (§4) e cada evento grava a liderança **da data efetiva**. Mudar a
+liderança não reescreve eventos antigos (suíte 15, M5).
+
+### 17.5 Edição por período (`apply_fidelization_period`)
+
+`public.apply_fidelization_period(org, payload)` — `security definer`, confere
+`fidelization.plan` ou `fidelization.change_vehicle`, o escopo da BR
+(`private.br_in_scope`) e trava as BRs envolvidas em ordem de id.
+
+Payload: `operation_br_id`, `vehicle_id` (nulo = remover), `date_from`,
+`date_to` (nulo = em diante), `reason`, `notes`, `invert`, `keep_drivers`
+(padrão verdadeiro) e `dry_run`.
+
+| Modo | Quando | O que faz |
+|---|---|---|
+| `allocate` | a BR está sem veículo no período | cria o vínculo; motivo opcional |
+| `substitute` | a BR tem outro veículo | recorta o atual, cria o novo ligado ao substituído (`replaces_assignment_id`) e devolve o anterior depois do período |
+| `remove` | `vehicle_id` nulo | recorta o período; a BR fica sem veículo e continua na matriz |
+| `invert` | o veículo está em outra BR e `invert=true` | troca as duas placas no período, numa transação, e devolve cada uma depois |
+| `transfer` | o veículo está em outra BR e esta está vazia | tira de lá e põe aqui |
+| `conflict` | o veículo está em outra BR e `invert=false` | só prévia: nomeia a BR, operação, cidade e período e diz se a inversão é possível; gravar é recusado |
+
+* A prévia (`dry_run`) devolve as ações — `trim`, `cancel`, `continue`,
+  `create` — com BR, veículo, datas e motoristas levados; nada é gravado.
+  A tela só habilita "Confirmar" depois de uma prévia do mesmo período.
+* Substituir, remover, inverter e transferir exigem motivo.
+* Os motoristas da BR acompanham o veículo novo por padrão (`keep_drivers`);
+  a troca temporária de veículo não gera evento de motorista (M2).
+* Uma falha em qualquer passo desfaz tudo — inclusive a primeira metade de
+  uma inversão (P5).
+
+### 17.6 Datas passadas: correção histórica
+
+`private.tg_fidelization_historical_guard` (antes de gravar em
+`fidelization_assignments` e `fidelization_drivers`, só com usuário
+autenticado) recusa, sem `fidelization.manage_historical_data`:
+
+* criar vínculo que começa antes de hoje;
+* cancelar vínculo já iniciado;
+* mudar o início quando o início antigo ou o novo já passou;
+* trocar o veículo ou o colaborador de um vínculo já iniciado;
+* encurtar o fim para antes de ontem, ou estender um fim que já passou.
+
+Encerrar ontem é operação do dia a dia e não conta como correção. A mesma
+regra vale para a rotina de período e para qualquer outro caminho de escrita
+(P10). "Hoje" é `America/Sao_Paulo` (`private.fidelization_today()`).
+
+### 17.7 Motoristas
+
+* O motorista é colaborador oficial (`employees`); planejar motorista não
+  cria conta nem mexe no perfil de acesso de ninguém.
+* Uma BR pode ter principal e secundário; o mesmo colaborador não pode ser
+  principal em duas BRs no mesmo dia (M3).
+* Substituir (`substitute_fidelization_driver`) encerra o anterior na
+  véspera e abre o novo na mesma BR, numa transação (M1).
+* Encerrar pede data e motivo; data anterior ao início cancela o vínculo em
+  vez de encerrá-lo, e a tela avisa antes.
+
+### 17.8 Replicação
+
+`replicate_fidelization_competence` copia a competência de origem para a de
+destino sem sobrescrever o que o destino já tem; o diálogo mostra a prévia
+linha a linha (BR, veículo, situação) antes de gravar. Repetir não
+duplica (M4: 88 vínculos na primeira vez, 0 na segunda) e replicar não gera
+mobilização — o mesmo veículo continuando na mesma BR não é troca.
+
+### 17.9 Histórico de mobilizações
+
+Tabela `public.fidelization_movements`: um evento por alteração efetiva, com
+BR, operação, estado, cidade, liderança na data, veículo e motorista
+anteriores e novos, período, motivo, origem (`user`, `import`, `replication`,
+`system`, `reconstructed`), ator (`actor_user_id`) e hora do registro.
+
+Os eventos são escritos por gatilhos de constraint **diferidos para o
+commit** — a classificação vê a transação inteira (uma inversão são duas
+linhas com a mesma `correlation_key`) e uma chave de deduplicação única
+impede o mesmo evento duas vezes.
+
+| Tipo | Regra |
+|---|---|
+| Primeira alocação | a BR nunca teve titular antes |
+| Alocação de veículo | a BR teve titular, mas não na véspera |
+| Substituição de veículo | vínculo novo ligado ao substituído; ou, sem ligação, outro titular terminou na véspera (marcada como inferida) |
+| Inversão de placas | vínculo novo de origem `inversion` |
+| Retorno de veículo | o mesmo veículo já esteve na BR antes |
+| Remoção de veículo | o titular sai e volta depois, sem ninguém no intervalo |
+| Encerramento de vínculo | o titular sai e não há sucessor |
+| Vinculação, substituição e encerramento de motorista | idem, para `fidelization_drivers` |
+| Correção administrativa | troca de veículo/colaborador, início ou fim estendido num vínculo existente |
+| Cancelamento de planejamento | vínculo cancelado sem sucessor |
+
+* O mesmo veículo continuando no dia seguinte (divisão de período,
+  replicação, base mensal) não é evento.
+* **Imutável**: sem permissão de escrita para ninguém e um gatilho que recusa
+  UPDATE e DELETE até para o dono da tabela (P9). Correção é um evento novo.
+* Os 239 vínculos anteriores à etapa foram reconstruídos como eventos
+  (88 primeiras alocações, 117 substituições inferidas, 34 retornos), com
+  origem `reconstructed`; a tela mostra quantos há no recorte.
+* Filtros: período, operação, estado, cidade, BR, liderança na data, tipo,
+  assunto (veículo ou motorista), placa ou frota e motorista; 50 por página.
+  Exportação XLSX/CSV com os mesmos filtros (`tipo=mobilizacoes`), auditada.
+
+### 17.10 Indicadores e fórmulas
+
+Recorte: competência + operação, estado e cidade do cabeçalho.
+
+| Indicador | Fórmula |
+|---|---|
+| BRs cadastradas | BRs da organização no recorte, ativas ou não (`deleted_at is null`) |
+| BRs (ativas) | BRs ativas no recorte |
+| BRs com / sem veículo | com pelo menos um dia de titular na competência / o resto |
+| BRs com / sem motorista | com pelo menos um motorista principal na competência / o resto |
+| Veículos fidelizados | veículos distintos titulares em algum dia da competência |
+| Motoristas fidelizados | colaboradores distintos vinculados em algum dia da competência |
+| Trocas de veículo (substituições) | vínculos novos na competência ligados a um substituído, fora inversões |
+| Inversões | ⌈linhas de inversão ÷ 2⌉ — uma inversão troca duas placas |
+| Mobilizações | substituições + inversões (as inferidas ficam à parte) |
+| Trocas de motorista | motoristas principais que começam na competência logo após outro na mesma BR |
+| Estabilidade da frota | 1 − BRs com troca de veículo ÷ BRs com veículo |
+| Estabilidade dos motoristas | 1 − BRs com troca de motorista ÷ BRs com motorista |
+| Cobertura de liderança | BRs com liderança na data âncora ÷ BRs |
+
+Os recortes por operação, cidade, liderança, estado e tipo de equipamento
+usam as mesmas colunas. O retorno do veículo depois de uma substituição
+temporária não conta como segunda mobilização (P3).
+
+### 17.11 Importação
+
+* XLSX ou CSV, até 5.000 linhas e 10 MB, validado antes de gravar (Etapa 13).
+* **Mapeamento de colunas (Etapa 15)**: ao escolher o arquivo, a gaveta lê
+  os cabeçalhos (`inspectImportFile`), sugere o campo de cada coluna pelos
+  nomes aceitos e deixa trocar, ignorar ou aplicar um layout salvo. Campos
+  obrigatórios faltando ou um campo em duas colunas impedem validar.
+* **Layouts salvos**: `public.import_layouts` (por organização e tipo de
+  arquivo; chave = cabeçalho normalizado). Leitura pela RLS com
+  `fidelization.import`; gravação só por `save_import_layout` (o mesmo nome
+  atualiza) e `delete_import_layout`, com `fidelization.manage_brs` também
+  para o arquivo de BRs. Auditados. O layout não grava dados.
+* BRs, veículos e colaboradores desconhecidos não são criados; conflitos e
+  sobreposições ficam de fora da gravação; o mesmo arquivo (mesmo hash)
+  importado de novo é avisado na prévia (Etapa 13).
+* A importação não altera perfil, papel nem permissão de ninguém.
+* A área Importação lista os lotes (`fidelization_import_history`, com
+  `fidelization.import` ou `fidelization.audit`) com as contagens e os erros.
+
+### 17.12 Integrações
+
+| Módulo | Integração |
+|---|---|
+| BRs | a Central só lê `operation_brs`; o cadastro continua em Governança › BRs |
+| Lideranças | liderança por BR na data (`br_leadership_at`), gravada em cada evento |
+| Frotas | veículo precisa estar ativo, do tipo admitido pela operação e na organização (`assert_vehicle_fidelizable`); fidelizar não muda a alocação do veículo |
+| Usuários | motorista é colaborador; nada muda perfil de acesso |
+| Aderência | as obrigações seguem o vínculo do dia: depois de uma inversão os dias seguintes trocam de BR e o dia anterior fica como estava (M6) |
+| Check List | cada execução grava BR, liderança e veículo da data |
+| Planos de Ação | módulo ainda não existe (§14) |
+
+### 17.13 Permissões
+
+As permissões pedidas na etapa foram ligadas às que o HFM já tinha — uma
+nova só onde não havia equivalente:
+
+| Pedido na etapa | Permissão no HFM |
+|---|---|
+| `fidelization.view`, `view_dashboard`, `view_vehicle_planner`, `view_driver_planner`, `view_movements` | `fidelization.view` |
+| `edit_vehicle_planner`, `replicate_planning` | `fidelization.plan` |
+| `swap_vehicles` | `fidelization.change_vehicle` |
+| `edit_driver_planner`, `replace_driver` | `fidelization.change_driver` |
+| `import` | `fidelization.import` |
+| `export` | `fidelization.export` |
+| `view_audit` | `fidelization.audit` |
+| `manage_historical_data` | **`fidelization.manage_historical_data`** (nova; padrão em Administrador e Gestor de Frota) |
+
+A tela esconde o que a pessoa não pode fazer, mas quem decide é o banco:
+toda rotina confere a permissão e o escopo, e nenhum acesso é dado pelo nome
+do perfil.
+
+### 17.14 RLS e segurança
+
+* `fidelization_movements`: leitura com `fidelization.view` **e** BR no
+  escopo de operação; nenhuma permissão de escrita; imutável.
+* `import_layouts`: leitura com `fidelization.import`; escrita só pelas
+  rotinas.
+* As leituras novas (`fidelization_planner_matrix`,
+  `fidelization_movements_list`) rodam com o cliente da pessoa; as rotinas
+  `security definer` (`apply_fidelization_period`,
+  `fidelization_import_history`, `save_import_layout`,
+  `delete_import_layout`) conferem permissão, organização e escopo antes de
+  qualquer coisa.
+* Organização trocada, BR de outra organização ou fora do escopo: "não
+  encontrada" (S2, S3).
+
+### 17.15 Testes
+
+| Suíte | Resultado (23/09/2026) |
+|---|---|
+| SQL 15 — planner e mobilizações (P1–P10) | 10/10 |
+| SQL 15 — motoristas, replicação, liderança, aderência (M1–M6) | 6/6 |
+| SQL 15 — perfis, escopo e organização (S1–S6) | 6/6 |
+| SQL 15 — layouts da importação (L1–L6) | 6/6 |
+| SQL 11, 11b, 13, 13b, 13c (regressão) | 74/74 |
+| Playwright — suíte completa (prévias sem sessão) | 152 aprovados, 8 pulados (exigem login real) |
+
+### 17.16 Migrations
+
+* `20260924100000_fidelization_central.sql` — histórico de mobilizações,
+  correção histórica, edição por período, leituras, estabilidade, histórico
+  de importações.
+* `20260924110000_fidelization_import_layouts.sql` — layouts salvos.
