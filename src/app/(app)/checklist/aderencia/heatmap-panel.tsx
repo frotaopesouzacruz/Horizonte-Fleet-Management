@@ -123,9 +123,10 @@ interface MonthGridProps {
   competence: Competence;
   days: HeatmapDay[];
   /**
-   * Meses vizinhos: título discreto e célula compacta (dia e percentual), com
-   * o detalhe no título da célula e na gaveta. O mês em análise leva a célula
-   * completa — é nele que se lê numerador, denominador e não realizados.
+   * Meses vizinhos: título discreto e célula compacta (dia e cor), com o
+   * detalhe no título da célula e na gaveta. O mês em análise leva a célula
+   * completa — é nele que se lê percentual, numerador, denominador e não
+   * realizados.
    */
   muted?: boolean;
   onSelect: (date: string) => void;
@@ -134,14 +135,14 @@ interface MonthGridProps {
 /**
  * O que a célula escreve. No mês em análise: percentual com uma casa (e, no
  * celular, sem casa), "Futuro" para datas que ainda não chegaram, "Sem base"
- * sem denominador. Nos meses vizinhos a célula é estreita: percentual
- * inteiro; o futuro fica na borda tracejada e na legenda, dito para o leitor
- * de tela. O valor exato está sempre no título da célula e na gaveta do dia.
+ * sem denominador. Nos meses vizinhos a célula é um calendário de cor: só o
+ * dia e a cor da legenda ficam visíveis; o percentual e o futuro são ditos ao
+ * leitor de tela. O valor exato está sempre no título da célula e na gaveta.
  */
 function CellLabel({ day, muted }: { day: HeatmapDay; muted: boolean }) {
   if (muted) {
-    if (day.isFuture) return day.obligations > 0 ? <span className="sr-only">Futuro</span> : <>—</>;
-    return <>{formatPctInt(day.adherencePct)}</>;
+    if (day.isFuture) return day.obligations > 0 ? <span className="sr-only">Futuro</span> : null;
+    return <span className="sr-only">{formatPctInt(day.adherencePct)}</span>;
   }
   if (day.isFuture) return <>{day.obligations > 0 ? "Futuro" : "—"}</>;
   return (
@@ -182,7 +183,7 @@ function MonthGrid({ competence, days, muted = false, onSelect }: MonthGridProps
                 title={`${day.date}: ${day.isFuture ? "planejado" : formatPct(day.adherencePct)} · ${day.numerator}/${day.denominator} · ${day.notDone} não fez · ${day.excluded} expurgos`}
                 className={cn(
                   "flex min-w-0 flex-col items-start justify-between rounded-md border text-left transition-colors hfm-focus-ring",
-                  muted ? "min-h-[2.75rem] p-0.5 sm:p-1" : "min-h-[3.5rem] p-1 sm:p-1.5",
+                  muted ? "min-h-[2.25rem] p-1" : "min-h-[3.5rem] p-1 sm:p-1.5",
                   day.isFuture || day.denominator === 0 ? TONE_BG.neutral : TONE_BG[pctTone(day.adherencePct, day.targetPct ?? 90)],
                   day.isFuture && "border-dashed",
                   day.isToday && "ring-2 ring-primary ring-offset-1 ring-offset-surface",
@@ -206,7 +207,7 @@ function MonthGrid({ competence, days, muted = false, onSelect }: MonthGridProps
                 )}
               </button>
             ) : (
-              <div key={`empty-${i}`} role="gridcell" aria-hidden className={muted ? "min-h-[2.75rem]" : "min-h-[3.5rem]"} />
+              <div key={`empty-${i}`} role="gridcell" aria-hidden className={muted ? "min-h-[2.25rem]" : "min-h-[3.5rem]"} />
             ),
           )}
         </div>
