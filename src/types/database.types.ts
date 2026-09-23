@@ -1470,6 +1470,7 @@ export type Database = {
       }
       leadership_assignments: {
         Row: {
+          change_reason: string | null
           created_at: string
           created_by: string | null
           effective_from: string
@@ -1491,6 +1492,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          change_reason?: string | null
           created_at?: string
           created_by?: string | null
           effective_from?: string
@@ -1512,6 +1514,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          change_reason?: string | null
           created_at?: string
           created_by?: string | null
           effective_from?: string
@@ -3705,6 +3708,20 @@ export type Database = {
           },
         ]
       }
+      branch_cost_center_directory: {
+        Row: {
+          branch_code: string | null
+          branch_name: string | null
+          code: string | null
+          id: string | null
+          name: string | null
+          organization_id: string | null
+          organization_unit_id: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Relationships: []
+      }
       branch_operation_directory: {
         Row: {
           branch_code: string | null
@@ -4467,6 +4484,14 @@ export type Database = {
         Args: { p_execution_id: string }
         Returns: Json
       }
+      checklist_execution_correction_form: {
+        Args: { p_execution_id: string; p_organization_id: string }
+        Returns: Json
+      }
+      correct_checklist_execution: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
       checklist_fleet_context: {
         Args: { p_organization_id: string }
         Returns: Json
@@ -4676,6 +4701,10 @@ export type Database = {
         }
         Returns: Json
       }
+      adherence_my_situation: {
+        Args: { p_month: number; p_organization_id: string; p_year: number }
+        Returns: Json
+      }
       adherence_obligation_detail: {
         Args: { p_obligation_id: string; p_organization_id: string }
         Returns: Json
@@ -4808,6 +4837,32 @@ export type Database = {
         Args: { p_batch_id: string; p_organization_id: string }
         Returns: Json
       }
+      stage_branch_import: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      process_branch_import: {
+        Args: { p_batch_id: string; p_organization_id: string }
+        Returns: Json
+      }
+      log_branch_export: {
+        Args: {
+          p_details?: Json
+          p_format: string
+          p_kind: string
+          p_organization_id: string
+          p_row_count: number
+        }
+        Returns: string
+      }
+      set_branch_cost_center: {
+        Args: {
+          p_cost_center_id: string
+          p_linked: boolean
+          p_organization_unit_id: string
+        }
+        Returns: Json
+      }
       stage_fidelization_import: {
         Args: { p_organization_id: string; p_payload: Json }
         Returns: Json
@@ -4833,6 +4888,15 @@ export type Database = {
         Args: {
           p_format: string
           p_kind?: string
+          p_organization_id: string
+          p_row_count: number
+        }
+        Returns: undefined
+      }
+      log_leadership_export: {
+        Args: {
+          p_filters?: Json
+          p_format: string
           p_organization_id: string
           p_row_count: number
         }
@@ -5200,6 +5264,10 @@ export type Database = {
           p_effective_from: string
           p_reason: string
         }
+        Returns: Json
+      }
+      leadership_change_impact: {
+        Args: { p_organization_id: string; p_payload: Json }
         Returns: Json
       }
       leadership_indicators: {

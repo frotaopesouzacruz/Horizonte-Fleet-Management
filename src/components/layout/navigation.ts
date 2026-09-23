@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Shapes,
   Truck,
+  UserCheck,
   UserCog,
   Users,
   Wrench,
@@ -214,6 +215,14 @@ export const navigation: NavGroup[] = [
         icon: Gauge,
         permission: "adherence.view",
       },
+      {
+        // §63: a própria situação, por permissão própria — o Operacional a
+        // enxerga sem receber a Aderência da operação.
+        label: "Minha situação",
+        href: "/checklist/aderencia/minha-situacao",
+        icon: UserCheck,
+        permission: "adherence.view_own",
+      },
     ],
   },
   {
@@ -252,5 +261,11 @@ export const navigation: NavGroup[] = [
 
 export function isActivePath(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
-  return pathname === href || pathname.startsWith(href + "/");
+  const within = (base: string) => pathname === base || pathname.startsWith(base + "/");
+  if (!within(href)) return false;
+  // Uma entrada mais específica é dona do caminho: em Aderência › Minha
+  // situação, só "Minha situação" fica ativa.
+  return !navigation.some((group) =>
+    group.items.some((item) => item.href !== href && item.href.startsWith(href + "/") && within(item.href)),
+  );
 }

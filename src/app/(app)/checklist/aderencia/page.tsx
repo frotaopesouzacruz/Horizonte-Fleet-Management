@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { requireOrganization } from "@/lib/auth/session";
+import { redirect } from "next/navigation";
+import { hasPermission, requireOrganization } from "@/lib/auth/session";
 import { getGovernanceOptions } from "@/lib/governance/queries";
 import { listLeadershipOptions } from "@/lib/governance/br-planner";
 import { monthEnd, monthStart, parseCompetence } from "@/lib/governance/competence";
@@ -65,6 +66,12 @@ function clampDay(value: string | undefined, from: string, to: string, today: st
  */
 export default async function AdherencePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
+  // Quem só pode ver a própria situação (§63) vai direto para ela, em vez de
+  // cair em "sem permissão" ao abrir a Aderência.
+  const probe = await requireOrganization();
+  if (!hasPermission(probe.session, "adherence.view") && hasPermission(probe.session, "adherence.view_own")) {
+    redirect("/checklist/aderencia/minha-situacao");
+  }
   const { session, organization } = await requireOrganization("adherence.view");
   const orgId = organization.organizationId;
 

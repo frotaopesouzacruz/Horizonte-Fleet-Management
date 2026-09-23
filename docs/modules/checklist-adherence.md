@@ -13,7 +13,9 @@ checklist é identificada a partir da frota prevista para o dia, não a partir d
 que o aplicativo enviou.
 
 Rota: `/checklist/aderencia` · menu **Gestão de checklist › Aderência** ·
-permissão de entrada `adherence.view`.
+permissão de entrada `adherence.view`. A própria situação do colaborador fica
+em `/checklist/aderencia/minha-situacao` · menu **Gestão de checklist › Minha
+situação** · permissão `adherence.view_own` (seção 19).
 
 O mapeamento integral do Motor de Aderência do HFC (telas, camada cliente,
 tabelas, funções, catálogo de status, 21 problemas verificados e os contratos
@@ -252,15 +254,16 @@ ignoradas), responsável e os erros por linha (até 50), para a seção
 
 ## 13. RBAC e RLS
 
-Permissões (módulo `adherence`): `view`, `view_audit`, `request`, `approve`,
-`override`, `bulk_update`, `import`, `export`, `reconcile`, `manage_rules`,
-`manage_targets`. Matriz padrão: Administrador e Gestor de Frota, tudo;
-Liderança, `view` + `request` + `export`; Gestão, `view` + `view_audit` +
-`export`; Segurança, `view` + `view_audit`; Operacional e Gente, nada por
-padrão.
+Permissões (módulo `adherence`): `view`, `view_own`, `view_audit`, `request`,
+`approve`, `override`, `bulk_update`, `import`, `export`, `reconcile`,
+`manage_rules`, `manage_targets`. Matriz padrão: Administrador, tudo; Gestor de
+Frota, tudo menos `view_own`; Liderança, `view` + `request` + `export`; Gestão,
+`view` + `view_audit` + `export`; Segurança, `view` + `view_audit`;
+Operacional, só `view_own` (a própria situação — seção 19); Gente, nada.
 
-Correspondência com os nomes do refinamento (nenhuma permissão nova foi
-criada; o catálogo existente cobre cada uma):
+Correspondência com os nomes do refinamento (no refinamento nenhuma
+permissão nova foi criada; o catálogo existente cobre cada uma — a única
+criada depois é `view_own`, para a própria situação do §63):
 
 | Nome pedido | Permissão do HFM |
 |---|---|
@@ -276,6 +279,7 @@ criada; o catálogo existente cobre cada uma):
 | `aderencia.reprocess` | `adherence.reconcile` |
 | `aderencia.manage_parameters` | `adherence.manage_rules` + `adherence.manage_targets` |
 | `aderencia.view_audit` | `adherence.view_audit` |
+| própria situação do Operacional (§63) | `adherence.view_own` (criada na migration `20260924150000_adherence_own_situation.sql`) |
 
 RLS: a obrigação é lida por quem tem `adherence.view` **e** alcança a operação
 congelada nela (`private.can_access_operation`) — a liderança de Contagem não
@@ -370,15 +374,37 @@ com setas (mês anterior / próximo).
   heatmap de três meses com detalhe do dia, dashboard mensal, insights,
   jornada e retorno, expurgos individuais e em lote, seleção de dias,
   governança, histórico de importações, celular sem rolagem horizontal).
+- `supabase/tests/remote/16d_adherence_own_situation.sql`: "Minha situação",
+  2 blocos com rollback — conteúdo (M1–M5: só as BRs/obrigações da pessoa,
+  secundário e titular de outro fora, números iguais a `adherence_summary`
+  no mesmo recorte, checklists enviados por ela, pendências e dias) e
+  segurança (S1–S7: Operacional com a permissão, Operacional com a permissão
+  retirada, Gente, Administrador só com a própria situação, conta sem
+  colaborador, outra organização/conta sem vínculo/anon, mês sem vínculo).
+  Última execução: 12/12 PASS (23/09/2026).
+- `tests/ui/adherence-own-situation.spec.ts`: 9 cenários sobre
+  `/dev/preview-aderencia-minha-situacao` (resumo com a fórmula, pendências,
+  dia a dia, competência na URL, estados vazios, menu só com a própria
+  situação, 390px sem rolagem horizontal, axe claro e escuro). 9/9 PASS.
 
 ## 17. Pendências conhecidas
 
 - Anexo de evidência: a solicitação guarda **referência** (OS, chamado,
   documento); upload de arquivo em bucket privado fica para uma etapa própria
   (sem fotografia nem vídeo, por regra).
-- Consulta "da própria situação" pelo perfil Operacional (§63) não foi
-  habilitada: exigiria uma visão por colaborador; hoje o perfil não recebe
-  `adherence.view`.
+- "Minha situação" (§63) está pronta, mas hoje mostra o estado vazio para
+  todo mundo: a produção não tem nenhum vínculo de motorista
+  (`fidelization_drivers` = 0) nem checklist enviado, e nenhuma conta tem o
+  perfil Operacional. Ela passa a ter conteúdo assim que a Fidelização
+  registrar motoristas titulares (planner ou importação) — nada de dado
+  fictício foi criado.
+- O motorista **secundário** só vê as obrigações que ele mesmo cumpriu com um
+  checklist; a escala de reserva não entra como responsabilidade dele. Se o
+  negócio quiser a BR inteira para o secundário, é uma troca de regra na
+  rotina (`driver_role`), não na tela.
+- A própria situação é só leitura: solicitar justificativa continua exigindo
+  `adherence.request` (liderança), e o Operacional não abre a gaveta da
+  obrigação nem a execução pela tela.
 - Setembro/2026 foi materializado do dia 1º: o período anterior à entrada do
   aplicativo aparece como Não fez por regra. O PO pode expurgar por período com
   alteração em massa ou ajustar a vigência das regras.
@@ -432,3 +458,76 @@ vigência; telas de leitura disparando escrita (P-19) — aqui a materializaçã
 Migration desta etapa: `20260923100000_adherence_refinement.sql` (aditiva:
 oito funções novas, um filtro novo na função de obrigações filtradas, duas
 mudanças no motor; nenhuma tabela criada ou alterada, nenhum dado apagado).
+
+## 19. Minha situação (§63) — a própria aderência do colaborador
+
+"O perfil Operacional poderá consultar sua própria situação quando
+autorizado. […] Gente não deverá receber autorização operacional automática.
+A matriz RBAC continuará sendo a fonte oficial de autorização."
+
+**Permissão.** `adherence.view_own` ("Ver a própria situação na aderência"),
+no padrão da matriz do Operacional — é o "quando autorizado": o
+Administrador pode retirá-la do papel em Perfis e permissões — e do
+Administrador, que possui o catálogo inteiro por definição (sem ela ele não
+conseguiria conceder nem manter a permissão no papel Operacional,
+`private.can_grant_permission`). Gente não recebe. O gatilho
+`access_profile_defaults_sync` entregou a permissão aos papéis `operacional` e
+`administrador` existentes; nenhum perfil de pessoa foi trocado. Nada consulta
+nome de perfil.
+
+**Quem é "eu".** O colaborador da conta **na organização**
+(`organization_memberships.employee_id`), resolvido de `auth.uid()` dentro da
+rotina — nunca de parâmetro, nunca por nome. Conta sem colaborador vinculado
+recebe o estado vazio explícito `no_employee`.
+
+**O que é "minha situação".** As obrigações de saída e retorno da BR/veículo
+em que a pessoa é **motorista titular** (`fidelization_drivers.driver_role =
+'primary'`, via `fidelization_assignments`), com o vínculo do motorista e o do
+veículo na BR vigentes na data de cada obrigação; mais as obrigações
+conciliadas com checklists que **ela mesma enviou**
+(`checklist_executions.employee_id`, conciliação válida). Trocou de BR no meio
+do mês: cada BR conta só nos dias do seu vínculo. Mês sem vínculo nem
+checklist: estado `not_driver`.
+
+**Uma fórmula.** Status, devida e feita vêm da view oficial
+`adherence_obligation_status`; aderência = Σ feitas e devidas ÷ Σ devidas ×
+100, `null` sem base — exatamente `adherence_summary`. A suíte 16d (M3)
+compara o resultado com a soma de `adherence_summary` sobre o mesmo recorte.
+Pendências de retorno = retornos ainda no prazo (`RETORNO_PENDENTE`), que não
+são falta (§50).
+
+**A rotina.** `public.adherence_my_situation(p_organization_id, p_year,
+p_month)` — `security definer`, `set search_path = ''`, só leitura,
+executável por `authenticated` (não por `anon`). Recusa com `42501` sem
+sessão, fora da organização (inclusive administrador de plataforma sem
+vínculo nela) e sem `adherence.view_own`. **Nunca** devolve dado de outro
+colaborador, nem para administrador — as telas completas da Aderência são o
+lugar dele. Devolve só o que a tela usa (LGPD): estado, competência, dia
+vigente, nome do próprio colaborador, resumo (total, saída, retorno), as
+posições do mês (BR, operação, cidade, frota e placa, período), o dia a dia
+(status oficial por contexto, provisório, expurgo, justificativa pendente,
+"enviado por você", prazo), a lista de pendências (até 200, com o total) e a
+contagem de checklists enviados e conciliados. Sem ids de obrigação, sem
+liderança, sem dado de outra pessoa.
+
+**A tela.** `/checklist/aderencia/minha-situacao`, visível com
+`adherence.view_own` mesmo sem `adherence.view` (quem só tem a própria
+situação e abre `/checklist/aderencia` é levado para ela). Competência na URL
+(`ano`, `mes`) com setas e "Mês atual" (o mês vem do fuso operacional do
+servidor). Resumo (aderência com feitas/devidas e meta, devidas, feitas, não
+feitas, pendências de retorno, planejadas), saída × retorno com denominadores
+próprios, pendências (não fez · dia vigente, retorno vencido, retorno no
+prazo — nunca chamado de falta —, justificativa pendente), dia a dia com
+"Hoje" marcado e o checklist de outra BR identificado. Listas empilhadas, sem
+tabela larga: 390px sem rolagem horizontal. Estados vazios com o porquê e o
+que fazer: conta sem colaborador; nenhuma BR fidelizada no mês; vínculo sem
+obrigações geradas; erro com "Tentar novamente". Menu: entrada **Minha
+situação** em Gestão de checklist, só para `adherence.view_own`; na Aderência
+ela é a entrada ativa (`isActivePath` dá o caminho à entrada mais específica).
+Prévia: `/dev/preview-aderencia-minha-situacao` (`cenario` =
+`situacao` | `sem-colaborador` | `sem-fidelizacao` | `so-checklists` |
+`erro`), com carregador injetado do mesmo contrato de `getMySituation`.
+
+Migration: `20260924150000_adherence_own_situation.sql` (ledger
+`adherence_own_situation`) — aditiva: uma permissão, dois padrões da matriz,
+uma função; nenhuma tabela criada ou alterada, nenhum dado apagado.
