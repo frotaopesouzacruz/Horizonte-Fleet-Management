@@ -23,6 +23,7 @@ import {
 import type { BranchOperationRow } from "@/lib/branches/queries";
 import { isValidCnpj, maskCnpjInput, maskPostalInput, normalizeDocument } from "@/lib/branches/format";
 import { listCitiesOfState } from "@/lib/organization/actions";
+import { BranchCostCentersTab, type BranchCostCenterLoaders } from "./branch-cost-centers-tab";
 
 export interface BranchFormValue {
   id?: string;
@@ -55,6 +56,12 @@ export interface BranchFormDrawerProps {
   canViewEmployees: boolean;
   canViewVehicles: boolean;
   canViewAudit: boolean;
+  /** §38: a aba Centros de custo aparece para quem lê centros de custo. */
+  canViewCostCenters?: boolean;
+  /** Associar e desassociar exige `branches.update` e `cost_centers.manage`. */
+  canManageCostCenters?: boolean;
+  /** Prévia de desenvolvimento: dados fixos no lugar das server actions. */
+  costCenterLoaders?: BranchCostCenterLoaders;
 }
 
 function formatDate(value: string | null): string {
@@ -74,6 +81,8 @@ const ENTITY_LABEL: Record<string, string> = {
   "public.organization_units": "Filial",
   "public.organization_unit_operations": "Operação vinculada",
   "public.vehicle_unit_assignments": "Veículo",
+  "public.cost_centers": "Centro de custo",
+  branch_import: "Importação",
 };
 
 /**
@@ -95,6 +104,9 @@ export function BranchFormDrawer({
   canViewEmployees,
   canViewVehicles,
   canViewAudit,
+  canViewCostCenters = false,
+  canManageCostCenters = false,
+  costCenterLoaders,
 }: BranchFormDrawerProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -251,6 +263,7 @@ export function BranchFormDrawer({
               </TabsTrigger>
               {form.id && canViewEmployees ? <TabsTrigger value="colaboradores">Colaboradores</TabsTrigger> : null}
               {form.id && canViewVehicles ? <TabsTrigger value="frotas">Frotas</TabsTrigger> : null}
+              {form.id && canViewCostCenters ? <TabsTrigger value="centros">Centros de custo</TabsTrigger> : null}
               {form.id && canViewAudit ? <TabsTrigger value="historico">Histórico</TabsTrigger> : null}
             </TabsList>
 
@@ -532,6 +545,18 @@ export function BranchFormDrawer({
             {form.id && canViewVehicles ? (
               <TabsContent value="frotas">
                 <BranchVehiclesTab branchId={form.id} />
+              </TabsContent>
+            ) : null}
+
+            {form.id && canViewCostCenters ? (
+              <TabsContent value="centros">
+                <BranchCostCentersTab
+                  branchId={form.id}
+                  branchName={value?.name ?? form.name}
+                  branchActive={(value?.status ?? form.status) === "active"}
+                  canManage={canManageCostCenters}
+                  loaders={costCenterLoaders}
+                />
               </TabsContent>
             ) : null}
 

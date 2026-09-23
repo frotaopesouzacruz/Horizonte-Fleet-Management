@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Building2, MapPin, Network, Pencil, Plus, Power, Truck, Users } from "lucide-react";
+import { Building2, Download, MapPin, Network, Pencil, Plus, Power, Truck, Upload, Users, X } from "lucide-react";
 import { PageContent, PageHeader } from "@/components/layout/page-header";
 import { Button, IconButton } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { FilterBar } from "@/components/ui/filter-bar";
 import { SearchField } from "@/components/ui/search-field";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table, TableBody, TableCell, TableContainer, TableEmpty, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -20,7 +21,11 @@ import { NativeSelect } from "@/components/governance/selects";
 import { loadBranchImpact, setBranchStatus } from "@/lib/branches/actions";
 import type { BranchFilters, BranchOperationRow, BranchRow, BranchSummary } from "@/lib/branches/queries";
 import { formatAddress, formatCnpj } from "@/lib/branches/format";
+import type { BranchExportKind } from "@/lib/branches/import-columns";
 import { BranchFormDrawer, type BranchFormValue } from "./branch-form-drawer";
+import { BranchImportDrawer, type BranchImportLoaders } from "./branch-import-drawer";
+import { BranchExportDialog } from "./branch-export-dialog";
+import type { BranchCostCenterLoaders } from "./branch-cost-centers-tab";
 
 const number = new Intl.NumberFormat("pt-BR");
 
@@ -44,6 +49,19 @@ export interface BranchesViewProps {
   canViewEmployees: boolean;
   canViewVehicles: boolean;
   canViewAudit: boolean;
+  /** §58: importar pelo fluxo validado (`branches.import`). */
+  canImport?: boolean;
+  /** §61: exportar (`branches.export`); também liga a seleção de linhas. */
+  canExport?: boolean;
+  /** §38: ler (`cost_centers.view`) e associar (`branches.update` + `cost_centers.manage`). */
+  canViewCostCenters?: boolean;
+  canManageCostCenters?: boolean;
+  /** Prévia de desenvolvimento: dados fixos no lugar das server actions. */
+  importLoaders?: BranchImportLoaders;
+  costCenterLoaders?: BranchCostCenterLoaders;
+  exportPath?: string;
+  /** Rota da própria tela, para os filtros navegarem no lugar certo. */
+  basePath?: string;
 }
 
 /**
@@ -70,6 +88,14 @@ export function BranchesView({
   canViewEmployees,
   canViewVehicles,
   canViewAudit,
+  canImport = false,
+  canExport = false,
+  canViewCostCenters = false,
+  canManageCostCenters = false,
+  importLoaders,
+  costCenterLoaders,
+  exportPath = "/estrutura/filiais/export",
+  basePath = "/estrutura/filiais",
 }: BranchesViewProps) {
   const router = useRouter();
   const params = useSearchParams();
@@ -80,6 +106,33 @@ export function BranchesView({
   const [formKey, setFormKey] = React.useState(0);
   const [editing, setEditing] = React.useState<BranchFormValue | undefined>();
   const [search, setSearch] = React.useState(filters.q ?? "");
+  const [importOpen, setImportOpen] = React.useState(false);
+  const [exportOpen, setExportOpen] = React.useState(false);
+  const [exportKind, setExportKind] = React.useState<BranchExportKind | undefined>();
+  // A seleção só existe para exportar (§61). Guarda ids; o que conta é o que
+  // ainda está na lista — trocar o filtro não exporta linhas que sumiram.
+  const [selected, setSelected] = React.useState<Set<string>>(() => new Set());
+  const selectedRows = React.useMemo(() => rows.filter((r) => selected.has(r.id)), [rows, selected]);
+  const allSelected = rows.length > 0 && selectedRows.length === rows.length;
+  const someSelected = selectedRows.length > 0 && !allSelected;
+
+  const toggleRow = (id: string, checked: boolean) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  const toggleAll = (checked: boolean) => setSelected(checked ? new Set(rows.map((r) => r.id)) : new Set());
+
+  const hasFilters = Boolean(
+    filters.q || filters.status || filters.operationId || filters.stateId || filters.cityId ||
+    filters.withVehicles || filters.withEmployees,
+  );
+  const openExport = (kind?: BranchExportKind) => {
+    setExportKind(kind);
+    setExportOpen(true);
+  };
 
   const navigate = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(params.toString());
@@ -87,7 +140,7 @@ export function BranchesView({
       if (value === null || value === "") next.delete(key);
       else next.set(key, value);
     }
-    startTransition(() => router.push(`/estrutura/filiais?${next.toString()}`, { scroll: false }));
+    startTransition(() => router.push(`${basePath}?${next.toString()}`, { scroll: false }));
   };
 
   const citiesOfState = React.useMemo(
@@ -176,6 +229,22 @@ export function BranchesView({
             <Button leadingIcon={<Plus />} onClick={openNew}>
               Nova filial
             </Button>
+          ) : undefined
+        }
+        secondaryActions={
+          canExport || canImport ? (
+            <>
+              {canExport ? (
+                <Button variant="secondary" leadingIcon={<Download />} onClick={() => openExport()}>
+                  Exportar
+                </Button>
+              ) : null}
+              {canImport ? (
+                <Button variant="secondary" leadingIcon={<Upload />} onClick={() => setImportOpen(true)}>
+                  Importar
+                </Button>
+              ) : null}
+            </>
           ) : undefined
         }
         filters={
@@ -288,12 +357,39 @@ export function BranchesView({
           <KpiCard label="Veículos" value={number.format(summary?.linkedVehicles ?? 0)} icon={<Truck />} />
         </div>
 
+        {canExport && selectedRows.length > 0 ? (
+          <div
+            role="region"
+            aria-label="Filiais selecionadas"
+            className="flex flex-wrap items-center gap-2 rounded-md border border-primary/40 bg-primary-soft px-3 py-2 text-body-sm text-primary-soft-fg"
+          >
+            <span className="font-medium">{number.format(selectedRows.length)} filial(is) selecionada(s)</span>
+            <span className="flex-1" />
+            <Button size="sm" variant="secondary" leadingIcon={<Download />} onClick={() => openExport("selecionadas")}>
+              Exportar selecionadas
+            </Button>
+            <Button size="sm" variant="ghost" leadingIcon={<X />} onClick={() => setSelected(new Set())}>
+              Limpar seleção
+            </Button>
+          </div>
+        ) : null}
+
         <Card>
           <CardContent className="p-0">
             <TableContainer className="rounded-none border-0">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    {canExport ? (
+                      <TableHead style={{ width: 32 }} className="pr-0">
+                        <Checkbox
+                          aria-label="Selecionar todas as filiais da lista"
+                          checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                          disabled={rows.length === 0}
+                          onCheckedChange={(v) => toggleAll(v === true)}
+                        />
+                      </TableHead>
+                    ) : null}
                     <TableHead style={{ width: 110 }}>Código</TableHead>
                     <TableHead style={{ width: 220 }}>Filial</TableHead>
                     <TableHead style={{ width: 170 }}>CNPJ</TableHead>
@@ -309,7 +405,7 @@ export function BranchesView({
                 <TableBody>
                   {rows.length === 0 ? (
                     <TableEmpty
-                      colSpan={10}
+                      colSpan={canExport ? 11 : 10}
                       icon={<Building2 />}
                       message={
                         filters.q
@@ -319,7 +415,20 @@ export function BranchesView({
                     />
                   ) : (
                     rows.map((branch) => (
-                      <TableRow key={branch.id} className="h-(--table-row-height)">
+                      <TableRow
+                        key={branch.id}
+                        className="h-(--table-row-height)"
+                        data-state={selected.has(branch.id) ? "selected" : undefined}
+                      >
+                        {canExport ? (
+                          <TableCell className="pr-0">
+                            <Checkbox
+                              aria-label={`Selecionar ${branch.name}`}
+                              checked={selected.has(branch.id)}
+                              onCheckedChange={(v) => toggleRow(branch.id, v === true)}
+                            />
+                          </TableCell>
+                        ) : null}
                         <TableCell className="font-mono text-caption text-fg-secondary">
                           {branch.code ?? "—"}
                         </TableCell>
@@ -423,7 +532,36 @@ export function BranchesView({
         canViewEmployees={canViewEmployees}
         canViewVehicles={canViewVehicles}
         canViewAudit={canViewAudit}
+        canViewCostCenters={canViewCostCenters}
+        canManageCostCenters={canManageCostCenters}
+        costCenterLoaders={costCenterLoaders}
       />
+
+      {canImport ? (
+        <BranchImportDrawer
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          loaders={importLoaders}
+          exportPath={exportPath}
+        />
+      ) : null}
+
+      {canExport ? (
+        <BranchExportDialog
+          key={exportOpen ? `export-${exportKind ?? "todas"}` : "export-closed"}
+          open={exportOpen}
+          onOpenChange={setExportOpen}
+          filterQuery={params.toString()}
+          hasFilters={hasFilters}
+          filteredCount={rows.length}
+          totalCount={summary?.totalBranches ?? rows.length}
+          selectedIds={selectedRows.map((r) => r.id)}
+          canExport={canExport}
+          canImport={canImport}
+          initialKind={exportKind}
+          exportPath={exportPath}
+        />
+      ) : null}
     </>
   );
 }

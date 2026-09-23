@@ -76,6 +76,10 @@ export default async function BranchesPage({
       canViewEmployees={has("branches.view_employees")}
       canViewVehicles={has("branches.view_vehicles")}
       canViewAudit={has("branches.view_audit")}
+      canImport={has("branches.import")}
+      canExport={has("branches.export")}
+      canViewCostCenters={has("cost_centers.view")}
+      canManageCostCenters={has("branches.update") && has("cost_centers.manage")}
     />
   );
 }

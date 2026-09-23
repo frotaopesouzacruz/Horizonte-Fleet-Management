@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireOrganization, resolveOrganization } from "@/lib/auth/session";
+import { hasPermission, requireOrganization, resolveOrganization } from "@/lib/auth/session";
 import type { Json } from "@/types/database.types";
 import { normalizeDocument } from "./format";
 
@@ -307,6 +307,90 @@ export async function loadBranchAudit(id: string): Promise<Result<BranchAuditRow
       createdAt: row.created_at as string,
     })),
   };
+}
+
+/* ------------------------------------------------------- centros de custo */
+
+export interface BranchCostCenterRow {
+  id: string;
+  code: string | null;
+  name: string;
+  status: string;
+  organizationUnitId: string | null;
+  branchCode: string | null;
+  branchName: string | null;
+}
+
+/**
+ * §38: os centros de custo da organização, com a filial a que cada um está
+ * associado. Lê `branch_cost_center_directory` (security_invoker) com o
+ * cliente de quem pediu — sem `cost_centers.view`, a RLS não devolveria nada, e
+ * uma lista vazia diria "não há centros" quando a verdade é "você não os vê".
+ */
+export async function loadBranchCostCenters(): Promise<Result<BranchCostCenterRow[]>> {
+  const ctx = await resolveOrganization("branches.view");
+  if (!ctx) return { ok: false, error: SESSION_LOST };
+  if (!hasPermission(ctx.session, "cost_centers.view")) {
+    return { ok: false, error: "Você não possui permissão para ver centros de custo." };
+  }
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("branch_cost_center_directory")
+    .select("id, code, name, status, organization_unit_id, branch_code, branch_name")
+    .eq("organization_id", ctx.organization.organizationId)
+    .order("name");
+
+  if (error) return { ok: false, error: toMessage(error, "Não foi possível carregar os centros de custo.") };
+
+  return {
+    ok: true,
+    data: (data ?? []).map((row) => ({
+      id: row.id as string,
+      code: (row.code as string) ?? null,
+      name: (row.name as string) ?? "—",
+      status: (row.status as string) ?? "active",
+      organizationUnitId: (row.organization_unit_id as string) ?? null,
+      branchCode: (row.branch_code as string) ?? null,
+      branchName: (row.branch_name as string) ?? null,
+    })),
+  };
+}
+
+/**
+ * Associa ou desassocia um centro de custo EXISTENTE. A rotina confere a
+ * organização dos dois lados, exige `branches.update` e `cost_centers.manage`
+ * e recusa roubar um centro que já responde por outra filial.
+ */
+export async function setBranchCostCenter(
+  branchId: string,
+  costCenterId: string,
+  linked: boolean,
+): Promise<Result> {
+  const ctx = await resolveOrganization("branches.update");
+  if (!ctx) return { ok: false, error: SESSION_LOST };
+  if (!hasPermission(ctx.session, "cost_centers.manage")) {
+    return { ok: false, error: "Você não possui permissão para associar centros de custo à filial." };
+  }
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("set_branch_cost_center", {
+    p_organization_unit_id: branchId,
+    p_cost_center_id: costCenterId,
+    p_linked: linked,
+  });
+
+  if (error) {
+    return {
+      ok: false,
+      error: toMessage(
+        error,
+        linked ? "Não foi possível associar o centro de custo." : "Não foi possível desassociar o centro de custo.",
+      ),
+    };
+  }
+  revalidatePath(MODULE_PATH);
+  return { ok: true };
 }
 
 /* -------------------------------------------------- transferência de frota */
