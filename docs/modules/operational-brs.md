@@ -308,14 +308,14 @@ Preview e testes: `src/app/dev/preview-brs/*`, `tests/ui/brs.spec.ts`.
 
 ## 12. Pendências
 
-* **Exportação com o filtro "substituição no período".** A rota de exportação
-  (`/governanca/fidelizacao/export?tipo=planner`) aplica todos os filtros do
-  módulo menos esse, porque `br_planner_rows` não o conhece — o diretório o
-  aplica depois. Estender a rota para ler `br_directory` sem limite de página é
-  o próximo passo.
-* **`fidelization.audit`** chega à tela mas ainda não abre a trilha de
-  `audit_logs` da BR; a gaveta mostra as movimentações a partir das próprias
-  tabelas, com ator real.
+* ~~**Exportação com o filtro "substituição no período".**~~ Resolvido: com o
+  filtro `substituicao`, a rota de exportação lê `br_directory` página a
+  página (até 10.000 BRs) em vez de `br_planner_rows`, então o arquivo segue o
+  mesmo recorte da tela.
+* ~~**Trilha da BR para `fidelization.audit`.**~~ Resolvido pela Etapa 15: a
+  gaveta de detalhe abre o Histórico de Mobilizações da Central filtrado pela
+  BR — eventos imutáveis com ator real, origem e liderança na data. A leitura
+  crua de `audit_logs` continua restrita à administração.
 * **Adoção do serviço de contexto** por Aderência, Check List e módulos futuros
   (Planos de Ação, Manutenção): o contrato existe e está testado; cada módulo
   decide quando trocar sua resolução própria por ele.

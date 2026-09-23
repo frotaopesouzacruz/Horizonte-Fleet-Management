@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { CalendarDays, Pencil, UserCog } from "lucide-react";
+import { CalendarDays, History, Pencil, UserCog } from "lucide-react";
 import {
   Drawer, DrawerBody, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
 } from "@/components/ui/drawer";
@@ -227,6 +227,9 @@ function DetailContent({
   const leadershipHref = br
     ? `/governanca/liderancas?operacao=${encodeURIComponent(br.operationId)}&ano=${year}&mes=${month}`
     : "/governanca/liderancas";
+  // A trilha da BR: cada troca de veículo ou motorista, com quem registrou e a
+  // liderança na data, no Histórico de Mobilizações da Central (Etapa 15).
+  const movementsHref = br ? `${fidelizationHref}&aba=historico` : "/governanca/fidelizacao?aba=historico";
 
   return (
     <>
@@ -368,6 +371,12 @@ function DetailContent({
             <Link href={fidelizationHref}>
               <CalendarDays aria-hidden />
               Abrir na Fidelização
+            </Link>
+          </Button>
+          <Button asChild variant="secondary" size="sm">
+            <Link href={movementsHref}>
+              <History aria-hidden />
+              Histórico de mobilizações
             </Link>
           </Button>
           <Button asChild variant="secondary" size="sm">

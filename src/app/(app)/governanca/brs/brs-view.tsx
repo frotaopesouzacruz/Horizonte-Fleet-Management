@@ -46,9 +46,9 @@ export interface BrsViewProps {
   canExport: boolean;
   canPlan: boolean;
   /**
-   * `fidelization.audit` lê a trilha de auditoria da posição. A gaveta de
-   * detalhe desta etapa mostra as movimentações vindas das próprias tabelas,
-   * então a permissão chega até aqui mas ainda não abre nada a mais.
+   * `fidelization.audit` lê a trilha de auditoria da posição. A trilha da BR
+   * — cada troca com ator, origem e liderança na data — é o Histórico de
+   * Mobilizações da Central (Etapa 15), que a gaveta abre filtrado pela BR.
    */
   canAudit: boolean;
 }

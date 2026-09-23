@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionContext, hasPermission } from "@/lib/auth/session";
 import { buildWorkbook, buildCsv } from "@/lib/admin/spreadsheet";
-import { listBrPlannerRows, type BrPlannerFilters } from "@/lib/governance/br-planner";
+import { listBrPlannerRows, type BrPlannerFilters, type BrPlannerRow } from "@/lib/governance/br-planner";
+import { getBrDirectory } from "@/lib/governance/brs";
 import { listFidelizationHistory } from "@/lib/governance/queries";
 import { parseCompetence, formatCompetence, monthEnd, monthStart } from "@/lib/governance/competence";
 import { listMovements, MOVEMENT_TYPES, type MovementRow } from "@/lib/governance/fidelization-central";
@@ -108,6 +109,8 @@ export async function GET(request: NextRequest) {
     leaderEmployeeId: params.get("lideranca") ?? undefined,
     vehicle: params.get("veiculo") ?? undefined,
     driver: params.get("motorista") ?? undefined,
+    // Só o módulo BRs manda: "com/sem substituição no período".
+    swapped: params.get("substituicao") ?? undefined,
   };
   const label = formatCompetence(competence).replace("/", "-");
 
@@ -170,7 +173,22 @@ export async function GET(request: NextRequest) {
     ]);
     name = `fidelizacao-historico-${label}.${format}`;
   } else {
-    const rows = await listBrPlannerRows(organizationId, competence, filters);
+    // O filtro "substituição no período" só existe no diretório do módulo BRs;
+    // com ele, as linhas vêm de lá (mesma resolução do planner), página a página.
+    let rows: BrPlannerRow[];
+    if (filters.swapped) {
+      rows = [];
+      for (let page = 0; page < 50; page += 1) {
+        const directory = await getBrDirectory(organizationId, competence, filters, {
+          limit: 200,
+          offset: page * 200,
+        });
+        rows.push(...directory.rows);
+        if (rows.length >= directory.total || directory.rows.length === 0) break;
+      }
+    } else {
+      rows = await listBrPlannerRows(organizationId, competence, filters);
+    }
     headers = PLANNER_HEADERS;
     data = rows.map((r) => [
       r.operationName, r.stateUf, r.cityName, r.code, r.description ?? "",

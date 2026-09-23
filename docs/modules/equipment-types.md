@@ -325,8 +325,11 @@ auditoria não passa a enxergá-la por este caminho.
 
 ## 16. Pendências
 
-- **Aplicativos**: `operational_apps` está vazia por decisão. O Gerenciador de
-  Aplicativos é de outra etapa; até lá a aba mostra estado vazio.
+- ~~**Aplicativos**: `operational_apps` vazia até o Gerenciador de Aplicativos.~~
+  Resolvido nas Etapas 12 e no seu refinamento: o Check List de Frota existe
+  como aplicativo e a seção "Aplicativos habilitados" do tipo lê os vínculos
+  Aplicativo × Tipo, a mesma fonte da tela de Operações
+  ([`applications.md`](./applications.md)).
 - **Módulos**: os cinco estão marcados `is_available = false`. As regras são
   configuráveis e ainda não há consumidor que as leia.
 - **Impacto de módulos**: enquanto os módulos não existem, a análise responde
