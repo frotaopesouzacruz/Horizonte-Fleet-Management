@@ -181,8 +181,8 @@ function MonthGrid({ competence, days, muted = false, onSelect }: MonthGridProps
                 onClick={() => onSelect(day.date)}
                 title={`${day.date}: ${day.isFuture ? "planejado" : formatPct(day.adherencePct)} · ${day.numerator}/${day.denominator} · ${day.notDone} não fez · ${day.excluded} expurgos`}
                 className={cn(
-                  "flex min-w-0 flex-col items-start justify-between rounded-md border p-1 text-left transition-colors hfm-focus-ring sm:p-1.5",
-                  muted ? "min-h-[2.75rem]" : "min-h-[3.5rem]",
+                  "flex min-w-0 flex-col items-start justify-between rounded-md border text-left transition-colors hfm-focus-ring",
+                  muted ? "min-h-[2.75rem] p-0.5 sm:p-1" : "min-h-[3.5rem] p-1 sm:p-1.5",
                   day.isFuture || day.denominator === 0 ? TONE_BG.neutral : TONE_BG[pctTone(day.adherencePct, day.targetPct ?? 90)],
                   day.isFuture && "border-dashed",
                   day.isToday && "ring-2 ring-primary ring-offset-1 ring-offset-surface",
