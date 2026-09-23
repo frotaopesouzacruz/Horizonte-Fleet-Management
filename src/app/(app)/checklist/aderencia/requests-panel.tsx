@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Clock, Eye, ThumbsDown, ThumbsUp, XCircle } from "lucide-react";
+import { Clock, Eye, ListChecks, ThumbsDown, ThumbsUp, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { FormField } from "@/components/ui/form-field";
@@ -21,9 +22,10 @@ import { NativeSelect } from "@/components/governance/selects";
 import { useToast } from "@/components/feedback/toast";
 import { useConfirm } from "@/components/feedback/confirm-dialog";
 import { cancelRequest, decideRequest } from "@/lib/adherence/actions";
-import type { AdherenceOptions, RequestRow, RequestsPage } from "@/lib/adherence/queries";
+import type { AdherenceOptions, ChecklistContext, RequestRow, RequestsPage } from "@/lib/adherence/queries";
 import { CONTEXT_LABEL, formatDateBr, formatDateTimeBr, formatInt, statusMeta } from "./status";
 import type { AdherencePerms, Navigate } from "./adherence-view";
+import { BulkDecisionDialog, type BulkDecision } from "./bulk-decision-dialog";
 
 const REQUEST_STATUS: Record<RequestRow["status"], { label: string; tone: "warning" | "success" | "danger" | "neutral" }> = {
   pending: { label: "Pendente", tone: "warning" },
@@ -171,6 +173,32 @@ export function RequestsPanel({ requests, filters, options, perms, navigate, pen
   const [deciding, setDeciding] = React.useState<RequestRow | null>(null);
   const [, startTransition] = React.useTransition();
 
+  // Seleção para decisão em lote (§57). Só quem aprova seleciona, e só linhas
+  // pendentes entram: a seleção é derivada da página atual, então um id que
+  // deixou de ser pendente (decidido, cancelado, filtrado) sai sozinho — sem
+  // efeito para "limpar" nada.
+  const [selectedIds, setSelectedIds] = React.useState<ReadonlySet<string>>(() => new Set());
+  const [bulk, setBulk] = React.useState<BulkDecision | null>(null);
+  const rows = requests?.rows ?? [];
+  const selectable = perms.approve;
+  const pendingRows = selectable ? rows.filter((r) => r.status === "pending") : [];
+  const selectedRows = pendingRows.filter((r) => selectedIds.has(r.id));
+  const selectedCount = selectedRows.length;
+  const allPendingSelected = pendingRows.length > 0 && selectedCount === pendingRows.length;
+  const selectedContexts = Array.from(new Set<ChecklistContext>(selectedRows.map((r) => r.context)));
+
+  const toggleRow = (id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id); else next.delete(id);
+      return next;
+    });
+  };
+  const toggleAll = (checked: boolean) => {
+    setSelectedIds(checked ? new Set(pendingRows.map((r) => r.id)) : new Set());
+  };
+  const clearSelection = () => setSelectedIds(new Set());
+
   const cancel = async (row: RequestRow) => {
     const ok = await confirm({
       title: "Cancelar a solicitação?",
@@ -185,8 +213,6 @@ export function RequestsPanel({ requests, filters, options, perms, navigate, pen
       else toast({ title: result.error ?? "Não foi possível cancelar.", variant: "danger" });
     });
   };
-
-  const rows = requests?.rows ?? [];
 
   return (
     <Card>
@@ -222,10 +248,44 @@ export function RequestsPanel({ requests, filters, options, perms, navigate, pen
           </p>
         </div>
 
+        {selectable ? (
+          // Barra de lote (§57): os botões só ligam com seleção, e cada um abre
+          // o diálogo com prévia obrigatória — nada é decidido daqui direto.
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface-secondary px-3 py-2" role="group" aria-label="Decisão em lote">
+            <ListChecks className="size-4 text-fg-muted" aria-hidden />
+            <span className="text-body-sm text-fg" aria-live="polite">
+              {selectedCount === 1 ? "1 selecionada" : `${selectedCount} selecionadas`}
+            </span>
+            <span className="text-fg-muted" aria-hidden>·</span>
+            <Button size="sm" variant="ghost" onClick={clearSelection} disabled={selectedCount === 0}>Limpar</Button>
+            <div className="ml-auto flex flex-wrap gap-2">
+              <Button size="sm" variant="secondary" leadingIcon={<ThumbsUp />} disabled={selectedCount === 0} onClick={() => setBulk("approve")}>
+                Aprovar em lote
+              </Button>
+              <Button size="sm" variant="secondary" leadingIcon={<ThumbsDown />} disabled={selectedCount === 0} onClick={() => setBulk("reject")}>
+                Rejeitar em lote
+              </Button>
+              <Button size="sm" variant="secondary" disabled={selectedCount === 0} onClick={() => setBulk("reclassify")}>
+                Reclassificar em lote
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         <TableContainer>
           <Table>
             <TableHeader>
               <TableRow>
+                {selectable ? (
+                  <TableHead className="w-8">
+                    <Checkbox
+                      aria-label="Selecionar todas as pendentes da página"
+                      checked={allPendingSelected ? true : selectedCount > 0 ? "indeterminate" : false}
+                      disabled={pendingRows.length === 0}
+                      onCheckedChange={(checked) => toggleAll(checked === true)}
+                    />
+                  </TableHead>
+                ) : null}
                 <TableHead>Data</TableHead>
                 <TableHead>Veículo</TableHead>
                 <TableHead>Operação · Cidade · BR</TableHead>
@@ -240,11 +300,23 @@ export function RequestsPanel({ requests, filters, options, perms, navigate, pen
             </TableHeader>
             <TableBody>
               {rows.length === 0 ? (
-                <TableEmpty colSpan={10} message="Nenhuma solicitação para os filtros escolhidos." />
+                <TableEmpty colSpan={selectable ? 11 : 10} message="Nenhuma solicitação para os filtros escolhidos." />
               ) : rows.map((r) => {
                 const st = REQUEST_STATUS[r.status];
+                const isPending = r.status === "pending";
                 return (
-                  <TableRow key={r.id}>
+                  <TableRow key={r.id} data-state={selectable && isPending && selectedIds.has(r.id) ? "selected" : undefined}>
+                    {selectable ? (
+                      <TableCell>
+                        {isPending ? (
+                          <Checkbox
+                            aria-label={`Selecionar solicitação ${r.fleetCode ?? r.licensePlate ?? r.id} de ${formatDateBr(r.operationalDate)}`}
+                            checked={selectedIds.has(r.id)}
+                            onCheckedChange={(checked) => toggleRow(r.id, checked === true)}
+                          />
+                        ) : null}
+                      </TableCell>
+                    ) : null}
                     <TableCell className="tabular-nums">{formatDateBr(r.operationalDate)}</TableCell>
                     <TableCell><span className="font-medium text-fg">{r.fleetCode ?? "—"}</span> <span className="text-fg-muted">{r.licensePlate ?? ""}</span></TableCell>
                     <TableCell className="text-fg-muted">{[r.operationName, r.cityName, r.brCode].filter(Boolean).join(" · ")}</TableCell>
@@ -286,6 +358,18 @@ export function RequestsPanel({ requests, filters, options, perms, navigate, pen
 
       <DecisionDialog request={deciding} options={options} onOpenChange={(open) => { if (!open) setDeciding(null); }}
         onDecided={() => { router.refresh(); onChanged(); }} />
+
+      {selectable ? (
+        <BulkDecisionDialog
+          open={bulk !== null}
+          decision={bulk ?? "approve"}
+          requestIds={selectedRows.map((r) => r.id)}
+          contexts={selectedContexts}
+          options={options}
+          onOpenChange={(open) => { if (!open) setBulk(null); }}
+          onDone={() => { clearSelection(); router.refresh(); onChanged(); }}
+        />
+      ) : null}
     </Card>
   );
 }

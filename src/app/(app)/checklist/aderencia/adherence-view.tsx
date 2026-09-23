@@ -2,7 +2,11 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LogOut, Undo2 } from "lucide-react";
+import { ChevronDown, Download, LogOut, Undo2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/cn";
 import { PageContent, PageHeader } from "@/components/layout/page-header";
 import { FilterBar } from "@/components/ui/filter-bar";
@@ -12,8 +16,8 @@ import { CompetencePicker } from "@/components/governance/competence-picker";
 import { NativeSelect } from "@/components/governance/selects";
 import type { CoverageEntry } from "@/components/governance/scope-picker";
 import type {
-  AdherenceGroupBy, AdherenceOptions, AdherenceSummary, ChecklistContext, HeatmapDay,
-  JourneyRow, MatrixPage, RequestsPage, SimpleOption,
+  AdherenceGroupBy, AdherenceInsights, AdherenceMonthly, AdherenceOptions, AdherenceSummary, ChecklistContext, HeatmapDay,
+  ImportHistoryRow, JourneyRow, MatrixPage, RequestsPage, ReturnTracking, SimpleOption,
 } from "@/lib/adherence/queries";
 import type { Competence } from "@/lib/governance/competence";
 import { CONTEXT_LABEL } from "./status";
@@ -36,6 +40,7 @@ export interface AdherencePerms {
   bulk: boolean;
   reconcile: boolean;
   import: boolean;
+  export: boolean;
   manageTargets: boolean;
   manageRules: boolean;
   viewAudit: boolean;
@@ -51,6 +56,8 @@ export interface AdherenceFilterState {
   vehicleTypeId?: string;
   status?: string;
   q?: string;
+  /** Situação da justificativa (§36): pending | approved | rejected | none. */
+  justification?: string;
 }
 
 export interface AdherenceViewProps {
@@ -62,6 +69,17 @@ export interface AdherenceViewProps {
   groupBy: AdherenceGroupBy;
   summary: AdherenceSummary;
   heatmap: HeatmapDay[];
+  /** Os meses vizinhos, para a visualização de três meses do Heatmap (§28). */
+  heatmapPrev?: HeatmapDay[];
+  heatmapNext?: HeatmapDay[];
+  /** Dashboard mensal do ano (§25) e os insights do período (§27). */
+  monthly?: AdherenceMonthly | null;
+  dashboardYear?: number;
+  insights?: AdherenceInsights | null;
+  /** Acompanhamento do Retorno na competência (§46–§50). */
+  returnTracking?: ReturnTracking | null;
+  /** Histórico de importações (§67). */
+  importHistory?: ImportHistoryRow[];
   matrix: MatrixPage;
   journey: JourneyRow[];
   requests: RequestsPage | null;
@@ -92,7 +110,9 @@ export type Navigate = (patch: Record<string, string | null>) => void;
  * denominadores nunca se misturam.
  */
 export function AdherenceView({
-  context, competence, today, day, tab, groupBy, summary, heatmap, matrix, journey, requests,
+  context, competence, today, day, tab, groupBy, summary, heatmap, heatmapPrev = [], heatmapNext = [],
+  monthly = null, dashboardYear, insights = null, returnTracking = null, importHistory = [],
+  matrix, journey, requests,
   options, operations, coverage, leaders, branches, vehicleTypes, filters, requestFilters, perms,
   basePath = "/checklist/aderencia",
 }: AdherenceViewProps) {
@@ -114,6 +134,20 @@ export function AdherenceView({
   );
 
   const refresh = React.useCallback(() => router.refresh(), [router]);
+
+  /** A exportação leva contexto, competência e filtros em tela: o arquivo é o que se vê. */
+  const exportHref = (kind: "consolidada" | "matriz" | "retorno", format: "xlsx" | "csv") => {
+    const next = new URLSearchParams(params.toString());
+    next.delete("pagina");
+    next.delete("aba");
+    const tipoEquipamento = next.get("tipo");
+    next.delete("tipo");
+    if (tipoEquipamento) next.set("tipo_equipamento", tipoEquipamento);
+    next.set("tipo", kind);
+    next.set("format", format);
+    next.set("contexto", context);
+    return `${basePath}/export?${next.toString()}`;
+  };
 
   const statesOfOperation = React.useMemo(() => {
     const scoped = filters.operationId ? coverage.filter((c) => c.operationId === filters.operationId) : coverage;
@@ -168,6 +202,29 @@ export function AdherenceView({
         title="Aderência"
         description="Acompanhe a execução dos checklists obrigatórios, identifique pendências e gerencie justificativas operacionais."
         meta={contextSwitch}
+        secondaryActions={
+          perms.export ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="secondary" leadingIcon={<Download />} trailingIcon={<ChevronDown />}>
+                  Exportar
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-60">
+                <DropdownMenuLabel>{CONTEXT_LABEL[context]} · com os filtros atuais</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild><a href={exportHref("consolidada", "xlsx")} download>Visão consolidada (XLSX)</a></DropdownMenuItem>
+                <DropdownMenuItem asChild><a href={exportHref("consolidada", "csv")} download>Visão consolidada (CSV)</a></DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild><a href={exportHref("matriz", "xlsx")} download>Matriz mês/dia (XLSX)</a></DropdownMenuItem>
+                <DropdownMenuItem asChild><a href={exportHref("matriz", "csv")} download>Matriz mês/dia (CSV)</a></DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild><a href={exportHref("retorno", "xlsx")} download>Acompanhamento do retorno (XLSX)</a></DropdownMenuItem>
+                <DropdownMenuItem asChild><a href={exportHref("retorno", "csv")} download>Acompanhamento do retorno (CSV)</a></DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : undefined
+        }
         filters={
           <FilterBar className="flex-wrap items-end gap-3">
             <div className="flex flex-col gap-1">
@@ -284,6 +341,22 @@ export function AdherenceView({
                 ))}
               </NativeSelect>
             </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-caption text-fg-muted">Justificativa</span>
+              <NativeSelect
+                fieldSize="sm"
+                aria-label="Filtrar por situação da justificativa"
+                value={filters.justification ?? ""}
+                onChange={(e) => navigate({ justificativa: e.target.value || null, pagina: null })}
+                className="min-w-[10rem]"
+              >
+                <option value="">Todas</option>
+                <option value="pending">Pendente</option>
+                <option value="approved">Aprovada</option>
+                <option value="rejected">Rejeitada</option>
+                <option value="none">Sem justificativa</option>
+              </NativeSelect>
+            </div>
             <div className="flex min-w-[12rem] flex-col gap-1">
               <span className="text-caption text-fg-muted">Frota ou placa</span>
               <SearchField
@@ -319,18 +392,20 @@ export function AdherenceView({
 
           <TabsContent value="consolidada">
             <ConsolidatedPanel summary={summary} groupBy={groupBy} context={context} competence={competence}
-              navigate={navigate} pending={pending} />
+              navigate={navigate} pending={pending} monthly={monthly} dashboardYear={dashboardYear ?? competence.year}
+              insights={insights} today={today} />
           </TabsContent>
           <TabsContent value="heatmap">
-            <HeatmapPanel days={heatmap} competence={competence} context={context} navigate={navigate} />
+            <HeatmapPanel days={heatmap} daysPrev={heatmapPrev} daysNext={heatmapNext} competence={competence}
+              context={context} filters={filters} navigate={navigate} onSelectObligation={setOpenObligation} basePath={basePath} />
           </TabsContent>
           <TabsContent value="matriz">
-            <MatrixPanel matrix={matrix} competence={competence} today={today} context={context}
-              navigate={navigate} pending={pending} onSelect={setOpenObligation} />
+            <MatrixPanel matrix={matrix} competence={competence} today={today} context={context} filters={filters}
+              options={options} perms={perms} navigate={navigate} pending={pending} onSelect={setOpenObligation} onChanged={refresh} />
           </TabsContent>
           <TabsContent value="jornada">
-            <JourneyPanel rows={journey} day={day} today={today} navigate={navigate} pending={pending}
-              onSelect={setOpenObligation} />
+            <JourneyPanel rows={journey} day={day} today={today} context={context} competence={competence}
+              returnTracking={returnTracking} navigate={navigate} pending={pending} onSelect={setOpenObligation} />
           </TabsContent>
           <TabsContent value="expurgos">
             <RequestsPanel requests={requests} filters={requestFilters} options={options} perms={perms}
@@ -341,7 +416,7 @@ export function AdherenceView({
           </TabsContent>
           <TabsContent value="governanca">
             <GovernancePanel options={options} operations={operations} perms={perms} today={today}
-              competence={competence} onChanged={refresh}
+              competence={competence} onChanged={refresh} importHistory={importHistory}
               importSection={perms.import && basePath === "/checklist/aderencia" ? <ImportSection onChanged={refresh} /> : undefined} />
           </TabsContent>
         </Tabs>

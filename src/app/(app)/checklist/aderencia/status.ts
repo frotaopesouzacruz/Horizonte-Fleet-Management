@@ -59,6 +59,20 @@ export function formatPct(value: number | null | undefined): string {
   return value == null ? "Sem base" : `${pct.format(value)}%`;
 }
 
+const pctShort = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+
+/** "83,3%" / "100%" — para células estreitas (heatmap); a precisão completa fica no título e na gaveta. */
+export function formatPctShort(value: number | null | undefined): string {
+  return value == null ? "Sem base" : `${pctShort.format(value)}%`;
+}
+
+const pctInt = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+
+/** "83%" — para a célula mais estreita (meses vizinhos do heatmap e celular); sem base vira "—". */
+export function formatPctInt(value: number | null | undefined): string {
+  return value == null ? "—" : `${pctInt.format(value)}%`;
+}
+
 export function formatInt(value: number): string {
   return int.format(value);
 }

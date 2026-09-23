@@ -22,9 +22,10 @@ import { useConfirm } from "@/components/feedback/confirm-dialog";
 import {
   reconcilePeriod, resolveInconsistency, saveReason, saveRule, setTarget, type ReconcileStats,
 } from "@/lib/adherence/actions";
-import type { AdherenceOptions } from "@/lib/adherence/queries";
+import type { AdherenceOptions, ImportHistoryRow } from "@/lib/adherence/queries";
 import { monthEnd, monthStart, type Competence } from "@/lib/governance/competence";
 import { formatDateBr, formatDateTimeBr, formatInt, formatPct } from "./status";
+import { ImportHistory } from "./import-history";
 import type { AdherencePerms } from "./adherence-view";
 
 const KIND_LABEL: Record<string, string> = {
@@ -50,6 +51,8 @@ export interface GovernancePanelProps {
   onChanged: () => void;
   /** Seção de importação, injetada para a prévia não depender dela. */
   importSection?: React.ReactNode;
+  /** Histórico de importações (§67). */
+  importHistory?: ImportHistoryRow[];
 }
 
 /**
@@ -57,7 +60,7 @@ export interface GovernancePanelProps {
  * (§26, §28, §36). Nada aqui reprocessa sem prévia e sem motivo, e nada aqui
  * muda um Perfil de Acesso.
  */
-export function GovernancePanel({ options, operations, perms, today, competence, onChanged, importSection }: GovernancePanelProps) {
+export function GovernancePanel({ options, operations, perms, today, competence, onChanged, importSection, importHistory = [] }: GovernancePanelProps) {
   const router = useRouter();
   const { toast } = useToast();
   const confirm = useConfirm();
@@ -377,6 +380,8 @@ export function GovernancePanel({ options, operations, perms, today, competence,
           </CardContent>
         </Card>
       ) : null}
+
+      {perms.import || perms.viewAudit || perms.reconcile ? <ImportHistory imports={importHistory} /> : null}
 
       {perms.viewAudit || perms.reconcile ? (
         <Card>

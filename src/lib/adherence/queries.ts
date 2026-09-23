@@ -28,6 +28,8 @@ export interface AdherenceFilters {
   vehicleId?: string;
   status?: string;
   q?: string;
+  /** Situação da justificativa (§36): pending | approved | rejected | none. */
+  justification?: string;
 }
 
 const filtersPayload = (f: AdherenceFilters): Record<string, string> => {
@@ -42,6 +44,7 @@ const filtersPayload = (f: AdherenceFilters): Record<string, string> => {
   if (f.vehicleId) out.vehicle_id = f.vehicleId;
   if (f.status) out.status = f.status;
   if (f.q) out.q = f.q.trim();
+  if (f.justification) out.justification = f.justification;
   return out;
 };
 
@@ -848,6 +851,368 @@ export async function listAdherenceFilterOptions(organizationId: string): Promis
     branches: (branches.data ?? []).map((b) => ({ id: b.id, name: b.code ? `${b.code} · ${b.name}` : b.name })),
     vehicleTypes: (types.data ?? []).map((t) => ({ id: t.id, name: t.name })),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard mensal (§25) — o ano mês a mês, mesma fórmula
+// ---------------------------------------------------------------------------
+export interface MonthlyRow {
+  month: number;
+  isFuture: boolean;
+  isCurrent: boolean;
+  obligations: number;
+  done: number;
+  notDone: number;
+  excluded: number;
+  pendingRequests: number;
+  numerator: number;
+  denominator: number;
+  adherencePct: number | null;
+  targetPct: number | null;
+  gapPct: number | null;
+}
+
+export interface AdherenceMonthly {
+  year: number;
+  context: ChecklistContext;
+  months: MonthlyRow[];
+  total: { numerator: number; denominator: number; excluded: number; adherencePct: number | null };
+}
+
+export function mapMonthly(raw: unknown): AdherenceMonthly {
+  const r = obj(raw);
+  const t = obj(r.total);
+  return {
+    year: num(r.year),
+    context: str(r.context) === "retorno" ? "retorno" : "saida",
+    months: arr(r.months).map((m) => ({
+      month: num(m.month), isFuture: bool(m.is_future), isCurrent: bool(m.is_current),
+      obligations: num(m.obligations), done: num(m.done), notDone: num(m.not_done), excluded: num(m.excluded),
+      pendingRequests: num(m.pending_requests), numerator: num(m.numerator), denominator: num(m.denominator),
+      adherencePct: numOrNull(m.adherence_pct), targetPct: numOrNull(m.target_pct), gapPct: numOrNull(m.gap_pct),
+    })),
+    total: { numerator: num(t.numerator), denominator: num(t.denominator), excluded: num(t.excluded), adherencePct: numOrNull(t.adherence_pct) },
+  };
+}
+
+export async function getAdherenceMonthly(
+  organizationId: string,
+  year: number,
+  context: ChecklistContext,
+  filters: AdherenceFilters = {},
+): Promise<AdherenceMonthly> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("adherence_monthly", {
+    p_organization_id: organizationId, p_year: year, p_context: context, p_filters: filtersPayload(filters),
+  });
+  if (error) throw new Error(error.message);
+  return mapMonthly(data);
+}
+
+// ---------------------------------------------------------------------------
+// Detalhe do dia (§31) — o painel que o Heatmap abre
+// ---------------------------------------------------------------------------
+export interface DayGroup {
+  key: string;
+  label: string;
+  obligations: number;
+  done: number;
+  notDone: number;
+  excluded: number;
+  numerator: number;
+  denominator: number;
+  adherencePct: number | null;
+}
+
+export interface DayVehicle {
+  id: string;
+  vehicleId: string | null;
+  fleetCode: string | null;
+  licensePlate: string | null;
+  operationName: string | null;
+  cityName: string | null;
+  brCode: string | null;
+  leaderName: string | null;
+  provisional: boolean;
+  pendingRequest: boolean;
+  condition: string | null;
+}
+
+export interface DayDetail {
+  date: string;
+  context: ChecklistContext;
+  isToday: boolean;
+  isFuture: boolean;
+  obligations: number;
+  done: number;
+  notDone: number;
+  pendingReturn: number;
+  planned: number;
+  excluded: number;
+  pendingRequests: number;
+  provisional: number;
+  numerator: number;
+  denominator: number;
+  adherencePct: number | null;
+  targetPct: number | null;
+  byOperation: DayGroup[];
+  byCity: DayGroup[];
+  byLeader: DayGroup[];
+  notDoneVehicles: DayVehicle[];
+  excludedVehicles: { id: string; fleetCode: string | null; licensePlate: string | null; status: string; reasonName: string | null }[];
+}
+
+const mapGroup = (g: Raw): DayGroup => ({
+  key: str(g.key), label: str(g.label), obligations: num(g.obligations), done: num(g.done), notDone: num(g.not_done),
+  excluded: num(g.excluded), numerator: num(g.numerator), denominator: num(g.denominator), adherencePct: numOrNull(g.adherence_pct),
+});
+
+export function mapDayDetail(raw: unknown): DayDetail {
+  const r = obj(raw);
+  return {
+    date: str(r.date),
+    context: str(r.context) === "retorno" ? "retorno" : "saida",
+    isToday: bool(r.is_today), isFuture: bool(r.is_future),
+    obligations: num(r.obligations), done: num(r.done), notDone: num(r.not_done), pendingReturn: num(r.pending_return),
+    planned: num(r.planned), excluded: num(r.excluded), pendingRequests: num(r.pending_requests), provisional: num(r.provisional),
+    numerator: num(r.numerator), denominator: num(r.denominator),
+    adherencePct: numOrNull(r.adherence_pct), targetPct: numOrNull(r.target_pct),
+    byOperation: arr(r.by_operation).map(mapGroup),
+    byCity: arr(r.by_city).map(mapGroup),
+    byLeader: arr(r.by_leader).map(mapGroup),
+    notDoneVehicles: arr(r.not_done_vehicles).map((v) => ({
+      id: str(v.id), vehicleId: strOrNull(v.vehicle_id), fleetCode: strOrNull(v.fleet_code), licensePlate: strOrNull(v.license_plate),
+      operationName: strOrNull(v.operation_name), cityName: strOrNull(v.city_name), brCode: strOrNull(v.br_code),
+      leaderName: strOrNull(v.leader_name), provisional: bool(v.provisional), pendingRequest: bool(v.pending_request),
+      condition: strOrNull(v.condition),
+    })),
+    excludedVehicles: arr(r.excluded_vehicles).map((v) => ({
+      id: str(v.id), fleetCode: strOrNull(v.fleet_code), licensePlate: strOrNull(v.license_plate), status: str(v.status),
+      reasonName: strOrNull(v.reason_name),
+    })),
+  };
+}
+
+export async function getAdherenceDayDetail(
+  organizationId: string,
+  date: string,
+  context: ChecklistContext,
+  filters: AdherenceFilters = {},
+): Promise<DayDetail> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("adherence_day_detail", {
+    p_organization_id: organizationId, p_date: date, p_context: context, p_filters: filtersPayload(filters),
+  });
+  if (error) throw new Error(error.message);
+  return mapDayDetail(data);
+}
+
+// ---------------------------------------------------------------------------
+// Acompanhamento do Retorno (§46–§50)
+// ---------------------------------------------------------------------------
+export type ReturnSituation = "awaiting_return" | "not_departed" | "overdue_after_departure" | "overdue";
+
+export interface ReturnRow {
+  id: string;
+  vehicleId: string;
+  fleetCode: string | null;
+  licensePlate: string | null;
+  operationalDate: string;
+  operationName: string | null;
+  cityName: string | null;
+  brCode: string | null;
+  leaderName: string | null;
+  expectedAt: string | null;
+  deadlineAt: string | null;
+  status: string;
+  departureStatus: string | null;
+  departureDone: boolean;
+  pendingRequest: boolean;
+  provisional: boolean;
+  situation: ReturnSituation;
+}
+
+export interface ReturnLeaderRow {
+  key: string;
+  label: string;
+  expected: number;
+  done: number;
+  pending: number;
+  overdue: number;
+  excluded: number;
+  adherencePct: number | null;
+}
+
+export interface ReturnTracking {
+  dateFrom: string;
+  dateTo: string;
+  today: string;
+  stats: {
+    expected: number;
+    done: number;
+    pendingInDeadline: number;
+    awaitingReturn: number;
+    overdue: number;
+    excluded: number;
+    planned: number;
+    pendingRequests: number;
+    departureDoneReturnMissing: number;
+    numerator: number;
+    denominator: number;
+    adherencePct: number | null;
+    targetPct: number | null;
+  };
+  byLeader: ReturnLeaderRow[];
+  rows: ReturnRow[];
+  rowsTotal: number;
+}
+
+export function mapReturnTracking(raw: unknown): ReturnTracking {
+  const r = obj(raw);
+  const s = obj(r.stats);
+  return {
+    dateFrom: str(r.date_from), dateTo: str(r.date_to), today: str(r.today),
+    stats: {
+      expected: num(s.expected), done: num(s.done), pendingInDeadline: num(s.pending_in_deadline),
+      awaitingReturn: num(s.awaiting_return), overdue: num(s.overdue), excluded: num(s.excluded), planned: num(s.planned),
+      pendingRequests: num(s.pending_requests), departureDoneReturnMissing: num(s.departure_done_return_missing),
+      numerator: num(s.numerator), denominator: num(s.denominator),
+      adherencePct: numOrNull(s.adherence_pct), targetPct: numOrNull(s.target_pct),
+    },
+    byLeader: arr(r.by_leader).map((l) => ({
+      key: str(l.key), label: str(l.label), expected: num(l.expected), done: num(l.done), pending: num(l.pending),
+      overdue: num(l.overdue), excluded: num(l.excluded), adherencePct: numOrNull(l.adherence_pct),
+    })),
+    rows: arr(r.rows).map((x) => ({
+      id: str(x.id), vehicleId: str(x.vehicle_id), fleetCode: strOrNull(x.fleet_code), licensePlate: strOrNull(x.license_plate),
+      operationalDate: str(x.operational_date), operationName: strOrNull(x.operation_name), cityName: strOrNull(x.city_name),
+      brCode: strOrNull(x.br_code), leaderName: strOrNull(x.leader_name), expectedAt: strOrNull(x.expected_at),
+      deadlineAt: strOrNull(x.deadline_at), status: str(x.status), departureStatus: strOrNull(x.departure_status),
+      departureDone: bool(x.departure_done), pendingRequest: bool(x.pending_request), provisional: bool(x.provisional),
+      situation: (str(x.situation) || "overdue") as ReturnSituation,
+    })),
+    rowsTotal: num(r.rows_total),
+  };
+}
+
+export async function getReturnTracking(
+  organizationId: string,
+  from: string,
+  to: string,
+  filters: AdherenceFilters = {},
+  limit = 300,
+): Promise<ReturnTracking> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("adherence_return_tracking", {
+    p_organization_id: organizationId, p_from: from, p_to: to, p_filters: filtersPayload(filters), p_limit: limit,
+  });
+  if (error) throw new Error(error.message);
+  return mapReturnTracking(data);
+}
+
+// ---------------------------------------------------------------------------
+// Insights gerenciais (§27)
+// ---------------------------------------------------------------------------
+export interface AdherenceInsights {
+  competence: string;
+  context: ChecklistContext;
+  today: string;
+  isFutureMonth: boolean;
+  current: { adherencePct: number | null; numerator: number; denominator: number; targetPct: number | null; gapPct: number | null; notDone: number; excluded: number; pendingRequests: number };
+  previous: { competence: string; adherencePct: number | null; numerator: number; denominator: number };
+  variationPts: number | null;
+  today_: { obligations: number; done: number; notDone: number; provisional: number; pendingRequests: number } | null;
+  daysWithBase: number;
+  daysBelowTarget: number;
+  operationsBelowTarget: AdherenceGroup[];
+  citiesBelowTarget: AdherenceGroup[];
+  operationsWithPending: AdherenceGroup[];
+  bestOperation: AdherenceGroup | null;
+  worstOperation: AdherenceGroup | null;
+}
+
+const mapAgg = (g: Raw): AdherenceGroup => ({
+  key: str(g.key), label: str(g.label), obligations: num(g.obligations), done: num(g.done), notDone: num(g.not_done),
+  excluded: num(g.excluded), pendingRequests: num(g.pending_requests), numerator: num(g.numerator),
+  denominator: num(g.denominator), adherencePct: numOrNull(g.adherence_pct),
+});
+
+export function mapInsights(raw: unknown): AdherenceInsights {
+  const r = obj(raw);
+  const c = obj(r.current); const p = obj(r.previous); const t = r.today_stats ?? r.today;
+  const todayStats = t && typeof t === "object" ? obj(t) : null;
+  return {
+    competence: str(r.competence),
+    context: str(r.context) === "retorno" ? "retorno" : "saida",
+    today: typeof r.today === "string" ? r.today : "",
+    isFutureMonth: bool(r.is_future_month),
+    current: {
+      adherencePct: numOrNull(c.adherence_pct), numerator: num(c.numerator), denominator: num(c.denominator),
+      targetPct: numOrNull(c.target_pct), gapPct: numOrNull(c.gap_pct), notDone: num(c.not_done), excluded: num(c.excluded),
+      pendingRequests: num(c.pending_requests),
+    },
+    previous: { competence: str(p.competence), adherencePct: numOrNull(p.adherence_pct), numerator: num(p.numerator), denominator: num(p.denominator) },
+    variationPts: numOrNull(r.variation_pts),
+    today_: todayStats && Object.keys(todayStats).length > 0
+      ? { obligations: num(todayStats.obligations), done: num(todayStats.done), notDone: num(todayStats.not_done), provisional: num(todayStats.provisional), pendingRequests: num(todayStats.pending_requests) }
+      : null,
+    daysWithBase: num(r.days_with_base),
+    daysBelowTarget: num(r.days_below_target),
+    operationsBelowTarget: arr(r.operations_below_target).map(mapAgg),
+    citiesBelowTarget: arr(r.cities_below_target).map(mapAgg),
+    operationsWithPending: arr(r.operations_with_pending).map(mapAgg),
+    bestOperation: r.best_operation ? mapAgg(obj(r.best_operation)) : null,
+    worstOperation: r.worst_operation ? mapAgg(obj(r.worst_operation)) : null,
+  };
+}
+
+export async function getAdherenceInsights(
+  organizationId: string,
+  competence: Competence,
+  context: ChecklistContext,
+  filters: AdherenceFilters = {},
+): Promise<AdherenceInsights> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("adherence_insights", {
+    p_organization_id: organizationId, p_year: competence.year, p_month: competence.month, p_context: context,
+    p_filters: filtersPayload(filters),
+  });
+  if (error) throw new Error(error.message);
+  return mapInsights(data);
+}
+
+// ---------------------------------------------------------------------------
+// Histórico de importações (§67)
+// ---------------------------------------------------------------------------
+export interface ImportHistoryRow {
+  id: string;
+  fileName: string | null;
+  status: string;
+  totalRows: number;
+  validRows: number;
+  warningRows: number;
+  errorRows: number;
+  createdRows: number;
+  skippedRows: number;
+  summary: Record<string, unknown>;
+  errorMessage: string | null;
+  createdAt: string;
+  processedAt: string | null;
+  createdByName: string | null;
+  errors: { row: number; message: string }[];
+}
+
+export async function listAdherenceImportHistory(organizationId: string, limit = 20): Promise<ImportHistoryRow[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("adherence_import_history", { p_organization_id: organizationId, p_limit: limit });
+  if (error) throw new Error(error.message);
+  return arr(data).map((b) => ({
+    id: str(b.id), fileName: strOrNull(b.file_name), status: str(b.status), totalRows: num(b.total_rows), validRows: num(b.valid_rows),
+    warningRows: num(b.warning_rows), errorRows: num(b.error_rows), createdRows: num(b.created_rows), skippedRows: num(b.skipped_rows),
+    summary: obj(b.summary), errorMessage: strOrNull(b.error_message), createdAt: str(b.created_at), processedAt: strOrNull(b.processed_at),
+    createdByName: strOrNull(b.created_by_name),
+    errors: arr(b.errors).map((e) => ({ row: num(e.row), message: str(e.message) })),
+  }));
 }
 
 export type { Json };

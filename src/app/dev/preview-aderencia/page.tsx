@@ -2,7 +2,10 @@ import { notFound } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { AdherenceView, type AdherenceTab } from "@/app/(app)/checklist/aderencia/adherence-view";
 import type { ChecklistContext } from "@/lib/adherence/queries";
-import { COMPETENCE, COVERAGE, HEATMAP, JOURNEY, LEADERS, MATRIX, OPERATIONS, OPTIONS, REQUESTS, SUMMARY, TODAY } from "./fixture";
+import {
+  COMPETENCE, COVERAGE, HEATMAP, HEATMAP_NEXT, HEATMAP_PREV, IMPORT_HISTORY, INSIGHTS, JOURNEY, LEADERS,
+  MATRIX, MONTHLY, OPERATIONS, OPTIONS, REQUESTS, RETURN_TRACKING, SUMMARY, TODAY,
+} from "./fixture";
 
 /**
  * Renders the Aderência screen against fixed data.
@@ -48,6 +51,11 @@ export default async function PreviewPage({ searchParams }: { searchParams: Prom
         groupBy="operation"
         summary={SUMMARY}
         heatmap={HEATMAP}
+        heatmapPrev={HEATMAP_PREV}
+        heatmapNext={HEATMAP_NEXT}
+        monthly={MONTHLY}
+        dashboardYear={2026}
+        insights={INSIGHTS}
         matrix={MATRIX}
         journey={JOURNEY}
         requests={REQUESTS}
@@ -59,7 +67,9 @@ export default async function PreviewPage({ searchParams }: { searchParams: Prom
         vehicleTypes={[{ id: "t-van", name: "Van" }, { id: "t-car", name: "Frota Leve ADM" }]}
         filters={{}}
         requestFilters={{}}
-        perms={{ request: true, approve: true, override: true, bulk: true, reconcile: true, import: true, manageTargets: true, manageRules: true, viewAudit: true }}
+        returnTracking={RETURN_TRACKING}
+        importHistory={IMPORT_HISTORY}
+        perms={{ request: true, approve: true, override: true, bulk: true, reconcile: true, import: true, export: true, manageTargets: true, manageRules: true, viewAudit: true }}
       />
     </AppShell>
   );

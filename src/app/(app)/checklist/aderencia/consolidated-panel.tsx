@@ -9,9 +9,14 @@ import {
   Table, TableBody, TableCell, TableContainer, TableEmpty, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { NativeSelect } from "@/components/governance/selects";
-import type { AdherenceGroupBy, AdherenceSummary, ChecklistContext } from "@/lib/adherence/queries";
+import type {
+  AdherenceGroupBy, AdherenceInsights, AdherenceMonthly, AdherenceSummary, ChecklistContext,
+} from "@/lib/adherence/queries";
 import { formatCompetence, type Competence } from "@/lib/governance/competence";
 import { CONTEXT_LABEL, formatInt, formatPct } from "./status";
+import { HBarChart } from "./adherence-charts";
+import { MonthlyDashboard } from "./monthly-dashboard";
+import { InsightsPanel } from "./insights-panel";
 import type { Navigate } from "./adherence-view";
 
 const GROUP_LABEL: Record<AdherenceGroupBy, string> = {
@@ -41,15 +46,28 @@ export interface ConsolidatedPanelProps {
   competence: Competence;
   navigate: Navigate;
   pending: boolean;
+  /** Dashboard mensal do ano escolhido (§25) e os insights da competência (§27). */
+  monthly: AdherenceMonthly | null;
+  dashboardYear: number;
+  insights: AdherenceInsights | null;
+  today: string;
 }
 
 /**
  * Visão consolidada (§44): os oito números da competência e a quebra por
  * dimensão. Todos saem da mesma rotina do banco; a tela não soma nada.
+ * Abaixo, o dashboard mensal (§25) e os insights (§27) — também do banco.
  */
-export function ConsolidatedPanel({ summary, groupBy, context, competence, navigate, pending }: ConsolidatedPanelProps) {
+export function ConsolidatedPanel({
+  summary, groupBy, context, competence, navigate, pending, monthly, dashboardYear, insights,
+}: ConsolidatedPanelProps) {
   const tone = pctTone(summary.adherencePct, summary.targetPct);
   const gap = summary.gapPct;
+  // O gráfico mostra as maiores bases; a tabela ao lado tem todas as linhas.
+  const chartGroups = [...summary.groups]
+    .sort((a, b) => b.denominator - a.denominator)
+    .slice(0, 12)
+    .map((g) => ({ key: g.key || g.label, label: g.label, value: g.adherencePct, numerator: g.numerator, denominator: g.denominator }));
 
   return (
     <div className="flex flex-col gap-5">
@@ -105,6 +123,7 @@ export function ConsolidatedPanel({ summary, groupBy, context, competence, navig
             </div>
           </div>
 
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
           <TableContainer>
             <Table>
               <TableHeader>
@@ -141,11 +160,28 @@ export function ConsolidatedPanel({ summary, groupBy, context, competence, navig
               </TableBody>
             </Table>
           </TableContainer>
+          {chartGroups.length > 0 ? (
+            <div className="flex flex-col gap-1">
+              <p className="text-caption text-fg-muted">
+                Aderência por {GROUP_LABEL[groupBy].toLowerCase()}{summary.groups.length > chartGroups.length ? ` · ${chartGroups.length} maiores bases` : ""}
+              </p>
+              <HBarChart
+                items={chartGroups}
+                target={summary.targetPct}
+                ariaLabel={`Aderência por ${GROUP_LABEL[groupBy].toLowerCase()}, ${formatCompetence(competence)}`}
+              />
+            </div>
+          ) : null}
+          </div>
           {tone === "danger" && summary.targetPct != null ? (
             <p className="text-caption text-danger">A competência está abaixo da meta de {formatPct(summary.targetPct)}.</p>
           ) : null}
         </CardContent>
       </Card>
+
+      <MonthlyDashboard monthly={monthly} year={dashboardYear} context={context} navigate={navigate} pending={pending} />
+
+      <InsightsPanel insights={insights} />
     </div>
   );
 }

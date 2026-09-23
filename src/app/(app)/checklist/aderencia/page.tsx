@@ -5,16 +5,24 @@ import { listLeadershipOptions } from "@/lib/governance/br-planner";
 import { monthEnd, monthStart, parseCompetence } from "@/lib/governance/competence";
 import {
   getAdherenceHeatmap,
+  getAdherenceInsights,
   getAdherenceMatrix,
+  getAdherenceMonthly,
   getAdherenceOptions,
   getAdherenceSummary,
   getChecklistJourney,
+  getReturnTracking,
   listAdherenceFilterOptions,
+  listAdherenceImportHistory,
   listAdherenceRequests,
   type AdherenceGroupBy,
+  type AdherenceInsights,
+  type AdherenceMonthly,
   type ChecklistContext,
+  type ImportHistoryRow,
   type JourneyRow,
   type RequestsPage,
+  type ReturnTracking,
 } from "@/lib/adherence/queries";
 import { AdherenceView, type AdherenceTab } from "./adherence-view";
 
@@ -81,7 +89,12 @@ export default async function AdherencePage({ searchParams }: { searchParams: Pr
     vehicleTypeId: first(params, "tipo"),
     status: first(params, "situacao"),
     q: first(params, "q"),
+    justification: first(params, "justificativa"),
   };
+  // O dashboard mensal olha o ano da competência (§25); o heatmap, três meses (§28).
+  const dashboardYear = Math.max(2000, Number(first(params, "ano_dash")) || competence.year);
+  const prevCompetence = competence.month === 1 ? { year: competence.year - 1, month: 12 } : { year: competence.year, month: competence.month - 1 };
+  const nextCompetence = competence.month === 12 ? { year: competence.year + 1, month: 1 } : { year: competence.year, month: competence.month + 1 };
   const requestFilters = {
     status: first(params, "sol_status"),
     reasonCode: first(params, "sol_motivo"),
@@ -93,7 +106,10 @@ export default async function AdherencePage({ searchParams }: { searchParams: Pr
     dateTo: to,
   };
 
-  const [summary, heatmap, matrix, journey, requests, governance, leaders, filterOptions] = await Promise.all([
+  const [
+    summary, heatmap, matrix, journey, requests, governance, leaders, filterOptions,
+    monthly, insights, returnTracking, importHistory, heatmapPrev, heatmapNext,
+  ] = await Promise.all([
     getAdherenceSummary(orgId, from, to, context, filters, groupBy),
     getAdherenceHeatmap(orgId, competence, context, filters),
     getAdherenceMatrix(orgId, competence, context, filters, page, 50),
@@ -103,6 +119,13 @@ export default async function AdherencePage({ searchParams }: { searchParams: Pr
     getGovernanceOptions(orgId),
     listLeadershipOptions(orgId).catch(() => [] as { id: string; name: string }[]),
     listAdherenceFilterOptions(orgId).catch(() => ({ branches: [], vehicleTypes: [] })),
+    getAdherenceMonthly(orgId, dashboardYear, context, filters).catch(() => null as AdherenceMonthly | null),
+    getAdherenceInsights(orgId, competence, context, filters).catch(() => null as AdherenceInsights | null),
+    getReturnTracking(orgId, from, to, filters).catch(() => null as ReturnTracking | null),
+    (session.isPlatformAdmin || session.permissions.includes("adherence.import") || session.permissions.includes("adherence.view_audit")
+      ? listAdherenceImportHistory(orgId) : Promise.resolve([] as ImportHistoryRow[])).catch(() => [] as ImportHistoryRow[]),
+    getAdherenceHeatmap(orgId, prevCompetence, context, filters).catch(() => []),
+    getAdherenceHeatmap(orgId, nextCompetence, context, filters).catch(() => []),
   ]);
 
   const has = (code: string) => session.isPlatformAdmin || session.permissions.includes(code);
@@ -117,6 +140,13 @@ export default async function AdherencePage({ searchParams }: { searchParams: Pr
       groupBy={groupBy}
       summary={summary}
       heatmap={heatmap}
+      heatmapPrev={heatmapPrev}
+      heatmapNext={heatmapNext}
+      monthly={monthly}
+      dashboardYear={dashboardYear}
+      insights={insights}
+      returnTracking={returnTracking}
+      importHistory={importHistory}
       matrix={matrix}
       journey={journey}
       requests={requests}
@@ -135,6 +165,7 @@ export default async function AdherencePage({ searchParams }: { searchParams: Pr
         bulk: has("adherence.bulk_update"),
         reconcile: has("adherence.reconcile"),
         import: has("adherence.import"),
+        export: has("adherence.export"),
         manageTargets: has("adherence.manage_targets"),
         manageRules: has("adherence.manage_rules"),
         viewAudit: has("adherence.view_audit"),

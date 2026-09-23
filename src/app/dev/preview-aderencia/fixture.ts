@@ -1,5 +1,5 @@
 import type {
-  AdherenceOptions, AdherenceSummary, HeatmapDay, JourneyRow, MatrixPage, MatrixRow, RequestsPage,
+  AdherenceInsights, AdherenceMonthly, AdherenceOptions, AdherenceSummary, HeatmapDay, ImportHistoryRow, JourneyRow, MatrixPage, MatrixRow, RequestsPage, ReturnTracking,
 } from "@/lib/adherence/queries";
 
 /**
@@ -87,23 +87,25 @@ export const JOURNEY: JourneyRow[] = VEHICLES.map((v, i) => ({
 
 export const REQUESTS: RequestsPage = {
   stats: {
-    total: 3, pending: 1, approved: 1, rejected: 1, avgWaitHours: 14.5,
+    total: 4, pending: 2, approved: 1, rejected: 1, avgWaitHours: 14.5,
     byOperation: [
-      { key: "op1", label: "Last Mille MG", total: 1, pending: 0 },
+      { key: "op1", label: "Last Mille MG", total: 2, pending: 1 },
       { key: "op2", label: "Merchandising", total: 1, pending: 1 },
       { key: "op3", label: "Redespacho - Belém/Pa", total: 1, pending: 0 },
     ],
     byLeader: [
       { key: "l1", label: "Flaviano Lucio Dos Santos", total: 1, pending: 1 },
       { key: "l2", label: "Leandro Carvalho Silva", total: 1, pending: 0 },
-      { key: "l3", label: "Walace Rocha De Souza", total: 1, pending: 0 },
+      { key: "l3", label: "Walace Rocha De Souza", total: 2, pending: 1 },
     ],
   },
-  total: 3, page: 1, pageSize: 100,
+  total: 4, page: 1, pageSize: 100,
   rows: [
     { id: "r1", obligationId: "v5-21", status: "pending", source: "leadership", isOverride: false, context: "saida", operationalDate: "2026-09-21", vehicleId: "v5", fleetCode: "FL145", licensePlate: "UHJ4I15", operationName: "Merchandising", cityName: "Uberlândia", brCode: "BR0241754", leaderName: "Flaviano Lucio Dos Santos", reasonCode: "MANUTENCAO", reasonName: "Manutenção", reasonEffect: "exclude", justification: "Veículo na oficina para troca de embreagem, OS 4471.", evidenceReference: "OS 4471", requestedAt: "2026-09-21T11:20:00Z", requestedByName: "Flaviano Lucio Dos Santos", decidedAt: null, decisionNote: null, decidedByName: null, obligationStatus: "NAO_FEZ_CHECKLIST", waitHours: 22.4 },
     { id: "r2", obligationId: "v4-20", status: "approved", source: "leadership", isOverride: false, context: "saida", operationalDate: "2026-09-20", vehicleId: "v4", fleetCode: "VA163", licensePlate: "SNT1A73", operationName: "Redespacho - Belém/Pa", cityName: "Belém", brCode: "Redespacho Belem/Pa_1", leaderName: "Leandro Carvalho Silva", reasonCode: "SEM_ROTA", reasonName: "Sem rota", reasonEffect: "exclude", justification: "Sem rota programada no sábado.", evidenceReference: null, requestedAt: "2026-09-20T13:00:00Z", requestedByName: "Leandro Carvalho Silva", decidedAt: "2026-09-21T09:10:00Z", decisionNote: "Confirmado com a programação.", decidedByName: "Gabriel Albino", obligationStatus: "SEM_ROTA", waitHours: 20.2 },
     { id: "r3", obligationId: "v1-18", status: "rejected", source: "leadership", isOverride: false, context: "saida", operationalDate: "2026-09-18", vehicleId: "v1", fleetCode: "VA116", licensePlate: "SNT8E16", operationName: "Last Mille MG", cityName: "Divinópolis", brCode: "BR0024107", leaderName: "Walace Rocha De Souza", reasonCode: "RESERVA", reasonName: "Frota reserva", reasonEffect: "exclude", justification: "Ficou de reserva.", evidenceReference: null, requestedAt: "2026-09-18T15:00:00Z", requestedByName: "Walace Rocha De Souza", decidedAt: "2026-09-19T08:00:00Z", decisionNote: "Havia rota programada para o veículo.", decidedByName: "Gabriel Albino", obligationStatus: "NAO_FEZ_CHECKLIST", waitHours: 17 },
+    // Segunda pendente, no retorno: a decisão em lote (§57) precisa de ao menos duas linhas selecionáveis e de contextos mistos para filtrar o novo motivo.
+    { id: "r4", obligationId: "v2-19", status: "pending", source: "leadership", isOverride: false, context: "retorno", operationalDate: "2026-09-19", vehicleId: "v2", fleetCode: "VA131", licensePlate: "SNT8G21", operationName: "Last Mille MG", cityName: "Contagem", brCode: "BR0024901", leaderName: "Walace Rocha De Souza", reasonCode: "EM_VIAGEM", reasonName: "Em viagem", reasonEffect: "exclude", justification: "Pernoite em Betim, retorno só no dia seguinte.", evidenceReference: null, requestedAt: "2026-09-20T07:45:00Z", requestedByName: "Walace Rocha De Souza", decidedAt: null, decisionNote: null, decidedByName: null, obligationStatus: "NAO_FEZ_CHECKLIST", waitHours: 49.8 },
   ],
 };
 
@@ -164,4 +166,134 @@ export const LEADERS = [
   { id: "l1", name: "Flaviano Lucio Dos Santos" },
   { id: "l2", name: "Leandro Carvalho Silva" },
   { id: "l3", name: "Walace Rocha De Souza" },
+];
+
+/**
+ * Mês anterior (agosto, 31 dias, todos vencidos) e próximo (outubro, 31 dias,
+ * todos futuros) para a visualização de três meses do Heatmap (§28).
+ */
+function heatmapMonth(year: number, month: number, length: number, kind: "past" | "future"): HeatmapDay[] {
+  return Array.from({ length }, (_, i) => {
+    const day = i + 1;
+    const date = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const isFuture = kind === "future";
+    const denominator = isFuture ? 0 : 5 + (day % 2);
+    const numerator = isFuture ? 0 : Math.max(0, denominator - (day % 5 === 0 ? 2 : day % 3 === 0 ? 1 : 0));
+    return {
+      date, day, isToday: false, isFuture, obligations: isFuture ? 6 : denominator, done: numerator,
+      notDone: denominator - numerator, pendingReturn: 0, excluded: 0, pendingRequests: 0, numerator, denominator,
+      adherencePct: denominator > 0 ? Math.round((numerator / denominator) * 10000) / 100 : null,
+      targetPct: 90,
+    };
+  });
+}
+
+export const HEATMAP_PREV: HeatmapDay[] = heatmapMonth(2026, 8, 31, "past");
+export const HEATMAP_NEXT: HeatmapDay[] = heatmapMonth(2026, 10, 31, "future");
+
+/**
+ * Dashboard mensal de 2026 (§25): setembro é o mês corrente com o exemplo da
+ * §68 (8 de 9 = 88,89%); fevereiro não tem base; outubro em diante é futuro
+ * e nunca mostra resultado.
+ */
+function monthRow(month: number, numerator: number, denominator: number, extra: Partial<AdherenceMonthly["months"][number]> = {}): AdherenceMonthly["months"][number] {
+  const isFuture = month > 9;
+  const pct = denominator > 0 ? Math.round((numerator / denominator) * 10000) / 100 : null;
+  return {
+    month, isFuture, isCurrent: month === 9,
+    obligations: isFuture ? 180 : denominator + 4, done: numerator, notDone: denominator - numerator,
+    excluded: isFuture ? 0 : 3, pendingRequests: 0, numerator, denominator,
+    adherencePct: isFuture ? null : pct, targetPct: 90,
+    gapPct: isFuture || pct == null ? null : Math.round((pct - 90) * 100) / 100,
+    ...extra,
+  };
+}
+
+export const MONTHLY: AdherenceMonthly = {
+  year: 2026,
+  context: "saida",
+  months: [
+    monthRow(1, 152, 170),
+    monthRow(2, 0, 0, { obligations: 0, excluded: 0 }),
+    monthRow(3, 160, 175),
+    monthRow(4, 158, 168),
+    monthRow(5, 150, 172),
+    monthRow(6, 159, 170),
+    monthRow(7, 163, 176),
+    monthRow(8, 142, 164),
+    monthRow(9, 8, 9, { obligations: 156, excluded: 1, pendingRequests: 1 }),
+    monthRow(10, 0, 0),
+    monthRow(11, 0, 0),
+    monthRow(12, 0, 0),
+  ],
+  total: { numerator: 1092, denominator: 1204, excluded: 22, adherencePct: 90.7 },
+};
+
+/** Insights de setembro (§27), coerentes com SUMMARY: 88,89%, meta 90%, +2,30 pontos sobre agosto. */
+export const INSIGHTS: AdherenceInsights = {
+  competence: "Setembro/2026",
+  context: "saida",
+  today: TODAY,
+  isFutureMonth: false,
+  current: { adherencePct: 88.89, numerator: 8, denominator: 9, targetPct: 90, gapPct: -1.11, notDone: 1, excluded: 1, pendingRequests: 1 },
+  previous: { competence: "Agosto/2026", adherencePct: 86.59, numerator: 142, denominator: 164 },
+  variationPts: 2.3,
+  today_: { obligations: 6, done: 3, notDone: 3, provisional: 3, pendingRequests: 0 },
+  daysWithBase: 22,
+  daysBelowTarget: 9,
+  operationsBelowTarget: [
+    { key: "op1", label: "Last Mille MG", obligations: 90, done: 5, notDone: 1, excluded: 0, pendingRequests: 0, numerator: 5, denominator: 6, adherencePct: 83.33 },
+    { key: "op2", label: "Merchandising", obligations: 16, done: 6, notDone: 1, excluded: 0, pendingRequests: 1, numerator: 6, denominator: 7, adherencePct: 85.71 },
+  ],
+  citiesBelowTarget: [
+    { key: "3122306", label: "Divinópolis", obligations: 30, done: 4, notDone: 1, excluded: 0, pendingRequests: 0, numerator: 4, denominator: 5, adherencePct: 80 },
+  ],
+  operationsWithPending: [
+    { key: "op2", label: "Merchandising", obligations: 16, done: 1, notDone: 0, excluded: 0, pendingRequests: 1, numerator: 1, denominator: 1, adherencePct: 100 },
+  ],
+  bestOperation: { key: "op3", label: "Redespacho - Belém/Pa", obligations: 50, done: 2, notDone: 0, excluded: 1, pendingRequests: 0, numerator: 2, denominator: 2, adherencePct: 100 },
+  worstOperation: { key: "op1", label: "Last Mille MG", obligations: 90, done: 5, notDone: 1, excluded: 0, pendingRequests: 0, numerator: 5, denominator: 6, adherencePct: 83.33 },
+};
+
+/**
+ * Acompanhamento do Retorno (§46–§51): 10 previstos, 6 realizados, 2 aguardando
+ * retorno (saída feita, no prazo), 2 vencidos. A fila traz as quatro situações
+ * que a tela distingue — aguardando, sem saída, vencido após sair, vencido.
+ * Aderência = 6 / (10 − 0 expurgados − 2 no prazo) = 75%.
+ */
+export const RETURN_TRACKING: ReturnTracking = {
+  dateFrom: "2026-09-01", dateTo: "2026-09-30", today: TODAY,
+  stats: {
+    expected: 10, done: 6, pendingInDeadline: 2, awaitingReturn: 2, overdue: 2, excluded: 0, planned: 48,
+    pendingRequests: 1, departureDoneReturnMissing: 3, numerator: 6, denominator: 8, adherencePct: 75, targetPct: 90,
+  },
+  byLeader: [
+    { key: "l3", label: "Walace Rocha De Souza", expected: 6, done: 4, pending: 1, overdue: 1, excluded: 0, adherencePct: 80 },
+    { key: "l2", label: "Leandro Carvalho Silva", expected: 4, done: 2, pending: 1, overdue: 1, excluded: 0, adherencePct: 66.67 },
+  ],
+  rows: [
+    { id: "v1-22r", vehicleId: "v1", fleetCode: "VA116", licensePlate: "SNT8E16", operationalDate: "2026-09-22", operationName: "Last Mille MG", cityName: "Divinópolis", brCode: "BR0024107", leaderName: "Walace Rocha De Souza", expectedAt: "2026-09-22T21:00:00Z", deadlineAt: "2026-09-23T05:00:00Z", status: "RETORNO_PENDENTE", departureStatus: "FEZ_CHECKLIST", departureDone: true, pendingRequest: false, provisional: true, situation: "awaiting_return" },
+    { id: "v4-22r", vehicleId: "v4", fleetCode: "VA163", licensePlate: "SNT1A73", operationalDate: "2026-09-22", operationName: "Redespacho - Belém/Pa", cityName: "Belém", brCode: "Redespacho Belem/Pa_1", leaderName: "Leandro Carvalho Silva", expectedAt: "2026-09-22T21:00:00Z", deadlineAt: "2026-09-23T05:00:00Z", status: "RETORNO_PENDENTE", departureStatus: "NAO_FEZ_CHECKLIST", departureDone: false, pendingRequest: false, provisional: true, situation: "not_departed" },
+    { id: "v2-19r", vehicleId: "v2", fleetCode: "VA131", licensePlate: "SNT8G21", operationalDate: "2026-09-19", operationName: "Last Mille MG", cityName: "Contagem", brCode: "BR0024901", leaderName: "Walace Rocha De Souza", expectedAt: "2026-09-19T21:00:00Z", deadlineAt: "2026-09-20T05:00:00Z", status: "NAO_FEZ_CHECKLIST", departureStatus: "FEZ_CHECKLIST", departureDone: true, pendingRequest: true, provisional: false, situation: "overdue_after_departure" },
+    { id: "v6-18r", vehicleId: "v6", fleetCode: "VA170", licensePlate: "SNT8J46", operationalDate: "2026-09-18", operationName: "Redespacho - Belém/Pa", cityName: "Belém", brCode: "Redespacho Belem/Pa_2", leaderName: "Leandro Carvalho Silva", expectedAt: "2026-09-18T21:00:00Z", deadlineAt: "2026-09-19T05:00:00Z", status: "NAO_FEZ_CHECKLIST", departureStatus: "NAO_FEZ_CHECKLIST", departureDone: false, pendingRequest: false, provisional: false, situation: "overdue" },
+  ],
+  rowsTotal: 4,
+};
+
+/** Histórico de importações (§67): um lote limpo e um com duas linhas rejeitadas. */
+export const IMPORT_HISTORY: ImportHistoryRow[] = [
+  {
+    id: "imp2", fileName: "aderencia_setembro_v2.xlsx", status: "completed", totalRows: 120, validRows: 116, warningRows: 2, errorRows: 2,
+    createdRows: 110, skippedRows: 6, summary: { dateFrom: "2026-09-01", dateTo: "2026-09-21" }, errorMessage: null,
+    createdAt: "2026-09-22T12:40:00Z", processedAt: "2026-09-22T12:40:04Z", createdByName: "Gabriel Albino",
+    errors: [
+      { row: 37, message: "Veículo VA999 não encontrado na frota." },
+      { row: 88, message: "Status \"FEZ\" desconhecido; use o código do catálogo." },
+    ],
+  },
+  {
+    id: "imp1", fileName: "aderencia_setembro_v1.xlsx", status: "completed", totalRows: 96, validRows: 96, warningRows: 0, errorRows: 0,
+    createdRows: 96, skippedRows: 0, summary: { dateFrom: "2026-09-01", dateTo: "2026-09-15" }, errorMessage: null,
+    createdAt: "2026-09-16T09:05:00Z", processedAt: "2026-09-16T09:05:03Z", createdByName: "Gabriel Albino", errors: [],
+  },
 ];

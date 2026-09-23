@@ -4,7 +4,10 @@ import { revalidatePath } from "next/cache";
 import { requireOrganization, resolveOrganization } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import type { Json } from "@/types/database.types";
-import { getObligationDetail, type ObligationDetail } from "./queries";
+import {
+  getAdherenceDayDetail, getObligationDetail,
+  type AdherenceFilters, type ChecklistContext, type DayDetail, type ObligationDetail,
+} from "./queries";
 
 const MODULE_PATH = "/checklist/aderencia";
 
@@ -37,6 +40,7 @@ function toMessage(error: { code?: string; message?: string }, fallback: string)
 }
 
 type PayloadRpc =
+  | "decide_adherence_requests_bulk"
   | "request_adherence_exclusion"
   | "decide_adherence_request"
   | "cancel_adherence_request"
@@ -332,5 +336,134 @@ export async function resolveInconsistency(input: {
     { id: input.id, status: input.status, note: input.note ?? null },
     "Não foi possível tratar a inconsistência.",
     () => undefined,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Refinamento (Etapa 11): detalhe do dia, seleção por dias, decisões em lote
+// ---------------------------------------------------------------------------
+
+/** §31: o painel do dia do Heatmap, carregado ao selecionar a data. */
+export async function loadDayDetail(
+  date: string,
+  context: ChecklistContext,
+  filters: AdherenceFilters = {},
+): Promise<Result<DayDetail>> {
+  const resolved = await resolveOrganization("adherence.view");
+  if (!resolved) return { ok: false, error: "Sua sessão expirou ou o acesso mudou. Recarregue a página." };
+  try {
+    return { ok: true, data: await getAdherenceDayDetail(resolved.organization.organizationId, date, context, filters) };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Não foi possível carregar o dia." };
+  }
+}
+
+export interface SelectedObligations {
+  total: number;
+  selected: number;
+  truncated: boolean;
+  ids: string[];
+  byStatus: Record<string, number>;
+  eligible: number;
+}
+
+/**
+ * §40: as obrigações dos dias selecionados na matriz, com os mesmos filtros
+ * da tela — o que uma alteração em massa alcançaria. Leitura, sem escrita.
+ */
+export async function selectObligationsForDays(input: {
+  dates: string[];
+  context: ChecklistContext;
+  filters: AdherenceFilters;
+  limit?: number;
+}): Promise<Result<SelectedObligations>> {
+  const resolved = await resolveOrganization("adherence.view");
+  if (!resolved) return { ok: false, error: "Sua sessão expirou ou o acesso mudou. Recarregue a página." };
+  if (input.dates.length === 0) return { ok: false, error: "Selecione ao menos um dia." };
+  const supabase = await createClient();
+  const payload: Record<string, string> = {};
+  const f = input.filters;
+  if (f.operationId) payload.operation_id = f.operationId;
+  if (f.stateId) payload.state_id = f.stateId;
+  if (f.cityId) payload.city_id = f.cityId;
+  if (f.branchId) payload.organization_unit_id = f.branchId;
+  if (f.leaderEmployeeId) payload.leader_employee_id = f.leaderEmployeeId;
+  if (f.brId) payload.operation_br_id = f.brId;
+  if (f.vehicleTypeId) payload.vehicle_type_id = f.vehicleTypeId;
+  if (f.vehicleId) payload.vehicle_id = f.vehicleId;
+  if (f.status) payload.status = f.status;
+  if (f.q) payload.q = f.q.trim();
+  if (f.justification) payload.justification = f.justification;
+  const { data, error } = await supabase.rpc("adherence_select_obligations", {
+    p_organization_id: resolved.organization.organizationId,
+    p_dates: input.dates,
+    p_context: input.context,
+    p_filters: payload,
+    p_limit: input.limit ?? 500,
+  });
+  if (error) return { ok: false, error: toMessage(error, "Não foi possível selecionar as obrigações.") };
+  const r = obj(data);
+  const byStatus: Record<string, number> = {};
+  for (const [k, v] of Object.entries(obj(r.by_status))) byStatus[k] = num(v);
+  return {
+    ok: true,
+    data: {
+      total: num(r.total), selected: num(r.selected), truncated: r.truncated === true,
+      ids: Array.isArray(r.ids) ? (r.ids as unknown[]).map(String) : [], byStatus, eligible: num(r.eligible),
+    },
+  };
+}
+
+export type BulkDecisionOutcome =
+  | "applicable" | "applied" | "failed" | "not_found" | "not_pending" | "own_request" | "out_of_scope"
+  | "reason_not_applicable" | "has_execution" | "evidence_missing";
+
+export interface BulkDecisionReport {
+  preview: boolean;
+  decision: "approve" | "reject" | "reclassify";
+  total: number;
+  counts: Record<string, number>;
+  items: { id: string; outcome: BulkDecisionOutcome; message: string | null }[];
+}
+
+/**
+ * §57: aprovar, rejeitar ou reclassificar em lote. A prévia classifica cada
+ * item pelas mesmas regras da decisão individual; a gravação chama a rotina
+ * individual por item e devolve o resultado de cada um — nenhum conflito é
+ * ignorado por ter vindo em massa.
+ */
+export async function decideRequestsBulk(input: {
+  requestIds: string[];
+  decision: "approve" | "reject" | "reclassify";
+  note?: string | null;
+  newReasonCode?: string | null;
+  dryRun: boolean;
+}): Promise<Result<BulkDecisionReport>> {
+  return callRpc(
+    "adherence.approve",
+    "decide_adherence_requests_bulk",
+    {
+      request_ids: input.requestIds,
+      decision: input.decision,
+      note: input.note ?? null,
+      new_reason_code: input.newReasonCode ?? null,
+      dry_run: input.dryRun,
+    },
+    "Não foi possível decidir as solicitações.",
+    (raw) => {
+      const r = obj(raw);
+      const counts: Record<string, number> = {};
+      for (const [k, v] of Object.entries(obj(r.counts))) counts[k] = num(v);
+      return {
+        preview: r.preview === true,
+        decision: (String(r.decision ?? "approve") as BulkDecisionReport["decision"]),
+        total: num(r.total),
+        counts,
+        items: (Array.isArray(r.items) ? (r.items as unknown[]) : []).map((it) => {
+          const x = obj(it);
+          return { id: String(x.id ?? ""), outcome: String(x.outcome ?? "failed") as BulkDecisionOutcome, message: x.message == null ? null : String(x.message) };
+        }),
+      };
+    },
   );
 }

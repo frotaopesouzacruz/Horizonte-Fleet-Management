@@ -4559,6 +4559,32 @@ export type Database = {
         Args: { p_date: string; p_filters?: Json; p_organization_id: string }
         Returns: Json
       }
+      adherence_day_detail: {
+        Args: {
+          p_context?: string
+          p_date: string
+          p_filters?: Json
+          p_organization_id: string
+        }
+        Returns: Json
+      }
+      adherence_import_history: {
+        Args: {
+          p_limit?: number
+          p_organization_id: string
+        }
+        Returns: Json
+      }
+      adherence_insights: {
+        Args: {
+          p_context?: string
+          p_filters?: Json
+          p_month: number
+          p_organization_id: string
+          p_year: number
+        }
+        Returns: Json
+      }
       adherence_matrix: {
         Args: {
           p_context?: string
@@ -4567,6 +4593,15 @@ export type Database = {
           p_organization_id: string
           p_page?: number
           p_page_size?: number
+          p_year: number
+        }
+        Returns: Json
+      }
+      adherence_monthly: {
+        Args: {
+          p_context?: string
+          p_filters?: Json
+          p_organization_id: string
           p_year: number
         }
         Returns: Json
@@ -4609,6 +4644,26 @@ export type Database = {
         }
         Returns: Json
       }
+      adherence_return_tracking: {
+        Args: {
+          p_filters?: Json
+          p_from: string
+          p_limit?: number
+          p_organization_id: string
+          p_to: string
+        }
+        Returns: Json
+      }
+      adherence_select_obligations: {
+        Args: {
+          p_context?: string
+          p_dates: Json
+          p_filters?: Json
+          p_limit?: number
+          p_organization_id: string
+        }
+        Returns: Json
+      }
       adherence_summary: {
         Args: {
           p_context?: string
@@ -4630,6 +4685,13 @@ export type Database = {
       }
       decide_adherence_request: {
         Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      decide_adherence_requests_bulk: {
+        Args: {
+          p_organization_id: string
+          p_payload: Json
+        }
         Returns: Json
       }
       override_adherence_status: {
@@ -4687,6 +4749,15 @@ export type Database = {
       set_fidelization_assignment_status: {
         Args: { p_organization_id: string; p_payload: Json }
         Returns: Json
+      }
+      log_adherence_export: {
+        Args: {
+          p_format: string
+          p_kind?: string
+          p_organization_id: string
+          p_row_count: number
+        }
+        Returns: undefined
       }
       log_fidelization_export: {
         Args: {

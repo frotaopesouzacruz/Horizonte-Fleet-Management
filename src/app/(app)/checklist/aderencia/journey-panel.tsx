@@ -9,14 +9,20 @@ import { Button } from "@/components/ui/button";
 import {
   Table, TableBody, TableCell, TableContainer, TableEmpty, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import type { JourneyRow } from "@/lib/adherence/queries";
+import type { ChecklistContext, JourneyRow, ReturnTracking } from "@/lib/adherence/queries";
+import type { Competence } from "@/lib/governance/competence";
 import { formatDateBr, formatInt, JOURNEY_META, statusMeta } from "./status";
+import { ReturnTrackingPanel } from "./return-tracking-panel";
 import type { Navigate } from "./adherence-view";
 
 export interface JourneyPanelProps {
   rows: JourneyRow[];
   day: string;
   today: string;
+  context: ChecklistContext;
+  competence: Competence;
+  /** Acompanhamento do Retorno na competência (§46–§51); null quando não carregou. */
+  returnTracking: ReturnTracking | null;
   navigate: Navigate;
   pending: boolean;
   onSelect: (obligationId: string) => void;
@@ -31,15 +37,25 @@ function Step({ code }: { code: string | null }) {
 /**
  * Jornada (§53): Previsto → Saída → Em rota → Retorno, por veículo e dia.
  * Saída feita não é jornada completa; o retorno responde por si.
+ *
+ * Abaixo da tabela do dia vem o Acompanhamento do Retorno da competência
+ * (§46–§51); no contexto de retorno ele sobe para o topo, porque é o que a
+ * pessoa veio ver.
  */
-export function JourneyPanel({ rows, day, today, navigate, pending, onSelect }: JourneyPanelProps) {
+export function JourneyPanel({ rows, day, today, context, competence, returnTracking, navigate, pending, onSelect }: JourneyPanelProps) {
   const counts = React.useMemo(() => {
     const c: Record<string, number> = {};
     for (const r of rows) c[r.journey] = (c[r.journey] ?? 0) + 1;
     return c;
   }, [rows]);
 
+  const tracking = (
+    <ReturnTrackingPanel returnTracking={returnTracking} competence={competence} today={today} onSelect={onSelect} />
+  );
+
   return (
+    <div className="flex flex-col gap-5">
+    {context === "retorno" ? tracking : null}
     <Card>
       <CardContent className="flex flex-col gap-4 p-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -119,5 +135,7 @@ export function JourneyPanel({ rows, day, today, navigate, pending, onSelect }: 
         </TableContainer>
       </CardContent>
     </Card>
+    {context === "retorno" ? null : tracking}
+    </div>
   );
 }

@@ -30,14 +30,15 @@
 --           e justificativa, expurga e fica marcada (§23, §49)
 --   T14     alteração em massa com prévia: só o que é elegível (§50)
 --   T15     meta parametrizável e diferença para a meta (§36)
---   T16     execução sem obrigação vira inconsistência, nunca obrigação (§22)
+--   T16     execução sem obrigação vira inconsistência, nunca obrigação (§22);
+--           o tipo do veículo é habilitado no aplicativo só dentro da transação
 --   I1–I4   importação (2º bloco): prévia recusa status desconhecido, veículo
 --           desconhecido, data futura e evidência ausente; processar abre só
 --           solicitações PENDENTES sem solicitante; lote concluído não reprocessa;
 --           mesmo arquivo é reconhecido (§54–§56)
 --
 -- Última execução: 23/23 (bloco 1) + 4/4 (bloco 2) PASS contra o projeto de
--- desenvolvimento (22/09/2026). Cada bloco é um `do` próprio e termina em
+-- desenvolvimento (23/09/2026, após o refinamento da Etapa 11). Cada bloco é um `do` próprio e termina em
 -- ROLLBACK_TESTES: rode um de cada vez.
 -- As mensagens vão sem acento de propósito: voltam dentro de uma mensagem de
 -- erro do PostgreSQL, que atravessa clientes de codificação incerta.
@@ -45,7 +46,7 @@
 do $t$
 declare
   v_org uuid; v_user uuid; v_op uuid; v_merch uuid; v_van uuid; v_type uuid; v_today date;
-  v_car uuid; v_car_op uuid;
+  v_car uuid; v_car_op uuid; v_car_type uuid; v_app uuid;
   f jsonb; v_ans jsonb; v_res jsonb; v_res2 jsonb; v_key text; v_exec uuid; v_exec2 uuid;
   o record;
   v_ob uuid; v_ob_ret uuid; v_yest uuid; v_yest_ret uuid; v_req uuid; v_req2 uuid; v_old uuid;
@@ -329,6 +330,14 @@ begin
   else r := r || format('FAIL T15 target=%s gap=%s', v_res->>'target_pct', v_res->>'gap_pct')||chr(10); end if;
 
   -- T16
+  -- Frota Leve ADM e isenta por regra (sem obrigacao). Desde a Etapa 12 o tipo
+  -- precisa estar habilitado no aplicativo para o formulario abrir: o vinculo
+  -- e ligado so nesta transacao, para a execucao chegar pelo caminho oficial.
+  select a2.id into v_app from public.operational_apps a2
+   where a2.organization_id = v_org and a2.slug = 'check-list-frota' and a2.deleted_at is null;
+  select v.vehicle_type_id into v_car_type from public.vehicles v where v.id = v_car;
+  perform public.set_application_vehicle_type_link(v_org, jsonb_build_object(
+    'app_id', v_app, 'vehicle_type_id', v_car_type, 'is_enabled', true, 'effective_from', v_today));
   f := public.checklist_fleet_form(v_org, v_car, v_car_op);
   select jsonb_agg(jsonb_build_object('question_id', q->>'id', 'answer', 'yes',
            'conditional_value', case when q->'conditional'->>'trigger_answer' = 'yes'
