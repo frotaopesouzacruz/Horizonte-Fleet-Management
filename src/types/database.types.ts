@@ -5270,6 +5270,10 @@ export type Database = {
         Args: { p_organization_id: string; p_payload: Json }
         Returns: Json
       }
+      leadership_city_planner: {
+        Args: { p_month: number; p_organization_id: string; p_year: number }
+        Returns: Json
+      }
       leadership_indicators: {
         Args: {
           p_month: number
@@ -5478,6 +5482,19 @@ export type Database = {
           total: number
           uf: string
         }[]
+      }
+      set_city_leadership: {
+        Args: {
+          p_dry_run?: boolean
+          p_employee_id: string | null
+          p_from?: string
+          p_month: number
+          p_operation_city_id: string
+          p_organization_id: string
+          p_reason?: string | null
+          p_year: number
+        }
+        Returns: Json
       }
       set_branch_status: {
         Args: {

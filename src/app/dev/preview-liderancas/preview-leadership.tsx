@@ -1,10 +1,13 @@
 "use client";
 
+import * as React from "react";
 import { LeadershipView } from "@/app/(app)/governanca/liderancas/leadership-view";
 import type { LeaderScopeLoader } from "@/app/(app)/governanca/liderancas/leader-scope-drawer";
 import type { BrEntry, CoverageEntry } from "@/components/governance/scope-picker";
 import type { LeadershipIndicators, LeadershipRow } from "@/lib/governance/queries";
 import type { LeadershipScopeSummary } from "@/lib/governance/brs";
+import type { CityLeadershipSaver } from "@/lib/governance/leadership-planner-types";
+import { applyCityLeadership, plannerFixture } from "./fixture-planner";
 
 /**
  * A tela recebe uma função (o carregador do escopo), e função não atravessa a
@@ -194,12 +197,32 @@ const scopeLoader: LeaderScopeLoader = async (employeeId, competence) => {
   };
 };
 
-export function PreviewLeadership() {
+export function PreviewLeadership({
+  tense = "current",
+  canManageHistorical = true,
+}: {
+  tense?: "current" | "past";
+  canManageHistorical?: boolean;
+}) {
+  // A matriz vive em memória: escolher uma pessoa muda o que a tela mostra,
+  // como o `router.refresh()` faria com o banco.
+  const [planner, setPlanner] = React.useState(() => plannerFixture(tense));
+  const plannerRef = React.useRef(planner);
+  const citySaver: CityLeadershipSaver = async (input) => {
+    const next = applyCityLeadership(plannerRef.current, input);
+    plannerRef.current = next.planner;
+    setPlanner(next.planner);
+    return next.result;
+  };
+
   return (
     <LeadershipView
       rows={ROWS}
       indicators={INDICATORS}
-      competence={{ year: 2026, month: 9 }}
+      planner={planner}
+      citySaver={citySaver}
+      canManageHistorical={canManageHistorical}
+      competence={tense === "past" ? { year: 2026, month: 8 } : { year: 2026, month: 9 }}
       operations={OPERATIONS}
       coverage={COVERAGE}
       brs={BRS}

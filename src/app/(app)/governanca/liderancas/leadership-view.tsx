@@ -2,30 +2,25 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  CalendarClock, CopyCheck, Gauge, Layers, ListTree, MapPin, MapPinOff, Pencil, Plus, ShieldCheck,
-  Square, UserRound, Users,
-} from "lucide-react";
+import { CopyCheck, Gauge, Layers, ListTree, MapPin, Plus, Users } from "lucide-react";
 import { PageContent, PageHeader } from "@/components/layout/page-header";
-import { Button, IconButton } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { FilterBar } from "@/components/ui/filter-bar";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table, TableBody, TableCell, TableContainer, TableEmpty, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
-import { useToast } from "@/components/feedback/toast";
-import { useConfirm } from "@/components/feedback/confirm-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/feedback/alert";
 import { CompetencePicker } from "@/components/governance/competence-picker";
 import { NativeSelect } from "@/components/governance/selects";
 import type { BrEntry, CoverageEntry } from "@/components/governance/scope-picker";
-import { endLeadership } from "@/lib/governance/actions";
 import type { LeadershipIndicators, LeadershipRow } from "@/lib/governance/queries";
-import { formatCompetence, monthEnd, type Competence } from "@/lib/governance/competence";
+import { formatCompetence, monthEnd, monthStart, type Competence } from "@/lib/governance/competence";
 import type { LeaderOption } from "@/lib/governance/leadership-export";
+import {
+  anchorDate, plannerIndicators,
+  type CityLeadershipSaver, type LeadershipPlanner, type PlannerCity, type PlannerLeader, type PlannerOperation,
+} from "@/lib/governance/leadership-planner-types";
 import {
   LeadershipFormDrawer,
   type LeadershipFormValue,
@@ -35,13 +30,10 @@ import {
 import { LeadershipExportMenu } from "./export-menu";
 import { ReplicateDialog } from "./replicate-dialog";
 import { LeaderScopeDrawer, type LeaderScopeLoader } from "./leader-scope-drawer";
+import { CityPlanner } from "./city-planner";
 
 const number = new Intl.NumberFormat("pt-BR");
 const percent = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
-
-/** "81,5%" em pt-BR; "—" quando não há local para cobrir. */
-const formatPct = (value: number | null | undefined): string =>
-  value === null || value === undefined ? "—" : `${percent.format(value)}%`;
 
 /** Quem a gaveta "o que esta liderança responde" descreve. */
 interface ScopeLeader {
@@ -56,27 +48,25 @@ function formatDate(value: string | null): string {
   return d ? `${d}/${m}/${y}` : value;
 }
 
-const SCOPE_LABEL: Record<string, string> = {
-  operation: "Operação",
-  city: "Cidade",
-  br: "BR",
-};
-
-/** What the scope reads as on screen: "Last Mile MG · MG · Contagem · BR 001". */
-function scopeLabel(row: LeadershipRow): string {
-  return [row.operationName, row.stateUf, row.cityName, row.brCode ? `BR ${row.brCode}` : null]
-    .filter(Boolean)
-    .join(" · ");
+/** Onde a pessoa responde, em poucas palavras: "Contagem/MG", "BR0024901 · Contagem/MG", "Toda a operação". */
+function placeLabel(row: LeadershipRow): string {
+  if (row.scopeLevel === "operation") return "Toda a operação";
+  const city = [row.cityName, row.stateUf].filter(Boolean).join("/");
+  return row.scopeLevel === "br" ? `${row.brCode ?? "BR"} · ${city}` : city;
 }
 
-/** Identity of a scope, mirroring the `scope_key` the database groups by. */
-function scopeKey(row: LeadershipRow): string {
-  return `${row.scopeLevel}:${row.operationBrId ?? row.operationCityId ?? row.operationId}`;
+/** O pedaço da competência em que valeu, quando não foi o mês inteiro. */
+function partOfMonth(row: LeadershipRow, first: string, last: string): string | null {
+  const from = row.effectiveFrom > first ? `desde ${formatDate(row.effectiveFrom)}` : null;
+  const to = row.effectiveTo && row.effectiveTo < last ? `até ${formatDate(row.effectiveTo)}` : null;
+  return [from, to].filter(Boolean).join(" ") || null;
 }
 
 export interface LeadershipViewProps {
   rows: LeadershipRow[];
   indicators: LeadershipIndicators | null;
+  /** A matriz Tipo de Operação → Cidades; `null` quando a leitura falhou. */
+  planner: LeadershipPlanner | null;
   competence: Competence;
   operations: { id: string; name: string; status: string }[];
   coverage: CoverageEntry[];
@@ -103,19 +93,23 @@ export interface LeadershipViewProps {
   /** Idem para a prévia de impacto e para a gravação do formulário. */
   impactLoader?: LeadershipImpactLoader;
   saver?: LeadershipSaver;
+  /** Idem para a escolha da liderança de uma cidade no Planejamento. */
+  citySaver?: CityLeadershipSaver;
 }
 
 /**
  * Governança Operacional → Lideranças.
  *
- * The question this screen answers is "who answers for this, and since when" —
- * at three levels, and for any month, not only the current one. Everything
- * here is a period, which is why a leader who changed mid-month shows up twice
- * and both rows are right.
+ * Duas perguntas, uma aba cada. "Planejamento": quem responde por cada cidade
+ * de cada tipo de operação na competência — a matriz do HFC, onde escolher a
+ * pessoa já grava. "Por liderança": o que cada pessoa responde, agrupado por
+ * ela ou por tipo de operação. Tudo lê e grava `leadership_assignments`: a
+ * designação não altera o Perfil de Acesso de ninguém.
  */
 export function LeadershipView({
   rows,
   indicators,
+  planner,
   competence,
   operations,
   coverage,
@@ -130,16 +124,18 @@ export function LeadershipView({
   scopeLoader,
   impactLoader,
   saver,
+  citySaver,
 }: LeadershipViewProps) {
   const router = useRouter();
   const params = useSearchParams();
-  const { toast } = useToast();
-  const confirm = useConfirm();
   const [pending, startTransition] = React.useTransition();
   const [formOpen, setFormOpen] = React.useState(false);
   const [replicateOpen, setReplicateOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<LeadershipFormValue | undefined>();
   const [scopeLeader, setScopeLeader] = React.useState<ScopeLeader | null>(null);
+  const [groupBy, setGroupBy] = React.useState<"leader" | "operation">(
+    params.get("agrupar") === "operacao" ? "operation" : "leader",
+  );
   // Bumped on every open so the form remounts with fresh state. Resetting it
   // from an effect instead would re-render the whole drawer a second time on
   // each open, and would leave the previous edit visible for that first frame.
@@ -166,16 +162,16 @@ export function LeadershipView({
     return [...seen.entries()].map(([id, uf]) => ({ id, uf })).sort((a, b) => a.uf.localeCompare(b.uf));
   }, [coverage, filters.operationId]);
 
-  const citiesOfState = React.useMemo(() => {
-    if (!filters.stateId) return [];
-    return coverage
-      .filter(
-        (c) =>
-          c.stateId === Number(filters.stateId) &&
-          (!filters.operationId || c.operationId === filters.operationId),
-      )
-      .sort((a, b) => a.cityName.localeCompare(b.cityName));
-  }, [coverage, filters.stateId, filters.operationId]);
+  /** As cidades da operação e do estado escolhidos — sem estado, todas as da operação (ou da organização). */
+  const citiesOfFilter = React.useMemo(() => {
+    const seen = new Map<number, { cityId: number; cityName: string; uf: string }>();
+    for (const c of coverage) {
+      if (filters.operationId && c.operationId !== filters.operationId) continue;
+      if (filters.stateId && c.stateId !== Number(filters.stateId)) continue;
+      seen.set(c.cityId, { cityId: c.cityId, cityName: c.cityName, uf: c.uf });
+    }
+    return [...seen.values()].sort((a, b) => a.cityName.localeCompare(b.cityName, "pt-BR"));
+  }, [coverage, filters.operationId, filters.stateId]);
 
   /** A query da tela, sem formato: a exportação recebe exatamente os mesmos filtros. */
   const exportQuery = React.useMemo(() => {
@@ -192,38 +188,53 @@ export function LeadershipView({
     return query.toString();
   }, [competence, filters]);
 
-  const active = rows.filter((r) => r.status === "active");
-  const history = rows.filter((r) => r.status !== "active");
+  const first = monthStart(competence);
+  const last = monthEnd(competence);
+  // O que valeu em algum dia da competência — encerrado no meio do mês também conta.
+  const visible = React.useMemo(() => rows.filter((r) => r.status !== "cancelled"), [rows]);
 
-  /** One line per scope, with its principal and its substitutes side by side (§21). */
-  const planning = React.useMemo(() => {
-    const groups = new Map<string, { sample: LeadershipRow; principal?: LeadershipRow; others: LeadershipRow[] }>();
-    for (const row of active) {
-      const key = scopeKey(row);
-      const group = groups.get(key) ?? { sample: row, others: [] };
-      if (row.responsibilityType === "principal") group.principal = row;
-      else group.others.push(row);
-      groups.set(key, group);
-    }
-    return [...groups.values()].sort((a, b) => scopeLabel(a.sample).localeCompare(scopeLabel(b.sample)));
-  }, [active]);
-
-  /** §22: what a given person answers for, from the links that actually exist. */
+  /** §22: o que cada pessoa responde, a partir dos vínculos que existem. */
   const byLeader = React.useMemo(() => {
     const map = new Map<string, { name: string; code: string | null; rows: LeadershipRow[] }>();
-    for (const row of active) {
-      const entry = map.get(row.employeeId) ?? {
-        name: row.employeeName,
-        code: row.employeeCode,
-        rows: [],
-      };
+    for (const row of visible) {
+      const entry = map.get(row.employeeId) ?? { name: row.employeeName, code: row.employeeCode, rows: [] };
       entry.rows.push(row);
       map.set(row.employeeId, entry);
     }
     return [...map.entries()]
       .map(([id, v]) => ({ id, ...v }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [active]);
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  }, [visible]);
+
+  /** Por tipo de operação: em cada operação, quais lideranças estão com quais cidades. */
+  const byOperation = React.useMemo(() => {
+    const ops = new Map<string, { name: string; leaders: Map<string, { name: string; code: string | null; rows: LeadershipRow[] }> }>();
+    for (const row of visible) {
+      const op = ops.get(row.operationId) ?? { name: row.operationName, leaders: new Map() };
+      const leader = op.leaders.get(row.employeeId) ?? { name: row.employeeName, code: row.employeeCode, rows: [] };
+      leader.rows.push(row);
+      op.leaders.set(row.employeeId, leader);
+      ops.set(row.operationId, op);
+    }
+    return [...ops.entries()]
+      .map(([id, op]) => ({
+        id,
+        name: op.name,
+        leaders: [...op.leaders.entries()]
+          .map(([employeeId, l]) => ({
+            employeeId,
+            ...l,
+            rows: [...l.rows].sort((a, b) => placeLabel(a).localeCompare(placeLabel(b), "pt-BR")),
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  }, [visible]);
+
+  const cards = React.useMemo(
+    () => (planner ? plannerIndicators(planner.operations, anchorDate(planner)) : null),
+    [planner],
+  );
 
   const openNew = () => {
     setEditing(undefined);
@@ -231,81 +242,54 @@ export function LeadershipView({
     setFormOpen(true);
   };
 
-  /** §35: o botão ao lado do nome abre o que aquela pessoa responde na competência. */
-  const openScope = (row: { employeeId: string; employeeName: string; employeeCode: string | null }) =>
-    setScopeLeader({ id: row.employeeId, name: row.employeeName, code: row.employeeCode });
+  /** §35: o que aquela pessoa responde na competência. */
+  const openScope = (leader: ScopeLeader) => setScopeLeader(leader);
 
-  const scopeButton = (row: { employeeId: string; employeeName: string; employeeCode: string | null }) => (
-    <IconButton
-      label={`O que esta liderança responde: ${row.employeeName}`}
-      variant="ghost"
-      size="sm"
-      onClick={() => openScope(row)}
-    >
-      <ListTree aria-hidden />
-    </IconButton>
-  );
-
-  const openEdit = (row: LeadershipRow) => {
+  /** Datas exatas e prévia de impacto de um vínculo de cidade do Planejamento. */
+  const openPlannerEdit = (operation: PlannerOperation, city: PlannerCity, leader: PlannerLeader) => {
     setEditing({
-      id: row.id,
-      employee: {
-        id: row.employeeId,
-        name: row.employeeName,
-        code: row.employeeCode,
-        operationName: row.operationName,
-      },
-      scopeLevel: row.scopeLevel,
-      operationId: row.operationId,
-      operationCityId: row.operationCityId,
-      operationBrId: row.operationBrId,
-      responsibilityType: row.responsibilityType,
-      effectiveFrom: row.effectiveFrom,
-      effectiveTo: row.effectiveTo,
-      notes: row.notes,
-      updatedAt: row.updatedAt,
+      id: leader.id,
+      employee: { id: leader.employeeId, name: leader.employeeName, code: leader.employeeCode, operationName: operation.name },
+      scopeLevel: "city",
+      operationId: operation.id,
+      operationCityId: city.operationCityId,
+      operationBrId: null,
+      responsibilityType: "principal",
+      effectiveFrom: leader.effectiveFrom,
+      effectiveTo: leader.effectiveTo,
+      notes: leader.notes,
+      updatedAt: leader.updatedAt,
     });
     setFormKey((k) => k + 1);
     setFormOpen(true);
   };
 
-  const end = async (row: LeadershipRow) => {
-    const suggested = monthEnd(competence);
-    const confirmed = await confirm({
-      title: `Encerrar a responsabilidade de ${row.employeeName}?`,
-      description: `A vigência passa a terminar em ${formatDate(suggested)}. O vínculo continua no histórico e nas consultas do período em que valeu — nada é apagado, e o colaborador não sai da sua operação.`,
-      confirmLabel: "Encerrar",
-      destructive: true,
-    });
-    if (!confirmed) return;
-
-    startTransition(async () => {
-      const result = await endLeadership(row.id, suggested, null);
-      if (result.ok) {
-        toast({ title: "Responsabilidade encerrada.", variant: "success" });
-        router.refresh();
-      } else {
-        toast({ title: result.error ?? "Não foi possível encerrar.", variant: "danger" });
-      }
-    });
-  };
+  const leaderScopeButton = (leader: { id: string; name: string; code: string | null }) => (
+    <Button
+      variant="outline"
+      size="sm"
+      leadingIcon={<ListTree />}
+      aria-label={`O que esta liderança responde: ${leader.name}`}
+      onClick={() => openScope(leader)}
+    >
+      O que responde
+    </Button>
+  );
 
   return (
     <>
       <PageHeader
         title="Lideranças"
-        description="Gerencie responsáveis e planeje a liderança das operações. A designação registra quem responde por cada escopo — ela não altera o Perfil de Acesso de ninguém."
-        primaryAction={
-          canManage && canAssign ? (
-            <Button leadingIcon={<Plus />} onClick={openNew}>
-              Novo vínculo
-            </Button>
-          ) : undefined
-        }
+        description="Planeje quem responde por cada cidade de cada tipo de operação. A designação registra quem responde — ela não altera o Perfil de Acesso de ninguém."
         secondaryActions={
-          canReplicate || canExport ? (
+          canReplicate || canExport || (canManage && canAssign) ? (
             <>
               {canExport ? <LeadershipExportMenu query={exportQuery} rowCount={rows.length} /> : null}
+              {canManage && canAssign ? (
+                <Button variant="ghost" leadingIcon={<Plus />} onClick={openNew}>
+                  Vínculo por período
+                </Button>
+              ) : null}
               {canReplicate ? (
                 <Button variant="secondary" leadingIcon={<CopyCheck />} onClick={() => setReplicateOpen(true)}>
                   Replicar competência
@@ -322,7 +306,7 @@ export function LeadershipView({
             </div>
 
             <div className="flex flex-col gap-1">
-              <span className="text-caption text-fg-muted">Operação</span>
+              <span className="text-caption text-fg-muted">Tipo de operação</span>
               <NativeSelect
                 fieldSize="sm"
                 aria-label="Filtrar por operação"
@@ -359,30 +343,16 @@ export function LeadershipView({
                 fieldSize="sm"
                 aria-label="Filtrar por cidade"
                 value={filters.cityId ?? ""}
-                disabled={!filters.stateId}
+                disabled={citiesOfFilter.length === 0}
                 onChange={(e) => navigate({ cidade: e.target.value || null })}
                 className="min-w-[11rem]"
               >
-                <option value="">{filters.stateId ? "Todas" : "Escolha o estado"}</option>
-                {citiesOfState.map((c) => (
-                  <option key={c.cityId} value={c.cityId}>{c.cityName}</option>
+                <option value="">Todas</option>
+                {citiesOfFilter.map((c) => (
+                  <option key={c.cityId} value={c.cityId}>
+                    {filters.stateId ? c.cityName : `${c.cityName}/${c.uf}`}
+                  </option>
                 ))}
-              </NativeSelect>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <span className="text-caption text-fg-muted">Nível</span>
-              <NativeSelect
-                fieldSize="sm"
-                aria-label="Filtrar por nível de responsabilidade"
-                value={filters.scope ?? ""}
-                onChange={(e) => navigate({ nivel: e.target.value || null })}
-                className="min-w-[9rem]"
-              >
-                <option value="">Todos</option>
-                <option value="operation">Operação</option>
-                <option value="city">Cidade</option>
-                <option value="br">BR</option>
               </NativeSelect>
             </div>
 
@@ -403,23 +373,6 @@ export function LeadershipView({
                 ))}
               </NativeSelect>
             </div>
-
-            <div className="flex flex-col gap-1">
-              <span className="text-caption text-fg-muted">Situação</span>
-              <NativeSelect
-                fieldSize="sm"
-                aria-label="Filtrar por situação"
-                value={filters.status ?? ""}
-                onChange={(e) => navigate({ situacao: e.target.value || null })}
-                className="min-w-[10rem]"
-              >
-                <option value="">Todas</option>
-                <option value="current">Vigentes hoje</option>
-                <option value="active">Ativas na competência</option>
-                <option value="ended">Encerradas</option>
-                <option value="cancelled">Canceladas</option>
-              </NativeSelect>
-            </div>
           </FilterBar>
         }
       />
@@ -427,52 +380,27 @@ export function LeadershipView({
       <PageContent className="flex flex-col gap-5">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <KpiCard
-            label="Responsabilidades"
-            value={number.format(indicators?.assignments ?? active.length)}
-            period={formatCompetence(competence)}
-            icon={<ShieldCheck />}
-          />
-          <KpiCard
-            label="Lideranças distintas"
-            value={number.format(indicators?.leaders ?? byLeader.length)}
-            icon={<Users />}
-          />
-          <KpiCard
-            label="BRs com responsável"
-            value={
-              indicators
-                ? `${number.format(indicators.brsWithLeader)}/${number.format(indicators.brsTotal)}`
-                : "—"
-            }
-            period="Principal vigente na competência"
+            label="Locais de operação"
+            value={cards ? number.format(cards.places) : "—"}
+            period="Cidades das operações ativas"
             icon={<MapPin />}
           />
           <KpiCard
-            label="Substitutos e apoio"
-            value={number.format(indicators?.substitutes ?? 0)}
-            icon={<UserRound />}
-          />
-
-          {/* §12: um local (operação × cidade) sem liderança principal é uma
-              pendência, e a cobertura é a razão que a resume. "Sob
-              responsabilidade" é o que as lideranças alcançam na data-âncora —
-              BRs, e os veículos e motoristas que passam por elas. */}
-          <KpiCard
-            label="Locais sem liderança"
-            value={number.format(indicators?.placesWithoutLeader ?? 0)}
-            status={(indicators?.placesWithoutLeader ?? 0) > 0 ? "warning" : undefined}
+            label="Atribuídos no mês"
+            value={cards ? `${number.format(cards.assigned)}/${number.format(cards.places)}` : "—"}
+            status={cards && cards.assigned < cards.places ? "warning" : undefined}
             period={
-              indicators
-                ? `${number.format(indicators.placesWithLeader)} de ${number.format(indicators.placesTotal)} com liderança`
-                : "—"
+              cards?.coveragePct !== null && cards?.coveragePct !== undefined
+                ? `Cobertura ${percent.format(cards.coveragePct)}% · ${formatCompetence(competence)}`
+                : formatCompetence(competence)
             }
-            icon={<MapPinOff />}
+            icon={<Gauge />}
           />
           <KpiCard
-            label="Cobertura"
-            value={formatPct(indicators?.coveragePct)}
-            period="Locais com liderança principal"
-            icon={<Gauge />}
+            label="Lideranças envolvidas"
+            value={cards ? number.format(cards.leaders) : "—"}
+            period="Pessoas distintas nas cidades"
+            icon={<Users />}
           />
           <KpiCard
             label="Sob responsabilidade"
@@ -487,212 +415,65 @@ export function LeadershipView({
           />
         </div>
 
-        <Tabs defaultValue="planejamento">
+        <Tabs defaultValue={params.get("aba") === "liderancas" ? "liderancas" : "planejamento"}>
           <TabsList>
             <TabsTrigger value="planejamento">Planejamento</TabsTrigger>
-            <TabsTrigger value="responsabilidades">Responsabilidades</TabsTrigger>
             <TabsTrigger value="liderancas">Por liderança</TabsTrigger>
-            <TabsTrigger value="historico">Histórico</TabsTrigger>
           </TabsList>
 
           {/* ------------------------------------------------ planejamento */}
           <TabsContent value="planejamento">
-            <Card>
-              <CardContent className="p-0">
-                <TableContainer className="rounded-none border-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead style={{ width: 90 }}>Nível</TableHead>
-                        <TableHead>Escopo</TableHead>
-                        <TableHead style={{ width: 220 }}>Liderança principal</TableHead>
-                        <TableHead style={{ width: 220 }}>Substituto / apoio</TableHead>
-                        <TableHead style={{ width: 170 }}>Vigência</TableHead>
-                        <TableHead style={{ width: 96 }}>Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {planning.length === 0 ? (
-                        <TableEmpty
-                          colSpan={6}
-                          icon={<ShieldCheck />}
-                          message={`Nenhuma responsabilidade vigente em ${formatCompetence(competence)}.`}
-                        />
-                      ) : (
-                        planning.map((group) => {
-                          const row = group.principal ?? group.sample;
-                          return (
-                            <TableRow key={scopeKey(group.sample)} className="h-(--table-row-height)">
-                              <TableCell>
-                                <Badge variant="neutral" appearance="soft">
-                                  {SCOPE_LABEL[group.sample.scopeLevel]}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="font-medium text-fg">
-                                {scopeLabel(group.sample)}
-                              </TableCell>
-                              <TableCell>
-                                {group.principal ? (
-                                  <span className="flex items-center gap-1">
-                                    <span className="min-w-0 truncate" title={group.principal.employeeName}>
-                                      {group.principal.employeeName}
-                                    </span>
-                                    {scopeButton(group.principal)}
-                                  </span>
-                                ) : (
-                                  <span className="text-fg-muted">Sem responsável principal</span>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                {group.others.length === 0 ? (
-                                  <span className="text-fg-muted">—</span>
-                                ) : (
-                                  group.others.map((o) => (
-                                    <span key={o.id} className="block truncate text-body-sm">
-                                      {o.employeeName}
-                                      <span className="text-fg-muted">
-                                        {" "}
-                                        ({o.responsibilityType === "substitute" ? "substituto" : "apoio"})
-                                      </span>
-                                    </span>
-                                  ))
-                                )}
-                              </TableCell>
-                              <TableCell className="text-body-sm text-fg-secondary">
-                                {formatDate(row.effectiveFrom)} —{" "}
-                                {row.effectiveTo ? formatDate(row.effectiveTo) : "em aberto"}
-                              </TableCell>
-                              <TableCell>
-                                {canManage && group.principal ? (
-                                  <div className="flex gap-1">
-                                    <IconButton
-                                      label="Editar responsabilidade"
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => openEdit(group.principal!)}
-                                    >
-                                      <Pencil />
-                                    </IconButton>
-                                    <IconButton
-                                      label="Encerrar responsabilidade"
-                                      variant="ghost"
-                                      size="sm"
-                                      disabled={pending}
-                                      onClick={() => end(group.principal!)}
-                                    >
-                                      <Square />
-                                    </IconButton>
-                                  </div>
-                                ) : null}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* ------------------------------------------- responsabilidades */}
-          <TabsContent value="responsabilidades">
-            <Card>
-              <CardContent className="p-0">
-                <TableContainer className="rounded-none border-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead style={{ width: 220 }}>Colaborador</TableHead>
-                        <TableHead style={{ width: 90 }}>Nível</TableHead>
-                        <TableHead>Escopo</TableHead>
-                        <TableHead style={{ width: 130 }}>Função</TableHead>
-                        <TableHead style={{ width: 170 }}>Vigência</TableHead>
-                        <TableHead style={{ width: 110 }}>Situação</TableHead>
-                        <TableHead style={{ width: 96 }}>Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {active.length === 0 ? (
-                        <TableEmpty colSpan={7} icon={<ShieldCheck />} message="Nenhuma responsabilidade nesta competência." />
-                      ) : (
-                        active.map((row) => (
-                          <TableRow key={row.id} className="h-(--table-row-height)">
-                            <TableCell>
-                              <span className="flex items-center gap-1">
-                                <span className="min-w-0 flex-1">
-                                  <span className="block truncate font-medium text-fg">{row.employeeName}</span>
-                                  {row.employeeCode ? (
-                                    <span className="block text-caption text-fg-muted">
-                                      Matrícula {row.employeeCode}
-                                    </span>
-                                  ) : null}
-                                </span>
-                                {scopeButton(row)}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="neutral" appearance="soft">
-                                {SCOPE_LABEL[row.scopeLevel]}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="truncate">{scopeLabel(row)}</TableCell>
-                            <TableCell>
-                              {row.isPrimary ? (
-                                <Badge variant="primary" appearance="soft">Principal</Badge>
-                              ) : (
-                                <Badge variant="neutral" appearance="soft">
-                                  {row.responsibilityType === "substitute" ? "Substituto" : "Apoio"}
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-body-sm text-fg-secondary">
-                              {formatDate(row.effectiveFrom)} —{" "}
-                              {row.effectiveTo ? formatDate(row.effectiveTo) : "em aberto"}
-                            </TableCell>
-                            <TableCell>
-                              <StatusBadge status={row.isCurrent ? "success" : "info"}>
-                                {row.isCurrent ? "Vigente hoje" : "Na competência"}
-                              </StatusBadge>
-                            </TableCell>
-                            <TableCell>
-                              {canManage ? (
-                                <div className="flex gap-1">
-                                  <IconButton label="Editar" variant="ghost" size="sm" onClick={() => openEdit(row)}>
-                                    <Pencil />
-                                  </IconButton>
-                                  <IconButton
-                                    label="Encerrar"
-                                    variant="ghost"
-                                    size="sm"
-                                    disabled={pending}
-                                    onClick={() => end(row)}
-                                  >
-                                    <Square />
-                                  </IconButton>
-                                </div>
-                              ) : null}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
+            {planner ? (
+              <CityPlanner
+                planner={planner}
+                competence={competence}
+                filters={filters}
+                canPlan={canManage && canAssign}
+                canRemove={canManage}
+                canManageHistorical={canManageHistorical}
+                onEdit={openPlannerEdit}
+                saver={citySaver}
+              />
+            ) : (
+              <Alert variant="danger">
+                <AlertTitle>Não foi possível carregar o planejamento.</AlertTitle>
+                <AlertDescription>
+                  A aba Por liderança continua disponível. Recarregue a página; se o erro continuar, avise o administrador.
+                </AlertDescription>
+              </Alert>
+            )}
           </TabsContent>
 
           {/* -------------------------------------------------- por liderança */}
-          <TabsContent value="liderancas">
-            {byLeader.length === 0 ? (
+          <TabsContent value="liderancas" className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Agrupar por">
+              <span className="text-caption text-fg-muted">Agrupar por</span>
+              <Button
+                variant={groupBy === "leader" ? "secondary" : "ghost"}
+                size="sm"
+                aria-pressed={groupBy === "leader"}
+                onClick={() => setGroupBy("leader")}
+              >
+                Liderança
+              </Button>
+              <Button
+                variant={groupBy === "operation" ? "secondary" : "ghost"}
+                size="sm"
+                aria-pressed={groupBy === "operation"}
+                onClick={() => setGroupBy("operation")}
+              >
+                Tipo de operação
+              </Button>
+              <span className="ml-auto text-caption text-fg-muted">{formatCompetence(competence)}</span>
+            </div>
+
+            {visible.length === 0 ? (
               <Card>
                 <CardContent className="py-10 text-center text-body-sm text-fg-muted">
                   Nenhuma liderança designada nesta competência.
                 </CardContent>
               </Card>
-            ) : (
+            ) : groupBy === "leader" ? (
               <div className="grid gap-3 lg:grid-cols-2">
                 {byLeader.map((leader) => (
                   <Card key={leader.id}>
@@ -702,90 +483,86 @@ export function LeadershipView({
                           <p className="text-body font-medium text-fg">{leader.name}</p>
                           <p className="text-caption text-fg-muted">
                             {leader.code ? `Matrícula ${leader.code} · ` : ""}
-                            {leader.rows.length} escopo(s) sob responsabilidade
+                            {leader.rows.length === 1 ? "1 local" : `${leader.rows.length} locais`} na competência
                           </p>
                         </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          leadingIcon={<ListTree />}
-                          onClick={() =>
-                            openScope({ employeeId: leader.id, employeeName: leader.name, employeeCode: leader.code })
-                          }
-                        >
-                          O que responde
-                        </Button>
+                        {leaderScopeButton(leader)}
                       </div>
                       <ul className="flex flex-col gap-1.5">
-                        {leader.rows.map((row) => (
-                          <li key={row.id} className="flex items-start gap-2 text-body-sm">
-                            <Badge variant="neutral" appearance="soft" size="sm">
-                              {SCOPE_LABEL[row.scopeLevel]}
-                            </Badge>
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-fg">{scopeLabel(row)}</span>
-                              <span className="block text-caption text-fg-muted">
-                                {formatDate(row.effectiveFrom)} —{" "}
-                                {row.effectiveTo ? formatDate(row.effectiveTo) : "em aberto"}
-                                {row.isPrimary ? "" : " · substituto/apoio"}
+                        {leader.rows.map((row) => {
+                          const part = partOfMonth(row, first, last);
+                          return (
+                            <li key={row.id} className="flex items-start gap-2 text-body-sm">
+                              <Badge variant="neutral" appearance="soft" size="sm">
+                                {row.operationName}
+                              </Badge>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-fg">{placeLabel(row)}</span>
+                                {part || !row.isPrimary ? (
+                                  <span className="block text-caption text-fg-muted">
+                                    {[part, row.isPrimary ? null : "substituto/apoio"].filter(Boolean).join(" · ")}
+                                  </span>
+                                ) : null}
                               </span>
-                            </span>
-                          </li>
-                        ))}
+                            </li>
+                          );
+                        })}
                       </ul>
                     </CardContent>
                   </Card>
                 ))}
               </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {byOperation.map((op) => (
+                  <section
+                    key={op.id}
+                    aria-label={op.name}
+                    className="overflow-hidden rounded-md border border-border bg-surface"
+                  >
+                    <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
+                      <h3 className="text-body font-semibold text-fg">{op.name}</h3>
+                      <Badge variant="primary" appearance="soft" size="sm">
+                        {op.leaders.length === 1 ? "1 liderança" : `${op.leaders.length} lideranças`}
+                      </Badge>
+                    </header>
+                    <ul className="divide-y divide-border">
+                      {op.leaders.map((leader) => (
+                        <li
+                          key={leader.employeeId}
+                          className="flex flex-wrap items-start gap-x-4 gap-y-2 px-4 py-3"
+                          data-testid="operation-leader"
+                        >
+                          <div className="min-w-[12rem] flex-1 sm:max-w-[18rem]">
+                            <p className="font-medium text-fg">{leader.name}</p>
+                            {leader.code ? (
+                              <p className="text-caption text-fg-muted">Matrícula {leader.code}</p>
+                            ) : null}
+                          </div>
+                          <ul className="flex min-w-[12rem] flex-[2] flex-wrap gap-1.5" aria-label={`Locais de ${leader.name}`}>
+                            {leader.rows.map((row) => {
+                              const part = partOfMonth(row, first, last);
+                              return (
+                                <li key={row.id}>
+                                  <Badge variant="neutral" appearance="soft">
+                                    {placeLabel(row)}
+                                    {part ? ` (${part})` : ""}
+                                    {row.isPrimary ? "" : " · substituto/apoio"}
+                                  </Badge>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                          <div className="shrink-0">
+                            {leaderScopeButton({ id: leader.employeeId, name: leader.name, code: leader.code })}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ))}
+              </div>
             )}
-          </TabsContent>
-
-          {/* ------------------------------------------------------ histórico */}
-          <TabsContent value="historico">
-            <Card>
-              <CardContent className="p-0">
-                <TableContainer className="rounded-none border-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead style={{ width: 220 }}>Colaborador</TableHead>
-                        <TableHead>Escopo</TableHead>
-                        <TableHead style={{ width: 170 }}>Vigência</TableHead>
-                        <TableHead style={{ width: 110 }}>Situação</TableHead>
-                        <TableHead>Motivo</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {history.length === 0 ? (
-                        <TableEmpty
-                          colSpan={5}
-                          icon={<CalendarClock />}
-                          message="Nenhuma responsabilidade encerrada nesta competência."
-                        />
-                      ) : (
-                        history.map((row) => (
-                          <TableRow key={row.id} className="h-(--table-row-height)">
-                            <TableCell className="truncate font-medium text-fg">{row.employeeName}</TableCell>
-                            <TableCell className="truncate">{scopeLabel(row)}</TableCell>
-                            <TableCell className="text-body-sm text-fg-secondary">
-                              {formatDate(row.effectiveFrom)} — {formatDate(row.effectiveTo)}
-                            </TableCell>
-                            <TableCell>
-                              <StatusBadge status={row.status === "cancelled" ? "neutral" : "warning"}>
-                                {row.status === "cancelled" ? "Cancelada" : "Encerrada"}
-                              </StatusBadge>
-                            </TableCell>
-                            <TableCell className="text-body-sm text-fg-secondary">
-                              {row.endReason ?? "—"}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
           </TabsContent>
         </Tabs>
       </PageContent>

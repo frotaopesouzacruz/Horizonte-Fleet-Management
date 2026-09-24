@@ -10,6 +10,9 @@ import type { BrEntry, CoverageEntry } from "@/components/governance/scope-picke
 import type { LeadershipIndicators, LeadershipRow } from "@/lib/governance/queries";
 import type { LeadershipImpact } from "@/lib/governance/leadership-impact-types";
 import type { SaveLeadershipInput } from "@/lib/governance/actions";
+import { plannerFixture } from "@/app/dev/preview-liderancas/fixture-planner";
+
+const PLANNER = plannerFixture("current");
 
 /**
  * Dados fixos da prévia "Lideranças · impacto". Os números da prévia de
@@ -253,6 +256,7 @@ export function PreviewLeadershipImpact({
     <LeadershipView
       rows={rows}
       indicators={INDICATORS}
+      planner={PLANNER}
       competence={{ year: 2026, month: 9 }}
       operations={OPERATIONS}
       coverage={COVERAGE}

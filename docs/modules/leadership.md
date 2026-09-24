@@ -325,3 +325,66 @@ números da prévia contra o resolvedor oficial num período real (01/01 a
 17/09/2026: 38 BRs, 60 veículos, 1.156 obrigações) e as recusas por perfil,
 escopo e organização. `tests/ui/leadership-export-impact.spec.ts` cobre a tela
 em `/dev/preview-liderancas-impacto`.
+
+## 16. Planejamento por Tipo de Operação → Cidade (modelo do HFC, 24/09/2026)
+
+A tela passou a ter duas abas: **Planejamento** e **Por liderança**.
+"Responsabilidades" e "Histórico" saíram — o planejamento mostra quem valeu
+em cada parte do mês, e a trilha completa continua na auditoria e na
+exportação.
+
+**Planejamento** reproduz o "Planner de Lideranças Operacionais" do HFC
+([mapeamento](./hfc-governance-mapping.md#2-planner-de-lideranças)): um bloco
+por tipo de operação ativa (nome, código, "N cidades", "x de N com
+liderança"), uma linha por cidade (nome e UF) com o seletor de liderança e a
+lixeira. Os cartões são os do HFC — Locais de operação, Atribuídos no mês
+(com a cobertura) e Lideranças envolvidas — mais "Sob responsabilidade".
+
+* **Fonte única.** Não há tabela nova: as rotinas
+  `leadership_city_planner(org, ano, mês)` (leitura) e
+  `set_city_leadership(org, cidade, ano, mês, colaborador|null, …)` (escrita)
+  leem e gravam `leadership_assignments`, nível cidade, responsável principal
+  (migration `20260924170000_leadership_city_planner.sql`).
+* **Quem o seletor oferece.** Colaboradores ativos cujo vínculo funcional
+  atual é do perfil de negócio **Liderança Operações** (só nome e
+  matrícula). É conveniência de escolha: não concede permissão e não altera
+  Perfil de Acesso. Quem já responde pela cidade sem ser do perfil continua
+  aparecendo, marcado "(fora do perfil Liderança Operações)", e designar
+  alguém fora do perfil é aceito com aviso.
+* **De quando vale a escolha** (a rotina decide, a tela diz antes):
+  competência corrente → **de hoje em diante** (os dias que passaram
+  continuam com quem respondia); competência futura → do **dia 1º**;
+  competência passada → **correção histórica** do mês inteiro, com motivo e a
+  permissão `leadership.manage_historical_data`, e a liderança que vinha
+  depois do mês volta no mês seguinte.
+* **A nova liderança herda o restante da vigência que substitui**: se a
+  anterior estava em aberto, a nova fica em aberto (e aparece nos meses
+  seguintes); se era só do mês (por replicação), fica só do mês. Numa cidade
+  sem ninguém, a designação vale até o fim da competência — o mês seguinte se
+  resolve com "Replicar competência", como no HFC.
+* **Nada é apagado.** A anterior é encerrada na véspera (continua `active`
+  para os dias em que respondeu, que é o que os resolvedores de liderança
+  leem) ou cancelada, se começaria no mesmo dia. A lixeira encerra a
+  liderança a partir de hoje, com confirmação.
+* O lápis da linha abre a gaveta de vigência já existente (datas exatas e a
+  prévia de impacto da correção histórica, §15). "Vínculo por período"
+  continua disponível para substitutos, apoio, nível operação e exceção por BR.
+
+**Por liderança** agrupa o que cada pessoa responde na competência — por
+**liderança** (cartões) ou por **tipo de operação** (em cada operação, quais
+lideranças estão com quais cidades, com "desde"/"até" quando valeu só parte do
+mês).
+
+**Filtros**: competência, tipo de operação, estado, cidade e liderança. Os
+filtros de Estado e Cidade vinham vazios desde a Etapa 08: a cobertura era
+lida com `states(uf)` embutido a partir de `operation_cities`, que não tem
+chave estrangeira para `states` — o PostgREST respondia 400 (PGRST200) e a
+lista chegava vazia. A leitura agora segue `cities → states`. A Cidade não
+exige mais escolher o estado antes.
+
+Testes: `supabase/tests/remote/18_leadership_city_planner.sql` (17 casos:
+leitura, prévia, troca de hoje em diante, futura, remoção, cidade vazia,
+fora do perfil, correção histórica com e sem motivo, escopo da Liderança
+Operações, Gestão só leitura, Operacional sem acesso, organização trocada) e
+`tests/ui/leadership.spec.ts` em `/dev/preview-liderancas`
+(`?competencia=passada`, `?sem_historico=1`).

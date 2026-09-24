@@ -8,11 +8,13 @@ import {
 } from "@/lib/governance/queries";
 import { parseCompetence } from "@/lib/governance/competence";
 import { loadLeadershipScreen, readLeadershipFilters } from "@/lib/governance/leadership-export";
+import { getLeadershipCityPlanner } from "@/lib/governance/leadership-planner";
+import type { LeadershipPlanner } from "@/lib/governance/leadership-planner-types";
 import { LeadershipView } from "./leadership-view";
 
 export const metadata: Metadata = {
   title: "Lideranças",
-  description: "Responsáveis por operação, cidade e BR, com vigência e planejamento por competência.",
+  description: "Planejamento de lideranças por tipo de operação e cidade, por competência.",
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -41,14 +43,20 @@ export default async function LeadershipPage({
   // Os mesmos filtros que a exportação lê (Etapa 08 §20): o arquivo é a tela.
   const filters = readLeadershipFilters((key) => first(params, key));
 
-  const [{ rows, leaders }, options, brs, indicators] = await Promise.all([
-    loadLeadershipScreen(organization.organizationId, competence, filters),
-    getGovernanceOptions(organization.organizationId),
-    listOperationBrs(organization.organizationId),
-    // Losing the four cards is not a reason to lose the list under them.
-    getLeadershipIndicators(organization.organizationId, competence, filters.operationId).catch(
+  const orgId = organization.organizationId;
+  const [{ rows, leaders }, options, brs, indicators, planner] = await Promise.all([
+    loadLeadershipScreen(orgId, competence, filters),
+    getGovernanceOptions(orgId),
+    listOperationBrs(orgId),
+    // Losing the cards is not a reason to lose the list under them.
+    getLeadershipIndicators(orgId, competence, filters.operationId).catch(
       () => null as LeadershipIndicators | null,
     ),
+    // Nem o planejamento: sem ele a aba "Por liderança" continua de pé.
+    getLeadershipCityPlanner(orgId, competence).catch((error: unknown) => {
+      console.error("leadership_city_planner", error);
+      return null as LeadershipPlanner | null;
+    }),
   ]);
 
   const has = (code: string) => session.isPlatformAdmin || session.permissions.includes(code);
@@ -57,6 +65,7 @@ export default async function LeadershipPage({
     <LeadershipView
       rows={rows}
       indicators={indicators}
+      planner={planner}
       competence={competence}
       operations={options.operations}
       coverage={options.coverage}

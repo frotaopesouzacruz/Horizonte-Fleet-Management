@@ -531,3 +531,35 @@ Prévia: `/dev/preview-aderencia-minha-situacao` (`cenario` =
 Migration: `20260924150000_adherence_own_situation.sql` (ledger
 `adherence_own_situation`) — aditiva: uma permissão, dois padrões da matriz,
 uma função; nenhuma tabela criada ou alterada, nenhum dado apagado.
+
+## 20. Desempenho: "This page couldn't load" (24/09/2026)
+
+**Sintoma.** A página da Aderência não abria em produção. Os logs do banco
+mostravam `canceling statement due to statement timeout` nas RPCs summary,
+heatmap, matrix, monthly, insights e return_tracking: a página as chama em
+paralelo e o papel `authenticated` tem limite de 8 s.
+
+**Causa medida** (EXPLAIN ANALYZE como a pessoa real, 2.460 obrigações do
+mês): 1,63 s de 2,05 s no filtro da RLS `private.can_access_operation(operation_id)`,
+função `security definer` chamada uma vez por linha e que refaz
+`accessible_operation_ids()` a cada chamada; outros ~0,3 s em
+`adherence_today()` por linha na view `adherence_obligation_status`.
+
+**Correção** (`20260924160000_operation_scope_rls_performance.sql`): as
+políticas de `checklist_obligations`, `checklist_executions`,
+`leadership_assignments` e `operation_brs` usam
+`operation_id is not null and operation_id in (select private.accessible_operation_ids())`
+— a definição literal da função, avaliada uma vez por consulta — e a view lê
+"hoje" de `private.adherence_org_clock()` (uma linha por organização). As
+colunas e fórmulas da view não mudaram.
+
+Sequencial, pessoa real, setembro/2026: summary 4.582 → 136 ms, heatmap
+2.116 → 56, matrix 2.249 → 124, monthly 2.212 → 56, insights 12.893 → 344,
+return_tracking 4.388 → 257. A suíte `17_operation_scope_rls.sql` compara,
+linha a linha, o que a política antiga aceitava com o que a nova mostra para
+cinco perfis e quatro tabelas (20/20 iguais), confere a view (V1–V3) e o
+tempo (T1).
+
+Além disso, `(app)/error.tsx`: uma falha de servidor em qualquer página
+autenticada vira aviso em português dentro do app, com "Tentar novamente" e
+o código para o suporte, em vez da tela genérica do Next.

@@ -6,6 +6,9 @@ import { requireOrganization, resolveOrganization } from "@/lib/auth/session";
 import type { Json } from "@/types/database.types";
 import type { Competence } from "./competence";
 import {
+  mapCityLeadershipResult, type CityLeadershipInput, type CityLeadershipResult,
+} from "./leadership-planner-types";
+import {
   getBrDetail, getLeadershipScopeSummary, getVehicleBrHistory,
   type BrDetail, type LeadershipScopeSummary, type VehicleBrHistory,
 } from "./brs";
@@ -161,6 +164,40 @@ export async function endLeadership(
   if (error) return { ok: false, error: toMessage(error, "Não foi possível encerrar a responsabilidade.") };
   revalidatePath(LEADERSHIP_PATH);
   return { ok: true };
+}
+
+/**
+ * Planejamento de Lideranças: escolhe (ou remove, com `employeeId: null`) a
+ * liderança principal de uma cidade na competência.
+ *
+ * A rotina decide o período — de hoje na competência corrente, do dia 1º numa
+ * futura, o mês inteiro numa passada (correção histórica, com motivo) — e é
+ * ela quem encerra o vínculo anterior na véspera. Nada é apagado, e nenhum
+ * perfil de acesso muda.
+ */
+export async function setCityLeadership(input: CityLeadershipInput): Promise<Result<CityLeadershipResult>> {
+  const { organization } = await requireOrganization("leadership.manage");
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.rpc("set_city_leadership", {
+    p_organization_id: organization.organizationId,
+    p_operation_city_id: input.operationCityId,
+    p_year: input.competence.year,
+    p_month: input.competence.month,
+    p_employee_id: input.employeeId,
+    p_reason: input.reason ?? null,
+    p_dry_run: false,
+  });
+
+  if (error) return { ok: false, error: toMessage(error, "Não foi possível salvar a liderança da cidade.") };
+
+  const result = mapCityLeadershipResult(data);
+  if (result.action !== "unchanged") {
+    revalidatePath(LEADERSHIP_PATH);
+    // A liderança da cidade é a que a Fidelização e as BRs mostram (§43).
+    revalidateFidelization();
+  }
+  return { ok: true, data: result, warnings: result.warnings };
 }
 
 export interface ReplicationPreview {

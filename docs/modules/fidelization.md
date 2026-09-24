@@ -641,3 +641,20 @@ do perfil.
   correção histórica, edição por período, leituras, estabilidade, histórico
   de importações.
 * `20260924110000_fidelization_import_layouts.sql` — layouts salvos.
+
+## 18. Correção: a Central não abria (24/09/2026)
+
+`listDriverPlans` embutia `operations(name), cities(name), states(uf)` a partir
+de `operation_brs`, que só tem chave estrangeira para `operation_cities` — o
+PostgREST respondia 400 (PGRST200) e, como a leitura não tinha guarda, a página
+inteira caía em "This page couldn't load". A leitura agora segue
+`operation_brs → operation_cities → cities → states` pelas chaves existentes
+(com o nome da chave explícito), e o nome da operação vem de uma consulta
+própria. Se a leitura falhar de novo, só o Planner de Motoristas avisa — o
+resto da página continua. Os selects novos foram validados num PostgREST
+12.2.3 local com o mesmo grafo de chaves estrangeiras de produção.
+
+A mesma causa (`states(uf)` a partir de `operation_cities`) deixava vazios os
+filtros de Estado e Cidade da Fidelização, das BRs, das Lideranças e da
+Aderência — `getGovernanceOptions` agora lê `cities → states` e registra o erro
+em vez de engoli-lo.

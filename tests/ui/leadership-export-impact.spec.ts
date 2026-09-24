@@ -22,9 +22,10 @@ const toasts = (page: Page) => page.getByLabel("Notifications (F8)");
 const saves = (page: Page) =>
   page.evaluate(() => (window as unknown as { __leadershipSaves?: SavedInput[] }).__leadershipSaves ?? []);
 
+/** O lápis da cidade no Planejamento abre a gaveta de vigência do vínculo. */
 async function openEdit(page: Page, city: string) {
   await page
-    .getByRole("row")
+    .getByTestId("planner-city")
     .filter({ hasText: city })
     .first()
     .getByRole("button", { name: "Editar responsabilidade" })
@@ -104,14 +105,15 @@ test.describe("lideranças · exportação", () => {
     await expect(page.getByRole("button", { name: "Exportar" })).toHaveCount(0);
   });
 
-  test("os filtros Liderança e Situação existem, com rótulo", async ({ page }) => {
+  test("os filtros Estado, Cidade e Liderança existem, com rótulo e opções", async ({ page }) => {
     await page.goto(`${PREVIEW}?lideranca=emp-1`);
     const leader = page.getByLabel("Filtrar por liderança");
     await expect(leader).toHaveValue("emp-1");
     await expect(leader.locator("option")).toContainText(["Todas as lideranças", "Daniela Ferreira Lima (10234)"]);
-    await expect(page.getByLabel("Filtrar por situação").locator("option")).toContainText([
-      "Todas", "Vigentes hoje", "Ativas na competência", "Encerradas", "Canceladas",
-    ]);
+    await expect(page.getByLabel("Filtrar por estado").locator("option")).toContainText(["Todos", "MG", "PA"]);
+    await expect(page.getByLabel("Filtrar por cidade")).toBeEnabled();
+    // Responsabilidades e Histórico saíram: Nível e Situação não são mais filtros da tela.
+    await expect(page.getByLabel("Filtrar por situação")).toHaveCount(0);
   });
 });
 
