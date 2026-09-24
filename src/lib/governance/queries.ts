@@ -494,6 +494,9 @@ export interface GovernanceOptions {
 export async function getGovernanceOptions(organizationId: string): Promise<GovernanceOptions> {
   const supabase = await createClient();
 
+  // operation_cities has no key to `states` — the state arrives through the
+  // city (and through operation_states, which has no UF). Embedding `states`
+  // directly is a PostgREST 400, and the filters then show no state at all.
   const [operations, coverage] = await Promise.all([
     supabase
       .from("operations")
@@ -503,9 +506,11 @@ export async function getGovernanceOptions(organizationId: string): Promise<Gove
       .order("name"),
     supabase
       .from("operation_cities")
-      .select("id, operation_id, state_id, city_id, states(uf), cities(name)")
+      .select("id, operation_id, state_id, city_id, cities!operation_cities_city_fk(name, states!cities_state_id_fkey(uf))")
       .eq("organization_id", organizationId),
   ]);
+  if (operations.error) console.error("getGovernanceOptions: operations", operations.error.message);
+  if (coverage.error) console.error("getGovernanceOptions: operation_cities", coverage.error.message);
 
   return {
     operations: (operations.data ?? []).map((o) => ({
@@ -518,7 +523,7 @@ export async function getGovernanceOptions(organizationId: string): Promise<Gove
         operationId: c.operation_id as string,
         operationCityId: c.id as string,
         stateId: Number(c.state_id),
-        uf: (c.states as { uf?: string } | null)?.uf ?? "",
+        uf: (c.cities as { states?: { uf?: string } | null } | null)?.states?.uf ?? "",
         cityId: Number(c.city_id),
         cityName: (c.cities as { name?: string } | null)?.name ?? "",
       }))
@@ -570,25 +575,33 @@ export async function listDriverPlans(
   const first = monthStart(competence);
   const last = monthEnd(competence);
 
-  const { data, error } = await supabase
-    .from("fidelization_drivers")
-    .select(
-      `id, employee_id, driver_role, start_date, end_date, status,
-       fidelization_assignment_id,
-       employees(full_name, employee_code),
-       fidelization_assignments!inner(
-         operation_br_id, vehicle_id,
-         vehicles(fleet_code, license_plate),
-         operation_brs!inner(code, operation_id, city_id, state_id,
-           operations(name), cities(name), states(uf))
-       )`,
-    )
-    .eq("organization_id", organizationId)
-    .lte("start_date", last)
-    .or(`end_date.is.null,end_date.gte.${first}`)
-    .order("start_date", { ascending: false });
+  // operation_brs reaches its city through operation_cities (one composite
+  // key) and has no key to operations or states at all; the operation name
+  // comes from its own small query instead of an embed PostgREST rejects.
+  const [{ data, error }, operations] = await Promise.all([
+    supabase
+      .from("fidelization_drivers")
+      .select(
+        `id, employee_id, driver_role, start_date, end_date, status,
+         fidelization_assignment_id,
+         employees!fidelization_drivers_employee_fkey(full_name, employee_code),
+         fidelization_assignments!fidelization_drivers_assignment_fkey!inner(
+           operation_br_id, vehicle_id,
+           vehicles!fidelization_vehicle_fkey(fleet_code, license_plate),
+           operation_brs!fidelization_br_fkey!inner(code, operation_id, city_id, state_id,
+             operation_cities!operation_brs_coverage_fkey(
+               cities!operation_cities_city_fk(name, states!cities_state_id_fkey(uf))))
+         )`,
+      )
+      .eq("organization_id", organizationId)
+      .lte("start_date", last)
+      .or(`end_date.is.null,end_date.gte.${first}`)
+      .order("start_date", { ascending: false }),
+    supabase.from("operations").select("id, name").eq("organization_id", organizationId),
+  ]);
 
   if (error) throw new Error(error.message);
+  const operationName = new Map((operations.data ?? []).map((o) => [o.id as string, o.name as string]));
 
   type Nested = {
     operation_br_id: string;
@@ -598,9 +611,7 @@ export async function listDriverPlans(
       operation_id?: string;
       city_id?: number;
       state_id?: number;
-      operations?: { name?: string } | null;
-      cities?: { name?: string } | null;
-      states?: { uf?: string } | null;
+      operation_cities?: { cities?: { name?: string; states?: { uf?: string } | null } | null } | null;
     } | null;
   };
 
@@ -637,9 +648,9 @@ export async function listDriverPlans(
       status: (row.status as string) ?? "planned",
       brCode: br?.code ?? "",
       operationBrId: assignment?.operation_br_id ?? "",
-      cityName: br?.cities?.name ?? "",
-      stateUf: br?.states?.uf ?? "",
-      operationName: br?.operations?.name ?? "",
+      cityName: br?.operation_cities?.cities?.name ?? "",
+      stateUf: br?.operation_cities?.cities?.states?.uf ?? "",
+      operationName: operationName.get(br?.operation_id ?? "") ?? "",
       fleetCode: assignment?.vehicles?.fleet_code ?? null,
       licensePlate: assignment?.vehicles?.license_plate ?? null,
     };

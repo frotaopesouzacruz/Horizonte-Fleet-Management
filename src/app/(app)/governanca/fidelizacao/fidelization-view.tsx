@@ -80,7 +80,8 @@ const isTab = (value: string | null): value is TabValue =>
 export interface FidelizationViewProps {
   brs: OperationBrRow[];
   history: FidelizationRow[];
-  driverPlans: DriverPlanRow[];
+  /** `null` quando a leitura falhou: o Planner de Motoristas avisa, o resto da página segue. */
+  driverPlans: DriverPlanRow[] | null;
   hierarchy: HierarchyOperation[];
   indicators: FidelizationIndicators | null;
   stability: FidelizationStability | null;
@@ -464,7 +465,7 @@ export function FidelizationView({
 
           {/* -------------------------------------------- planner de motoristas */}
           <TabsContent value="motoristas" className="flex flex-col gap-4">
-            {matrix ? (
+            {matrix && driverPlans ? (
               <DriversPlanner
                 matrix={matrix}
                 driverPlans={driverPlans}

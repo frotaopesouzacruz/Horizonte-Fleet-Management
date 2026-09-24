@@ -143,9 +143,12 @@ export default async function FidelizationPage({
       cityId: filters.cityId,
     }),
     listFidelizationHistory(orgId, competence, filters),
-    listDriverPlans(orgId, competence, filters),
-    getGovernanceOptions(orgId),
     // Perder um painel nunca é motivo para perder a página inteira.
+    listDriverPlans(orgId, competence, filters).catch((error: unknown) => {
+      console.error("listDriverPlans", error);
+      return null;
+    }),
+    getGovernanceOptions(orgId),
     getOperationalHierarchy(orgId, filters.operationId).catch(() => [] as HierarchyOperation[]),
     getFidelizationIndicators(orgId, competence, filters).catch(
       () => null as FidelizationIndicators | null,
