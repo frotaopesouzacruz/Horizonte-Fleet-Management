@@ -389,7 +389,8 @@ acrescentados) além dos gatilhos de sempre; eventos `branch.imported` e
 
 `/estrutura/filiais/export?tipo=…&format=xlsx|csv`, com `tipo` =
 `todas` (todas as autorizadas), `filtradas` (os filtros da tela), `selecionadas`
-(até 500 ids marcados na lista), `operacoes` (a relação filial × operação, com
+(os ids marcados na lista, sem teto — enviados no corpo de um `POST`, não na
+URL), `operacoes` (a relação filial × operação, com
 vigência, inclusive vínculos encerrados) ou `modelo` (só cabeçalhos; também
 para quem só tem `branches.import`).
 

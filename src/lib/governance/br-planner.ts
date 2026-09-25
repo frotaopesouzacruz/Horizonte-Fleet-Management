@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import type { Competence } from "./competence";
 
 /**
@@ -113,16 +114,25 @@ export async function listBrPlannerRows(
   filters: BrPlannerFilters = {},
 ): Promise<BrPlannerRow[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("br_planner_rows", {
-    p_organization_id: organizationId,
-    p_year: competence.year,
-    p_month: competence.month,
-    p_filters: brPlannerPayload(filters),
-  });
+  // Todas as BRs, página a página: a API devolve até 1.000 linhas por vez,
+  // também de uma rotina. A ordem é a da rotina, com o id por desempate.
+  const data = await fetchAll((from, to) =>
+    supabase
+      .rpc("br_planner_rows", {
+        p_organization_id: organizationId,
+        p_year: competence.year,
+        p_month: competence.month,
+        p_filters: brPlannerPayload(filters),
+      })
+      .order("operation_name")
+      .order("state_uf")
+      .order("city_name")
+      .order("code")
+      .order("id")
+      .range(from, to),
+  );
 
-  if (error) throw new Error(error.message);
-
-  return (data ?? []).map(mapBrPlannerRow);
+  return data.map(mapBrPlannerRow);
 }
 
 export interface BrPlannerIndicators {

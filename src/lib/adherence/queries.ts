@@ -1100,11 +1100,13 @@ export async function getReturnTracking(
   from: string,
   to: string,
   filters: AdherenceFilters = {},
-  limit = 300,
+  /** Linhas da lista; `null` = todas (a exportação não tem teto). */
+  limit: number | null = 300,
 ): Promise<ReturnTracking> {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("adherence_return_tracking", {
-    p_organization_id: organizationId, p_from: from, p_to: to, p_filters: filtersPayload(filters), p_limit: limit,
+    p_organization_id: organizationId, p_from: from, p_to: to, p_filters: filtersPayload(filters),
+    p_limit: limit ?? 2147483647,
   });
   if (error) throw new Error(error.message);
   return mapReturnTracking(data);

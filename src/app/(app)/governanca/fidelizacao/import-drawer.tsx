@@ -16,13 +16,17 @@ import {
 import { Alert, AlertDescription } from "@/components/feedback/alert";
 import { useToast } from "@/components/feedback/toast";
 import { useConfirm } from "@/components/feedback/confirm-dialog";
+import { ImportProgress } from "@/components/feedback/import-progress";
 import type { Result } from "@/lib/governance/actions";
 import {
-  confirmImport, deleteImportLayout, inspectImportFile, listImportLayouts, saveImportLayout,
-  uploadAllocationImport, uploadBrImport,
+  deleteImportLayout, listImportLayouts, saveImportLayout,
   type AllocationImportPreview, type BrImportPreview, type ImportFileColumns, type ImportLayout,
   type ImportOutcome, type ImportPreview,
 } from "@/lib/governance/import-actions";
+import {
+  confirmFidelizationImport, inspectFidelizationFile, uploadFidelizationImport,
+} from "@/lib/governance/import-client";
+import type { ImportProgressHandler, ImportProgressState } from "@/lib/import/client";
 import { ColumnMappingPanel, mappingProblems, type HeaderMapping } from "./import-mapping";
 import {
   ALLOCATION_IMPORT_COLUMNS, BR_IMPORT_COLUMNS, type ImportKind,
@@ -42,8 +46,14 @@ import {
  */
 
 export interface ImportLoaders {
-  upload: (kind: ImportKind, formData: FormData) => Promise<Result<ImportPreview>>;
-  confirm: (kind: ImportKind, batchId: string) => Promise<Result<ImportOutcome>>;
+  /** Sem teto de linhas: lê no navegador e valida em partes, informando o progresso. */
+  upload: (kind: ImportKind, formData: FormData, onProgress?: ImportProgressHandler) => Promise<Result<ImportPreview>>;
+  confirm: (
+    kind: ImportKind,
+    batchId: string,
+    onProgress?: ImportProgressHandler,
+    expectedRows?: number,
+  ) => Promise<Result<ImportOutcome>>;
   /**
    * Mapeamento de colunas e layouts salvos (Etapa 15). Opcionais: sem
    * `inspect`, a gaveta reconhece as colunas só pelo nome, como na Etapa 13.
@@ -66,12 +76,9 @@ export interface ImportDrawerProps {
 }
 
 const defaultLoaders: ImportLoaders = {
-  upload: (kind, formData) =>
-    kind === "brs"
-      ? (uploadBrImport(formData) as Promise<Result<ImportPreview>>)
-      : (uploadAllocationImport(formData) as Promise<Result<ImportPreview>>),
-  confirm: (kind, batchId) => confirmImport(kind, batchId),
-  inspect: (kind, formData) => inspectImportFile(kind, formData),
+  upload: uploadFidelizationImport,
+  confirm: confirmFidelizationImport,
+  inspect: inspectFidelizationFile,
   listLayouts: (kind) => listImportLayouts(kind),
   saveLayout: (kind, name, mapping) => saveImportLayout(kind, name, mapping),
   deleteLayout: (layoutId) => deleteImportLayout(layoutId),
@@ -147,6 +154,7 @@ function ImportBody({
   const [preview, setPreview] = React.useState<ImportPreview | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [busy, startTransition] = React.useTransition();
+  const [progress, setProgress] = React.useState<ImportProgressState | null>(null);
   const [fileColumns, setFileColumns] = React.useState<ImportFileColumns | null>(null);
   const [headerMapping, setHeaderMapping] = React.useState<HeaderMapping>({});
   const [layouts, setLayouts] = React.useState<ImportLayout[]>([]);
@@ -228,7 +236,7 @@ function ImportBody({
     if (fileColumns) data.set("mapping", JSON.stringify(headerMapping));
     setError(null);
     startTransition(async () => {
-      const result = await loaders.upload(kind, data);
+      const result = await loaders.upload(kind, data, setProgress);
       if (result.ok && result.data) setPreview(result.data);
       else setError(result.error ?? "Não foi possível validar o arquivo.");
     });
@@ -254,7 +262,9 @@ function ImportBody({
     });
     if (!ok) return;
     startTransition(async () => {
-      const result = await loaders.confirm(preview.kind, preview.batchId);
+      const result = await loaders.confirm(
+        preview.kind, preview.batchId, setProgress, preview.validRows + preview.warningRows,
+      );
       if (result.ok && result.data) {
         const d = result.data;
         toast({
@@ -377,6 +387,8 @@ function ImportBody({
             busy={busy}
           />
         ) : null}
+
+        <ImportProgress progress={progress} />
 
         {error ? (
           <Alert variant="danger">

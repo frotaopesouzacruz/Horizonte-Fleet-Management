@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionContext, hasPermission } from "@/lib/auth/session";
-import { buildWorkbook, buildCsv } from "@/lib/admin/spreadsheet";
+import { spreadsheetResponse } from "@/lib/admin/spreadsheet";
 import { listBrPlannerRows, type BrPlannerFilters, type BrPlannerRow } from "@/lib/governance/br-planner";
 import { getBrDirectory } from "@/lib/governance/brs";
 import { listFidelizationHistory } from "@/lib/governance/queries";
@@ -19,7 +19,12 @@ import { ALLOCATION_TEMPLATE_HEADERS, BR_TEMPLATE_HEADERS } from "@/lib/governan
  * é uma segunda porta, mais larga, para os dados. Cada exportação é registrada
  * na auditoria. Os modelos vazios de importação (§56, §57) saem daqui também,
  * para quem tem `fidelization.import`.
+ *
+ * Sem teto de linhas: cada consulta é lida página a página até o fim, e o
+ * arquivo sai em fluxo.
  */
+
+export const maxDuration = 60;
 
 const PLANNER_HEADERS = [
   "Operação", "Estado", "Cidade", "Código BR", "Descrição", "Situação",
@@ -43,8 +48,6 @@ const MOVEMENT_ORIGIN: Record<string, string> = {
   user: "Usuário", import: "Importação", replication: "Replicação", system: "Sistema",
   reconstructed: "Reconstruído do histórico",
 };
-/** Teto do arquivo: 50 páginas de 200 eventos. Acima disso, a pessoa refina o filtro. */
-const MOVEMENT_EXPORT_PAGES = 50;
 
 const ASSIGNMENT_STATUS: Record<string, string> = {
   planned: "Planejado", confirmed: "Confirmado", executed: "Executado", cancelled: "Cancelado",
@@ -59,19 +62,6 @@ function formatDate(value: string | null | undefined): string {
   if (!value) return "";
   const [year, month, day] = value.split("-");
   return year && month && day ? `${day}/${month}/${year}` : value;
-}
-
-function fileResponse(buffer: Buffer, fileName: string, format: "xlsx" | "csv") {
-  return new NextResponse(new Uint8Array(buffer), {
-    headers: {
-      "Content-Type":
-        format === "csv"
-          ? "text/csv; charset=utf-8"
-          : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="${fileName}"`,
-      "Cache-Control": "no-store",
-    },
-  });
 }
 
 export async function GET(request: NextRequest) {
@@ -89,10 +79,13 @@ export async function GET(request: NextRequest) {
     if (!hasPermission(session, "fidelization.import")) {
       return NextResponse.json({ error: "Sem permissão para importar." }, { status: 403 });
     }
-    const headers = kind === "modelo-brs" ? BR_TEMPLATE_HEADERS : ALLOCATION_TEMPLATE_HEADERS;
-    const name = kind === "modelo-brs" ? "modelo-importacao-brs.xlsx" : "modelo-importacao-alocacoes.xlsx";
-    const buffer = await buildWorkbook(kind === "modelo-brs" ? "BRs" : "Alocações", headers, []);
-    return fileResponse(buffer, name, "xlsx");
+    return spreadsheetResponse({
+      format: "xlsx",
+      fileName: kind === "modelo-brs" ? "modelo-importacao-brs.xlsx" : "modelo-importacao-alocacoes.xlsx",
+      sheetName: kind === "modelo-brs" ? "BRs" : "Alocações",
+      headers: kind === "modelo-brs" ? BR_TEMPLATE_HEADERS : ALLOCATION_TEMPLATE_HEADERS,
+      rows: [],
+    });
   }
 
   if (!hasPermission(session, "fidelization.export")) {
@@ -136,8 +129,9 @@ export async function GET(request: NextRequest) {
       vehicle: params.get("mov_veiculo") ?? undefined,
       driver: params.get("mov_motorista") ?? undefined,
     };
+    // Todos os eventos do filtro, de 200 em 200, até o fim.
     const rows: MovementRow[] = [];
-    for (let page = 1; page <= MOVEMENT_EXPORT_PAGES; page += 1) {
+    for (let page = 1; ; page += 1) {
       const result = await listMovements(organizationId, movementFilters, page, 200);
       rows.push(...result.rows);
       if (rows.length >= result.total || result.rows.length === 0) break;
@@ -178,7 +172,7 @@ export async function GET(request: NextRequest) {
     let rows: BrPlannerRow[];
     if (filters.swapped) {
       rows = [];
-      for (let page = 0; page < 50; page += 1) {
+      for (let page = 0; ; page += 1) {
         const directory = await getBrDirectory(organizationId, competence, filters, {
           limit: 200,
           offset: page * 200,
@@ -212,13 +206,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Não foi possível registrar a exportação." }, { status: 403 });
   }
 
-  const buffer =
-    format === "csv"
-      ? buildCsv(headers, data)
-      : await buildWorkbook(
-          kind === "mobilizacoes" ? "Mobilizações" : kind === "historico" ? "Histórico" : "Planner",
-          headers,
-          data,
-        );
-  return fileResponse(buffer, name, format);
+  return spreadsheetResponse({
+    format,
+    fileName: name,
+    sheetName: kind === "mobilizacoes" ? "Mobilizações" : kind === "historico" ? "Histórico" : "Planner",
+    headers,
+    rows: data,
+  });
 }

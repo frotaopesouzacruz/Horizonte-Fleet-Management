@@ -1,17 +1,16 @@
 "use server";
 
-import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrganization } from "@/lib/auth/session";
-import { parseSpreadsheet } from "./spreadsheet";
+import { rawRow } from "@/lib/import/sheet-core";
+import type { StepResult } from "@/lib/import/client";
+import { clampLimit, stepError } from "@/lib/import/server";
 import { autoMapColumns, normalizeRow, QLP_COLUMNS, type CellValue, type QlpField } from "./qlp";
 import type { Result } from "./actions";
 import type { Json } from "@/types/database.types";
 
 const MODULE_PATH = "/administracao/usuarios";
-const MAX_ROWS = 20000;
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 export interface ImportPreview {
   batchId: string;
@@ -38,37 +37,30 @@ export interface ImportPreview {
 }
 
 /**
- * Stages an import file: parse, map, normalize, persist to staging, validate.
+ * Stages an import file, one part at a time: map, normalize, persist to
+ * staging. The browser reads the file and sends the rows in parts, so there is
+ * no row ceiling; the first part opens the batch.
  *
  * The file itself is never written anywhere. It is read in memory, turned into
  * staging rows that expire, and dropped — one copy of the personal data instead
  * of two, which is the whole point of the retention rule.
  */
-export async function uploadImportFile(formData: FormData): Promise<Result<ImportPreview>> {
+export interface EmployeeImportChunkInput {
+  batchId: string | null;
+  file: { name: string; size: number; hash: string };
+  sheetName: string;
+  headers: string[];
+  rows: CellValue[][];
+  /** Spreadsheet row number of the first row in this part (row 1 is the header). */
+  firstRowNumber: number;
+  mode: string;
+}
+
+export async function loadImportChunk(input: EmployeeImportChunkInput): Promise<StepResult<{ batchId: string }>> {
   const { organization } = await requireOrganization("users.import");
   const supabase = await createClient();
 
-  const file = formData.get("file");
-  const mode = String(formData.get("mode") ?? "create_update");
-  if (!(file instanceof File)) return { ok: false, error: "Selecione um arquivo." };
-  if (file.size === 0) return { ok: false, error: "O arquivo está vazio." };
-  if (file.size > MAX_FILE_BYTES) return { ok: false, error: "O arquivo excede 10 MB." };
-  if (!/\.(xlsx|csv)$/i.test(file.name)) return { ok: false, error: "Formato não suportado. Utilize XLSX ou CSV." };
-
-  const buffer = await file.arrayBuffer();
-  const fileHash = createHash("sha256").update(Buffer.from(buffer)).digest("hex");
-
-  let sheet;
-  try {
-    sheet = await parseSpreadsheet(buffer, file.name);
-  } catch {
-    return { ok: false, error: "Não foi possível ler o arquivo. Verifique se é um XLSX ou CSV válido." };
-  }
-
-  if (!sheet.rows.length) return { ok: false, error: "A planilha não possui linhas de dados." };
-  if (sheet.rows.length > MAX_ROWS) return { ok: false, error: `A planilha excede ${MAX_ROWS} linhas.` };
-
-  const { mapping, unmapped, missing } = autoMapColumns(sheet.headers);
+  const { mapping, missing } = autoMapColumns(input.headers);
   if (missing.length) {
     return {
       ok: false,
@@ -76,72 +68,84 @@ export async function uploadImportFile(formData: FormData): Promise<Result<Impor
     };
   }
 
-  // The same file processed twice is not blocked, only announced.
-  const { data: previous } = await supabase
-    .from("import_batches")
-    .select("id, created_at")
-    .eq("organization_id", organization.organizationId)
-    .eq("file_hash", fileHash)
-    .eq("status", "completed")
-    .limit(1);
-
-  const { data: batch, error: batchError } = await supabase
-    .from("import_batches")
-    .insert({
-      organization_id: organization.organizationId,
-      type: "employees",
-      mode,
-      status: "draft",
-      file_name: file.name,
-      file_hash: fileHash,
-      file_size: file.size,
-      column_mapping: Object.fromEntries(
-        Object.entries(mapping).map(([index, field]) => [sheet.headers[Number(index)] ?? index, field]),
-      ),
-    })
-    .select("id")
-    .single();
-
-  if (batchError || !batch) {
-    return { ok: false, error: "Não foi possível iniciar a importação. Verifique sua permissão." };
+  let batchId = input.batchId;
+  let created = false;
+  if (!batchId) {
+    const { data: batch, error: batchError } = await supabase
+      .from("import_batches")
+      .insert({
+        organization_id: organization.organizationId,
+        type: "employees",
+        mode: input.mode,
+        status: "draft",
+        file_name: input.file.name,
+        file_hash: input.file.hash,
+        file_size: input.file.size,
+        column_mapping: Object.fromEntries(
+          Object.entries(mapping).map(([index, field]) => [input.headers[Number(index)] ?? index, field]),
+        ),
+      })
+      .select("id")
+      .single();
+    if (batchError || !batch) {
+      return { ok: false, error: "Não foi possível iniciar a importação. Verifique sua permissão." };
+    }
+    batchId = batch.id;
+    created = true;
   }
 
   // Build staging rows: raw for traceability, normalized for the database.
-  const staged = sheet.rows.map((values, index) => {
-    const raw: Record<string, CellValue> = {};
+  const staged = input.rows.map((values, index) => {
     const mapped: Record<string, CellValue> = {};
-
-    sheet.headers.forEach((header, columnIndex) => {
-      const value = values[columnIndex] ?? null;
-      raw[header || `col_${columnIndex + 1}`] = value instanceof Date ? value.toISOString() : value;
+    input.headers.forEach((_, columnIndex) => {
       const field = mapping[columnIndex];
-      if (field) mapped[field] = value;
+      if (field) mapped[field] = values[columnIndex] ?? null;
     });
-
     return {
       organization_id: organization.organizationId,
-      batch_id: batch.id,
-      row_number: index + 2, // 1 is the header, as the file shows it
-      raw_data: raw as unknown as Json,
+      batch_id: batchId!,
+      row_number: input.firstRowNumber + index,
+      raw_data: rawRow(input.headers, values) as unknown as Json,
       normalized_data: normalizeRow(mapped) as unknown as Json,
     };
   });
 
-  for (let i = 0; i < staged.length; i += 500) {
-    const { error } = await supabase.from("import_rows").insert(staged.slice(i, i + 500));
-    if (error) {
-      await supabase.from("import_batches").delete().eq("id", batch.id);
-      return { ok: false, error: "Não foi possível preparar as linhas da importação." };
-    }
+  // A part sent twice (an answer lost on the way) does not duplicate rows.
+  const { error } = await supabase
+    .from("import_rows")
+    .upsert(staged, { onConflict: "batch_id,row_number", ignoreDuplicates: true });
+  if (error) {
+    if (created) await supabase.from("import_batches").delete().eq("id", batchId!);
+    return { ok: false, error: "Não foi possível preparar as linhas da importação." };
   }
+  return { ok: true, data: { batchId: batchId! } };
+}
 
-  const { data: validation, error: validationError } = await supabase
-    .rpc("validate_employee_import", { p_batch_id: batch.id })
+/** Validates the next `limit` pending rows, in file order. */
+export async function validateImportChunk(batchId: string, limit: number): Promise<StepResult<{ pending: number }>> {
+  await requireOrganization("users.import");
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .rpc("validate_employee_import", { p_batch_id: batchId, p_limit: clampLimit(limit) })
     .maybeSingle();
+  if (error) return stepError(error, () => "Não foi possível validar a importação.");
+  return { ok: true, data: { pending: data?.pending_rows ?? 0 } };
+}
 
-  if (validationError) {
-    await supabase.from("import_batches").delete().eq("id", batch.id);
-    return { ok: false, error: "Não foi possível validar a importação." };
+export async function finalizeImport(
+  batchId: string,
+  sheet: { fileName: string; sheetName: string; headers: string[]; mode: string },
+): Promise<StepResult<ImportPreview>> {
+  const { organization } = await requireOrganization("users.import");
+  const supabase = await createClient();
+
+  const { data: batch } = await supabase
+    .from("import_batches")
+    .select("status, file_hash")
+    .eq("id", batchId)
+    .maybeSingle();
+  if (!batch || batch.status !== "validated") {
+    return { ok: false, error: "A validação desta importação não terminou. Envie o arquivo novamente." };
   }
 
   /**
@@ -154,25 +158,50 @@ export async function uploadImportFile(formData: FormData): Promise<Result<Impor
    * information, and losing it is not a reason to reject a valid file.
    */
   const { data: divergences } = await supabase.rpc("flag_import_profile_divergences", {
-    p_batch_id: batch.id,
+    p_batch_id: batchId,
   });
 
-  // The flagger moves clean rows to "warning", so the counts are re-read.
-  const { data: recounted } = await supabase
-    .from("import_batches")
-    .select("total_rows, valid_rows, warning_rows, error_rows")
-    .eq("id", batch.id)
-    .maybeSingle();
+  const count = (action: string) =>
+    supabase.from("import_rows").select("id", { count: "exact", head: true }).eq("batch_id", batchId).eq("action", action);
 
-  const preview = await loadPreview(batch.id, {
-    fileName: file.name,
+  // The flagger moves clean rows to "warning", so the counts are read after it.
+  const [recounted, previous, creates, updates] = await Promise.all([
+    supabase
+      .from("import_batches")
+      .select("total_rows, valid_rows, warning_rows, error_rows")
+      .eq("id", batchId)
+      .maybeSingle(),
+    // The same file processed twice is not blocked, only announced.
+    batch.file_hash
+      ? supabase
+          .from("import_batches")
+          .select("id")
+          .eq("organization_id", organization.organizationId)
+          .eq("file_hash", batch.file_hash)
+          .eq("status", "completed")
+          .limit(1)
+      : Promise.resolve({ data: [] as { id: string }[] }),
+    count("create"),
+    count("update"),
+  ]);
+
+  const { mapping, unmapped } = autoMapColumns(sheet.headers);
+  const preview = await loadPreview(batchId, {
+    fileName: sheet.fileName,
     sheetName: sheet.sheetName,
-    mode,
+    mode: sheet.mode,
     mapping,
     headers: sheet.headers,
     unmapped: unmapped.map((u) => u.header),
-    alreadyImported: Boolean(previous?.length),
-    counts: { ...validation, ...(recounted ?? {}) },
+    alreadyImported: Boolean(previous.data?.length),
+    counts: {
+      total_rows: recounted.data?.total_rows ?? 0,
+      valid_rows: recounted.data?.valid_rows ?? 0,
+      warning_rows: recounted.data?.warning_rows ?? 0,
+      error_rows: recounted.data?.error_rows ?? 0,
+      create_rows: creates.count ?? 0,
+      update_rows: updates.count ?? 0,
+    },
     profileDivergences: Number(divergences ?? 0),
   });
 
@@ -252,27 +281,41 @@ async function loadPreview(
   };
 }
 
-export async function processImport(batchId: string): Promise<Result<{ created: number; updated: number; skipped: number }>> {
+/**
+ * Writes the next `limit` rows of a validated batch (people first, then their
+ * leaders, so a leader who came in the same file is found). The last part
+ * closes the batch; an interrupted batch resumes where it stopped.
+ */
+export async function processImportChunk(
+  batchId: string,
+  limit: number,
+): Promise<StepResult<{ done: boolean; remaining: number; outcome?: { created: number; updated: number; skipped: number } }>> {
   await requireOrganization("users.import");
   const supabase = await createClient();
 
-  const { data, error } = await supabase.rpc("process_employee_import", { p_batch_id: batchId }).maybeSingle();
-
+  const { data, error } = await supabase
+    .rpc("process_employee_import", { p_batch_id: batchId, p_limit: clampLimit(limit) })
+    .maybeSingle();
   if (error) {
-    await supabase
-      .from("import_batches")
-      .update({ status: "failed", error_message: error.message.slice(0, 500) })
-      .eq("id", batchId);
-    return { ok: false, error: "A importação falhou e nenhum registro foi alterado." };
+    return stepError(error, () =>
+      "A gravação parou nesta parte. O que já foi gravado continua gravado; confirme de novo para continuar.",
+    );
   }
+
+  const remaining = data?.remaining_rows ?? 0;
+  if (remaining > 0) return { ok: true, data: { done: false, remaining } };
 
   revalidatePath(MODULE_PATH);
   return {
     ok: true,
     data: {
-      created: data?.created_rows ?? 0,
-      updated: data?.updated_rows ?? 0,
-      skipped: data?.skipped_rows ?? 0,
+      done: true,
+      remaining: 0,
+      outcome: {
+        created: data?.created_rows ?? 0,
+        updated: data?.updated_rows ?? 0,
+        skipped: data?.skipped_rows ?? 0,
+      },
     },
   };
 }

@@ -1,156 +1,109 @@
 import "server-only";
 
+import { PassThrough, Readable } from "node:stream";
 import ExcelJS from "exceljs";
-import type { CellValue } from "./qlp";
-
-export interface SheetData {
-  sheetName: string;
-  headers: string[];
-  rows: CellValue[][];
-}
-
-/** Cell values come out of ExcelJS as rich objects; this is the scalar behind them. */
-function toCellValue(value: unknown): CellValue {
-  if (value === null || value === undefined) return null;
-  if (value instanceof Date) return value;
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
-
-  if (typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    if ("text" in record) return String(record.text ?? "");
-    if ("result" in record) return toCellValue(record.result); // formula
-    if ("richText" in record && Array.isArray(record.richText)) {
-      return record.richText.map((part) => String((part as { text?: string }).text ?? "")).join("");
-    }
-    if ("hyperlink" in record) return String(record.text ?? record.hyperlink ?? "");
-  }
-  return String(value);
-}
 
 /**
- * Reads the first non-empty sheet of an XLSX workbook, or a CSV file.
+ * Os arquivos que o HFM entrega: XLSX e CSV.
  *
- * Only the header row and the data rows are taken: formatting, formulas and
- * merged cells are the file's business, not ours.
+ * Exportação não tem teto de linhas, então o arquivo sai em fluxo — linha a
+ * linha para a resposta, sem montar a planilha inteira na memória. A leitura
+ * de planilhas (importação) mora em `@/lib/import/sheet-core`, e acontece no
+ * navegador.
  */
-export async function parseSpreadsheet(buffer: ArrayBuffer, fileName: string): Promise<SheetData> {
-  if (/\.csv$/i.test(fileName)) return parseCsv(Buffer.from(buffer).toString("utf8"));
 
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
+export type ExportCell = string | number | null;
+export type ExportFormat = "xlsx" | "csv";
 
-  const sheet =
-    workbook.worksheets.find((w) => w.name.toUpperCase() === "QLP") ??
-    workbook.worksheets.find((w) => w.actualRowCount > 1) ??
-    workbook.worksheets[0];
+const CONTENT_TYPE: Record<ExportFormat, string> = {
+  csv: "text/csv; charset=utf-8",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+};
 
-  if (!sheet) throw new Error("A planilha não contém nenhuma aba com dados.");
-
-  const headerRow = sheet.getRow(1);
-  const headers: string[] = [];
-  headerRow.eachCell({ includeEmpty: true }, (cell, index) => {
-    headers[index - 1] = String(toCellValue(cell.value) ?? "").trim();
-  });
-
-  const rows: CellValue[][] = [];
-  sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-    if (rowNumber === 1) return;
-    const values: CellValue[] = [];
-    for (let i = 1; i <= headers.length; i++) values[i - 1] = toCellValue(row.getCell(i).value);
-    if (values.some((v) => v !== null && v !== undefined && String(v).trim() !== "")) rows.push(values);
-  });
-
-  return { sheetName: sheet.name, headers, rows };
-}
-
-/** RFC 4180-ish: quoted fields, doubled quotes, comma or semicolon separated. */
-function parseCsv(text: string): SheetData {
-  const content = text.replace(/^﻿/, "");
-  const firstLine = content.slice(0, content.indexOf("\n") + 1 || content.length);
-  const delimiter = (firstLine.match(/;/g)?.length ?? 0) > (firstLine.match(/,/g)?.length ?? 0) ? ";" : ",";
-
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let quoted = false;
-
-  for (let i = 0; i < content.length; i++) {
-    const char = content[i];
-
-    if (quoted) {
-      if (char === '"') {
-        if (content[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else {
-          quoted = false;
-        }
-      } else {
-        field += char;
-      }
-      continue;
-    }
-
-    if (char === '"') quoted = true;
-    else if (char === delimiter) {
-      row.push(field);
-      field = "";
-    } else if (char === "\n") {
-      row.push(field);
-      rows.push(row);
-      row = [];
-      field = "";
-    } else if (char !== "\r") {
-      field += char;
+/** Largura de cada coluna pelo conteúdo mais longo, entre 12 e 46 caracteres. */
+function columnWidths(headers: string[], rows: ExportCell[][]): number[] {
+  const widths = headers.map((header) => header.length);
+  for (const row of rows) {
+    for (let i = 0; i < widths.length; i++) {
+      const length = row[i] == null ? 0 : String(row[i]).length;
+      if (length > widths[i]) widths[i] = length;
     }
   }
-  if (field !== "" || row.length) {
-    row.push(field);
-    rows.push(row);
-  }
-
-  const headers = (rows.shift() ?? []).map((h) => h.trim());
-  const data = rows
-    .filter((r) => r.some((value) => value.trim() !== ""))
-    .map((r) => headers.map((_, index) => (r[index] ?? "").trim() as CellValue));
-
-  return { sheetName: "CSV", headers, rows: data };
+  return widths.map((longest) => Math.min(46, Math.max(12, longest + 2)));
 }
 
-/** Builds an XLSX workbook in memory. Used by the exports and the template. */
-export async function buildWorkbook(
-  sheetName: string,
-  headers: string[],
-  rows: (string | number | null)[][],
-): Promise<Buffer> {
-  const workbook = new ExcelJS.Workbook();
+const yieldToLoop = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+/** XLSX em fluxo: cabeçalho em negrito e congelado, uma linha por vez. */
+function xlsxStream(sheetName: string, headers: string[], rows: ExportCell[][]): ReadableStream<Uint8Array> {
+  const output = new PassThrough();
+  const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: output, useStyles: true, useSharedStrings: false });
   workbook.creator = "Horizonte Fleet Management";
   workbook.created = new Date();
 
-  const sheet = workbook.addWorksheet(sheetName);
-  sheet.addRow(headers);
-  sheet.getRow(1).font = { bold: true };
-  sheet.getRow(1).alignment = { vertical: "middle" };
-  for (const row of rows) sheet.addRow(row);
+  const sheet = workbook.addWorksheet(sheetName, { views: [{ state: "frozen", ySplit: 1 }] });
+  sheet.columns = columnWidths(headers, rows).map((width) => ({ width }));
 
-  sheet.columns.forEach((column, index) => {
-    const header = headers[index] ?? "";
-    const longest = rows.reduce((max, row) => Math.max(max, String(row[index] ?? "").length), header.length);
-    column.width = Math.min(46, Math.max(12, longest + 2));
-  });
-  sheet.views = [{ state: "frozen", ySplit: 1 }];
+  void (async () => {
+    const header = sheet.addRow(headers);
+    header.font = { bold: true };
+    header.alignment = { vertical: "middle" };
+    header.commit();
+    for (let i = 0; i < rows.length; i++) {
+      sheet.addRow(rows[i]).commit();
+      if (i % 2000 === 1999) await yieldToLoop();
+    }
+    sheet.commit();
+    await workbook.commit();
+  })().catch((error: unknown) => output.destroy(error instanceof Error ? error : new Error(String(error))));
 
-  const buffer = await workbook.xlsx.writeBuffer();
-  return Buffer.from(buffer);
+  return Readable.toWeb(output) as unknown as ReadableStream<Uint8Array>;
 }
 
-/** CSV with a BOM, so Excel in pt-BR opens accented text correctly. */
-export function buildCsv(headers: string[], rows: (string | number | null)[][]): Buffer {
-  const escape = (value: string | number | null) => {
+/** CSV com BOM, para o Excel em pt-BR abrir acentos corretamente; separador ";". */
+function csvStream(headers: string[], rows: ExportCell[][]): ReadableStream<Uint8Array> {
+  const escape = (value: ExportCell) => {
     const text = value === null || value === undefined ? "" : String(value);
-    return /[";\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    return /[";\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
   };
+  const line = (row: ExportCell[]) => row.map(escape).join(";");
+  const encoder = new TextEncoder();
+  let next = -1;
 
-  const lines = [headers.map(escape).join(";"), ...rows.map((row) => row.map(escape).join(";"))];
-  return Buffer.from(`﻿${lines.join("\r\n")}`, "utf8");
+  return new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (next === -1) {
+        controller.enqueue(encoder.encode(`﻿${line(headers)}`));
+        next = 0;
+        return;
+      }
+      if (next >= rows.length) {
+        controller.close();
+        return;
+      }
+      const end = Math.min(rows.length, next + 1000);
+      let chunk = "";
+      for (; next < end; next++) chunk += `\r\n${line(rows[next])}`;
+      controller.enqueue(encoder.encode(chunk));
+    },
+  });
+}
+
+/** A planilha pronta para download, em fluxo. */
+export function spreadsheetResponse(options: {
+  format: ExportFormat;
+  fileName: string;
+  sheetName: string;
+  headers: string[];
+  rows: ExportCell[][];
+}): Response {
+  const { format, fileName, sheetName, headers, rows } = options;
+  const body = format === "csv" ? csvStream(headers, rows) : xlsxStream(sheetName, headers, rows);
+  return new Response(body, {
+    headers: {
+      "Content-Type": CONTENT_TYPE[format],
+      "Content-Disposition": `attachment; filename="${fileName}"`,
+      "Cache-Control": "no-store",
+    },
+  });
 }

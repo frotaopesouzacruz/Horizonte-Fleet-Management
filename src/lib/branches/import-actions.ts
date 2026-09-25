@@ -1,12 +1,13 @@
 "use server";
 
-import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { resolveOrganization } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
-import { parseSpreadsheet } from "@/lib/admin/spreadsheet";
+import type { CellValue } from "@/lib/admin/qlp";
+import { rawRow } from "@/lib/import/sheet-core";
+import type { StepResult } from "@/lib/import/client";
+import { clampLimit, stepError } from "@/lib/import/server";
 import type { Json } from "@/types/database.types";
-import type { Result } from "./actions";
 import {
   BRANCH_IMPORT_COLUMNS, BRANCH_REQUIRED, cellToText, mapColumns,
   type BranchImportField,
@@ -20,11 +21,13 @@ import {
  * recebido; `process_branch_import` grava o que a prévia prometeu, e só para
  * quem a validou. Nada aqui cria filial, vincula operação ou mexe em perfil de
  * acesso por conta própria — a §62 é o contrato daquelas duas rotinas.
+ *
+ * Sem teto de linhas: a planilha é lida no navegador e chega em partes; o
+ * banco valida e grava em partes, e a prévia é a mesma de um arquivo validado
+ * de uma vez.
  */
 
 const MODULE_PATH = "/estrutura/filiais";
-const MAX_ROWS = 5000;
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 const SESSION_LOST =
   "Sua sessão expirou ou o acesso mudou. Recarregue a página e tente de novo.";
@@ -172,40 +175,32 @@ function mapBranchImportRow(row: Raw): BranchImportRow {
   };
 }
 
-/** §58–§60 — envia o arquivo de filiais para validação e devolve a prévia. */
-export async function uploadBranchImport(formData: FormData): Promise<Result<BranchImportPreview>> {
+/** Uma parte do arquivo, como o navegador a leu. */
+export interface BranchImportChunkInput {
+  batchId: string | null;
+  file: { name: string; size: number; hash: string };
+  sheetName: string;
+  headers: string[];
+  rows: CellValue[][];
+  /** Número, na planilha, da primeira linha desta parte (a linha 1 é o cabeçalho). */
+  firstRowNumber: number;
+}
+
+/** §58 — grava uma parte do arquivo como linhas pendentes; a primeira abre o lote. */
+export async function stageBranchChunk(input: BranchImportChunkInput): Promise<StepResult<{ batchId: string }>> {
   const context = await resolveOrganization("branches.import");
   if (!context) return { ok: false, error: SESSION_LOST };
 
-  const file = formData.get("file");
-  if (!(file instanceof File)) return { ok: false, error: "Selecione um arquivo." };
-  if (file.size === 0) return { ok: false, error: "O arquivo está vazio." };
-  if (file.size > MAX_FILE_BYTES) return { ok: false, error: "O arquivo excede 10 MB." };
-  if (!/\.(xlsx|csv)$/i.test(file.name)) return { ok: false, error: "Formato não suportado. Utilize XLSX ou CSV." };
-
-  const buffer = await file.arrayBuffer();
-  const hash = createHash("sha256").update(Buffer.from(buffer)).digest("hex");
-  let sheet;
-  try {
-    sheet = await parseSpreadsheet(buffer, file.name);
-  } catch {
-    return { ok: false, error: "Não foi possível ler o arquivo. Verifique se é um XLSX ou CSV válido." };
-  }
-  if (!sheet.rows.length) return { ok: false, error: "A planilha não possui linhas de dados." };
-  if (sheet.rows.length > MAX_ROWS) return { ok: false, error: `A planilha excede ${MAX_ROWS} linhas.` };
-
-  const columns = mapColumns<BranchImportField>(sheet.headers, BRANCH_IMPORT_COLUMNS, BRANCH_REQUIRED);
+  const columns = mapColumns<BranchImportField>(input.headers, BRANCH_IMPORT_COLUMNS, BRANCH_REQUIRED);
   if (columns.missing.length) {
     return { ok: false, error: `Colunas obrigatórias não encontradas: ${columns.missing.join(", ")}.` };
   }
 
-  const rows: Json[] = sheet.rows.map((values, index) => {
-    const raw: Record<string, Json> = {};
+  const rows: Json[] = input.rows.map((values, index) => {
     const mapped: Partial<Record<BranchImportField, string | null>> = {};
     let codeNumeric = false;
-    sheet.headers.forEach((header, columnIndex) => {
+    input.headers.forEach((_, columnIndex) => {
       const value = values[columnIndex] ?? null;
-      raw[header || `col_${columnIndex + 1}`] = value instanceof Date ? value.toISOString() : (value as Json);
       const field = columns.mapping[columnIndex];
       if (!field) return;
       if (field === "document_number") mapped[field] = padNumeric(value, 14);
@@ -216,8 +211,8 @@ export async function uploadBranchImport(formData: FormData): Promise<Result<Bra
       }
     });
     return {
-      row_number: index + 2,
-      raw,
+      row_number: input.firstRowNumber + index,
+      raw: rawRow(input.headers, values),
       code: mapped.code ?? null,
       code_numeric: codeNumeric,
       name: mapped.name ?? null,
@@ -240,21 +235,53 @@ export async function uploadBranchImport(formData: FormData): Promise<Result<Bra
   const { data, error } = await supabase.rpc("stage_branch_import", {
     p_organization_id: context.organization.organizationId,
     p_payload: {
-      file_name: file.name,
-      file_hash: hash,
-      file_size: file.size,
+      phase: "load",
+      batch_id: input.batchId,
+      file_name: input.file.name,
+      file_hash: input.file.hash,
+      file_size: input.file.size,
       column_mapping: Object.fromEntries(columns.mapped.map((m) => [m.header, m.field])),
       rows,
     },
   });
-  if (error) return { ok: false, error: toMessage(error, "Não foi possível validar a importação.") };
+  if (error) return stepError(error, (e) => toMessage(e, "Não foi possível enviar as linhas do arquivo."));
+  return { ok: true, data: { batchId: String(obj(data).batch_id ?? "") } };
+}
 
+/** Valida as próximas `limit` linhas pendentes, na ordem do arquivo. */
+export async function validateBranchChunk(batchId: string, limit: number): Promise<StepResult<{ pending: number }>> {
+  const context = await resolveOrganization("branches.import");
+  if (!context) return { ok: false, error: SESSION_LOST };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("stage_branch_import", {
+    p_organization_id: context.organization.organizationId,
+    p_payload: { phase: "validate", batch_id: batchId, limit: clampLimit(limit) },
+  });
+  if (error) return stepError(error, (e) => toMessage(e, "Não foi possível validar a importação."));
+  return { ok: true, data: { pending: num(obj(data).pending) } };
+}
+
+/** §59–§60 — fecha a validação e devolve a prévia com atual × recebido. */
+export async function finalizeBranchImport(
+  batchId: string,
+  sheet: { fileName: string; sheetName: string; headers: string[] },
+): Promise<StepResult<BranchImportPreview>> {
+  const context = await resolveOrganization("branches.import");
+  if (!context) return { ok: false, error: SESSION_LOST };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("stage_branch_import", {
+    p_organization_id: context.organization.organizationId,
+    p_payload: { phase: "finalize", batch_id: batchId },
+  });
+  if (error) return stepError(error, (e) => toMessage(e, "Não foi possível validar a importação."));
+
+  const columns = mapColumns<BranchImportField>(sheet.headers, BRANCH_IMPORT_COLUMNS, BRANCH_REQUIRED);
   const r = obj(data);
   return {
     ok: true,
     data: {
-      batchId: String(r.batch_id ?? ""),
-      fileName: file.name,
+      batchId: String(r.batch_id ?? batchId),
+      fileName: sheet.fileName,
       sheetName: sheet.sheetName,
       totalRows: num(r.total_rows),
       validRows: num(r.valid_rows),
@@ -271,8 +298,14 @@ export async function uploadBranchImport(formData: FormData): Promise<Result<Bra
   };
 }
 
-/** Grava um lote validado. Só a própria pessoa que validou pode confirmar. */
-export async function confirmBranchImport(batchId: string): Promise<Result<BranchImportOutcome>> {
+/**
+ * Grava as próximas `limit` linhas de um lote validado. Só a própria pessoa
+ * que validou pode confirmar; um lote interrompido continua de onde parou.
+ */
+export async function processBranchChunk(
+  batchId: string,
+  limit: number,
+): Promise<StepResult<{ done: boolean; remaining: number; outcome?: BranchImportOutcome }>> {
   const context = await resolveOrganization("branches.import");
   if (!context) return { ok: false, error: SESSION_LOST };
   const supabase = await createClient();
@@ -280,20 +313,31 @@ export async function confirmBranchImport(batchId: string): Promise<Result<Branc
   const { data, error } = await supabase.rpc("process_branch_import", {
     p_organization_id: context.organization.organizationId,
     p_batch_id: batchId,
+    p_limit: clampLimit(limit),
   });
-  if (error) return { ok: false, error: toMessage(error, "A importação falhou e nenhuma filial foi alterada.") };
+  if (error) {
+    return stepError(error, (e) =>
+      toMessage(e, "A gravação parou nesta parte. O que já foi gravado continua gravado; confirme de novo para continuar."),
+    );
+  }
+
+  const r = obj(data);
+  if (r.done !== true) return { ok: true, data: { done: false, remaining: num(r.remaining) } };
 
   revalidatePath(MODULE_PATH);
-  const r = obj(data);
   return {
     ok: true,
     data: {
-      created: num(r.created),
-      updated: num(r.updated),
-      linksAdded: num(r.links_added),
-      skipped: num(r.skipped),
-      failed: num(r.failed),
-      errors: arr(r.errors).map((e) => ({ rowNumber: num(e.row_number), message: String(e.message ?? "") })),
+      done: true,
+      remaining: 0,
+      outcome: {
+        created: num(r.created),
+        updated: num(r.updated),
+        linksAdded: num(r.links_added),
+        skipped: num(r.skipped),
+        failed: num(r.failed),
+        errors: arr(r.errors).map((e) => ({ rowNumber: num(e.row_number), message: String(e.message ?? "") })),
+      },
     },
   };
 }

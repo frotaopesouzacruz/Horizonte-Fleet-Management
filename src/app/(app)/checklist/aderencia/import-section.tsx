@@ -13,7 +13,10 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/components/feedback/toast";
 import { useConfirm } from "@/components/feedback/confirm-dialog";
-import { confirmAdherenceImport, uploadAdherenceImport, type AdherenceImportPreview } from "@/lib/adherence/import-actions";
+import { ImportProgress } from "@/components/feedback/import-progress";
+import type { AdherenceImportPreview } from "@/lib/adherence/import-actions";
+import { confirmAdherenceImport, uploadAdherenceImport } from "@/lib/adherence/import-client";
+import type { ImportProgressState } from "@/lib/import/client";
 import { ACCEPTED_STATUSES, IMPORT_COLUMNS } from "@/lib/adherence/import-columns";
 import { formatDateBr, formatInt, statusMeta } from "./status";
 
@@ -29,12 +32,13 @@ export function ImportSection({ onChanged }: { onChanged: () => void }) {
   const formRef = React.useRef<HTMLFormElement>(null);
   const [preview, setPreview] = React.useState<AdherenceImportPreview | null>(null);
   const [busy, startTransition] = React.useTransition();
+  const [progress, setProgress] = React.useState<ImportProgressState | null>(null);
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     startTransition(async () => {
-      const result = await uploadAdherenceImport(data);
+      const result = await uploadAdherenceImport(data, setProgress);
       if (result.ok && result.data) setPreview(result.data);
       else toast({ title: result.error ?? "Não foi possível validar o arquivo.", variant: "danger" });
     });
@@ -49,7 +53,7 @@ export function ImportSection({ onChanged }: { onChanged: () => void }) {
     });
     if (!ok) return;
     startTransition(async () => {
-      const result = await confirmAdherenceImport(preview.batchId);
+      const result = await confirmAdherenceImport(preview.batchId, setProgress, preview.validRows);
       if (result.ok && result.data) {
         toast({ title: `Importação concluída: ${formatInt(result.data.requestsCreated)} solicitação(ões) pendente(s), ${formatInt(result.data.inconsistencies)} inconsistência(s).`, variant: "success" });
         setPreview(null);
@@ -99,6 +103,8 @@ export function ImportSection({ onChanged }: { onChanged: () => void }) {
           />
           <Button type="submit" variant="secondary" leadingIcon={<Upload />} disabled={busy}>Validar arquivo</Button>
         </form>
+
+        <ImportProgress progress={progress} />
 
         {preview ? (
           <div className="flex flex-col gap-3">

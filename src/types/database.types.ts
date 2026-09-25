@@ -4822,7 +4822,7 @@ export type Database = {
         Returns: Json
       }
       process_adherence_import: {
-        Args: { p_batch_id: string; p_organization_id: string }
+        Args: { p_batch_id: string; p_limit?: number; p_organization_id: string }
         Returns: Json
       }
       stage_adherence_import: {
@@ -4834,7 +4834,7 @@ export type Database = {
         Returns: Json
       }
       process_br_import: {
-        Args: { p_batch_id: string; p_organization_id: string }
+        Args: { p_batch_id: string; p_limit?: number; p_organization_id: string }
         Returns: Json
       }
       stage_branch_import: {
@@ -4842,7 +4842,7 @@ export type Database = {
         Returns: Json
       }
       process_branch_import: {
-        Args: { p_batch_id: string; p_organization_id: string }
+        Args: { p_batch_id: string; p_limit?: number; p_organization_id: string }
         Returns: Json
       }
       log_branch_export: {
@@ -4868,7 +4868,7 @@ export type Database = {
         Returns: Json
       }
       process_fidelization_import: {
-        Args: { p_batch_id: string; p_organization_id: string }
+        Args: { p_batch_id: string; p_limit?: number; p_organization_id: string }
         Returns: Json
       }
       set_fidelization_assignment_status: {
@@ -5356,17 +5356,19 @@ export type Database = {
         }[]
       }
       process_employee_import: {
-        Args: { p_batch_id: string }
+        Args: { p_batch_id: string; p_limit?: number }
         Returns: {
           created_rows: number
+          remaining_rows: number
           skipped_rows: number
           updated_rows: number
         }[]
       }
       process_vehicle_import: {
-        Args: { p_batch_id: string }
+        Args: { p_batch_id: string; p_limit?: number }
         Returns: {
           created_rows: number
+          remaining_rows: number
           skipped_rows: number
           updated_rows: number
         }[]
@@ -5609,10 +5611,11 @@ export type Database = {
         Returns: Json
       }
       validate_employee_import: {
-        Args: { p_batch_id: string }
+        Args: { p_batch_id: string; p_limit?: number }
         Returns: {
           create_rows: number
           error_rows: number
+          pending_rows: number
           total_rows: number
           update_rows: number
           valid_rows: number
@@ -5620,10 +5623,11 @@ export type Database = {
         }[]
       }
       validate_vehicle_import: {
-        Args: { p_batch_id: string }
+        Args: { p_batch_id: string; p_limit?: number }
         Returns: {
           create_rows: number
           error_rows: number
+          pending_rows: number
           total_rows: number
           update_rows: number
           valid_rows: number

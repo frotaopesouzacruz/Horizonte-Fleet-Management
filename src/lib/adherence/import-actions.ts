@@ -1,12 +1,13 @@
 "use server";
 
-import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
-import { parseSpreadsheet } from "@/lib/admin/spreadsheet";
+import type { CellValue } from "@/lib/admin/qlp";
+import { rawRow } from "@/lib/import/sheet-core";
+import type { StepResult } from "@/lib/import/client";
+import { clampLimit, stepError } from "@/lib/import/server";
 import type { Json } from "@/types/database.types";
-import type { Result } from "./actions";
 import { cellToText, mapImportColumns, toIsoDate, type ImportField } from "./import-columns";
 
 /**
@@ -17,11 +18,13 @@ import { cellToText, mapImportColumns, toIsoDate, type ImportField } from "./imp
  * prévia; `process_adherence_import` abre as solicitações — sempre PENDENTES —
  * e registra inconsistências para o que não entendeu. Nada aqui cria veículo,
  * obrigação ou execução, nada aprova, nada toca em perfil de acesso.
+ *
+ * Sem teto de linhas: a planilha é lida no navegador e chega em partes; o
+ * banco valida e grava em partes, e a prévia é a mesma de um arquivo validado
+ * de uma vez.
  */
 
 const MODULE_PATH = "/checklist/aderencia";
-const MAX_ROWS = 20000;
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 export interface ImportFinding {
   rowNumber: number | null;
@@ -73,45 +76,35 @@ function toMessage(error: { code?: string; message?: string }, fallback: string)
   return fallback;
 }
 
-export async function uploadAdherenceImport(formData: FormData): Promise<Result<AdherenceImportPreview>> {
+/** Uma parte do arquivo, como o navegador a leu. */
+export interface AdherenceImportChunkInput {
+  batchId: string | null;
+  file: { name: string; size: number; hash: string };
+  sheetName: string;
+  headers: string[];
+  rows: CellValue[][];
+  /** Número, na planilha, da primeira linha desta parte (a linha 1 é o cabeçalho). */
+  firstRowNumber: number;
+}
+
+/** §54 — grava uma parte do arquivo como linhas pendentes; a primeira abre o lote. */
+export async function stageAdherenceChunk(input: AdherenceImportChunkInput): Promise<StepResult<{ batchId: string }>> {
   const { organization } = await requireOrganization("adherence.import");
-  const supabase = await createClient();
-
-  const file = formData.get("file");
-  if (!(file instanceof File)) return { ok: false, error: "Selecione um arquivo." };
-  if (file.size === 0) return { ok: false, error: "O arquivo está vazio." };
-  if (file.size > MAX_FILE_BYTES) return { ok: false, error: "O arquivo excede 10 MB." };
-  if (!/\.(xlsx|csv)$/i.test(file.name)) return { ok: false, error: "Formato não suportado. Utilize XLSX ou CSV." };
-
-  const buffer = await file.arrayBuffer();
-  const fileHash = createHash("sha256").update(Buffer.from(buffer)).digest("hex");
-
-  let sheet;
-  try {
-    sheet = await parseSpreadsheet(buffer, file.name);
-  } catch {
-    return { ok: false, error: "Não foi possível ler o arquivo. Verifique se é um XLSX ou CSV válido." };
-  }
-  if (!sheet.rows.length) return { ok: false, error: "A planilha não possui linhas de dados." };
-  if (sheet.rows.length > MAX_ROWS) return { ok: false, error: `A planilha excede ${MAX_ROWS} linhas.` };
-
-  const columns = mapImportColumns(sheet.headers);
+  const columns = mapImportColumns(input.headers);
   if (columns.missing.length) {
     return { ok: false, error: `Colunas obrigatórias não encontradas: ${columns.missing.join(", ")}.` };
   }
 
-  const rows: Json[] = sheet.rows.map((values, index) => {
-    const raw: Record<string, Json> = {};
+  const rows: Json[] = input.rows.map((values, index) => {
     const mapped: Partial<Record<ImportField, string | null>> = {};
-    sheet.headers.forEach((header, columnIndex) => {
+    input.headers.forEach((_, columnIndex) => {
       const value = values[columnIndex] ?? null;
-      raw[header || `col_${columnIndex + 1}`] = value instanceof Date ? value.toISOString() : (value as Json);
       const field = columns.mapping[columnIndex];
       if (field) mapped[field] = field === "operational_date" ? toIsoDate(value) : cellToText(value);
     });
     return {
-      row_number: index + 2,
-      raw,
+      row_number: input.firstRowNumber + index,
+      raw: rawRow(input.headers, values),
       fleet_code: mapped.fleet_code ?? null,
       license_plate: mapped.license_plate ?? null,
       operational_date: mapped.operational_date ?? null,
@@ -122,24 +115,55 @@ export async function uploadAdherenceImport(formData: FormData): Promise<Result<
     };
   });
 
+  const supabase = await createClient();
   const { data, error } = await supabase.rpc("stage_adherence_import", {
     p_organization_id: organization.organizationId,
     p_payload: {
-      file_name: file.name,
-      file_hash: fileHash,
-      file_size: file.size,
+      phase: "load",
+      batch_id: input.batchId,
+      file_name: input.file.name,
+      file_hash: input.file.hash,
+      file_size: input.file.size,
       column_mapping: Object.fromEntries(columns.mapped.map((m) => [m.header, m.field])),
       rows,
     },
   });
-  if (error) return { ok: false, error: toMessage(error, "Não foi possível validar a importação.") };
+  if (error) return stepError(error, (e) => toMessage(e, "Não foi possível enviar as linhas do arquivo."));
+  return { ok: true, data: { batchId: String(obj(data).batch_id ?? "") } };
+}
 
+/** Valida as próximas `limit` linhas pendentes, na ordem do arquivo. */
+export async function validateAdherenceChunk(batchId: string, limit: number): Promise<StepResult<{ pending: number }>> {
+  const { organization } = await requireOrganization("adherence.import");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("stage_adherence_import", {
+    p_organization_id: organization.organizationId,
+    p_payload: { phase: "validate", batch_id: batchId, limit: clampLimit(limit) },
+  });
+  if (error) return stepError(error, (e) => toMessage(e, "Não foi possível validar a importação."));
+  return { ok: true, data: { pending: num(obj(data).pending) } };
+}
+
+/** §55 — fecha a validação e devolve a prévia. */
+export async function finalizeAdherenceImport(
+  batchId: string,
+  sheet: { fileName: string; sheetName: string; headers: string[] },
+): Promise<StepResult<AdherenceImportPreview>> {
+  const { organization } = await requireOrganization("adherence.import");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("stage_adherence_import", {
+    p_organization_id: organization.organizationId,
+    p_payload: { phase: "finalize", batch_id: batchId },
+  });
+  if (error) return stepError(error, (e) => toMessage(e, "Não foi possível validar a importação."));
+
+  const columns = mapImportColumns(sheet.headers);
   const r = obj(data);
   return {
     ok: true,
     data: {
-      batchId: String(r.batch_id ?? ""),
-      fileName: file.name,
+      batchId: String(r.batch_id ?? batchId),
+      fileName: sheet.fileName,
       sheetName: sheet.sheetName,
       totalRows: num(r.total_rows),
       validRows: num(r.valid_rows),
@@ -175,20 +199,46 @@ export async function uploadAdherenceImport(formData: FormData): Promise<Result<
   };
 }
 
-export async function confirmAdherenceImport(
+export interface AdherenceImportOutcome {
+  requestsCreated: number;
+  skipped: number;
+  inconsistencies: number;
+}
+
+/**
+ * §56 — abre as solicitações das próximas `limit` linhas válidas. A última
+ * parte registra as inconsistências e fecha o lote; um lote interrompido
+ * continua de onde parou.
+ */
+export async function processAdherenceChunk(
   batchId: string,
-): Promise<Result<{ requestsCreated: number; skipped: number; inconsistencies: number }>> {
+  limit: number,
+): Promise<StepResult<{ done: boolean; remaining: number; outcome?: AdherenceImportOutcome }>> {
   const { organization } = await requireOrganization("adherence.import");
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("process_adherence_import", {
     p_organization_id: organization.organizationId,
     p_batch_id: batchId,
+    p_limit: clampLimit(limit),
   });
-  if (error) return { ok: false, error: toMessage(error, "Não foi possível processar a importação.") };
-  revalidatePath(MODULE_PATH);
+  if (error) {
+    return stepError(error, (e) =>
+      toMessage(e, "A gravação parou nesta parte. O que já foi gravado continua gravado; confirme de novo para continuar."),
+    );
+  }
   const r = obj(data);
+  if (r.done !== true) return { ok: true, data: { done: false, remaining: num(r.remaining) } };
+  revalidatePath(MODULE_PATH);
   return {
     ok: true,
-    data: { requestsCreated: num(r.requests_created), skipped: num(r.skipped), inconsistencies: num(r.inconsistencies) },
+    data: {
+      done: true,
+      remaining: 0,
+      outcome: {
+        requestsCreated: num(r.requests_created),
+        skipped: num(r.skipped),
+        inconsistencies: num(r.inconsistencies),
+      },
+    },
   };
 }

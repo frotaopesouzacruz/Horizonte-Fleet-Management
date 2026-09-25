@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { RadioField, RadioGroup } from "@/components/ui/radio-group";
-import { MAX_SELECTED_EXPORT, type BranchExportKind } from "@/lib/branches/import-columns";
+import type { BranchExportKind } from "@/lib/branches/import-columns";
 
 /**
  * Exportar filiais (§61): o que e em que formato.
@@ -81,11 +81,10 @@ function ExportBody({
   exportPath,
   onClose,
 }: Omit<BranchExportDialogProps, "open" | "onOpenChange"> & { exportPath: string; onClose: () => void }) {
-  const tooMany = selectedIds.length > MAX_SELECTED_EXPORT;
   const available: Record<BranchExportKind, boolean> = {
     todas: canExport,
     filtradas: canExport && hasFilters,
-    selecionadas: canExport && selectedIds.length > 0 && !tooMany,
+    selecionadas: canExport && selectedIds.length > 0,
     operacoes: canExport,
     modelo: canExport || canImport,
   };
@@ -106,9 +105,8 @@ function ExportBody({
         if (value) params.set(key, value);
       }
     }
-    if (kind === "selecionadas") params.set("ids", selectedIds.join(","));
     return `${exportPath}?${params.toString()}`;
-  }, [kind, format, filterQuery, selectedIds, exportPath]);
+  }, [kind, format, filterQuery, exportPath]);
 
   return (
     <>
@@ -145,11 +143,7 @@ function ExportBody({
               disabled={!available.selecionadas}
               label={`Filiais selecionadas (${number.format(selectedIds.length)})`}
               description={
-                tooMany
-                  ? `Selecione no máximo ${number.format(MAX_SELECTED_EXPORT)}; para mais, exporte pelos filtros.`
-                  : selectedIds.length === 0
-                    ? "Marque as filiais na lista para exportá-las."
-                    : "Só as linhas marcadas na lista."
+                selectedIds.length === 0 ? "Marque as filiais na lista para exportá-las." : "Só as linhas marcadas na lista."
               }
             />
             <RadioField
@@ -185,7 +179,17 @@ function ExportBody({
         <Button variant="ghost" onClick={onClose}>
           Cancelar
         </Button>
-        {available[kind] ? (
+        {available[kind] && kind === "selecionadas" ? (
+          // A seleção vai no corpo da requisição: sem teto de filiais marcadas.
+          <form method="post" action={exportPath} onSubmit={() => onClose()}>
+            <input type="hidden" name="tipo" value={kind} />
+            <input type="hidden" name="format" value={format} />
+            <input type="hidden" name="ids" value={selectedIds.join(",")} />
+            <Button type="submit" leadingIcon={<Download />} data-testid="branch-export-download">
+              Baixar arquivo
+            </Button>
+          </form>
+        ) : available[kind] ? (
           <Button asChild>
             <a href={href} download onClick={() => onClose()} data-testid="branch-export-download">
               <Download aria-hidden />

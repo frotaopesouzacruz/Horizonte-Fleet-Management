@@ -560,9 +560,12 @@ temporária não conta como segunda mobilização (P3).
 
 ### 17.11 Importação
 
-* XLSX ou CSV, até 5.000 linhas e 10 MB, validado antes de gravar (Etapa 13).
+* XLSX ou CSV, validado antes de gravar (Etapa 13). Sem teto de linhas desde
+  a migration `20260925100000`: o arquivo é lido no navegador e enviado,
+  validado e gravado em partes — ver
+  [`importacao-exportacao-sem-limite.md`](../architecture/importacao-exportacao-sem-limite.md).
 * **Mapeamento de colunas (Etapa 15)**: ao escolher o arquivo, a gaveta lê
-  os cabeçalhos (`inspectImportFile`), sugere o campo de cada coluna pelos
+  os cabeçalhos (`inspectFidelizationFile`, no navegador), sugere o campo de cada coluna pelos
   nomes aceitos e deixa trocar, ignorar ou aplicar um layout salvo. Campos
   obrigatórios faltando ou um campo em duas colunas impedem validar.
 * **Layouts salvos**: `public.import_layouts` (por organização e tipo de

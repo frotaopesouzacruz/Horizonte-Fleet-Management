@@ -13,11 +13,13 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/feedback/alert";
 import { useToast } from "@/components/feedback/toast";
 import { useConfirm } from "@/components/feedback/confirm-dialog";
+import { ImportProgress } from "@/components/feedback/import-progress";
 import type { Result } from "@/lib/branches/actions";
-import {
-  confirmBranchImport, uploadBranchImport,
-  type BranchImportChange, type BranchImportOutcome, type BranchImportPreview, type BranchImportRow,
+import type {
+  BranchImportChange, BranchImportOutcome, BranchImportPreview, BranchImportRow,
 } from "@/lib/branches/import-actions";
+import { confirmBranchImport, uploadBranchImport } from "@/lib/branches/import-client";
+import type { ImportProgressHandler, ImportProgressState } from "@/lib/import/client";
 import { BRANCH_IMPORT_COLUMNS } from "@/lib/branches/import-columns";
 import { formatAddress, formatCnpj, formatPostalCode } from "@/lib/branches/format";
 
@@ -35,13 +37,18 @@ import { formatAddress, formatCnpj, formatPostalCode } from "@/lib/branches/form
  */
 
 export interface BranchImportLoaders {
-  upload: (formData: FormData) => Promise<Result<BranchImportPreview>>;
-  confirm: (batchId: string) => Promise<Result<BranchImportOutcome>>;
+  /** Sem teto de linhas: lê no navegador e valida em partes, informando o progresso. */
+  upload: (formData: FormData, onProgress?: ImportProgressHandler) => Promise<Result<BranchImportPreview>>;
+  confirm: (
+    batchId: string,
+    onProgress?: ImportProgressHandler,
+    expectedRows?: number,
+  ) => Promise<Result<BranchImportOutcome>>;
 }
 
 const defaultLoaders: BranchImportLoaders = {
-  upload: (formData) => uploadBranchImport(formData),
-  confirm: (batchId) => confirmBranchImport(batchId),
+  upload: uploadBranchImport,
+  confirm: confirmBranchImport,
 };
 
 export interface BranchImportDrawerProps {
@@ -110,6 +117,7 @@ function ImportBody({
   const [failures, setFailures] = React.useState<BranchImportOutcome["errors"]>([]);
   const [filter, setFilter] = React.useState<RowFilter>("all");
   const [busy, startTransition] = React.useTransition();
+  const [progress, setProgress] = React.useState<ImportProgressState | null>(null);
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -117,7 +125,7 @@ function ImportBody({
     setError(null);
     setFailures([]);
     startTransition(async () => {
-      const result = await loaders.upload(data);
+      const result = await loaders.upload(data, setProgress);
       if (result.ok && result.data) {
         setPreview(result.data);
         setFilter("all");
@@ -142,7 +150,7 @@ function ImportBody({
     });
     if (!ok) return;
     startTransition(async () => {
-      const result = await loaders.confirm(preview.batchId);
+      const result = await loaders.confirm(preview.batchId, setProgress, preview.validRows + preview.warningRows);
       if (!result.ok || !result.data) {
         setError(result.error ?? "Não foi possível processar a importação.");
         return;
@@ -264,6 +272,8 @@ function ImportBody({
           </Button>
         </form>
 
+        <ImportProgress progress={progress} />
+
         {error ? (
           <Alert variant="danger">
             <AlertDescription>{error}</AlertDescription>
@@ -318,6 +328,13 @@ function ImportBody({
               Colunas mapeadas: {preview.mappedColumns.map((m) => `${m.header} → ${m.label}`).join(" · ")}
               {preview.unmappedColumns.length ? ` · ignoradas: ${preview.unmappedColumns.join(", ")}` : ""}
             </p>
+
+            {preview.rows.length < preview.totalRows ? (
+              <p className="text-caption text-fg-muted">
+                A lista abaixo mostra as primeiras {formatInt(preview.rows.length)} linhas do arquivo; os totais acima
+                contam as {formatInt(preview.totalRows)}, e a importação grava todas as válidas.
+              </p>
+            ) : null}
 
             <Tabs value={filter} onValueChange={(v) => setFilter(v as RowFilter)} appearance="segmented">
               <TabsList aria-label="Filtrar linhas da prévia" className="max-w-full">

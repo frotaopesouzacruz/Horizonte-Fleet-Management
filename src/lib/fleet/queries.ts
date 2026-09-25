@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import type { Database } from "@/types/database.types";
 
 /**
@@ -157,16 +158,21 @@ export async function listVehicles(
   };
 }
 
-/** The same filtered set, unpaginated, for export. Capped, never unbounded. */
+/**
+ * The same filtered set, every row of it, for export. Read page by page: the
+ * API returns at most 1,000 rows per request, and an export has no ceiling.
+ */
 export async function listVehiclesForExport(
   organizationId: string,
   filters: VehicleFilters = {},
-  limit = 20000,
 ): Promise<VehicleRow[]> {
   const supabase = await createClient();
-  const query = buildVehicleQuery(supabase, organizationId, filters, false);
-  const { data } = await query.order("fleet_code").limit(limit);
-  return data ?? [];
+  return fetchAll((from, to) =>
+    buildVehicleQuery(supabase, organizationId, filters, false)
+      .order("fleet_code")
+      .order("id")
+      .range(from, to),
+  );
 }
 
 /* ------------------------------------------------------------------ detail */

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import { normalizeDocument } from "./format";
 
 /**
@@ -103,36 +104,39 @@ export async function listBranches(
 ): Promise<BranchRow[]> {
   const supabase = await createClient();
 
-  let query = supabase
-    .from("branch_directory")
-    .select("*")
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null);
+  const build = () => {
+    let query = supabase
+      .from("branch_directory")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null);
 
-  if (filters.status) query = query.eq("status", filters.status);
-  if (filters.stateId) query = query.eq("state_id", Number(filters.stateId));
-  if (filters.cityId) query = query.eq("city_id", Number(filters.cityId));
-  if (filters.withVehicles === "yes") query = query.gt("vehicle_count", 0);
-  if (filters.withVehicles === "no") query = query.eq("vehicle_count", 0);
-  if (filters.withEmployees === "yes") query = query.gt("employee_count", 0);
-  if (filters.withEmployees === "no") query = query.eq("employee_count", 0);
+    if (filters.status) query = query.eq("status", filters.status);
+    if (filters.stateId) query = query.eq("state_id", Number(filters.stateId));
+    if (filters.cityId) query = query.eq("city_id", Number(filters.cityId));
+    if (filters.withVehicles === "yes") query = query.gt("vehicle_count", 0);
+    if (filters.withVehicles === "no") query = query.eq("vehicle_count", 0);
+    if (filters.withEmployees === "yes") query = query.gt("employee_count", 0);
+    if (filters.withEmployees === "no") query = query.eq("employee_count", 0);
 
-  if (filters.q) {
-    const term = filters.q.trim().replace(/[,()]/g, " ").trim();
-    const digits = normalizeDocument(term);
-    const clauses = [
-      `code.ilike.%${term}%`,
-      `name.ilike.%${term}%`,
-      `legal_name.ilike.%${term}%`,
-    ];
-    if (digits) clauses.push(`document_number.ilike.%${digits}%`);
-    query = query.or(clauses.join(","));
-  }
+    if (filters.q) {
+      const term = filters.q.trim().replace(/[,()]/g, " ").trim();
+      const digits = normalizeDocument(term);
+      const clauses = [
+        `code.ilike.%${term}%`,
+        `name.ilike.%${term}%`,
+        `legal_name.ilike.%${term}%`,
+      ];
+      if (digits) clauses.push(`document_number.ilike.%${digits}%`);
+      query = query.or(clauses.join(","));
+    }
+    return query;
+  };
 
-  const { data, error } = await query.order("name");
-  if (error) throw new Error(error.message);
+  // Todas as filiais, página a página (a API devolve até 1.000 linhas por vez).
+  const data = await fetchAll((from, to) => build().order("name").order("id").range(from, to));
 
-  let rows = (data ?? []).map((row) => mapBranch(row as Record<string, unknown>));
+  let rows = data.map((row) => mapBranch(row as Record<string, unknown>));
 
   // The operation filter lives one table away, so it is applied against the
   // link rows rather than duplicated into the directory view.
@@ -188,20 +192,20 @@ export async function getBranchOperations(
   branchId?: string,
 ): Promise<BranchOperationRow[]> {
   const supabase = await createClient();
-  let query = supabase
-    .from("branch_operation_directory")
-    .select("*")
-    .eq("organization_id", organizationId);
+  const build = () => {
+    const query = supabase
+      .from("branch_operation_directory")
+      .select("*")
+      .eq("organization_id", organizationId);
+    return branchId ? query.eq("organization_unit_id", branchId) : query;
+  };
 
-  if (branchId) query = query.eq("organization_unit_id", branchId);
+  // Todos os vínculos, página a página (a API devolve até 1.000 linhas por vez).
+  const data = await fetchAll((from, to) =>
+    build().order("is_current", { ascending: false }).order("operation_name").order("id").range(from, to),
+  );
 
-  const { data, error } = await query
-    .order("is_current", { ascending: false })
-    .order("operation_name");
-
-  if (error) throw new Error(error.message);
-
-  return (data ?? []).map((row) => ({
+  return data.map((row) => ({
     id: row.id as string,
     organizationUnitId: row.organization_unit_id as string,
     operationId: row.operation_id as string,

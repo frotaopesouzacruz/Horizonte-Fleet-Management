@@ -1,31 +1,37 @@
 "use server";
 
-import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { resolveOrganization } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
-import { parseSpreadsheet } from "@/lib/admin/spreadsheet";
+import type { CellValue } from "@/lib/admin/qlp";
+import { rawRow } from "@/lib/import/sheet-core";
+import type { StepResult } from "@/lib/import/client";
+import { clampLimit, stepError } from "@/lib/import/server";
 import type { Json } from "@/types/database.types";
 import type { Result } from "./actions";
 import {
   ALLOCATION_IMPORT_COLUMNS, ALLOCATION_REQUIRED, BR_IMPORT_COLUMNS, BR_REQUIRED, IMPORT_LAYOUT_KIND,
   cellToText, mapColumns, normalizeHeader, toIsoDate,
-  type AllocationImportField, type BrImportField, type ColumnOverrides, type ImportColumn, type ImportKind,
+  type AllocationImportField, type BrImportField, type ColumnMapping, type ColumnOverrides, type ImportColumn,
+  type ImportKind,
 } from "./import-columns";
 
 /**
  * Importação da Fidelização pela tela (Etapa 13, §56–§58).
  *
- * A action só lê a planilha e mapeia as colunas. Tudo o mais é do banco:
- * `stage_*_import` valida linha a linha e devolve a prévia; `process_*_import`
- * grava o que a prévia prometeu. Nada aqui cria veículo, BR ou colaborador
- * por conta própria, nada sobrescreve vínculo histórico, nada toca em perfil
- * de acesso — a §57 e a §58 são o contrato dessas duas rotinas.
+ * A action só mapeia as colunas. Tudo o mais é do banco: `stage_*_import`
+ * valida linha a linha e devolve a prévia; `process_*_import` grava o que a
+ * prévia prometeu. Nada aqui cria veículo, BR ou colaborador por conta
+ * própria, nada sobrescreve vínculo histórico, nada toca em perfil de acesso —
+ * a §57 e a §58 são o contrato dessas duas rotinas.
+ *
+ * Sem teto de linhas: a planilha é lida no navegador e chega aqui em partes
+ * (`stageFidelizationChunk`); o banco valida (`validateFidelizationChunk`) e
+ * grava (`processFidelizationChunk`) em partes também, e a prévia
+ * (`finalizeFidelizationImport`) é a mesma de um arquivo validado de uma vez.
  */
 
 const MODULE_PATH = "/governanca/fidelizacao";
-const MAX_ROWS = 5000;
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 const SESSION_LOST =
   "Sua sessão expirou ou o acesso mudou. Recarregue a página e tente de novo.";
@@ -126,6 +132,19 @@ export interface ImportOutcome {
   skipped: number;
 }
 
+/** Uma parte do arquivo, como o navegador a leu. */
+export interface ImportChunkInput {
+  batchId: string | null;
+  file: { name: string; size: number; hash: string };
+  sheetName: string;
+  headers: string[];
+  rows: CellValue[][];
+  /** Número, na planilha, da primeira linha desta parte (a linha 1 é o cabeçalho). */
+  firstRowNumber: number;
+  /** Ligação coluna → campo escolhida na tela (JSON), quando houver. */
+  mapping?: string | null;
+}
+
 type Raw = Record<string, unknown>;
 const obj = (v: unknown): Raw => (v && typeof v === "object" && !Array.isArray(v) ? (v as Raw) : {});
 const arr = (v: unknown): Raw[] => (Array.isArray(v) ? (v as Raw[]) : []);
@@ -140,12 +159,11 @@ function toMessage(error: { code?: string; message?: string }, fallback: string)
 }
 
 /**
- * A ligação coluna → campo que a tela mandou (`mapping`, JSON). Só passa o
- * que é campo deste arquivo, ou "" (ignorar); o resto é descartado em
- * silêncio, porque o servidor nunca confia no que o formulário diz.
+ * A ligação coluna → campo que a tela mandou (JSON). Só passa o que é campo
+ * deste arquivo, ou "" (ignorar); o resto é descartado em silêncio, porque o
+ * servidor nunca confia no que o formulário diz.
  */
-function readOverrides<F extends string>(formData: FormData, columns: ImportColumn<F>[]): ColumnOverrides {
-  const raw = formData.get("mapping");
+function readOverrides<F extends string>(raw: string | null | undefined, columns: ImportColumn<F>[]): ColumnOverrides {
   if (typeof raw !== "string" || !raw) return {};
   let parsed: unknown;
   try {
@@ -163,6 +181,14 @@ function readOverrides<F extends string>(formData: FormData, columns: ImportColu
   return overrides;
 }
 
+function columnsFor(kind: ImportKind, headers: string[], mapping?: string | null): ColumnMapping<string> {
+  return kind === "brs"
+    ? (mapColumns<BrImportField>(headers, BR_IMPORT_COLUMNS, BR_REQUIRED, readOverrides(mapping, BR_IMPORT_COLUMNS)) as ColumnMapping<string>)
+    : (mapColumns<AllocationImportField>(
+        headers, ALLOCATION_IMPORT_COLUMNS, ALLOCATION_REQUIRED, readOverrides(mapping, ALLOCATION_IMPORT_COLUMNS),
+      ) as ColumnMapping<string>);
+}
+
 function findings(v: unknown): ImportFinding[] {
   return arr(v).map((f) => ({
     rowNumber: f.row_number == null ? null : num(f.row_number),
@@ -173,191 +199,155 @@ function findings(v: unknown): ImportFinding[] {
   }));
 }
 
-async function readFile(formData: FormData): Promise<
-  | { ok: true; file: File; buffer: ArrayBuffer; hash: string; sheet: Awaited<ReturnType<typeof parseSpreadsheet>> }
-  | { ok: false; error: string }
-> {
-  const file = formData.get("file");
-  if (!(file instanceof File)) return { ok: false, error: "Selecione um arquivo." };
-  if (file.size === 0) return { ok: false, error: "O arquivo está vazio." };
-  if (file.size > MAX_FILE_BYTES) return { ok: false, error: "O arquivo excede 10 MB." };
-  if (!/\.(xlsx|csv)$/i.test(file.name)) return { ok: false, error: "Formato não suportado. Utilize XLSX ou CSV." };
-
-  const buffer = await file.arrayBuffer();
-  const hash = createHash("sha256").update(Buffer.from(buffer)).digest("hex");
-  let sheet;
-  try {
-    sheet = await parseSpreadsheet(buffer, file.name);
-  } catch {
-    return { ok: false, error: "Não foi possível ler o arquivo. Verifique se é um XLSX ou CSV válido." };
-  }
-  if (!sheet.rows.length) return { ok: false, error: "A planilha não possui linhas de dados." };
-  if (sheet.rows.length > MAX_ROWS) return { ok: false, error: `A planilha excede ${MAX_ROWS} linhas.` };
-  return { ok: true, file, buffer, hash, sheet };
-}
-
-/** §56 — envia o arquivo de BRs para validação e devolve a prévia. */
-export async function uploadBrImport(formData: FormData): Promise<Result<BrImportPreview>> {
-  const context = await resolveOrganization("fidelization.import");
-  if (!context) return { ok: false, error: SESSION_LOST };
-  const supabase = await createClient();
-
-  const read = await readFile(formData);
-  if (!read.ok) return { ok: false, error: read.error };
-  const { file, hash, sheet } = read;
-
-  const columns = mapColumns<BrImportField>(
-    sheet.headers, BR_IMPORT_COLUMNS, BR_REQUIRED, readOverrides(formData, BR_IMPORT_COLUMNS),
-  );
-  if (columns.missing.length) {
-    return { ok: false, error: `Colunas obrigatórias não encontradas: ${columns.missing.join(", ")}.` };
-  }
-
-  const rows: Json[] = sheet.rows.map((values, index) => {
-    const raw: Record<string, Json> = {};
-    const mapped: Partial<Record<BrImportField, string | null>> = {};
-    sheet.headers.forEach((header, columnIndex) => {
-      const value = values[columnIndex] ?? null;
-      raw[header || `col_${columnIndex + 1}`] = value instanceof Date ? value.toISOString() : (value as Json);
-      const field = columns.mapping[columnIndex];
-      if (field) mapped[field] = cellToText(value);
-    });
-    return {
-      row_number: index + 2,
-      raw,
-      operation: mapped.operation ?? null,
-      state: mapped.state ?? null,
-      city: mapped.city ?? null,
-      code: mapped.code ?? null,
-      description: mapped.description ?? null,
-      status: mapped.status ?? null,
-      notes: mapped.notes ?? null,
-    };
-  });
-
-  const { data, error } = await supabase.rpc("stage_br_import", {
-    p_organization_id: context.organization.organizationId,
-    p_payload: {
-      file_name: file.name,
-      file_hash: hash,
-      file_size: file.size,
-      column_mapping: Object.fromEntries(columns.mapped.map((m) => [m.header, m.field])),
-      rows,
-    },
-  });
-  if (error) return { ok: false, error: toMessage(error, "Não foi possível validar a importação.") };
-
-  const r = obj(data);
-  return {
-    ok: true,
-    data: {
-      kind: "brs",
-      batchId: String(r.batch_id ?? ""),
-      fileName: file.name,
-      sheetName: sheet.sheetName,
-      totalRows: num(r.total_rows),
-      validRows: num(r.valid_rows),
-      warningRows: num(r.warning_rows),
-      errorRows: num(r.error_rows),
-      createRows: num(r.create_rows),
-      updateRows: num(r.update_rows),
-      skipRows: num(r.skip_rows),
-      alreadyImported: r.already_imported === true,
-      mappedColumns: columns.mapped,
-      unmappedColumns: columns.unmapped,
-      findings: findings(r.findings),
-      sample: arr(r.sample).map((s) => {
-        const d = obj(s.data);
-        return {
-          rowNumber: num(s.row_number),
-          status: String(s.status ?? ""),
-          action: String(s.action ?? ""),
-          operation: strOrNull(d.operation_name),
-          city: strOrNull(d.city_name),
-          stateUf: strOrNull(d.state_uf),
-          code: strOrNull(d.code),
-          description: strOrNull(d.description),
-          statusValue: strOrNull(d.status),
-          currentStatus: strOrNull(d.current_status),
-        };
-      }),
-    },
-  };
-}
-
-/** §57 — envia o arquivo de alocações para validação e devolve a prévia da §58. */
-export async function uploadAllocationImport(formData: FormData): Promise<Result<AllocationImportPreview>> {
-  const context = await resolveOrganization("fidelization.import");
-  if (!context) return { ok: false, error: SESSION_LOST };
-  const supabase = await createClient();
-
-  const read = await readFile(formData);
-  if (!read.ok) return { ok: false, error: read.error };
-  const { file, hash, sheet } = read;
-
-  const columns = mapColumns<AllocationImportField>(
-    sheet.headers, ALLOCATION_IMPORT_COLUMNS, ALLOCATION_REQUIRED, readOverrides(formData, ALLOCATION_IMPORT_COLUMNS),
-  );
-  if (columns.missing.length) {
-    return { ok: false, error: `Colunas obrigatórias não encontradas: ${columns.missing.join(", ")}.` };
-  }
-
-  const rows: Json[] = sheet.rows.map((values, index) => {
-    const raw: Record<string, Json> = {};
-    const mapped: Partial<Record<AllocationImportField, string | null>> = {};
-    sheet.headers.forEach((header, columnIndex) => {
-      const value = values[columnIndex] ?? null;
-      raw[header || `col_${columnIndex + 1}`] = value instanceof Date ? value.toISOString() : (value as Json);
+/** As linhas de uma parte, no formato que `stage_*_import` lê. */
+function payloadRows(kind: ImportKind, input: ImportChunkInput, columns: ColumnMapping<string>): Json[] {
+  return input.rows.map((values, index) => {
+    const mapped: Record<string, string | null> = {};
+    input.headers.forEach((_, columnIndex) => {
       const field = columns.mapping[columnIndex];
       if (!field) return;
+      const value = values[columnIndex] ?? null;
       mapped[field] = field === "start_date" || field === "end_date" ? toIsoDate(value) : cellToText(value);
     });
-    return {
-      row_number: index + 2,
-      raw,
+    const base = {
+      row_number: input.firstRowNumber + index,
+      raw: rawRow(input.headers, values),
       operation: mapped.operation ?? null,
       state: mapped.state ?? null,
       city: mapped.city ?? null,
-      br_code: mapped.br_code ?? null,
-      fleet_code: mapped.fleet_code ?? null,
-      license_plate: mapped.license_plate ?? null,
-      start_date: mapped.start_date ?? null,
-      end_date: mapped.end_date ?? null,
-      vehicle_role: mapped.vehicle_role ?? null,
       status: mapped.status ?? null,
-      reason: mapped.reason ?? null,
     };
+    return kind === "brs"
+      ? { ...base, code: mapped.code ?? null, description: mapped.description ?? null, notes: mapped.notes ?? null }
+      : {
+          ...base,
+          br_code: mapped.br_code ?? null,
+          fleet_code: mapped.fleet_code ?? null,
+          license_plate: mapped.license_plate ?? null,
+          start_date: mapped.start_date ?? null,
+          end_date: mapped.end_date ?? null,
+          vehicle_role: mapped.vehicle_role ?? null,
+          reason: mapped.reason ?? null,
+        };
   });
+}
 
-  const { data, error } = await supabase.rpc("stage_fidelization_import", {
+const STAGE_RPC = { brs: "stage_br_import", allocations: "stage_fidelization_import" } as const;
+const PROCESS_RPC = { brs: "process_br_import", allocations: "process_fidelization_import" } as const;
+
+/** §56/§57 — grava uma parte do arquivo como linhas pendentes; a primeira abre o lote. */
+export async function stageFidelizationChunk(
+  kind: ImportKind,
+  input: ImportChunkInput,
+): Promise<StepResult<{ batchId: string }>> {
+  const context = await resolveOrganization("fidelization.import");
+  if (!context) return { ok: false, error: SESSION_LOST };
+
+  const columns = columnsFor(kind, input.headers, input.mapping);
+  if (columns.missing.length) {
+    return { ok: false, error: `Colunas obrigatórias não encontradas: ${columns.missing.join(", ")}.` };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc(STAGE_RPC[kind], {
     p_organization_id: context.organization.organizationId,
     p_payload: {
-      file_name: file.name,
-      file_hash: hash,
-      file_size: file.size,
+      phase: "load",
+      batch_id: input.batchId,
+      file_name: input.file.name,
+      file_hash: input.file.hash,
+      file_size: input.file.size,
       column_mapping: Object.fromEntries(columns.mapped.map((m) => [m.header, m.field])),
-      rows,
+      rows: payloadRows(kind, input, columns),
     },
   });
-  if (error) return { ok: false, error: toMessage(error, "Não foi possível validar a importação.") };
+  if (error) return stepError(error, (e) => toMessage(e, "Não foi possível enviar as linhas do arquivo."));
+  return { ok: true, data: { batchId: String(obj(data).batch_id ?? "") } };
+}
 
+/** Valida as próximas `limit` linhas pendentes, na ordem do arquivo. */
+export async function validateFidelizationChunk(
+  kind: ImportKind,
+  batchId: string,
+  limit: number,
+): Promise<StepResult<{ pending: number }>> {
+  const context = await resolveOrganization("fidelization.import");
+  if (!context) return { ok: false, error: SESSION_LOST };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc(STAGE_RPC[kind], {
+    p_organization_id: context.organization.organizationId,
+    p_payload: { phase: "validate", batch_id: batchId, limit: clampLimit(limit) },
+  });
+  if (error) return stepError(error, (e) => toMessage(e, "Não foi possível validar a importação."));
+  return { ok: true, data: { pending: num(obj(data).pending) } };
+}
+
+/** Fecha a validação e devolve a prévia (§56, §58). */
+export async function finalizeFidelizationImport(
+  kind: ImportKind,
+  batchId: string,
+  sheet: { fileName: string; sheetName: string; headers: string[]; mapping?: string | null },
+): Promise<StepResult<ImportPreview>> {
+  const context = await resolveOrganization("fidelization.import");
+  if (!context) return { ok: false, error: SESSION_LOST };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc(STAGE_RPC[kind], {
+    p_organization_id: context.organization.organizationId,
+    p_payload: { phase: "finalize", batch_id: batchId },
+  });
+  if (error) return stepError(error, (e) => toMessage(e, "Não foi possível validar a importação."));
+
+  const columns = columnsFor(kind, sheet.headers, sheet.mapping);
   const r = obj(data);
+  const common = {
+    batchId: String(r.batch_id ?? batchId),
+    fileName: sheet.fileName,
+    sheetName: sheet.sheetName,
+    totalRows: num(r.total_rows),
+    validRows: num(r.valid_rows),
+    warningRows: num(r.warning_rows),
+    errorRows: num(r.error_rows),
+    createRows: num(r.create_rows),
+    skipRows: num(r.skip_rows),
+    alreadyImported: r.already_imported === true,
+    mappedColumns: columns.mapped,
+    unmappedColumns: columns.unmapped,
+    findings: findings(r.findings),
+  };
+
+  if (kind === "brs") {
+    return {
+      ok: true,
+      data: {
+        kind: "brs",
+        ...common,
+        updateRows: num(r.update_rows),
+        sample: arr(r.sample).map((s) => {
+          const d = obj(s.data);
+          return {
+            rowNumber: num(s.row_number),
+            status: String(s.status ?? ""),
+            action: String(s.action ?? ""),
+            operation: strOrNull(d.operation_name),
+            city: strOrNull(d.city_name),
+            stateUf: strOrNull(d.state_uf),
+            code: strOrNull(d.code),
+            description: strOrNull(d.description),
+            statusValue: strOrNull(d.status),
+            currentStatus: strOrNull(d.current_status),
+          };
+        }),
+      },
+    };
+  }
+
   const c = obj(r.categories);
   return {
     ok: true,
     data: {
       kind: "allocations",
-      batchId: String(r.batch_id ?? ""),
-      fileName: file.name,
-      sheetName: sheet.sheetName,
-      totalRows: num(r.total_rows),
-      validRows: num(r.valid_rows),
-      warningRows: num(r.warning_rows),
-      errorRows: num(r.error_rows),
-      createRows: num(r.create_rows),
+      ...common,
       substituteRows: num(r.substitute_rows),
-      skipRows: num(r.skip_rows),
-      alreadyImported: r.already_imported === true,
       categories: {
         existing: num(c.existing),
         new: num(c.new),
@@ -367,9 +357,6 @@ export async function uploadAllocationImport(formData: FormData): Promise<Result
         vehiclesNotFound: num(c.vehicles_not_found),
         competenceErrors: num(c.competence_errors),
       },
-      mappedColumns: columns.mapped,
-      unmappedColumns: columns.unmapped,
-      findings: findings(r.findings),
       sample: arr(r.sample).map((s) => {
         const d = obj(s.data);
         return {
@@ -392,28 +379,46 @@ export async function uploadAllocationImport(formData: FormData): Promise<Result
   };
 }
 
-/** Grava um lote validado. O tipo diz qual rotina do banco decide. */
-export async function confirmImport(kind: ImportKind, batchId: string): Promise<Result<ImportOutcome>> {
+/**
+ * Grava as próximas `limit` linhas de um lote validado. A última parte fecha o
+ * lote e traz o resultado; um lote interrompido continua de onde parou.
+ */
+export async function processFidelizationChunk(
+  kind: ImportKind,
+  batchId: string,
+  limit: number,
+): Promise<StepResult<{ done: boolean; remaining: number; outcome?: ImportOutcome }>> {
   const context = await resolveOrganization("fidelization.import");
   if (!context) return { ok: false, error: SESSION_LOST };
   const supabase = await createClient();
 
-  const { data, error } = await supabase.rpc(kind === "brs" ? "process_br_import" : "process_fidelization_import", {
+  const { data, error } = await supabase.rpc(PROCESS_RPC[kind], {
     p_organization_id: context.organization.organizationId,
     p_batch_id: batchId,
+    p_limit: clampLimit(limit),
   });
-  if (error) return { ok: false, error: toMessage(error, "A importação falhou e nenhum registro foi alterado.") };
+  if (error) {
+    return stepError(error, (e) =>
+      toMessage(e, "A gravação parou nesta parte. O que já foi gravado continua gravado; confirme de novo para continuar."),
+    );
+  }
+
+  const r = obj(data);
+  if (r.done !== true) return { ok: true, data: { done: false, remaining: num(r.remaining) } };
 
   revalidatePath(MODULE_PATH);
   revalidatePath("/governanca/brs");
-  const r = obj(data);
   return {
     ok: true,
     data: {
-      created: num(r.created),
-      updated: num(r.updated),
-      substituted: num(r.substituted),
-      skipped: num(r.skipped),
+      done: true,
+      remaining: 0,
+      outcome: {
+        created: num(r.created),
+        updated: num(r.updated),
+        substituted: num(r.substituted),
+        skipped: num(r.skipped),
+      },
     },
   };
 }
@@ -426,27 +431,6 @@ export interface ImportFileColumns {
   /** Sugestão por nome: cabeçalho → campo, ou "" quando nenhum alias bate. */
   suggestion: Record<string, string>;
   rowCount: number;
-}
-
-/**
- * Lê só os cabeçalhos do arquivo e sugere a ligação de cada coluna pelos
- * aliases (§47). Nada é gravado: a prévia continua sendo `upload*Import`.
- */
-export async function inspectImportFile(kind: ImportKind, formData: FormData): Promise<Result<ImportFileColumns>> {
-  const context = await resolveOrganization("fidelization.import");
-  if (!context) return { ok: false, error: SESSION_LOST };
-  const read = await readFile(formData);
-  if (!read.ok) return { ok: false, error: read.error };
-  const { sheet } = read;
-  const columns = kind === "brs" ? BR_IMPORT_COLUMNS : ALLOCATION_IMPORT_COLUMNS;
-  const required = kind === "brs" ? BR_REQUIRED : ALLOCATION_REQUIRED;
-  const auto = mapColumns<string>(sheet.headers, columns as ImportColumn<string>[], required as { label: string; fields: string[] }[]);
-  const suggestion: Record<string, string> = {};
-  sheet.headers.forEach((header, index) => {
-    if (!header) return;
-    suggestion[header] = auto.mapping[index] ?? "";
-  });
-  return { ok: true, data: { headers: sheet.headers.filter(Boolean), suggestion, rowCount: sheet.rows.length } };
 }
 
 export interface ImportLayout {

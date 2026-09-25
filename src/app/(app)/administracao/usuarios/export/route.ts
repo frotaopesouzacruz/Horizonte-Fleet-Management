@@ -2,8 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionContext, hasPermission } from "@/lib/auth/session";
 import { listEmployeesForExport, type DirectoryFilters, type SortKey } from "@/lib/admin/queries";
-import { buildWorkbook, buildCsv } from "@/lib/admin/spreadsheet";
+import { spreadsheetResponse } from "@/lib/admin/spreadsheet";
 import { EMPLOYMENT_STATUS_LABELS, ACCESS_STATUS_LABELS, QLP_TEMPLATE_HEADERS } from "@/lib/admin/qlp";
+
+/** Sem teto de linhas: a leitura vai página a página e o arquivo sai em fluxo. */
+export const maxDuration = 60;
 
 /** Column sets. "QLP" reproduces the 19 columns of the source file exactly. */
 const HFM_HEADERS = [
@@ -48,11 +51,9 @@ export async function GET(request: NextRequest) {
 
   // Empty file with the supported columns: the import template.
   if (layout === "template") {
-    const buffer =
-      format === "csv"
-        ? buildCsv(QLP_TEMPLATE_HEADERS, [])
-        : await buildWorkbook("QLP", QLP_TEMPLATE_HEADERS, []);
-    return fileResponse(buffer, `modelo-importacao-usuarios.${format}`, format);
+    return spreadsheetResponse({
+      format, fileName: `modelo-importacao-usuarios.${format}`, sheetName: "QLP", headers: QLP_TEMPLATE_HEADERS, rows: [],
+    });
   }
 
   const filters: DirectoryFilters = {
@@ -175,21 +176,6 @@ export async function GET(request: NextRequest) {
 
   const stamp = new Date().toISOString().slice(0, 10);
   const name = `usuarios-${layout}-${stamp}.${format}`;
-  const buffer =
-    format === "csv" ? buildCsv(headers, data) : await buildWorkbook("Usuários", headers, data);
-
-  return fileResponse(buffer, name, format);
+  return spreadsheetResponse({ format, fileName: name, sheetName: "Usuários", headers, rows: data });
 }
 
-function fileResponse(buffer: Buffer, fileName: string, format: "csv" | "xlsx") {
-  return new NextResponse(new Uint8Array(buffer), {
-    headers: {
-      "content-type":
-        format === "csv"
-          ? "text/csv; charset=utf-8"
-          : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "content-disposition": `attachment; filename="${fileName}"`,
-      "cache-control": "no-store",
-    },
-  });
-}

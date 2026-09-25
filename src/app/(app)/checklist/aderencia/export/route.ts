@@ -1,13 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionContext, hasPermission } from "@/lib/auth/session";
-import { buildWorkbook, buildCsv } from "@/lib/admin/spreadsheet";
+import { spreadsheetResponse } from "@/lib/admin/spreadsheet";
 import {
   getAdherenceMatrix, getAdherenceSummary, getReturnTracking,
   type AdherenceFilters, type AdherenceGroupBy, type ChecklistContext,
 } from "@/lib/adherence/queries";
 import { monthEnd, monthStart, parseCompetence, formatCompetence } from "@/lib/governance/competence";
 import { STATUS_META } from "../status";
+
+/** Sem teto de linhas: a leitura vai página a página e o arquivo sai em fluxo. */
+export const maxDuration = 60;
 
 /**
  * Exporta a Aderência (permissão `adherence.export`): a visão consolidada com
@@ -38,15 +41,6 @@ const dateBr = (v: string | null | undefined) => {
 const dateTimeBr = (v: string | null | undefined) =>
   v ? new Date(v).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 
-function fileResponse(buffer: Buffer, fileName: string, format: "xlsx" | "csv") {
-  return new NextResponse(new Uint8Array(buffer), {
-    headers: {
-      "Content-Type": format === "csv" ? "text/csv; charset=utf-8" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="${fileName}"`,
-      "Cache-Control": "no-store",
-    },
-  });
-}
 
 export async function GET(request: NextRequest) {
   const session = await getSessionContext();
@@ -87,7 +81,13 @@ export async function GET(request: NextRequest) {
   let sheet: string;
 
   if (kind === "matriz") {
-    const matrix = await getAdherenceMatrix(organizationId, competence, context, filters, 1, 5000);
+    // Todos os veículos da matriz, de 500 em 500, até o fim.
+    const matrix = { rows: [] as Awaited<ReturnType<typeof getAdherenceMatrix>>["rows"] };
+    for (let page = 1; ; page += 1) {
+      const part = await getAdherenceMatrix(organizationId, competence, context, filters, page, 500);
+      matrix.rows.push(...part.rows);
+      if (matrix.rows.length >= part.total || part.rows.length === 0) break;
+    }
     const days = new Date(competence.year, competence.month, 0).getDate();
     const dayHeaders = Array.from({ length: days }, (_, i) => String(i + 1).padStart(2, "0"));
     headers = ["Frota", "Placa", "Operação", "Cidade", "UF", "BR", "Liderança", "Tipo", ...dayHeaders];
@@ -104,7 +104,8 @@ export async function GET(request: NextRequest) {
     name = `aderencia-matriz-${label}.${format}`;
     sheet = "Matriz";
   } else if (kind === "retorno") {
-    const tracking = await getReturnTracking(organizationId, from, to, filters, 5000);
+    // Sem teto: todas as obrigações de retorno do período.
+    const tracking = await getReturnTracking(organizationId, from, to, filters, null);
     headers = ["Data", "Frota", "Placa", "Operação", "Cidade", "BR", "Liderança", "Retorno previsto", "Prazo", "Situação", "Saída", "Retorno", "Justificativa pendente"];
     data = tracking.rows.map((r) => [
       dateBr(r.operationalDate), r.fleetCode ?? "", r.licensePlate ?? "", r.operationName ?? "", r.cityName ?? "",
@@ -142,6 +143,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Não foi possível registrar a exportação." }, { status: 403 });
   }
 
-  const buffer = format === "csv" ? buildCsv(headers, data) : await buildWorkbook(sheet, headers, data);
-  return fileResponse(buffer, name, format);
+  return spreadsheetResponse({ format, fileName: name, sheetName: sheet, headers, rows: data });
 }

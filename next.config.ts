@@ -4,6 +4,14 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // The project documents its own conventions in docs/; no generated agent files.
   agentRules: false,
+  experimental: {
+    serverActions: {
+      // Imports have no row ceiling: the browser reads the spreadsheet and sends
+      // the rows in parts of about 1.2 MB each. The default 1 MB would reject a
+      // part; 4 MB keeps a margin and stays under the host's 4.5 MB request cap.
+      bodySizeLimit: "4mb",
+    },
+  },
   images: {
     // The official brand artwork is heavy (140 KB logos, 210 KB photographs);
     // serve right-sized modern formats instead of shipping the originals.

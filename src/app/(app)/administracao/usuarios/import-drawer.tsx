@@ -13,8 +13,11 @@ import { FormField } from "@/components/ui/form-field";
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/feedback/alert";
 import { Progress } from "@/components/feedback/progress";
+import { ImportProgress } from "@/components/feedback/import-progress";
 import { useToast } from "@/components/feedback/toast";
-import { uploadImportFile, processImport, cancelImport, type ImportPreview } from "@/lib/admin/import-actions";
+import { cancelImport, type ImportPreview } from "@/lib/admin/import-actions";
+import { processImport, uploadImportFile } from "@/lib/admin/import-client";
+import type { ImportProgressState } from "@/lib/import/client";
 
 type Stage = "upload" | "preview" | "done";
 
@@ -41,6 +44,7 @@ export function ImportDrawer({ open, onOpenChange }: { open: boolean; onOpenChan
   const [result, setResult] = React.useState<{ created: number; updated: number; skipped: number } | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [busy, startBusy] = React.useTransition();
+  const [progress, setProgress] = React.useState<ImportProgressState | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   // Reopening the wizard starts from scratch, adjusted during render so the
@@ -64,7 +68,7 @@ export function ImportDrawer({ open, onOpenChange }: { open: boolean; onOpenChan
       const data = new FormData();
       data.set("file", file);
       data.set("mode", mode);
-      const response = await uploadImportFile(data);
+      const response = await uploadImportFile(data, setProgress);
       if (!response.ok || !response.data) {
         setError(response.error ?? "Não foi possível ler o arquivo.");
         return;
@@ -77,7 +81,7 @@ export function ImportDrawer({ open, onOpenChange }: { open: boolean; onOpenChan
   function confirmImport() {
     if (!preview) return;
     startBusy(async () => {
-      const response = await processImport(preview.batchId);
+      const response = await processImport(preview.batchId, setProgress, preview.validRows + preview.warningRows);
       if (!response.ok || !response.data) {
         setError(response.error ?? "A importação falhou.");
         return;
@@ -111,6 +115,11 @@ export function ImportDrawer({ open, onOpenChange }: { open: boolean; onOpenChan
         </DrawerHeader>
 
         <DrawerBody>
+          {progress ? (
+            <div className="mb-4">
+              <ImportProgress progress={progress} />
+            </div>
+          ) : null}
           {error ? (
             <Alert variant="danger" className="mb-4">
               <AlertTitle>Não foi possível prosseguir</AlertTitle>

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import type { Database } from "@/types/database.types";
 
 export type DirectoryRow = Database["public"]["Views"]["employee_directory"]["Row"];
@@ -72,20 +73,18 @@ export interface DirectoryPage {
  * would be the bottleneck, and a client-side filter is not a security boundary
  * anyway — RLS already restricts the rows to the caller's tenant and operations.
  */
-export async function listEmployees(
+type DirectoryClient = Awaited<ReturnType<typeof createClient>>;
+
+/** The directory filtered as the screen filters it — shared by the page and the export. */
+function employeeDirectoryQuery(
+  supabase: DirectoryClient,
   organizationId: string,
-  filters: DirectoryFilters = {},
-): Promise<DirectoryPage> {
-  const supabase = await createClient();
-
-  const page = Math.max(1, filters.page ?? 1);
-  const pageSize = (PAGE_SIZES as readonly number[]).includes(filters.pageSize ?? 0)
-    ? (filters.pageSize as number)
-    : DEFAULT_PAGE_SIZE;
-
+  filters: DirectoryFilters,
+  withCount: boolean,
+) {
   let query = supabase
     .from("employee_directory")
-    .select("*", { count: "exact" })
+    .select("*", withCount ? { count: "exact" } : undefined)
     .eq("organization_id", organizationId);
 
   query = filters.archived ? query.not("deleted_at", "is", null) : query.is("deleted_at", null);
@@ -117,6 +116,22 @@ export async function listEmployees(
       : query.eq("access_status", filters.access);
   }
 
+  return query;
+}
+
+export async function listEmployees(
+  organizationId: string,
+  filters: DirectoryFilters = {},
+): Promise<DirectoryPage> {
+  const supabase = await createClient();
+
+  const page = Math.max(1, filters.page ?? 1);
+  const pageSize = (PAGE_SIZES as readonly number[]).includes(filters.pageSize ?? 0)
+    ? (filters.pageSize as number)
+    : DEFAULT_PAGE_SIZE;
+
+  const query = employeeDirectoryQuery(supabase, organizationId, filters, true);
+
   const sortColumn = SORTABLE[filters.sort ?? "full_name"] ?? SORTABLE.full_name;
   const ascending = filters.dir !== "desc";
 
@@ -138,22 +153,24 @@ export async function listEmployees(
   };
 }
 
-/** Every row matching the filters, for an export. Paged to keep memory bounded. */
+/**
+ * Every row matching the filters, for an export — no ceiling. Read page by
+ * page: the API returns at most 1,000 rows per request.
+ */
 export async function listEmployeesForExport(
   organizationId: string,
   filters: DirectoryFilters = {},
-  limit = 20000,
 ): Promise<DirectoryRow[]> {
-  const rows: DirectoryRow[] = [];
-  const pageSize = 1000;
-
-  for (let page = 1; rows.length < limit; page++) {
-    const result = await listEmployees(organizationId, { ...filters, page, pageSize });
-    rows.push(...result.rows);
-    if (rows.length >= result.total || result.rows.length === 0) break;
-  }
-
-  return rows.slice(0, limit);
+  const supabase = await createClient();
+  const sortColumn = SORTABLE[filters.sort ?? "full_name"] ?? SORTABLE.full_name;
+  const ascending = filters.dir !== "desc";
+  return fetchAll((from, to) =>
+    employeeDirectoryQuery(supabase, organizationId, filters, false)
+      .order(sortColumn, { ascending, nullsFirst: false })
+      .order("employee_code", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
 }
 
 export interface EmployeeDetail {
@@ -256,13 +273,17 @@ export async function getDirectoryOptions(organizationId: string): Promise<Direc
     supabase.from("work_locations").select("id, name").match(alive).is("deleted_at", null).order("name"),
     supabase.from("organization_units").select("id, name, code").match(alive).is("deleted_at", null).order("name"),
     supabase.from("business_profiles").select("id, name").match(alive).is("deleted_at", null).order("name"),
-    // only people who actually lead someone, so the filter stays short
-    supabase
-      .from("employee_directory")
-      .select("manager_employee_id, manager_name")
-      .eq("organization_id", organizationId)
-      .not("manager_employee_id", "is", null)
-      .limit(5000),
+    // only people who actually lead someone, so the filter stays short — every
+    // one of them, page by page (the API returns at most 1,000 rows at a time)
+    fetchAll((from, to) =>
+      supabase
+        .from("employee_directory")
+        .select("manager_employee_id, manager_name")
+        .eq("organization_id", organizationId)
+        .not("manager_employee_id", "is", null)
+        .order("id")
+        .range(from, to),
+    ).then((data) => ({ data })),
     // The seven official access profiles of this organization, in catalogue
     // order — not alphabetical: Operacional before Administrador says something
     // that "Administrador before Operacional" does not.

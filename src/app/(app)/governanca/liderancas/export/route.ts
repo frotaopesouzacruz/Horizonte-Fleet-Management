@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionContext, hasPermission } from "@/lib/auth/session";
-import { buildCsv, buildWorkbook } from "@/lib/admin/spreadsheet";
+import { spreadsheetResponse } from "@/lib/admin/spreadsheet";
 import { parseCompetence } from "@/lib/governance/competence";
 import {
   LEADERSHIP_EXPORT_HEADERS,
@@ -19,21 +19,12 @@ import {
  * (competência, operação, estado, cidade, nível, situação, liderança) — o
  * arquivo só pode conter o que quem exporta já enxergava. Cada exportação é
  * registrada na auditoria antes de o arquivo sair; se o registro falhar, o
- * arquivo não sai.
+ * arquivo não sai. Sem teto de linhas: as vigências são lidas página a página
+ * e o arquivo sai em fluxo.
  */
 
-function fileResponse(buffer: Buffer, fileName: string, format: "xlsx" | "csv") {
-  return new NextResponse(new Uint8Array(buffer), {
-    headers: {
-      "Content-Type":
-        format === "csv"
-          ? "text/csv; charset=utf-8"
-          : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="${fileName}"`,
-      "Cache-Control": "no-store",
-    },
-  });
-}
+export const maxDuration = 60;
+
 
 export async function GET(request: NextRequest) {
   const session = await getSessionContext();
@@ -80,9 +71,7 @@ export async function GET(request: NextRequest) {
   }
 
   const name = leadershipExportFileName(competence, format);
-  const buffer =
-    format === "csv"
-      ? buildCsv(LEADERSHIP_EXPORT_HEADERS, data)
-      : await buildWorkbook("Lideranças", LEADERSHIP_EXPORT_HEADERS, data);
-  return fileResponse(buffer, name, format);
+  return spreadsheetResponse({
+    format, fileName: name, sheetName: "Lideranças", headers: LEADERSHIP_EXPORT_HEADERS, rows: data,
+  });
 }

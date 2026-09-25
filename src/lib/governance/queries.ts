@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import { monthStart, monthEnd, type Competence } from "./competence";
 
 /**
@@ -101,30 +102,36 @@ export async function listLeadership(
   const first = monthStart(competence);
   const last = monthEnd(competence);
 
-  let query = supabase
-    .from("leadership_directory")
-    .select("*")
-    .eq("organization_id", organizationId)
-    .lte("effective_from", last)
-    .or(`effective_to.is.null,effective_to.gte.${first}`);
+  const build = () => {
+    let query = supabase
+      .from("leadership_directory")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .lte("effective_from", last)
+      .or(`effective_to.is.null,effective_to.gte.${first}`);
 
-  if (filters.operationId) query = query.eq("operation_id", filters.operationId);
-  if (filters.stateId) query = query.eq("state_id", Number(filters.stateId));
-  if (filters.cityId) query = query.eq("city_id", Number(filters.cityId));
-  if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
-  if (filters.scope) query = query.eq("scope_level", filters.scope);
-  if (filters.status === "current") query = query.eq("is_current", true);
-  else if (filters.status) query = query.eq("status", filters.status);
+    if (filters.operationId) query = query.eq("operation_id", filters.operationId);
+    if (filters.stateId) query = query.eq("state_id", Number(filters.stateId));
+    if (filters.cityId) query = query.eq("city_id", Number(filters.cityId));
+    if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
+    if (filters.scope) query = query.eq("scope_level", filters.scope);
+    if (filters.status === "current") query = query.eq("is_current", true);
+    else if (filters.status) query = query.eq("status", filters.status);
+    return query;
+  };
 
-  const { data, error } = await query
-    .order("operation_name")
-    .order("city_name", { nullsFirst: true })
-    .order("br_code", { nullsFirst: true })
-    .order("effective_from", { ascending: false });
+  // Todas as vigências da competência, página a página (a API devolve até 1.000 por vez).
+  const data = await fetchAll((from, to) =>
+    build()
+      .order("operation_name")
+      .order("city_name", { nullsFirst: true })
+      .order("br_code", { nullsFirst: true })
+      .order("effective_from", { ascending: false })
+      .order("id")
+      .range(from, to),
+  );
 
-  if (error) throw new Error(error.message);
-
-  return (data ?? []).map((row): LeadershipRow => ({
+  return data.map((row): LeadershipRow => ({
     id: row.id as string,
     employeeId: row.employee_id as string,
     employeeName: (row.employee_name as string) ?? "—",
@@ -384,22 +391,27 @@ export async function listFidelizationHistory(
   const first = monthStart(competence);
   const last = monthEnd(competence);
 
-  let query = supabase
-    .from("fidelization_directory")
-    .select("*")
-    .eq("organization_id", organizationId)
-    .lte("start_date", last)
-    .or(`end_date.is.null,end_date.gte.${first}`);
+  const build = () => {
+    let query = supabase
+      .from("fidelization_directory")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .lte("start_date", last)
+      .or(`end_date.is.null,end_date.gte.${first}`);
 
-  if (filters.operationId) query = query.eq("operation_id", filters.operationId);
-  if (filters.cityId) query = query.eq("city_id", Number(filters.cityId));
-  if (filters.brId) query = query.eq("operation_br_id", filters.brId);
-  if (filters.vehicleId) query = query.eq("vehicle_id", filters.vehicleId);
+    if (filters.operationId) query = query.eq("operation_id", filters.operationId);
+    if (filters.cityId) query = query.eq("city_id", Number(filters.cityId));
+    if (filters.brId) query = query.eq("operation_br_id", filters.brId);
+    if (filters.vehicleId) query = query.eq("vehicle_id", filters.vehicleId);
+    return query;
+  };
 
-  const { data, error } = await query.order("start_date", { ascending: false });
-  if (error) throw new Error(error.message);
+  // Todos os vínculos da competência, página a página (a API devolve até 1.000 por vez).
+  const data = await fetchAll((from, to) =>
+    build().order("start_date", { ascending: false }).order("id").range(from, to),
+  );
 
-  return (data ?? []).map((row): FidelizationRow => ({
+  return data.map((row): FidelizationRow => ({
     id: row.id as string,
     operationBrId: row.operation_br_id as string,
     brCode: (row.br_code as string) ?? "",

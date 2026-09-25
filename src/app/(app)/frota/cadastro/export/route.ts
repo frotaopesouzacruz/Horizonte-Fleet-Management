@@ -6,13 +6,16 @@ import {
   type VehicleFilters,
   type VehicleSortKey,
 } from "@/lib/fleet/queries";
-import { buildWorkbook, buildCsv } from "@/lib/admin/spreadsheet";
+import { spreadsheetResponse } from "@/lib/admin/spreadsheet";
 import {
   FLEET_TEMPLATE_HEADERS,
   OWNERSHIP_LABELS,
   VEHICLE_STATUS_LABELS,
   ODOMETER_SOURCE_LABELS,
 } from "@/lib/fleet/columns";
+
+/** Sem teto de linhas: a leitura vai página a página e o arquivo sai em fluxo. */
+export const maxDuration = 60;
 
 /**
  * Exports the fleet list currently on screen.
@@ -75,8 +78,9 @@ export async function GET(request: NextRequest) {
 
   // The empty file with the supported columns: the import template.
   if (isTemplate) {
-    const buffer = await buildWorkbook("Frotas", FLEET_TEMPLATE_HEADERS, []);
-    return fileResponse(buffer, "modelo-importacao-frotas.xlsx", "xlsx");
+    return spreadsheetResponse({
+      format: "xlsx", fileName: "modelo-importacao-frotas.xlsx", sheetName: "Frotas", headers: FLEET_TEMPLATE_HEADERS, rows: [],
+    });
   }
 
   const filters: VehicleFilters = {
@@ -135,21 +139,7 @@ export async function GET(request: NextRequest) {
 
   const stamp = new Date().toISOString().slice(0, 10);
   const name = `frotas-${stamp}.${format}`;
-  const buffer =
-    format === "csv" ? buildCsv(HEADERS, data) : await buildWorkbook("Frotas", HEADERS, data);
 
-  return fileResponse(buffer, name, format);
+  return spreadsheetResponse({ format, fileName: name, sheetName: "Frotas", headers: HEADERS, rows: data });
 }
 
-function fileResponse(buffer: Buffer, fileName: string, format: "csv" | "xlsx") {
-  return new NextResponse(new Uint8Array(buffer), {
-    headers: {
-      "content-type":
-        format === "csv"
-          ? "text/csv; charset=utf-8"
-          : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "content-disposition": `attachment; filename="${fileName}"`,
-      "cache-control": "no-store",
-    },
-  });
-}

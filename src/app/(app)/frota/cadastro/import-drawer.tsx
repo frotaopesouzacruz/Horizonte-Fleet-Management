@@ -29,13 +29,11 @@ import {
 } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/feedback/alert";
 import { LoadingState } from "@/components/feedback/loading-state";
+import { ImportProgress } from "@/components/feedback/import-progress";
 import { useToast } from "@/components/feedback/toast";
-import {
-  uploadFleetImport,
-  processFleetImport,
-  cancelFleetImport,
-  type FleetImportPreview,
-} from "@/lib/fleet/import-actions";
+import { cancelFleetImport, type FleetImportPreview } from "@/lib/fleet/import-actions";
+import { processFleetImport, uploadFleetImport } from "@/lib/fleet/import-client";
+import type { ImportProgressState } from "@/lib/import/client";
 
 const MODES = [
   {
@@ -90,6 +88,7 @@ export function FleetImportDrawer({
   const [file, setFile] = React.useState<File | null>(null);
   const [preview, setPreview] = React.useState<FleetImportPreview | null>(null);
   const [busy, setBusy] = React.useState(false);
+  const [progress, setProgress] = React.useState<ImportProgressState | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [done, setDone] = React.useState<{ created: number; updated: number; skipped: number } | null>(
     null,
@@ -118,7 +117,7 @@ export function FleetImportDrawer({
     data.set("file", file);
     data.set("mode", mode);
 
-    const result = await uploadFleetImport(data);
+    const result = await uploadFleetImport(data, setProgress);
     setBusy(false);
 
     if (!result.ok || !result.data) {
@@ -133,7 +132,7 @@ export function FleetImportDrawer({
     setBusy(true);
     setError(null);
 
-    const result = await processFleetImport(preview.batchId);
+    const result = await processFleetImport(preview.batchId, setProgress, preview.createRows + preview.updateRows);
     setBusy(false);
 
     if (!result.ok || !result.data) {
@@ -184,7 +183,9 @@ export function FleetImportDrawer({
             </Alert>
           ) : null}
 
-          {busy ? <LoadingState label="Processando o arquivo…" /> : null}
+          {busy ? (
+            progress ? <ImportProgress progress={progress} /> : <LoadingState label="Processando o arquivo…" />
+          ) : null}
 
           {!preview && !busy ? (
             <>
@@ -199,8 +200,8 @@ export function FleetImportDrawer({
                   className="block w-full rounded-md border border-border bg-surface px-3 py-2 text-body-sm text-fg file:mr-3 file:rounded file:border-0 file:bg-surface-secondary file:px-3 file:py-1 file:text-body-sm file:text-fg hfm-focus-ring"
                 />
                 <p className="text-caption text-fg-muted">
-                  Até 10 MB e 20.000 linhas. As colunas são reconhecidas pelo cabeçalho; baixe o modelo em
-                  Exportar se precisar.
+                  Sem limite de linhas: arquivos grandes são enviados e validados em partes. As colunas são
+                  reconhecidas pelo cabeçalho; baixe o modelo em Exportar se precisar.
                 </p>
               </div>
 

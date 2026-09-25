@@ -86,9 +86,11 @@ test.describe("filiais: importação, exportação e centros de custo", () => {
     await bar.getByRole("button", { name: "Exportar selecionadas" }).click();
     const dialog2 = page.getByRole("dialog", { name: "Exportar filiais" });
     await expect(dialog2.getByRole("radio", { name: /Filiais selecionadas \(2\)/ })).toBeChecked();
-    const href = await dialog2.getByTestId("branch-export-download").getAttribute("href");
-    expect(href).toContain("tipo=selecionadas");
-    const ids = decodeURIComponent(new URL(href!, "http://x").searchParams.get("ids") ?? "").split(",");
+    // A seleção vai no corpo de um POST (sem teto de filiais marcadas), não na URL.
+    const form = dialog2.getByTestId("branch-export-download").locator("xpath=ancestor::form");
+    await expect(form).toHaveAttribute("method", "post");
+    await expect(form.locator('input[name="tipo"]')).toHaveValue("selecionadas");
+    const ids = (await form.locator('input[name="ids"]').inputValue()).split(",");
     expect(ids.sort()).toEqual([MG, BETIM].sort());
     await dialog2.getByRole("button", { name: "Cancelar" }).click();
 

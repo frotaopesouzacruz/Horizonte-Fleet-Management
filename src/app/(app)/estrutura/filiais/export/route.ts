@@ -2,13 +2,16 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { Json } from "@/types/database.types";
 import { getSessionContext, hasPermission } from "@/lib/auth/session";
-import { buildCsv, buildWorkbook } from "@/lib/admin/spreadsheet";
+import { spreadsheetResponse } from "@/lib/admin/spreadsheet";
 import { getBranchOperations, listBranches, type BranchFilters } from "@/lib/branches/queries";
 import { formatCnpj, formatPostalCode } from "@/lib/branches/format";
 import {
   BRANCH_EXPORT_HEADERS, BRANCH_EXPORT_KINDS, BRANCH_OPERATION_EXPORT_HEADERS, BRANCH_TEMPLATE_HEADERS,
-  MAX_SELECTED_EXPORT, type BranchExportKind,
+  type BranchExportKind,
 } from "@/lib/branches/import-columns";
+
+/** Sem teto de linhas: a leitura vai página a página e o arquivo sai em fluxo. */
+export const maxDuration = 60;
 
 /**
  * Exportação de Filiais (Etapa 09, §61).
@@ -35,26 +38,34 @@ function formatDate(value: string | null | undefined): string {
 
 const blank = (value: string | null | undefined): string => value ?? "";
 
-function fileResponse(buffer: Buffer, fileName: string, format: "xlsx" | "csv") {
-  return new NextResponse(new Uint8Array(buffer), {
-    headers: {
-      "Content-Type":
-        format === "csv"
-          ? "text/csv; charset=utf-8"
-          : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="${fileName}"`,
-      "Cache-Control": "no-store",
-    },
-  });
-}
 
 export async function GET(request: NextRequest) {
+  return exportBranches(request.nextUrl.searchParams);
+}
+
+/**
+ * A seleção vai no corpo, não na URL: um endereço tem tamanho máximo, uma
+ * seleção de filiais não tem. Só aceita envio da própria aplicação.
+ */
+export async function POST(request: NextRequest) {
+  const origin = request.headers.get("origin");
+  if (origin && new URL(origin).host !== request.headers.get("host")) {
+    return NextResponse.json({ error: "Origem não permitida." }, { status: 403 });
+  }
+  const form = await request.formData();
+  const params = new URLSearchParams();
+  for (const [key, value] of form.entries()) {
+    if (typeof value === "string") params.append(key, value);
+  }
+  return exportBranches(params);
+}
+
+async function exportBranches(params: URLSearchParams) {
   const session = await getSessionContext();
   if (!session?.activeOrganization) {
     return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   }
   const organizationId = session.activeOrganization.organizationId;
-  const params = request.nextUrl.searchParams;
   const requested = params.get("tipo") ?? "todas";
   if (!BRANCH_EXPORT_KINDS.includes(requested as BranchExportKind)) {
     return NextResponse.json({ error: "Tipo de exportação inválido." }, { status: 400 });
@@ -131,12 +142,6 @@ export async function GET(request: NextRequest) {
       if (ids.length === 0) {
         return NextResponse.json({ error: "Selecione ao menos uma filial." }, { status: 400 });
       }
-      if (ids.length > MAX_SELECTED_EXPORT) {
-        return NextResponse.json(
-          { error: `Selecione no máximo ${MAX_SELECTED_EXPORT} filiais; para mais, exporte pelos filtros.` },
-          { status: 400 },
-        );
-      }
       // Um id que a pessoa não enxerga simplesmente não está na lista — a
       // seleção nunca amplia o que a RLS já devolveu.
       const wanted = new Set(ids.map((id) => id.toLowerCase()));
@@ -191,6 +196,5 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const buffer = format === "csv" ? buildCsv(headers, data) : await buildWorkbook(sheetName, headers, data);
-  return fileResponse(buffer, fileName, format);
+  return spreadsheetResponse({ format, fileName, sheetName, headers, rows: data });
 }

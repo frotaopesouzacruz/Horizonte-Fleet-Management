@@ -97,6 +97,3 @@ export const BRANCH_OPERATION_EXPORT_HEADERS = [
 export type BranchExportKind = "todas" | "filtradas" | "selecionadas" | "operacoes" | "modelo";
 
 export const BRANCH_EXPORT_KINDS: BranchExportKind[] = ["todas", "filtradas", "selecionadas", "operacoes", "modelo"];
-
-/** Teto da seleção enviada pela URL. Acima disso, exporte pelos filtros. */
-export const MAX_SELECTED_EXPORT = 500;
