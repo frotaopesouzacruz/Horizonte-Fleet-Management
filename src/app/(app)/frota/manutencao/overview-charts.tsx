@@ -181,7 +181,7 @@ export function StackedColumnChart({ items, series, ariaLabel, className }: Stac
   for (let t = 0; t <= scale.top; t += scale.step) ticks.push(t);
 
   return (
-    <div className={cn("overflow-x-auto", className)}>
+    <div tabIndex={0} className={cn("overflow-x-auto rounded-sm hfm-focus-ring", className)}>
       <svg
         viewBox={`0 0 ${width} ${height}`}
         role="img"
@@ -284,7 +284,7 @@ export function CountBarChart({ items, ariaLabel, valueLabel = "Quantidade", dim
   const share = (v: number) => (sum > 0 ? `${pct1.format((v / sum) * 100)}%` : "—");
 
   return (
-    <div className={cn("overflow-x-auto", className)}>
+    <div tabIndex={0} className={cn("overflow-x-auto rounded-sm hfm-focus-ring", className)}>
       <svg
         viewBox={`0 0 ${width} ${height}`}
         role="img"
@@ -357,7 +357,7 @@ export function ColumnChart({ items, ariaLabel, dimensionLabel, valueLabel = "Qu
   for (let t = 0; t <= scale.top; t += scale.step) ticks.push(t);
 
   return (
-    <div className={cn("overflow-x-auto", className)}>
+    <div tabIndex={0} className={cn("overflow-x-auto rounded-sm hfm-focus-ring", className)}>
       <svg
         viewBox={`0 0 ${width} ${height}`}
         role="img"

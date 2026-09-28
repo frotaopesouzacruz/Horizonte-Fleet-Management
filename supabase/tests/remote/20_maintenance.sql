@@ -39,8 +39,8 @@
 --   T103 Reincidência: mesmo veículo + cluster na janela = possível
 --        reincidência (detalhe, painel e histórico do veículo)
 --   T104 Importação: importar, reimportar, idempotência
---   T105 Segurança: Operacional, Liderança (escopo), Gestor de Frota, Gestão,
---        Administrador, sem permissão e outro tenant
+--   T105 Segurança: Operacional, Liderança (escopo), Gestor de Frota (escopo),
+--        Gestão, Administrador, sem permissão e outro tenant
 --   (T106, regressão, é coberta pelas suítes 09–19 e pelo Playwright.)
 -- =============================================================================
 
@@ -415,22 +415,33 @@ begin
     txt := txt || format('outro tenant: gravação recusada=%s, lista=%s, linhas=%s; ', ok2, n, n2);
     ok := ok and ok2 and n = 0 and n2 = 0;
 
-    -- Gestor de Frota
+    -- Gestor de Frota: sem `operations.access_all` (Etapa 05), atua nas operações
+    -- do seu escopo. O escopo entra com o administrador de plataforma ainda
+    -- ativo (a guarda recusa a pessoa mexer no próprio escopo), como na
+    -- Liderança abaixo.
     perform set_config('hfm.access_change', 'on', true);
+    update public.platform_admins set revoked_at = null where user_id = v_user and revoked_at = now();
+    delete from public.membership_operation_scopes where membership_id = v_mem;
+    insert into public.membership_operation_scopes (organization_id, membership_id, operation_id) values (v_org, v_mem, v_a.operation_id);
+    update public.platform_admins set revoked_at = now() where user_id = v_user and revoked_at is null;
     update public.membership_roles set role_id = (select ro.id from public.roles ro where ro.code = 'gestor_frota'
       and (ro.organization_id = v_org or ro.organization_id is null) and ro.deleted_at is null order by ro.organization_id nulls last limit 1)
      where membership_id = v_mem;
     perform set_config('hfm.access_change', '', true);
     begin
-      j := public.maintenance_create(v_org, jsonb_build_object('vehicle_id', v_c.id, 'maintenance_type_code', 'corrective',
-             'origin_code', 'operation', 'service_ids', jsonb_build_array(s_dis)));
+      j := public.maintenance_create(v_org, jsonb_build_object('vehicle_id', v_a.id, 'maintenance_type_code', 'corrective',
+             'origin_code', 'operation', 'service_ids', jsonb_build_array(s_dis), 'duplicate_justification', 'Suite20 gestor no escopo'));
       perform public.maintenance_schedule((j ->> 'id')::uuid, jsonb_build_object('scheduled_date', v_today + 1));
       perform public.maintenance_save_cluster(v_org, '{"name":"Suite20 Gestor"}');
       ok2 := true;
     exception when others then ok2 := false; txt := txt || 'gestor erro: ' || sqlerrm || '; ';
     end;
-    txt := txt || format('Gestor de Frota cria/agenda/cadastra=%s; ', ok2);
-    ok := ok and ok2;
+    ok3 := false;
+    begin perform public.maintenance_create(v_org, jsonb_build_object('vehicle_id', v_b.id, 'maintenance_type_code', 'corrective',
+               'origin_code', 'operation', 'service_ids', jsonb_build_array(s_dis), 'duplicate_justification', 'Suite20 gestor fora do escopo'));
+    exception when insufficient_privilege then ok3 := true; end;
+    txt := txt || format('Gestor de Frota (escopo A) cria/agenda/cadastra=%s, fora do escopo recusada=%s; ', ok2, ok3);
+    ok := ok and ok2 and ok3;
 
     -- Gestão: lê base e painel; não cria
     perform set_config('hfm.access_change', 'on', true);
