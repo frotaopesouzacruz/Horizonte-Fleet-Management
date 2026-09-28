@@ -47,6 +47,7 @@ import { loadVehicleDetail, loadVehicleTimeline, type TimelineEntry } from "@/li
 import { listOperationsForFleet } from "@/lib/fleet/option-actions";
 import { loadVehicleBrHistory } from "@/lib/governance/actions";
 import type { VehicleBrHistory, VehicleBrRow } from "@/lib/governance/brs";
+import { VehicleMaintenanceHistory } from "@/components/maintenance/vehicle-maintenance-history";
 import { useOperationGeography } from "./use-operation-geography";
 import { formatDate, formatPlate } from "./fleet-view";
 
@@ -133,6 +134,8 @@ export function VehicleDetailDrawer({
   const can = (permission: string) => isPlatformAdmin || permissions.includes(permission);
   const open = Boolean(vehicleId);
   const canViewBrs = can("fidelization.view");
+  // Etapa 16: o histórico de manutenção é consulta à base oficial do módulo.
+  const canViewMaintenance = can("maintenance.view_base");
 
   /**
    * The Fidelização tab loads only when it is first shown for this vehicle
@@ -239,6 +242,7 @@ export function VehicleDetailDrawer({
                 <TabsTrigger value="operacao">Vínculo operacional</TabsTrigger>
                 {canViewBrs ? <TabsTrigger value="fidelizacao">Fidelização</TabsTrigger> : null}
                 <TabsTrigger value="km">Quilometragem</TabsTrigger>
+                {canViewMaintenance ? <TabsTrigger value="manutencao">Manutenção</TabsTrigger> : null}
                 <TabsTrigger value="historico">Histórico</TabsTrigger>
               </TabsList>
 
@@ -356,6 +360,15 @@ export function VehicleDetailDrawer({
                   }}
                 />
               </TabsContent>
+
+              {/* ------------------------------------------ manutenção ---- */}
+              {/* Etapa 16: consulta, não cópia — a leitura é pelo id do
+                  veículo na base da Manutenção. Mudar é no módulo. */}
+              {canViewMaintenance && vehicleId ? (
+                <TabsContent value="manutencao" className="flex flex-col gap-4">
+                  <VehicleMaintenanceHistory vehicleId={vehicleId} />
+                </TabsContent>
+              ) : null}
 
               {/* ------------------------------------------- histórico ---- */}
               <TabsContent value="historico" className="flex flex-col gap-3">

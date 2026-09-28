@@ -1601,6 +1601,1844 @@ export type Database = {
           },
         ]
       }
+      maintenance_checklist_service_links: {
+        Row: {
+          action_key: string | null
+          app_id: string
+          auto_resolve: boolean
+          created_at: string
+          created_by: string | null
+          field_key: string | null
+          id: string
+          is_active: boolean
+          notes: string | null
+          organization_id: string
+          question_key: string
+          service_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          action_key?: string | null
+          app_id: string
+          auto_resolve?: boolean
+          created_at?: string
+          created_by?: string | null
+          field_key?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          organization_id: string
+          question_key: string
+          service_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          action_key?: string | null
+          app_id?: string
+          auto_resolve?: boolean
+          created_at?: string
+          created_by?: string | null
+          field_key?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          organization_id?: string
+          question_key?: string
+          service_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_checklist_links_service_fkey"
+            columns: ["organization_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_services"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_checklist_service_links_app_id_fkey"
+            columns: ["app_id"]
+            isOneToOne: false
+            referencedRelation: "operational_apps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_checklist_service_links_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      maintenance_clusters: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string | null
+          default_criticality: string
+          deleted_at: string | null
+          deleted_by: string | null
+          description: string | null
+          id: string
+          name: string
+          organization_id: string
+          sort_order: number
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string | null
+          default_criticality?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          organization_id: string
+          sort_order?: number
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          default_criticality?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+          sort_order?: number
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_clusters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      maintenance_events: {
+        Row: {
+          actor_name: string | null
+          actor_user_id: string | null
+          event_type: string
+          from_status: string | null
+          id: string
+          maintenance_id: string
+          occurred_at: string
+          organization_id: string
+          payload: Json
+          reason: string | null
+          source: string
+          to_status: string | null
+        }
+        Insert: {
+          actor_name?: string | null
+          actor_user_id?: string | null
+          event_type: string
+          from_status?: string | null
+          id?: string
+          maintenance_id: string
+          occurred_at?: string
+          organization_id: string
+          payload?: Json
+          reason?: string | null
+          source?: string
+          to_status?: string | null
+        }
+        Update: {
+          actor_name?: string | null
+          actor_user_id?: string | null
+          event_type?: string
+          from_status?: string | null
+          id?: string
+          maintenance_id?: string
+          occurred_at?: string
+          organization_id?: string
+          payload?: Json
+          reason?: string | null
+          source?: string
+          to_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_events_maintenance_fkey"
+            columns: ["organization_id", "maintenance_id"]
+            isOneToOne: false
+            referencedRelation: "maintenances"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      maintenance_finding_links: {
+        Row: {
+          checklist_answer_id: string
+          checklist_execution_id: string
+          created_at: string
+          created_by: string | null
+          field_key: string | null
+          id: string
+          link_origin: string
+          maintenance_id: string
+          notes: string | null
+          organization_id: string
+          question_key: string
+          resolution_status: string
+          resolved_at: string | null
+          resolved_by: string | null
+          resolved_by_item_id: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          checklist_answer_id: string
+          checklist_execution_id: string
+          created_at?: string
+          created_by?: string | null
+          field_key?: string | null
+          id?: string
+          link_origin?: string
+          maintenance_id: string
+          notes?: string | null
+          organization_id: string
+          question_key: string
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_by_item_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          checklist_answer_id?: string
+          checklist_execution_id?: string
+          created_at?: string
+          created_by?: string | null
+          field_key?: string | null
+          id?: string
+          link_origin?: string
+          maintenance_id?: string
+          notes?: string | null
+          organization_id?: string
+          question_key?: string
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_by_item_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_finding_links_checklist_answer_id_fkey"
+            columns: ["checklist_answer_id"]
+            isOneToOne: false
+            referencedRelation: "checklist_execution_answers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_finding_links_checklist_execution_id_fkey"
+            columns: ["checklist_execution_id"]
+            isOneToOne: false
+            referencedRelation: "checklist_executions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_finding_links_item_fkey"
+            columns: ["organization_id", "resolved_by_item_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_items"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_finding_links_maintenance_fkey"
+            columns: ["organization_id", "maintenance_id"]
+            isOneToOne: false
+            referencedRelation: "maintenances"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_finding_links_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      maintenance_items: {
+        Row: {
+          cluster_id: string
+          cluster_name_snapshot: string
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          criticality: string
+          id: string
+          maintenance_id: string
+          notes: string | null
+          organization_id: string
+          result: string | null
+          service_id: string
+          service_name_snapshot: string
+          sort_order: number
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          cluster_id: string
+          cluster_name_snapshot: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          criticality?: string
+          id?: string
+          maintenance_id: string
+          notes?: string | null
+          organization_id: string
+          result?: string | null
+          service_id: string
+          service_name_snapshot: string
+          sort_order?: number
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          cluster_id?: string
+          cluster_name_snapshot?: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          criticality?: string
+          id?: string
+          maintenance_id?: string
+          notes?: string | null
+          organization_id?: string
+          result?: string | null
+          service_id?: string
+          service_name_snapshot?: string
+          sort_order?: number
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_items_cluster_fkey"
+            columns: ["organization_id", "cluster_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_clusters"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_items_maintenance_fkey"
+            columns: ["organization_id", "maintenance_id"]
+            isOneToOne: false
+            referencedRelation: "maintenances"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_items_service_fkey"
+            columns: ["organization_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_services"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      maintenance_origins: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          is_system: boolean
+          manual_selectable: boolean
+          name: string
+          organization_id: string | null
+          sort_order: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          manual_selectable?: boolean
+          name: string
+          organization_id?: string | null
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          manual_selectable?: boolean
+          name?: string
+          organization_id?: string | null
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_origins_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      maintenance_predictive_coverage: {
+        Row: {
+          coverage: string
+          created_at: string
+          created_by: string | null
+          id: string
+          organization_id: string
+          plan_item_id: string
+          service_id: string
+        }
+        Insert: {
+          coverage?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id: string
+          plan_item_id: string
+          service_id: string
+        }
+        Update: {
+          coverage?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id?: string
+          plan_item_id?: string
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_predictive_coverage_item_fkey"
+            columns: ["organization_id", "plan_item_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_predictive_plan_items"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_predictive_coverage_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_predictive_coverage_service_fkey"
+            columns: ["organization_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_services"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      maintenance_predictive_cycles: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          last_result: string | null
+          last_verification_id: string | null
+          monitoring_active: boolean
+          monitoring_days: number | null
+          monitoring_km: number | null
+          organization_id: string
+          plan_id: string
+          plan_item_id: string
+          plan_version: number
+          reference_date: string | null
+          reference_km: number | null
+          reference_maintenance_id: string | null
+          reference_type: string
+          reference_verification_id: string | null
+          updated_at: string
+          vehicle_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_result?: string | null
+          last_verification_id?: string | null
+          monitoring_active?: boolean
+          monitoring_days?: number | null
+          monitoring_km?: number | null
+          organization_id: string
+          plan_id: string
+          plan_item_id: string
+          plan_version: number
+          reference_date?: string | null
+          reference_km?: number | null
+          reference_maintenance_id?: string | null
+          reference_type?: string
+          reference_verification_id?: string | null
+          updated_at?: string
+          vehicle_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_result?: string | null
+          last_verification_id?: string | null
+          monitoring_active?: boolean
+          monitoring_days?: number | null
+          monitoring_km?: number | null
+          organization_id?: string
+          plan_id?: string
+          plan_item_id?: string
+          plan_version?: number
+          reference_date?: string | null
+          reference_km?: number | null
+          reference_maintenance_id?: string | null
+          reference_type?: string
+          reference_verification_id?: string | null
+          updated_at?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_predictive_cycles_item_fkey"
+            columns: ["organization_id", "plan_item_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_predictive_plan_items"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_predictive_cycles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_predictive_cycles_plan_fkey"
+            columns: ["organization_id", "plan_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_predictive_plans"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_predictive_cycles_vehicle_fkey"
+            columns: ["organization_id", "vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_predictive_cycles_vehicle_fkey"
+            columns: ["organization_id", "vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      maintenance_predictive_plan_items: {
+        Row: {
+          alert_pct: number
+          checklist: Json
+          cluster_id: string
+          created_at: string
+          created_by: string | null
+          criticality: string
+          id: string
+          interval_days: number | null
+          interval_engine_hours: number | null
+          interval_km: number | null
+          is_active: boolean
+          name: string
+          organization_id: string
+          plan_id: string
+          schedule_pct: number
+          service_id: string | null
+          sort_order: number
+          technical_description: string | null
+          tolerance_pct: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          alert_pct?: number
+          checklist?: Json
+          cluster_id: string
+          created_at?: string
+          created_by?: string | null
+          criticality?: string
+          id?: string
+          interval_days?: number | null
+          interval_engine_hours?: number | null
+          interval_km?: number | null
+          is_active?: boolean
+          name: string
+          organization_id: string
+          plan_id: string
+          schedule_pct?: number
+          service_id?: string | null
+          sort_order?: number
+          technical_description?: string | null
+          tolerance_pct?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          alert_pct?: number
+          checklist?: Json
+          cluster_id?: string
+          created_at?: string
+          created_by?: string | null
+          criticality?: string
+          id?: string
+          interval_days?: number | null
+          interval_engine_hours?: number | null
+          interval_km?: number | null
+          is_active?: boolean
+          name?: string
+          organization_id?: string
+          plan_id?: string
+          schedule_pct?: number
+          service_id?: string | null
+          sort_order?: number
+          technical_description?: string | null
+          tolerance_pct?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_predictive_items_cluster_fkey"
+            columns: ["organization_id", "cluster_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_clusters"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_predictive_items_plan_fkey"
+            columns: ["organization_id", "plan_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_predictive_plans"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_predictive_items_service_fkey"
+            columns: ["organization_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_services"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_predictive_plan_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      maintenance_predictive_plan_versions: {
+        Row: {
+          approval_status: string
+          created_at: string
+          created_by: string | null
+          id: string
+          organization_id: string
+          plan_id: string
+          reason: string | null
+          snapshot: Json
+          version: number
+        }
+        Insert: {
+          approval_status: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id: string
+          plan_id: string
+          reason?: string | null
+          snapshot: Json
+          version: number
+        }
+        Update: {
+          approval_status?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id?: string
+          plan_id?: string
+          reason?: string | null
+          snapshot?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_predictive_plan_versions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_predictive_versions_plan_fkey"
+            columns: ["organization_id", "plan_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_predictive_plans"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      maintenance_predictive_plans: {
+        Row: {
+          approval_status: string
+          approved_at: string | null
+          approved_by: string | null
+          code: string
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          oem_reference: string | null
+          organization_id: string
+          reference_document: string | null
+          source: string
+          updated_at: string
+          updated_by: string | null
+          vehicle_make_id: string | null
+          vehicle_model_id: string | null
+          vehicle_subcategory_id: string | null
+          vehicle_type_id: string
+          version: number
+          year_from: number | null
+          year_to: number | null
+        }
+        Insert: {
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          code: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          oem_reference?: string | null
+          organization_id: string
+          reference_document?: string | null
+          source?: string
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_make_id?: string | null
+          vehicle_model_id?: string | null
+          vehicle_subcategory_id?: string | null
+          vehicle_type_id: string
+          version?: number
+          year_from?: number | null
+          year_to?: number | null
+        }
+        Update: {
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          oem_reference?: string | null
+          organization_id?: string
+          reference_document?: string | null
+          source?: string
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_make_id?: string | null
+          vehicle_model_id?: string | null
+          vehicle_subcategory_id?: string | null
+          vehicle_type_id?: string
+          version?: number
+          year_from?: number | null
+          year_to?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_predictive_plans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_predictive_plans_subcategory_fkey"
+            columns: ["vehicle_subcategory_id", "vehicle_type_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_subcategories"
+            referencedColumns: ["id", "vehicle_type_id"]
+          },
+          {
+            foreignKeyName: "maintenance_predictive_plans_vehicle_make_id_fkey"
+            columns: ["vehicle_make_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_makes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_predictive_plans_vehicle_model_id_fkey"
+            columns: ["vehicle_model_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_models"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_predictive_plans_vehicle_type_id_fkey"
+            columns: ["vehicle_type_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      maintenance_predictive_verifications: {
+        Row: {
+          checklist: Json
+          created_at: string
+          created_by: string | null
+          cycle_id: string
+          decision: string
+          id: string
+          km: number | null
+          km_source: string | null
+          maintenance_id: string | null
+          monitor_days: number | null
+          monitor_km: number | null
+          notes: string | null
+          organization_id: string
+          plan_item_id: string
+          responsible_employee_id: string | null
+          responsible_name: string
+          result: string
+          vehicle_id: string
+          verified_on: string
+        }
+        Insert: {
+          checklist?: Json
+          created_at?: string
+          created_by?: string | null
+          cycle_id: string
+          decision: string
+          id?: string
+          km?: number | null
+          km_source?: string | null
+          maintenance_id?: string | null
+          monitor_days?: number | null
+          monitor_km?: number | null
+          notes?: string | null
+          organization_id: string
+          plan_item_id: string
+          responsible_employee_id?: string | null
+          responsible_name: string
+          result: string
+          vehicle_id: string
+          verified_on: string
+        }
+        Update: {
+          checklist?: Json
+          created_at?: string
+          created_by?: string | null
+          cycle_id?: string
+          decision?: string
+          id?: string
+          km?: number | null
+          km_source?: string | null
+          maintenance_id?: string | null
+          monitor_days?: number | null
+          monitor_km?: number | null
+          notes?: string | null
+          organization_id?: string
+          plan_item_id?: string
+          responsible_employee_id?: string | null
+          responsible_name?: string
+          result?: string
+          vehicle_id?: string
+          verified_on?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_predictive_verifications_cycle_fkey"
+            columns: ["organization_id", "cycle_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_predictive_cycles"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_predictive_verifications_employee_fkey"
+            columns: ["organization_id", "responsible_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_predictive_verifications_employee_fkey"
+            columns: ["organization_id", "responsible_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_predictive_verifications_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_predictive_verifications_vehicle_fkey"
+            columns: ["organization_id", "vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_predictive_verifications_vehicle_fkey"
+            columns: ["organization_id", "vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      maintenance_preventive_cycles: {
+        Row: {
+          alert_before_pct: number
+          completed_km: number | null
+          completed_maintenance_id: string | null
+          completed_on: string | null
+          completion_source: string | null
+          created_at: string
+          cycle_number: number
+          id: string
+          interval_km: number
+          milestone_km: number
+          organization_id: string
+          rule_id: string
+          tolerance_after_pct: number
+          updated_at: string
+          vehicle_id: string
+        }
+        Insert: {
+          alert_before_pct: number
+          completed_km?: number | null
+          completed_maintenance_id?: string | null
+          completed_on?: string | null
+          completion_source?: string | null
+          created_at?: string
+          cycle_number: number
+          id?: string
+          interval_km: number
+          milestone_km: number
+          organization_id: string
+          rule_id: string
+          tolerance_after_pct: number
+          updated_at?: string
+          vehicle_id: string
+        }
+        Update: {
+          alert_before_pct?: number
+          completed_km?: number | null
+          completed_maintenance_id?: string | null
+          completed_on?: string | null
+          completion_source?: string | null
+          created_at?: string
+          cycle_number?: number
+          id?: string
+          interval_km?: number
+          milestone_km?: number
+          organization_id?: string
+          rule_id?: string
+          tolerance_after_pct?: number
+          updated_at?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_preventive_cycles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_preventive_cycles_rule_fkey"
+            columns: ["organization_id", "rule_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_preventive_rules"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_preventive_cycles_vehicle_fkey"
+            columns: ["organization_id", "vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_preventive_cycles_vehicle_fkey"
+            columns: ["organization_id", "vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      maintenance_preventive_rules: {
+        Row: {
+          alert_before_pct: number
+          created_at: string
+          created_by: string | null
+          criticality: string
+          cycle_count: number
+          deleted_at: string | null
+          deleted_by: string | null
+          id: string
+          initial_km: number
+          interval_km: number
+          notes: string | null
+          organization_id: string
+          service_id: string | null
+          status: string
+          tolerance_after_pct: number
+          updated_at: string
+          updated_by: string | null
+          vehicle_model_id: string | null
+          vehicle_subcategory_id: string | null
+          vehicle_type_id: string
+        }
+        Insert: {
+          alert_before_pct?: number
+          created_at?: string
+          created_by?: string | null
+          criticality?: string
+          cycle_count?: number
+          deleted_at?: string | null
+          deleted_by?: string | null
+          id?: string
+          initial_km?: number
+          interval_km: number
+          notes?: string | null
+          organization_id: string
+          service_id?: string | null
+          status?: string
+          tolerance_after_pct?: number
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_model_id?: string | null
+          vehicle_subcategory_id?: string | null
+          vehicle_type_id: string
+        }
+        Update: {
+          alert_before_pct?: number
+          created_at?: string
+          created_by?: string | null
+          criticality?: string
+          cycle_count?: number
+          deleted_at?: string | null
+          deleted_by?: string | null
+          id?: string
+          initial_km?: number
+          interval_km?: number
+          notes?: string | null
+          organization_id?: string
+          service_id?: string | null
+          status?: string
+          tolerance_after_pct?: number
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_model_id?: string | null
+          vehicle_subcategory_id?: string | null
+          vehicle_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_preventive_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_preventive_rules_service_fkey"
+            columns: ["organization_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_services"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_preventive_rules_subcategory_fkey"
+            columns: ["vehicle_subcategory_id", "vehicle_type_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_subcategories"
+            referencedColumns: ["id", "vehicle_type_id"]
+          },
+          {
+            foreignKeyName: "maintenance_preventive_rules_vehicle_model_id_fkey"
+            columns: ["vehicle_model_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_models"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_preventive_rules_vehicle_type_id_fkey"
+            columns: ["vehicle_type_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      maintenance_services: {
+        Row: {
+          cluster_id: string
+          created_at: string
+          created_by: string | null
+          criticality: string
+          deleted_at: string | null
+          deleted_by: string | null
+          description: string | null
+          expected_hours: number | null
+          id: string
+          is_predictive: boolean
+          maintenance_type_codes: string[]
+          name: string
+          organization_id: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+          vehicle_type_ids: string[]
+        }
+        Insert: {
+          cluster_id: string
+          created_at?: string
+          created_by?: string | null
+          criticality?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description?: string | null
+          expected_hours?: number | null
+          id?: string
+          is_predictive?: boolean
+          maintenance_type_codes?: string[]
+          name: string
+          organization_id: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_type_ids?: string[]
+        }
+        Update: {
+          cluster_id?: string
+          created_at?: string
+          created_by?: string | null
+          criticality?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description?: string | null
+          expected_hours?: number | null
+          id?: string
+          is_predictive?: boolean
+          maintenance_type_codes?: string[]
+          name?: string
+          organization_id?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_type_ids?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_services_cluster_fkey"
+            columns: ["organization_id", "cluster_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_clusters"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_services_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      maintenance_settings: {
+        Row: {
+          aging_buckets: number[]
+          default_sla_hours: number
+          km_compatible_days: number
+          km_estimated_max_days: number
+          organization_id: string
+          predictive_forecast_days: number
+          predictive_forecast_km: number
+          recurrence_window_days: number
+          schedule_overdue_days: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          aging_buckets?: number[]
+          default_sla_hours?: number
+          km_compatible_days?: number
+          km_estimated_max_days?: number
+          organization_id: string
+          predictive_forecast_days?: number
+          predictive_forecast_km?: number
+          recurrence_window_days?: number
+          schedule_overdue_days?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          aging_buckets?: number[]
+          default_sla_hours?: number
+          km_compatible_days?: number
+          km_estimated_max_days?: number
+          organization_id?: string
+          predictive_forecast_days?: number
+          predictive_forecast_km?: number
+          recurrence_window_days?: number
+          schedule_overdue_days?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      maintenance_suppliers: {
+        Row: {
+          address: string | null
+          city_id: number | null
+          cluster_ids: string[]
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          document_number: string | null
+          id: string
+          name: string
+          notes: string | null
+          organization_id: string
+          served_city_ids: number[]
+          service_ids: string[]
+          state_id: number | null
+          status: string
+          trade_name: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          address?: string | null
+          city_id?: number | null
+          cluster_ids?: string[]
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          document_number?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          organization_id: string
+          served_city_ids?: number[]
+          service_ids?: string[]
+          state_id?: number | null
+          status?: string
+          trade_name?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          address?: string | null
+          city_id?: number | null
+          cluster_ids?: string[]
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          document_number?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          organization_id?: string
+          served_city_ids?: number[]
+          service_ids?: string[]
+          state_id?: number | null
+          status?: string
+          trade_name?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_suppliers_city_id_fkey"
+            columns: ["city_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_suppliers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_suppliers_state_id_fkey"
+            columns: ["state_id"]
+            isOneToOne: false
+            referencedRelation: "state_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_suppliers_state_id_fkey"
+            columns: ["state_id"]
+            isOneToOne: false
+            referencedRelation: "states"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      maintenance_types: {
+        Row: {
+          code: string
+          description: string | null
+          is_active: boolean
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          code: string
+          description?: string | null
+          is_active?: boolean
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          code?: string
+          description?: string | null
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      maintenances: {
+        Row: {
+          br_code_snapshot: string | null
+          checklist_execution_id: string | null
+          city_id: number | null
+          city_name_snapshot: string | null
+          code: string
+          completion_notes: string | null
+          context_date: string
+          context_source: string
+          created_at: string
+          created_by: string | null
+          current_km_date: string | null
+          current_km_snapshot: number | null
+          description: string | null
+          duplicate_justification: string | null
+          duration_hours: number | null
+          duration_precision: string | null
+          entry_date: string | null
+          entry_km: number | null
+          entry_km_difference: number | null
+          entry_km_informed_at: string | null
+          entry_km_informed_by: string | null
+          entry_km_justification: string | null
+          entry_km_official: number | null
+          entry_km_reading_id: string | null
+          entry_km_reference_date: string | null
+          entry_km_source: string | null
+          entry_km_status: string | null
+          entry_time: string | null
+          exit_date: string | null
+          exit_time: string | null
+          expected_exit_date: string | null
+          expected_exit_time: string | null
+          fidelization_assignment_id: string | null
+          fleet_code_snapshot: string | null
+          id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
+          leader_employee_id: string | null
+          leader_name_snapshot: string | null
+          leadership_assignment_id: string | null
+          license_plate_snapshot: string
+          maintenance_type_code: string
+          notes: string | null
+          operation_br_id: string | null
+          operation_city_id: string | null
+          operation_id: string | null
+          operation_name_snapshot: string | null
+          organization_id: string
+          organization_unit_id: string | null
+          origin_id: string
+          predictive_cycle_id: string | null
+          predictive_plan_item_id: string | null
+          predictive_verification_id: string | null
+          preventive_cycle_id: string | null
+          priority: string
+          reopen_count: number
+          requested_at: string
+          requested_on: string
+          scheduled_date: string | null
+          scheduled_time: string | null
+          scheduling_notes: string | null
+          service_order_number: string | null
+          state_id: number | null
+          state_uf_snapshot: string | null
+          status: string
+          supplier_id: string | null
+          unit_name_snapshot: string | null
+          updated_at: string
+          updated_by: string | null
+          vehicle_id: string
+          vehicle_model_id: string | null
+          vehicle_subcategory_id: string | null
+          vehicle_type_id: string
+        }
+        Insert: {
+          br_code_snapshot?: string | null
+          checklist_execution_id?: string | null
+          city_id?: number | null
+          city_name_snapshot?: string | null
+          code: string
+          completion_notes?: string | null
+          context_date: string
+          context_source?: string
+          created_at?: string
+          created_by?: string | null
+          current_km_date?: string | null
+          current_km_snapshot?: number | null
+          description?: string | null
+          duplicate_justification?: string | null
+          duration_hours?: number | null
+          duration_precision?: string | null
+          entry_date?: string | null
+          entry_km?: number | null
+          entry_km_difference?: number | null
+          entry_km_informed_at?: string | null
+          entry_km_informed_by?: string | null
+          entry_km_justification?: string | null
+          entry_km_official?: number | null
+          entry_km_reading_id?: string | null
+          entry_km_reference_date?: string | null
+          entry_km_source?: string | null
+          entry_km_status?: string | null
+          entry_time?: string | null
+          exit_date?: string | null
+          exit_time?: string | null
+          expected_exit_date?: string | null
+          expected_exit_time?: string | null
+          fidelization_assignment_id?: string | null
+          fleet_code_snapshot?: string | null
+          id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
+          leader_employee_id?: string | null
+          leader_name_snapshot?: string | null
+          leadership_assignment_id?: string | null
+          license_plate_snapshot: string
+          maintenance_type_code: string
+          notes?: string | null
+          operation_br_id?: string | null
+          operation_city_id?: string | null
+          operation_id?: string | null
+          operation_name_snapshot?: string | null
+          organization_id: string
+          organization_unit_id?: string | null
+          origin_id: string
+          predictive_cycle_id?: string | null
+          predictive_plan_item_id?: string | null
+          predictive_verification_id?: string | null
+          preventive_cycle_id?: string | null
+          priority?: string
+          reopen_count?: number
+          requested_at?: string
+          requested_on: string
+          scheduled_date?: string | null
+          scheduled_time?: string | null
+          scheduling_notes?: string | null
+          service_order_number?: string | null
+          state_id?: number | null
+          state_uf_snapshot?: string | null
+          status?: string
+          supplier_id?: string | null
+          unit_name_snapshot?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_id: string
+          vehicle_model_id?: string | null
+          vehicle_subcategory_id?: string | null
+          vehicle_type_id: string
+        }
+        Update: {
+          br_code_snapshot?: string | null
+          checklist_execution_id?: string | null
+          city_id?: number | null
+          city_name_snapshot?: string | null
+          code?: string
+          completion_notes?: string | null
+          context_date?: string
+          context_source?: string
+          created_at?: string
+          created_by?: string | null
+          current_km_date?: string | null
+          current_km_snapshot?: number | null
+          description?: string | null
+          duplicate_justification?: string | null
+          duration_hours?: number | null
+          duration_precision?: string | null
+          entry_date?: string | null
+          entry_km?: number | null
+          entry_km_difference?: number | null
+          entry_km_informed_at?: string | null
+          entry_km_informed_by?: string | null
+          entry_km_justification?: string | null
+          entry_km_official?: number | null
+          entry_km_reading_id?: string | null
+          entry_km_reference_date?: string | null
+          entry_km_source?: string | null
+          entry_km_status?: string | null
+          entry_time?: string | null
+          exit_date?: string | null
+          exit_time?: string | null
+          expected_exit_date?: string | null
+          expected_exit_time?: string | null
+          fidelization_assignment_id?: string | null
+          fleet_code_snapshot?: string | null
+          id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
+          leader_employee_id?: string | null
+          leader_name_snapshot?: string | null
+          leadership_assignment_id?: string | null
+          license_plate_snapshot?: string
+          maintenance_type_code?: string
+          notes?: string | null
+          operation_br_id?: string | null
+          operation_city_id?: string | null
+          operation_id?: string | null
+          operation_name_snapshot?: string | null
+          organization_id?: string
+          organization_unit_id?: string | null
+          origin_id?: string
+          predictive_cycle_id?: string | null
+          predictive_plan_item_id?: string | null
+          predictive_verification_id?: string | null
+          preventive_cycle_id?: string | null
+          priority?: string
+          reopen_count?: number
+          requested_at?: string
+          requested_on?: string
+          scheduled_date?: string | null
+          scheduled_time?: string | null
+          scheduling_notes?: string | null
+          service_order_number?: string | null
+          state_id?: number | null
+          state_uf_snapshot?: string | null
+          status?: string
+          supplier_id?: string | null
+          unit_name_snapshot?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_id?: string
+          vehicle_model_id?: string | null
+          vehicle_subcategory_id?: string | null
+          vehicle_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenances_br_fkey"
+            columns: ["organization_id", "operation_br_id"]
+            isOneToOne: false
+            referencedRelation: "operation_br_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenances_br_fkey"
+            columns: ["organization_id", "operation_br_id"]
+            isOneToOne: false
+            referencedRelation: "operation_brs"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenances_checklist_execution_id_fkey"
+            columns: ["checklist_execution_id"]
+            isOneToOne: false
+            referencedRelation: "checklist_executions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenances_city_id_fkey"
+            columns: ["city_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenances_entry_km_reading_id_fkey"
+            columns: ["entry_km_reading_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_odometer_readings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenances_fidelization_fkey"
+            columns: ["organization_id", "fidelization_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "fidelization_assignments"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenances_fidelization_fkey"
+            columns: ["organization_id", "fidelization_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "fidelization_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenances_import_batch_fkey"
+            columns: ["organization_id", "import_batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenances_leader_fkey"
+            columns: ["organization_id", "leader_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenances_leader_fkey"
+            columns: ["organization_id", "leader_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenances_maintenance_type_code_fkey"
+            columns: ["maintenance_type_code"]
+            isOneToOne: false
+            referencedRelation: "maintenance_types"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "maintenances_operation_fkey"
+            columns: ["organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operation_summary"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenances_operation_fkey"
+            columns: ["organization_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "operations"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenances_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenances_origin_id_fkey"
+            columns: ["origin_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_origins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenances_predictive_cycle_fkey"
+            columns: ["organization_id", "predictive_cycle_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_predictive_cycles"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenances_predictive_item_fkey"
+            columns: ["organization_id", "predictive_plan_item_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_predictive_plan_items"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenances_predictive_verification_fkey"
+            columns: ["organization_id", "predictive_verification_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_predictive_verifications"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenances_preventive_cycle_fkey"
+            columns: ["organization_id", "preventive_cycle_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_preventive_cycles"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenances_state_id_fkey"
+            columns: ["state_id"]
+            isOneToOne: false
+            referencedRelation: "state_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenances_state_id_fkey"
+            columns: ["state_id"]
+            isOneToOne: false
+            referencedRelation: "states"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenances_supplier_fkey"
+            columns: ["organization_id", "supplier_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_suppliers"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenances_unit_fkey"
+            columns: ["organization_id", "organization_unit_id"]
+            isOneToOne: false
+            referencedRelation: "branch_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenances_unit_fkey"
+            columns: ["organization_id", "organization_unit_id"]
+            isOneToOne: false
+            referencedRelation: "organization_units"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenances_vehicle_fkey"
+            columns: ["organization_id", "vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_directory"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenances_vehicle_fkey"
+            columns: ["organization_id", "vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenances_vehicle_model_id_fkey"
+            columns: ["vehicle_model_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_models"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenances_vehicle_subcategory_id_fkey"
+            columns: ["vehicle_subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_subcategories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenances_vehicle_type_id_fkey"
+            columns: ["vehicle_type_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       membership_operation_scopes: {
         Row: {
           created_at: string
@@ -4027,6 +5865,60 @@ export type Database = {
           },
         ]
       }
+      maintenance_status_history: {
+        Row: {
+          actor_name: string | null
+          actor_user_id: string | null
+          from_status: string | null
+          id: string | null
+          maintenance_id: string | null
+          occurred_at: string | null
+          organization_id: string | null
+          reason: string | null
+          source: string | null
+          to_status: string | null
+        }
+        Insert: {
+          actor_name?: string | null
+          actor_user_id?: string | null
+          from_status?: string | null
+          id?: string | null
+          maintenance_id?: string | null
+          occurred_at?: string | null
+          organization_id?: string | null
+          reason?: string | null
+          source?: string | null
+          to_status?: string | null
+        }
+        Update: {
+          actor_name?: string | null
+          actor_user_id?: string | null
+          from_status?: string | null
+          id?: string | null
+          maintenance_id?: string | null
+          occurred_at?: string | null
+          organization_id?: string | null
+          reason?: string | null
+          source?: string | null
+          to_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_events_maintenance_fkey"
+            columns: ["organization_id", "maintenance_id"]
+            isOneToOne: false
+            referencedRelation: "maintenances"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       operation_br_directory: {
         Row: {
           city_id: number | null
@@ -4480,6 +6372,10 @@ export type Database = {
         Args: { p_reason?: string; p_vehicle_id: string }
         Returns: undefined
       }
+      cancel_maintenance_import: {
+        Args: { p_batch_id: string; p_organization_id: string }
+        Returns: undefined
+      }
       checklist_execution_detail: {
         Args: { p_execution_id: string }
         Returns: Json
@@ -4538,6 +6434,266 @@ export type Database = {
           p_organization_id: string
           p_year: number
         }
+        Returns: Json
+      }
+      log_maintenance_export: {
+        Args: {
+          p_filters?: Json
+          p_format: string
+          p_organization_id: string
+          p_row_count: number
+        }
+        Returns: undefined
+      }
+      maintenance_add_items: {
+        Args: {
+          p_maintenance_id: string
+          p_reason?: string
+          p_service_ids: string[]
+        }
+        Returns: Json
+      }
+      maintenance_archive_cluster: {
+        Args: { p_cluster_id: string }
+        Returns: undefined
+      }
+      maintenance_archive_preventive_rule: {
+        Args: { p_rule_id: string }
+        Returns: undefined
+      }
+      maintenance_archive_service: {
+        Args: { p_service_id: string }
+        Returns: undefined
+      }
+      maintenance_archive_supplier: {
+        Args: { p_supplier_id: string }
+        Returns: undefined
+      }
+      maintenance_cancel: {
+        Args: { p_maintenance_id: string; p_reason: string }
+        Returns: undefined
+      }
+      maintenance_catalog: {
+        Args: { p_organization_id: string }
+        Returns: Json
+      }
+      maintenance_checklist_questions: {
+        Args: { p_organization_id: string }
+        Returns: Json
+      }
+      maintenance_complete: {
+        Args: { p_maintenance_id: string; p_payload: Json }
+        Returns: Json
+      }
+      maintenance_create: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      maintenance_dashboard: {
+        Args: { p_filters?: Json; p_organization_id: string }
+        Returns: Json
+      }
+      maintenance_detail: { Args: { p_maintenance_id: string }; Returns: Json }
+      maintenance_duplicate_predictive_plan: {
+        Args: { p_name?: string; p_plan_id: string }
+        Returns: string
+      }
+      maintenance_find_open: {
+        Args: { p_service_ids?: string[]; p_vehicle_id: string }
+        Returns: Json
+      }
+      maintenance_generate_predictive: {
+        Args: { p_cycle_id: string; p_payload?: Json }
+        Returns: Json
+      }
+      maintenance_hierarchy: {
+        Args: { p_filters?: Json; p_organization_id: string }
+        Returns: Json
+      }
+      maintenance_import_history: {
+        Args: { p_limit?: number; p_organization_id: string }
+        Returns: Json
+      }
+      maintenance_link_findings: {
+        Args: {
+          p_answer_ids: string[]
+          p_maintenance_id: string
+          p_reason?: string
+        }
+        Returns: number
+      }
+      maintenance_list: {
+        Args: {
+          p_dir?: string
+          p_filters?: Json
+          p_limit?: number
+          p_offset?: number
+          p_organization_id: string
+          p_sort?: string
+        }
+        Returns: Json
+      }
+      maintenance_mark_not_performed: {
+        Args: { p_maintenance_id: string; p_reason: string }
+        Returns: undefined
+      }
+      maintenance_parameters: {
+        Args: { p_organization_id: string }
+        Returns: Json
+      }
+      maintenance_predictive_cycle_history: {
+        Args: { p_cycle_id: string }
+        Returns: Json
+      }
+      maintenance_predictive_overview: {
+        Args: { p_filters?: Json; p_organization_id: string }
+        Returns: Json
+      }
+      maintenance_predictive_reset: {
+        Args: {
+          p_cycle_id: string
+          p_date: string
+          p_km: number
+          p_reason: string
+        }
+        Returns: undefined
+      }
+      maintenance_preventive_matrix: {
+        Args: { p_filters?: Json; p_organization_id: string }
+        Returns: Json
+      }
+      maintenance_register_predictive_verification: {
+        Args: { p_cycle_id: string; p_payload: Json }
+        Returns: Json
+      }
+      maintenance_remove_item: {
+        Args: { p_item_id: string; p_reason: string }
+        Returns: undefined
+      }
+      maintenance_reopen: {
+        Args: { p_maintenance_id: string; p_reason: string }
+        Returns: undefined
+      }
+      maintenance_reprocess_km: {
+        Args: { p_maintenance_id: string }
+        Returns: Json
+      }
+      maintenance_reschedule: {
+        Args: { p_maintenance_id: string; p_payload: Json; p_reason: string }
+        Returns: undefined
+      }
+      maintenance_save_cluster: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: string
+      }
+      maintenance_save_origin: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: string
+      }
+      maintenance_save_predictive_coverage: {
+        Args: { p_item_id: string; p_services: Json }
+        Returns: number
+      }
+      maintenance_save_predictive_item: {
+        Args: { p_payload: Json; p_plan_id: string; p_reason?: string }
+        Returns: Json
+      }
+      maintenance_save_predictive_plan: {
+        Args: { p_organization_id: string; p_payload: Json; p_reason?: string }
+        Returns: string
+      }
+      maintenance_save_preventive_rule: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      maintenance_save_service: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: string
+      }
+      maintenance_save_service_links: {
+        Args: { p_links: Json; p_service_id: string }
+        Returns: number
+      }
+      maintenance_save_settings: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: undefined
+      }
+      maintenance_save_supplier: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: string
+      }
+      maintenance_schedule: {
+        Args: { p_maintenance_id: string; p_payload: Json }
+        Returns: undefined
+      }
+      maintenance_schedule_kpis: {
+        Args: { p_filters?: Json; p_organization_id: string }
+        Returns: Json
+      }
+      maintenance_schedule_preventive: {
+        Args: { p_cycle_id: string; p_payload?: Json }
+        Returns: Json
+      }
+      maintenance_set_entry_km: {
+        Args: {
+          p_justification: string
+          p_km: number
+          p_maintenance_id: string
+        }
+        Returns: Json
+      }
+      maintenance_set_predictive_plan_status: {
+        Args: { p_plan_id: string; p_reason?: string; p_status: string }
+        Returns: Json
+      }
+      maintenance_start: {
+        Args: { p_maintenance_id: string; p_payload: Json }
+        Returns: Json
+      }
+      maintenance_sync_predictive: {
+        Args: { p_organization_id: string; p_vehicle_id?: string }
+        Returns: Json
+      }
+      maintenance_sync_preventive: {
+        Args: { p_organization_id: string; p_vehicle_id?: string }
+        Returns: Json
+      }
+      maintenance_unlink_finding: {
+        Args: { p_link_id: string; p_reason: string }
+        Returns: undefined
+      }
+      maintenance_unschedule: {
+        Args: { p_maintenance_id: string; p_reason: string }
+        Returns: undefined
+      }
+      maintenance_update_details: {
+        Args: { p_maintenance_id: string; p_payload: Json; p_reason?: string }
+        Returns: undefined
+      }
+      maintenance_vehicle_context: {
+        Args: { p_date?: string; p_vehicle_id: string }
+        Returns: Json
+      }
+      maintenance_vehicle_findings: {
+        Args: { p_days?: number; p_vehicle_id: string }
+        Returns: Json
+      }
+      maintenance_vehicles_in_scope: {
+        Args: { p_organization_id: string }
+        Returns: {
+          vehicle_id: string
+        }[]
+      }
+      process_maintenance_import: {
+        Args: {
+          p_batch_id: string
+          p_limit?: number
+          p_organization_id: string
+        }
+        Returns: Json
+      }
+      stage_maintenance_import: {
+        Args: { p_organization_id: string; p_payload: Json }
         Returns: Json
       }
       submit_checklist_execution: {
@@ -5639,6 +7795,10 @@ export type Database = {
           p_organization_id: string
           p_vehicle_id: string
         }
+        Returns: Json
+      }
+      vehicle_maintenance_history: {
+        Args: { p_vehicle_id: string }
         Returns: Json
       }
       vehicle_summary: {

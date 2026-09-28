@@ -197,6 +197,14 @@ export const navigation: NavGroup[] = [
         icon: Truck,
         permission: "vehicles.view",
       },
+      {
+        // Etapa 16: saiu de "Módulos futuros". Programação, execução,
+        // preventiva, preditiva e base geral — uma entrada, sete abas.
+        label: "Manutenção",
+        href: "/frota/manutencao",
+        icon: Wrench,
+        permission: "maintenance.view",
+      },
     ],
   },
   {
@@ -250,7 +258,6 @@ export const navigation: NavGroup[] = [
     id: "future",
     label: "Módulos futuros",
     items: [
-      { label: "Manutenção", href: "/manutencao", icon: Wrench, planned: true },
       { label: "Pneus", href: "/pneus", icon: CircleDot, planned: true },
       { label: "Abastecimento", href: "/abastecimento", icon: Fuel, planned: true },
       { label: "Multas", href: "/multas", icon: ShieldAlert, planned: true },

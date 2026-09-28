@@ -60,6 +60,7 @@ test.describe("sidebar", () => {
       ["Lideranças", "/governanca/liderancas"],
       ["Fidelização", "/governanca/fidelizacao"],
       ["Cadastro de frotas", "/frota/cadastro"],
+      ["Manutenção", "/frota/manutencao"],
     ] as const) {
       await expect(nav.getByRole("link", { name: label })).toHaveAttribute("href", href);
     }
