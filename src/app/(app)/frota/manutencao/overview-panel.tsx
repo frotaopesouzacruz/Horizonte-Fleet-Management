@@ -7,7 +7,6 @@ import {
   Hourglass, Inbox, Repeat, ShieldAlert, ShieldCheck, Target, Timer, TimerOff, TriangleAlert, Truck, Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Card, CardContent } from "@/components/ui/card";
 import { KpiCard, type KpiCardProps, type KpiTrend } from "@/components/ui/kpi-card";
 import {
   Table, TableBody, TableCell, TableContainer, TableEmpty, TableHead, TableHeader, TableRow,
@@ -35,6 +34,7 @@ import {
   typeColor,
   type StackedColumnItem,
 } from "./overview-charts";
+import { ChartCard as KitChartCard } from "@/components/charts";
 import type { PanelActions } from "./shared";
 
 /**
@@ -181,15 +181,9 @@ function ChartCard({
   title, description, children, className, testId,
 }: { title: string; description?: React.ReactNode; children: React.ReactNode; className?: string; testId?: string }) {
   return (
-    <Card className={cn("min-w-0", className)} data-testid={testId}>
-      <CardContent className="flex flex-col gap-3 p-4">
-        <div>
-          <h3 className="text-h4 font-semibold text-fg">{title}</h3>
-          {description ? <p className="text-caption text-fg-muted">{description}</p> : null}
-        </div>
-        {children}
-      </CardContent>
-    </Card>
+    <KitChartCard title={title} description={description} className={cn("min-w-0", className)} data-testid={testId}>
+      <div className="flex flex-col gap-3">{children}</div>
+    </KitChartCard>
   );
 }
 
@@ -231,7 +225,7 @@ function Kpi({ testId, nav, destination, label, className, ...card }: KpiProps) 
     <a
       href={nav.href}
       onClick={nav.onClick}
-      className="group block h-full rounded-md hfm-focus-ring"
+      className="group block h-full rounded-lg hfm-focus-ring"
       data-testid={testId}
     >
       {body}
@@ -303,9 +297,7 @@ export function OverviewPanel({ dashboard, filters, catalog, actions }: Overview
   const monthItems: StackedColumnItem[] = monthRows.map((r) => ({
     key: r.month,
     label: monthLabel(r.month),
-    title: `${monthLabel(r.month, true)}: ${formatInt(r.total)} manutenções · ${monthSeries
-      .map((s) => `${s.label} ${formatInt(r[s.key as "preventive" | "corrective" | "predictive" | "other"])}`)
-      .join(" · ")}`,
+    title: monthLabel(r.month, true),
     values: { preventive: r.preventive, corrective: r.corrective, predictive: r.predictive, other: r.other },
     total: r.total,
   }));

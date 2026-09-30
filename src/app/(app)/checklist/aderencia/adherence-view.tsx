@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/cn";
 import { PageContent, PageHeader } from "@/components/layout/page-header";
-import { FilterBar } from "@/components/ui/filter-bar";
+import { FilterBar, FilterBarClear, FilterChip } from "@/components/ui/filter-bar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SearchField } from "@/components/ui/search-field";
 import { CompetencePicker } from "@/components/governance/competence-picker";
@@ -167,6 +167,29 @@ export function AdherenceView({
     return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
   }, [coverage, filters.stateId, filters.operationId]);
 
+  /** Filtros aplicados, como chips removíveis: o recorte fica legível sem abrir cada campo. */
+  const activeFilters = React.useMemo(() => {
+    const chips: { key: string; label: string; value: string; clear: Record<string, null> }[] = [];
+    const op = operations.find((o) => o.id === filters.operationId);
+    if (op) chips.push({ key: "operacao", label: "Operação", value: op.name, clear: { operacao: null, uf: null, cidade: null, br: null } });
+    const state = coverage.find((c) => String(c.stateId) === filters.stateId);
+    if (state) chips.push({ key: "uf", label: "Estado", value: state.uf, clear: { uf: null, cidade: null } });
+    const city = coverage.find((c) => String(c.cityId) === filters.cityId);
+    if (city) chips.push({ key: "cidade", label: "Cidade", value: city.cityName, clear: { cidade: null } });
+    const branch = branches.find((b) => b.id === filters.branchId);
+    if (branch) chips.push({ key: "filial", label: "Filial", value: branch.name, clear: { filial: null } });
+    const leader = leaders.find((l) => l.id === filters.leaderEmployeeId);
+    if (leader) chips.push({ key: "lideranca", label: "Liderança", value: leader.name, clear: { lideranca: null } });
+    const type = vehicleTypes.find((t) => t.id === filters.vehicleTypeId);
+    if (type) chips.push({ key: "tipo", label: "Tipo", value: type.name, clear: { tipo: null } });
+    const status = options.statuses.find((st) => st.code === filters.status);
+    if (status) chips.push({ key: "situacao", label: "Status", value: status.label, clear: { situacao: null } });
+    const justification = { pending: "Pendente", approved: "Aprovada", rejected: "Rejeitada", none: "Sem justificativa" }[filters.justification ?? ""];
+    if (justification) chips.push({ key: "justificativa", label: "Justificativa", value: justification, clear: { justificativa: null } });
+    if (filters.q) chips.push({ key: "q", label: "Frota ou placa", value: filters.q, clear: { q: null } });
+    return chips;
+  }, [filters, operations, coverage, branches, leaders, vehicleTypes, options.statuses]);
+
   const contextSwitch = (
     <div
       role="group"
@@ -199,6 +222,7 @@ export function AdherenceView({
   return (
     <>
       <PageHeader
+        eyebrow="Gestão de checklist"
         title="Aderência"
         description="Acompanhe a execução dos checklists obrigatórios, identifique pendências e gerencie justificativas operacionais."
         meta={contextSwitch}
@@ -360,6 +384,7 @@ export function AdherenceView({
             <div className="flex min-w-[12rem] flex-col gap-1">
               <span className="text-caption text-fg-muted">Frota ou placa</span>
               <SearchField
+                key={filters.q ?? ""}
                 size="sm"
                 aria-label="Buscar por frota ou placa"
                 defaultValue={filters.q ?? ""}
@@ -372,6 +397,27 @@ export function AdherenceView({
                 onClear={() => navigate({ q: null, pagina: null })}
               />
             </div>
+            {activeFilters.length > 0 ? (
+              <div className="flex w-full flex-wrap items-center gap-2 border-t border-border-subtle pt-2" aria-label="Filtros ativos">
+                <span className="text-caption text-fg-muted">Filtros ativos</span>
+                {activeFilters.map((f) => (
+                  <FilterChip
+                    key={f.key}
+                    label={f.label}
+                    value={f.value}
+                    disabled={pending}
+                    onRemove={() => navigate({ ...f.clear, pagina: null })}
+                  />
+                ))}
+                <FilterBarClear
+                  count={activeFilters.length}
+                  disabled={pending}
+                  onClear={() =>
+                    navigate(Object.assign({ pagina: null }, ...activeFilters.map((f) => f.clear)))
+                  }
+                />
+              </div>
+            ) : null}
           </FilterBar>
         }
       />

@@ -70,7 +70,7 @@ function Cell({ cell, date, onSelect }: { cell: MatrixCell | undefined; date: st
       title={cellTitle(cell, date)}
       aria-label={cellTitle(cell, date)}
       className={cn(
-        "relative flex h-8 w-[var(--cell-w)] items-center justify-center rounded-xs border text-[11px] font-semibold tracking-wide transition-colors hfm-focus-ring",
+        "relative flex h-8 w-[var(--cell-w)] items-center justify-center rounded-xs border text-overline font-semibold tracking-wide transition-colors hfm-focus-ring",
         TONE_CLASS[meta.tone],
         cell.provisional && "border-dashed",
       )}
@@ -206,7 +206,7 @@ export function MatrixPanel({
               const m = statusMeta(code);
               return (
                 <li key={code} className="flex items-center gap-1">
-                  <span className={cn("inline-flex h-4 min-w-6 items-center justify-center rounded-xs border px-1 text-[10px] font-semibold", TONE_CLASS[m.tone])}>{m.short}</span>
+                  <span className={cn("inline-flex h-4 min-w-6 items-center justify-center rounded-xs border px-1 text-overline font-semibold", TONE_CLASS[m.tone])}>{m.short}</span>
                   {m.label}
                 </li>
               );
@@ -240,11 +240,11 @@ export function MatrixPanel({
                     data-selected={selected || undefined}
                     className={cn(
                       "flex w-[var(--cell-w)] flex-col items-center justify-center gap-0.5 py-1 text-caption",
-                      date === today ? "text-primary font-semibold" : wd >= 6 ? "text-fg-subtle" : "text-fg-muted",
+                      date === today ? "text-primary-soft-fg font-semibold" : wd >= 6 ? "text-fg-subtle" : "text-fg-muted",
                       selected && "rounded-xs bg-selected-overlay text-fg",
                     )}
                   >
-                    <span className="text-[10px] uppercase">{WEEKDAY_INITIALS[wd]}</span>
+                    <span className="text-overline uppercase">{WEEKDAY_INITIALS[wd]}</span>
                     <span className="tabular-nums">{day}</span>
                     {selecting ? (
                       <Checkbox
@@ -315,7 +315,7 @@ export function MatrixPanel({
                   const date = dateOf(day);
                   return (
                     <li key={day} className="flex items-center justify-between gap-3 px-3 py-2">
-                      <span className={cn("text-label tabular-nums", date === today ? "font-semibold text-primary" : "text-fg")}>
+                      <span className={cn("text-label tabular-nums", date === today ? "font-semibold text-primary-soft-fg" : "text-fg")}>
                         {String(day).padStart(2, "0")} <span className="text-caption text-fg-muted">{WEEKDAY_INITIALS[weekdayOf(competence.year, competence.month, day)]}</span>
                       </span>
                       {cell ? (

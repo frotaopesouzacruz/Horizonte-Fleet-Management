@@ -16,12 +16,15 @@ export interface PageHeaderProps extends Omit<React.HTMLAttributes<HTMLDivElemen
   tabs?: React.ReactNode;
   /** Optional status/badge next to the title. */
   meta?: React.ReactNode;
+  /** Módulo ou área acima do título ("Gestão de checklist"), quando não há breadcrumb. */
+  eyebrow?: React.ReactNode;
 }
 
 /**
- * PageHeader — the standard top of every page. Every slot is optional:
- * a list page may use title + primaryAction + filters, a detail page may use
- * breadcrumb + title + meta + tabs.
+ * PageHeader — the standard top of every page and the first level of the page
+ * narrative: header › filters › KPIs › analyses › details. Every slot is
+ * optional: a list page may use title + primaryAction + filters, a detail page
+ * may use breadcrumb + title + meta + tabs.
  */
 export function PageHeader({
   title,
@@ -32,17 +35,28 @@ export function PageHeader({
   filters,
   tabs,
   meta,
+  eyebrow,
   className,
   ...props
 }: PageHeaderProps) {
   return (
-    <div className={cn("flex flex-col gap-3 border-b border-border bg-surface px-4 pt-4 sm:px-6", tabs ? "pb-0" : "pb-4", className)} {...props}>
+    <div
+      className={cn(
+        "flex flex-col gap-3 border-b border-border bg-surface-header px-4 pt-4 sm:px-6 sm:pt-5",
+        tabs ? "pb-0" : "pb-4",
+        className,
+      )}
+      {...props}
+    >
       {breadcrumb ? <div className="-mb-1">{breadcrumb}</div> : null}
 
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="truncate text-h1 font-semibold text-fg">{title}</h1>
+          {eyebrow && !breadcrumb ? (
+            <p className="mb-1 text-overline font-semibold uppercase text-fg-muted">{eyebrow}</p>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <h1 className="truncate text-page-title font-semibold text-fg">{title}</h1>
             {meta}
           </div>
           {description ? <p className="mt-1 max-w-3xl text-body-sm text-fg-secondary">{description}</p> : null}
@@ -56,7 +70,7 @@ export function PageHeader({
         ) : null}
       </div>
 
-      {filters ? <div className="-mx-1">{filters}</div> : null}
+      {filters ? <div className="-mx-1 border-t border-border-subtle pt-1">{filters}</div> : null}
       {tabs ? <div className="-mb-px">{tabs}</div> : null}
     </div>
   );

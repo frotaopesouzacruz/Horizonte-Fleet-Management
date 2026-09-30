@@ -68,6 +68,17 @@ export const TONE_BORDER: Record<StatusTone, string> = {
   progress: "border-l-accent",
 };
 
+/** Linha de acento no topo do indicador — o mesmo gesto do KpiCard. */
+const TONE_TOP: Record<StatusTone, string | null> = {
+  success: "bg-success",
+  warning: "bg-warning",
+  danger: "bg-danger",
+  info: "bg-info",
+  neutral: null,
+  pending: null,
+  progress: "bg-accent",
+};
+
 export function FilterField({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
     <label className={cn("flex min-w-0 flex-col gap-1", className)}>
@@ -92,19 +103,20 @@ export interface StatTileProps {
 
 /** Indicador compacto. Clicável quando filtra; `aria-pressed` diz se está aplicado. */
 export function StatTile({ label, value, unit, hint, tone, onClick, active = false, disabled, testId }: StatTileProps) {
+  const accent = tone ? TONE_TOP[tone] : null;
   const body = (
     <>
+      {accent ? <span aria-hidden className={cn("absolute inset-x-0 top-0 h-0.5", accent)} /> : null}
       <span className="text-caption font-medium text-fg-secondary">{label}</span>
       <span className="flex min-w-0 items-baseline gap-1">
-        <span className="text-h2 font-bold leading-none text-fg tabular-nums">{value}</span>
+        <span className="text-h2 font-semibold leading-none text-fg tabular-nums">{value}</span>
         {unit != null ? <span className="truncate text-caption text-fg-muted">{unit}</span> : null}
       </span>
       {hint != null ? <span className="text-caption text-fg-muted">{hint}</span> : null}
     </>
   );
   const base = cn(
-    "flex min-h-[4.25rem] min-w-0 flex-col justify-between gap-1.5 rounded-md border border-border bg-surface px-3 py-2.5 text-left",
-    tone && tone !== "neutral" && ["border-l-2", TONE_BORDER[tone]],
+    "relative flex min-h-[4.25rem] min-w-0 flex-col justify-between gap-1.5 overflow-hidden rounded-lg border border-border bg-surface-raised px-3 py-2.5 text-left shadow-card",
   );
   if (!onClick) {
     return (
@@ -122,7 +134,7 @@ export function StatTile({ label, value, unit, hint, tone, onClick, active = fal
       data-testid={testId}
       className={cn(
         base,
-        "hfm-transition hfm-focus-ring hover:border-border-strong hover:bg-hover-overlay",
+        "hfm-transition hfm-focus-ring hover:border-border-strong hover:shadow-card-hover",
         "disabled:pointer-events-none disabled:opacity-55",
         active && "border-primary bg-primary-soft hover:border-primary hover:bg-primary-soft",
       )}

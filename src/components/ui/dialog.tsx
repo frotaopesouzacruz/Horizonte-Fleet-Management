@@ -49,7 +49,7 @@ export const DialogContent = React.forwardRef<React.ComponentRef<typeof DialogPr
           ref={ref}
           className={cn(
             "fixed top-1/2 left-1/2 z-(--z-overlay) flex w-[calc(100vw-2rem)] max-h-[calc(100dvh-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col",
-            "rounded-lg border border-border bg-surface-elevated text-fg shadow-lg outline-none",
+            "rounded-xl border border-border bg-surface-elevated text-fg shadow-xl outline-none",
             "data-[state=open]:animate-scale-in data-[state=closed]:animate-fade-out",
             sizeClasses[size],
             className,

@@ -50,10 +50,14 @@
     border-radius: var(--radius-xs);
   }
 
-  /* Tabular numerals for data */
+  /* Tabular numerals for data. Right-aligned table cells are numbers by
+     convention in the product, so they get tabular figures even when the
+     caller aligned them by hand instead of using `numeric`. */
   .tabular-nums,
   td.numeric,
-  th.numeric {
+  th.numeric,
+  td.text-right,
+  th.text-right {
     font-variant-numeric: tabular-nums;
   }
 

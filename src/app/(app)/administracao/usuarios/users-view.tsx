@@ -425,7 +425,7 @@ export function UsersView({
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Administração"
         title="Usuários"
         description="Gerencie colaboradores, acessos, perfis e operações."
         primaryAction={

@@ -215,7 +215,7 @@ export function BrsView({
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Governança operacional"
         title="BRs"
         description="A BR é a posição operacional permanente: veículo, motorista e liderança passam por ela. Este é o único lugar onde a posição é administrada — Operações e Fidelização apenas apontam para cá."
         primaryAction={

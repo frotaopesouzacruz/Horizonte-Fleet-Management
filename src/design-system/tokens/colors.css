@@ -35,6 +35,7 @@
   --text-primary: #1b2537;
   --text-secondary: #4a5872;
   --text-muted: #5d6b81;          /* 5.4:1 on surface, 4.9:1 on background */
+  --text-subtle: #64718a;         /* placeholders "sem dado", setas: 4.8:1 on surface */
   --text-disabled: #a3adbf;
   --text-inverse: #ffffff;
   --text-link: #1f4b93;
@@ -125,6 +126,65 @@
   --chart-tooltip-bg: #14213d;
   --chart-tooltip-fg: #ffffff;
 
+  /* ---- Surface levels (Etapa 17) ------------------------------------------
+     Canvas (--background) › raised (cards, KPIs, chart cards) › elevated
+     (menus, tooltips, dialogs). `sunken` is the well below the surface:
+     progress tracks, empty chart plots, heatmap cells without base. */
+  --surface-raised: #ffffff;
+  --surface-sunken: #eef1f6;
+  --surface-hover: #f6f8fb;
+  --surface-selected: #e8eef8;
+  --surface-header: #ffffff;        /* page header band */
+
+  /* ---- Delta semantics (KPI trends) --------------------------------------
+     The direction of a number is not its meaning: "down" is good for costs,
+     downtime and pending items. Components resolve good/bad from the metric's
+     `goodWhen` and paint with these three pairs only. */
+  --delta-positive: #14623f;
+  --delta-positive-bg: #e2f4ea;
+  --delta-negative: #8f2323;
+  --delta-negative-bg: #fce8e8;
+  --delta-neutral: #45546b;
+  --delta-neutral-bg: #eef1f5;
+
+  /* ---- HFM data visualization theme --------------------------------------
+     Brand-first series, semantic marks only where the data is a judgement
+     (below target = danger). Graphic marks keep ≥3:1 against the surface
+     (WCAG 1.4.11); text inside charts uses the text tokens, never a series. */
+  --chart-brand-primary: #1f4b93;
+  --chart-brand-secondary: #008ccb;
+  --chart-accent: #f4b223;
+  --chart-success: #1e8e5a;
+  --chart-warning: #c27c0e;
+  --chart-danger: #c93636;
+  --chart-neutral: #8a96a8;
+  /* Target / benchmark: gold deepened to 3:1 so a 2px dashed line reads on
+     white; its label is written in --highlight-soft-foreground. */
+  --chart-target: #c68600;
+  --chart-target-label: #7a5300;
+  --chart-area-primary: rgb(31 75 147 / 0.14);
+  --chart-area-primary-fade: rgb(31 75 147 / 0);
+  --chart-axis-line: #c5cdda;
+  --chart-label: #5d6b81;
+  --chart-crosshair: #9aa6b8;
+  --chart-hover-band: rgb(31 75 147 / 0.05);
+  --chart-future: #c5cdda;
+  --chart-tooltip-surface: #ffffff;
+  --chart-tooltip-border: #dfe4ec;
+
+  /* ---- Heatmap scale (adherence and other rate grids) -------------------- */
+  --heat-success-bg: #d5efe0;
+  --heat-success-border: #9fd6b8;
+  --heat-success-fg: #0f5234;
+  --heat-warning-bg: #fbe7bf;
+  --heat-warning-border: #efc877;
+  --heat-warning-fg: #6b4304;
+  --heat-danger-bg: #f9d7d7;
+  --heat-danger-border: #eca5a5;
+  --heat-danger-fg: #7d1d1d;
+  --heat-empty-bg: #f3f5f9;
+  --heat-empty-border: #e3e8ef;
+
   color-scheme: light;
 }
 
@@ -149,7 +209,8 @@
   /* ---- Text --------------------------------------------------------------- */
   --text-primary: #e8edf6;
   --text-secondary: #aab7cf;
-  --text-muted: #7f8eab;
+  --text-muted: #8a98b4;          /* 5.0:1 on elevated, 4.8:1 on tertiary */
+  --text-subtle: #8795b2;
   --text-disabled: #55638a;
   --text-inverse: #0b1426;
   --text-link: #7fb0f5;
@@ -239,6 +300,54 @@
   --chart-axis: #7f8eab;
   --chart-tooltip-bg: #e8edf6;
   --chart-tooltip-fg: #0b1426;
+
+  /* ---- Surface levels ----------------------------------------------------- */
+  --surface-raised: #122039;
+  --surface-sunken: #0d172b;
+  --surface-hover: #172440;
+  --surface-selected: rgb(74 123 211 / 0.16);
+  --surface-header: #0f1a30;
+
+  /* ---- Delta semantics ---------------------------------------------------- */
+  --delta-positive: #7fd9ab;
+  --delta-positive-bg: rgb(61 187 127 / 0.14);
+  --delta-negative: #f8a3a3;
+  --delta-negative-bg: rgb(240 101 101 / 0.14);
+  --delta-neutral: #b6c2d8;
+  --delta-neutral-bg: rgb(139 154 181 / 0.14);
+
+  /* ---- HFM data visualization theme (own dark palette, not an inversion) -- */
+  --chart-brand-primary: #6c9de0;
+  --chart-brand-secondary: #38b6f0;
+  --chart-accent: #f4b223;
+  --chart-success: #3dbb7f;
+  --chart-warning: #f0b33a;
+  --chart-danger: #f06565;
+  --chart-neutral: #7f8eab;
+  --chart-target: #f4b223;
+  --chart-target-label: #f7c65c;
+  --chart-area-primary: rgb(108 157 224 / 0.20);
+  --chart-area-primary-fade: rgb(108 157 224 / 0);
+  --chart-axis-line: #35497a;
+  --chart-label: #8f9dba;
+  --chart-crosshair: #55638a;
+  --chart-hover-band: rgb(108 157 224 / 0.08);
+  --chart-future: #35497a;
+  --chart-tooltip-surface: #1a2946;
+  --chart-tooltip-border: #2d3f68;
+
+  /* ---- Heatmap scale ------------------------------------------------------ */
+  --heat-success-bg: rgb(61 187 127 / 0.20);
+  --heat-success-border: rgb(61 187 127 / 0.45);
+  --heat-success-fg: #a9e8c8;
+  --heat-warning-bg: rgb(240 179 58 / 0.20);
+  --heat-warning-border: rgb(240 179 58 / 0.45);
+  --heat-warning-fg: #f8d890;
+  --heat-danger-bg: rgb(240 101 101 / 0.22);
+  --heat-danger-border: rgb(240 101 101 / 0.50);
+  --heat-danger-fg: #fbbdbd;
+  --heat-empty-bg: #14213b;
+  --heat-empty-border: #1f2f52;
 
   color-scheme: dark;
 }

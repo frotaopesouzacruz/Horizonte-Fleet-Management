@@ -122,7 +122,7 @@ export function OperationsView({
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Estrutura operacional"
         title="Operações"
         description="A operação é a unidade central do HFM. Cada uma reúne suas pessoas e a área geográfica onde atua — estados e municípios são definidos dentro dela."
         primaryAction={

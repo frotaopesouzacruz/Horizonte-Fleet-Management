@@ -26,6 +26,16 @@
      system, and the only one allowed below 12px — it never carries data. */
   --text-overline: 11px;     --leading-overline: 14px;
 
+  /* Etapa 17 — hierarchy roles. Page title › section title › card title ›
+     body › label › caption, and the KPI numerals, which are the only sizes
+     above the page title and only ever carry a number. */
+  --text-page-title: 26px;   --leading-page-title: 32px;
+  --text-section-title: 18px; --leading-section-title: 24px;
+  --text-card-title: 15px;   --leading-card-title: 20px;
+  --text-kpi: 30px;          --leading-kpi: 34px;
+  --text-kpi-sm: 26px;       --leading-kpi-sm: 30px;
+  --text-kpi-lg: 34px;       --leading-kpi-lg: 38px;
+
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
@@ -34,4 +44,5 @@
   --tracking-tight: -0.01em;
   --tracking-normal: 0;
   --tracking-wide: 0.04em;
+  --tracking-kpi: -0.02em;
 }

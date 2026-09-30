@@ -278,7 +278,7 @@ export function LeadershipView({
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Governança operacional"
         title="Lideranças"
         description="Planeje quem responde por cada cidade de cada tipo de operação. A designação registra quem responde — ela não altera o Perfil de Acesso de ninguém."
         secondaryActions={

@@ -13,7 +13,7 @@ export const DropdownMenuSub = DropdownMenuPrimitive.Sub;
 export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
 const contentClasses =
-  "z-(--z-dropdown) min-w-44 overflow-hidden rounded-md border border-border bg-surface-elevated p-1 text-body-sm text-fg shadow-md " +
+  "z-(--z-dropdown) min-w-44 overflow-hidden rounded-lg border border-border bg-surface-elevated p-1 text-body-sm text-fg shadow-md " +
   "data-[state=open]:animate-scale-in data-[state=closed]:animate-fade-out";
 
 export const DropdownMenuContent = React.forwardRef<

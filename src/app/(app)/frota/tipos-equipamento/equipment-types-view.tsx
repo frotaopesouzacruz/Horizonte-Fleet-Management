@@ -288,7 +288,7 @@ export function EquipmentTypesView({
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Estrutura operacional"
         title="Tipos de Equipamento"
         description="Gerencie categorias, subcategorias e regras operacionais aplicáveis à frota."
         primaryAction={

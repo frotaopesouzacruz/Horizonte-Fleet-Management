@@ -79,7 +79,7 @@ export function MaintenanceView({ data }: { data: MaintenanceViewData }) {
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Gestão de frota"
         title="Manutenção"
         description="Programação, execução, preventiva, preditiva e base geral das manutenções da frota."
         primaryAction={

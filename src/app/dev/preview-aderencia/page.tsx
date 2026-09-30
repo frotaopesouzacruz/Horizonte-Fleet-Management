@@ -65,7 +65,8 @@ export default async function PreviewPage({ searchParams }: { searchParams: Prom
         leaders={LEADERS}
         branches={[{ id: "b1", name: "87 · Horizonte MG" }, { id: "b2", name: "124 · Horizonte Belém" }]}
         vehicleTypes={[{ id: "t-van", name: "Van" }, { id: "t-car", name: "Frota Leve ADM" }]}
-        filters={{}}
+        // Os números do exemplo não mudam; o filtro só alimenta os chips da barra.
+        filters={{ operationId: first(params, "operacao"), q: first(params, "q") }}
         requestFilters={{}}
         returnTracking={RETURN_TRACKING}
         importHistory={IMPORT_HISTORY}

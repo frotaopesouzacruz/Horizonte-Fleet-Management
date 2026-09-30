@@ -17,11 +17,28 @@
   --shadow-md: 0 4px 12px -2px rgb(16 24 40 / 0.10), 0 2px 4px -2px rgb(16 24 40 / 0.06);
   --shadow-lg: 0 12px 28px -6px rgb(16 24 40 / 0.16), 0 4px 8px -4px rgb(16 24 40 / 0.06);
   --shadow-focus: 0 0 0 3px rgb(0 140 203 / 0.28);
+  --shadow-xl: 0 24px 48px -12px rgb(16 24 40 / 0.22), 0 8px 16px -8px rgb(16 24 40 / 0.08);
+  /* Cards at rest: a hairline of depth so the raised surface separates from
+     the canvas without a heavy border. */
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.03);
+  --shadow-card-hover: 0 2px 4px rgb(16 24 40 / 0.05), 0 6px 16px -4px rgb(16 24 40 / 0.08);
+
+  /* ---- Elevation scale (Etapa 17) -----------------------------------------
+     0 canvas and flat regions · 1 cards, KPIs, chart cards, tables ·
+     2 hovered cards and sticky bars · 3 popovers, menus, tooltips ·
+     4 dialogs and drawers. Borders carry the hierarchy in dark mode, where
+     shadows barely read; the scale stays the same. */
+  --elevation-0: none;
+  --elevation-1: var(--shadow-card);
+  --elevation-2: var(--shadow-card-hover);
+  --elevation-3: var(--shadow-md);
+  --elevation-4: var(--shadow-xl);
 
   /* ---- Motion (120–250ms, functional only) -------------------------------- */
   --duration-fast: 120ms;
   --duration-base: 160ms;
   --duration-slow: 240ms;
+  --duration-chart: 220ms;
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
@@ -84,4 +101,7 @@
   --shadow-md: 0 4px 14px -2px rgb(0 0 0 / 0.45), 0 2px 4px -2px rgb(0 0 0 / 0.30);
   --shadow-lg: 0 14px 32px -8px rgb(0 0 0 / 0.60), 0 4px 10px -4px rgb(0 0 0 / 0.40);
   --shadow-focus: 0 0 0 3px rgb(56 182 240 / 0.32);
+  --shadow-xl: 0 24px 56px -12px rgb(0 0 0 / 0.65), 0 8px 16px -8px rgb(0 0 0 / 0.45);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.24);
+  --shadow-card-hover: 0 2px 4px rgb(0 0 0 / 0.30), 0 8px 20px -6px rgb(0 0 0 / 0.40);
 }

@@ -6,19 +6,21 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/cn";
 
 /**
- * Card — bordered surface for grouping related content. Cards rely on borders,
- * not shadows; `elevated` adds the discreet shadow-sm for floating summaries.
- * `interactive` is for whole-card links/buttons (use `asChild` with an anchor).
+ * Card — raised surface for grouping related content (elevation 1). The border
+ * carries the edge and a hairline shadow separates the card from the canvas;
+ * `elevated` is elevation 2 for floating summaries, `outlined` drops the
+ * shadow for cards nested inside other surfaces. `interactive` is for
+ * whole-card links/buttons (use `asChild` with an anchor).
  */
-export const cardVariants = cva("relative flex flex-col rounded-md bg-surface text-fg", {
+export const cardVariants = cva("relative flex flex-col rounded-lg bg-surface-raised text-fg", {
   variants: {
     variant: {
-      default: "border border-border",
-      outlined: "border border-border-strong",
-      elevated: "border border-border shadow-sm",
+      default: "border border-border shadow-card",
+      outlined: "border border-border",
+      elevated: "border border-border shadow-card-hover",
       interactive: [
-        "border border-border hfm-transition hfm-focus-ring cursor-pointer",
-        "hover:border-border-strong",
+        "border border-border shadow-card hfm-transition hfm-focus-ring cursor-pointer",
+        "hover:border-border-strong hover:shadow-card-hover",
         "after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:bg-hover-overlay after:opacity-0",
         "after:transition-opacity after:duration-(--duration-base) hover:after:opacity-100",
       ],
@@ -85,7 +87,7 @@ export const CardHeader = React.forwardRef<HTMLDivElement, CardHeaderProps>(func
     <div ref={ref} className={cn("flex items-start justify-between gap-3 p-4 pb-3", className)} {...props}>
       {hasText || children ? (
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          {title != null ? <Heading className="text-h4 font-semibold text-fg">{title}</Heading> : null}
+          {title != null ? <Heading className="text-card-title font-semibold text-fg">{title}</Heading> : null}
           {description != null ? <p className="text-body-sm text-fg-muted">{description}</p> : null}
           {children}
         </div>
@@ -97,7 +99,7 @@ export const CardHeader = React.forwardRef<HTMLDivElement, CardHeaderProps>(func
 
 export const CardTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(
   function CardTitle({ className, ...props }, ref) {
-    return <h3 ref={ref} className={cn("text-h4 font-semibold text-fg", className)} {...props} />;
+    return <h3 ref={ref} className={cn("text-card-title font-semibold text-fg", className)} {...props} />;
   },
 );
 
@@ -160,7 +162,7 @@ export const Panel = React.forwardRef<HTMLElement, PanelProps>(function Panel(
     <section
       ref={ref}
       aria-labelledby={headingId}
-      className={cn("flex flex-col rounded-md border border-border bg-surface text-fg", className)}
+      className={cn("flex flex-col rounded-lg border border-border bg-surface-raised text-fg shadow-card", className)}
       {...props}
     >
       <header className="flex min-h-10 items-center gap-3 rounded-t-[inherit] border-b border-border bg-surface-secondary px-3 py-1.5">

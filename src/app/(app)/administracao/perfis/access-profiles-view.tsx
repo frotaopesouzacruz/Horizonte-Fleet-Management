@@ -235,7 +235,7 @@ export function AccessProfilesView({
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Administração"
         title="Perfis e permissões"
         description="O perfil de acesso decide o que uma conta pode fazer no HFM. É diferente do perfil organizacional que vem da base corporativa, e nenhuma planilha, integração ou sincronização o altera."
         secondaryActions={

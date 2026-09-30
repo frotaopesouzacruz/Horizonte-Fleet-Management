@@ -32,6 +32,7 @@
   --color-fg: var(--text-primary);
   --color-fg-secondary: var(--text-secondary);
   --color-fg-muted: var(--text-muted);
+  --color-fg-subtle: var(--text-subtle);
   --color-fg-disabled: var(--text-disabled);
   --color-fg-inverse: var(--text-inverse);
   --color-link: var(--text-link);
@@ -112,6 +113,43 @@
   --color-chart-8: var(--chart-8);
   --color-chart-grid: var(--chart-grid);
   --color-chart-axis: var(--chart-axis);
+  --color-chart-brand-primary: var(--chart-brand-primary);
+  --color-chart-brand-secondary: var(--chart-brand-secondary);
+  --color-chart-accent: var(--chart-accent);
+  --color-chart-success: var(--chart-success);
+  --color-chart-warning: var(--chart-warning);
+  --color-chart-danger: var(--chart-danger);
+  --color-chart-neutral: var(--chart-neutral);
+  --color-chart-target: var(--chart-target);
+  --color-chart-target-label: var(--chart-target-label);
+  --color-chart-label: var(--chart-label);
+  --color-chart-tooltip: var(--chart-tooltip-surface);
+  --color-chart-tooltip-border: var(--chart-tooltip-border);
+
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-selected: var(--surface-selected);
+  --color-surface-header: var(--surface-header);
+
+  --color-delta-positive: var(--delta-positive);
+  --color-delta-positive-bg: var(--delta-positive-bg);
+  --color-delta-negative: var(--delta-negative);
+  --color-delta-negative-bg: var(--delta-negative-bg);
+  --color-delta-neutral: var(--delta-neutral);
+  --color-delta-neutral-bg: var(--delta-neutral-bg);
+
+  --color-heat-success: var(--heat-success-bg);
+  --color-heat-success-border: var(--heat-success-border);
+  --color-heat-success-fg: var(--heat-success-fg);
+  --color-heat-warning: var(--heat-warning-bg);
+  --color-heat-warning-border: var(--heat-warning-border);
+  --color-heat-warning-fg: var(--heat-warning-fg);
+  --color-heat-danger: var(--heat-danger-bg);
+  --color-heat-danger-border: var(--heat-danger-border);
+  --color-heat-danger-fg: var(--heat-danger-fg);
+  --color-heat-empty: var(--heat-empty-bg);
+  --color-heat-empty-border: var(--heat-empty-border);
 
   /* typography */
   --font-sans: var(--font-sans);
@@ -141,6 +179,22 @@
   --text-overline: var(--text-overline);
   --text-overline--line-height: var(--leading-overline);
   --text-overline--letter-spacing: 0.06em;
+  --text-page-title: var(--text-page-title);
+  --text-page-title--line-height: var(--leading-page-title);
+  --text-page-title--letter-spacing: var(--tracking-tight);
+  --text-section-title: var(--text-section-title);
+  --text-section-title--line-height: var(--leading-section-title);
+  --text-card-title: var(--text-card-title);
+  --text-card-title--line-height: var(--leading-card-title);
+  --text-kpi: var(--text-kpi);
+  --text-kpi--line-height: var(--leading-kpi);
+  --text-kpi--letter-spacing: var(--tracking-kpi);
+  --text-kpi-sm: var(--text-kpi-sm);
+  --text-kpi-sm--line-height: var(--leading-kpi-sm);
+  --text-kpi-sm--letter-spacing: var(--tracking-kpi);
+  --text-kpi-lg: var(--text-kpi-lg);
+  --text-kpi-lg--line-height: var(--leading-kpi-lg);
+  --text-kpi-lg--letter-spacing: var(--tracking-kpi);
 
   /* shape & elevation */
   --radius-xs: var(--radius-xs);
@@ -153,6 +207,9 @@
   --shadow-md: var(--shadow-md);
   --shadow-lg: var(--shadow-lg);
   --shadow-focus: var(--shadow-focus);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-card: var(--shadow-card);
+  --shadow-card-hover: var(--shadow-card-hover);
 
   /* motion */
   --ease-standard: var(--ease-standard);

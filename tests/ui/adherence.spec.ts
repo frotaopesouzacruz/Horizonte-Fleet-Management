@@ -30,7 +30,7 @@ test.describe("aderência", () => {
     await expect(page.getByText("8 / 9").first()).toBeVisible();
     // A meta é parâmetro: aparece com a diferença assinada.
     await expect(page.getByText("90,00%").first()).toBeVisible();
-    await expect(page.getByText("-1,11%").first()).toBeVisible();
+    await expect(page.getByText("-1,11 p.p.").first()).toBeVisible();
     // A quebra por operação usa a mesma regra.
     await expect(page.getByRole("cell", { name: "Last Mille MG" })).toBeVisible();
     await expect(page.getByRole("cell", { name: "83,33%" }).first()).toBeVisible();
@@ -81,10 +81,10 @@ test.describe("aderência", () => {
     const setembro = page.getByRole("grid", { name: "Dias de Setembro/2026" });
     const dia25 = setembro.getByRole("gridcell").filter({ hasText: /^25/ }).first();
     await expect(dia25).toContainText("Futuro");
-    await expect(dia25).toHaveAttribute("title", /planejado/);
+    await expect(dia25).toHaveAttribute("aria-label", /planejado/);
     const dia22 = setembro.getByRole("gridcell").filter({ hasText: /^22/ }).first();
     await expect(dia22).toContainText("66,7%");
-    await expect(dia22).toHaveAttribute("title", /66,67%/);
+    await expect(dia22).toHaveAttribute("aria-label", /66,67%/);
     // Selecionar o dia abre o detalhe; dali, "Ver jornada do dia" leva à jornada daquele dia.
     await dia22.click();
     const drawer = page.getByRole("dialog");
@@ -108,7 +108,7 @@ test.describe("aderência", () => {
     // O mês seguinte é todo futuro: planejamento, não descumprimento.
     const outubro = page.getByRole("grid", { name: "Dias de Outubro/2026" });
     // Mês vizinho: a célula é estreita, o futuro fica na borda tracejada e é dito ao leitor de tela.
-    await expect(outubro.getByTitle(/^2026-10-01: planejado/)).toContainText("Futuro");
+    await expect(outubro.getByRole("gridcell", { name: /^2026-10-01: planejado/ })).toContainText("Futuro");
 
     // Clicar no dia abre o detalhe com a data no título; sem sessão a carga
     // pode falhar (alerta), mas o cabeçalho e os links do rodapé não dependem dela.

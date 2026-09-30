@@ -260,7 +260,7 @@ export function FidelizationView({
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Governança operacional"
         title="Central de Fidelização"
         description="Planejamento das BRs por veículo e motorista, por competência, com o histórico de cada mobilização. Fidelizar não transfere a operação nem a cidade do veículo — a alocação continua no Cadastro de Frotas."
         secondaryActions={

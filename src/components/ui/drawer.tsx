@@ -39,7 +39,7 @@ export const DrawerContent = React.forwardRef<React.ComponentRef<typeof DialogPr
         <DialogPrimitive.Content
           ref={ref}
           className={cn(
-            "fixed inset-y-0 z-(--z-overlay) flex h-dvh w-full flex-col bg-surface-elevated text-fg shadow-lg outline-none",
+            "fixed inset-y-0 z-(--z-overlay) flex h-dvh w-full flex-col bg-surface-elevated text-fg shadow-xl outline-none",
             side === "right" &&
               "right-0 border-l border-border data-[state=open]:animate-slide-in-right data-[state=closed]:animate-slide-out-right",
             side === "left" &&

@@ -221,7 +221,7 @@ export function BranchesView({
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Estrutura operacional"
         title="Filiais"
         description="Gerencie as unidades organizacionais e seus vínculos com operações, colaboradores e frotas."
         primaryAction={

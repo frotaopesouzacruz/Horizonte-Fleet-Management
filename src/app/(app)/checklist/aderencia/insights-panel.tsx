@@ -4,7 +4,7 @@ import * as React from "react";
 import {
   ArrowDownRight, ArrowUpRight, CalendarClock, Info, Lightbulb, MapPin, Target, TriangleAlert, Trophy, type LucideIcon,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { SectionHeader } from "@/components/layout/section-header";
 import { cn } from "@/lib/cn";
 import type { AdherenceGroup, AdherenceInsights } from "@/lib/adherence/queries";
 import { formatInt, formatPct } from "./status";
@@ -23,6 +23,13 @@ const TONE_ICON_CLASS: Record<Tone, string> = {
   info: "bg-info-soft text-info-soft-fg",
   warning: "bg-warning-soft text-warning-soft-fg",
   success: "bg-success-soft text-success-soft-fg",
+};
+
+/** Linha de acento à esquerda do cartão de leitura: o tom sem pintar o texto. */
+const TONE_ACCENT: Record<Tone, string> = {
+  info: "before:bg-info",
+  warning: "before:bg-warning",
+  success: "before:bg-success",
 };
 
 const pts = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -149,34 +156,49 @@ export interface InsightsPanelProps {
   insights: AdherenceInsights | null;
 }
 
-/** Insights gerenciais (§27): o cartão só existe quando há o que dizer. */
+/** Insights gerenciais (§27): leituras factuais, cada uma no seu cartão, na ordem de gravidade. */
 export function InsightsPanel({ insights }: InsightsPanelProps) {
   const items = insights ? buildInsights(insights) : [];
+  const order: Record<Tone, number> = { warning: 0, info: 1, success: 2 };
+  // A variação e o desvio abrem a leitura; o resto vem por gravidade.
+  const sorted = [...items].sort((a, b) => {
+    const pin = (k: string) => (k === "variation" ? -2 : k === "gap" ? -1 : 0);
+    return pin(a.key) - pin(b.key) || order[a.tone] - order[b.tone];
+  });
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-3 p-4">
-        <div className="flex items-center gap-2">
-          <Lightbulb className="size-4 text-fg-muted" aria-hidden />
-          <h3 className="text-h4 font-semibold text-fg">Insights gerenciais</h3>
-        </div>
-        {items.length === 0 ? (
-          <p className="text-body-sm text-fg-muted">Sem base elegível no período para gerar leituras.</p>
-        ) : (
-          <ul className="flex flex-col gap-2.5" aria-label="Insights da competência">
-            {items.map((item) => {
-              const Icon = item.icon;
-              return (
-                <li key={item.key} className="flex items-start gap-2.5" data-tone={item.tone}>
-                  <span className={cn("mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-sm", TONE_ICON_CLASS[item.tone])}>
-                    <Icon className="size-3.5" aria-hidden />
-                  </span>
-                  <p className="text-body-sm text-fg">{item.text}</p>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+    <section aria-label="Insights gerenciais" className="flex flex-col gap-3">
+      <SectionHeader
+        title="Insights gerenciais"
+        description="Leituras geradas a partir dos números da competência; nada aqui é estimado."
+        icon={<Lightbulb />}
+      />
+      {sorted.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border bg-surface-raised px-4 py-6 text-center text-body-sm text-fg-muted">
+          Sem base elegível no período para gerar leituras.
+        </p>
+      ) : (
+        <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3" aria-label="Insights da competência">
+          {sorted.map((item) => {
+            const Icon = item.icon;
+            return (
+              <li
+                key={item.key}
+                data-tone={item.tone}
+                className={cn(
+                  "relative flex items-start gap-3 overflow-hidden rounded-lg border border-border bg-surface-raised p-3.5 pl-4 shadow-card",
+                  "before:absolute before:inset-y-0 before:left-0 before:w-0.5",
+                  TONE_ACCENT[item.tone],
+                )}
+              >
+                <span className={cn("inline-flex size-7 shrink-0 items-center justify-center rounded-md", TONE_ICON_CLASS[item.tone])}>
+                  <Icon className="size-4" aria-hidden />
+                </span>
+                <p className="text-body-sm text-fg">{item.text}</p>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }

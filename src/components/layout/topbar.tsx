@@ -131,7 +131,7 @@ function GlobalSearch({ className }: { className?: string }) {
           <Search className="size-4 shrink-0" aria-hidden />
           <span className="hidden truncate md:inline">Buscar no sistema…</span>
           <span className="sr-only md:hidden">Buscar</span>
-          <kbd className="ml-auto hidden rounded-xs border border-border bg-surface-secondary px-1.5 font-sans text-[11px] text-fg-muted md:inline-block">
+          <kbd className="ml-auto hidden rounded-xs border border-border bg-surface-secondary px-1.5 font-sans text-overline text-fg-muted md:inline-block">
             Ctrl K
           </kbd>
         </button>

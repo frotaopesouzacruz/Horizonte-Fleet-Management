@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Specimen } from "../design-system-view";
-import { chartSeries } from "@/design-system/tokens/chart";
+import { chartSeries, chartTheme } from "@/design-system/tokens/chart";
 import { spacingScale } from "@/design-system/tokens";
 
 const brand = [
@@ -19,6 +19,8 @@ const surfaces = [
   { token: "--surface-tertiary", label: "surface tertiary", swatch: "bg-surface-tertiary" },
   { token: "--surface-elevated", label: "surface elevated", swatch: "bg-surface-elevated" },
   { token: "--surface-sidebar", label: "surface sidebar", swatch: "bg-surface-sidebar" },
+  { token: "--surface-raised", label: "surface raised (cards)", swatch: "bg-surface-raised" },
+  { token: "--surface-sunken", label: "surface sunken (trilhos)", swatch: "bg-surface-sunken" },
 ];
 
 const semantic = [
@@ -33,19 +35,23 @@ const semantic = [
 ];
 
 const typeScale = [
-  { cls: "text-display", label: "Display · 28/34" },
-  { cls: "text-h1", label: "H1 · 22/28" },
-  { cls: "text-h2", label: "H2 · 18/24" },
-  { cls: "text-h3", label: "H3 · 16/22" },
-  { cls: "text-h4", label: "H4 · 14/20" },
+  { cls: "text-kpi-lg font-semibold tabular-nums", label: "KPI grande · 34/38" },
+  { cls: "text-kpi font-semibold tabular-nums", label: "KPI · 30/34" },
+  { cls: "text-kpi-sm font-semibold tabular-nums", label: "KPI compacto · 26/30" },
+  { cls: "text-page-title font-semibold", label: "Título da página · 26/32" },
+  { cls: "text-section-title font-semibold", label: "Título de seção · 18/24" },
+  { cls: "text-card-title font-semibold", label: "Título de cartão · 15/20" },
   { cls: "text-body", label: "Body · 14/20" },
   { cls: "text-body-sm", label: "Body small · 13/18" },
   { cls: "text-label", label: "Label · 13/16" },
   { cls: "text-caption", label: "Caption · 12/16" },
+  { cls: "text-overline uppercase font-semibold", label: "Overline · 11/14" },
 ];
 
+const chartRoles = Object.entries(chartTheme).filter(([k]) => !["area", "areaFade", "targetLabel"].includes(k));
+
 const radii = ["rounded-xs", "rounded-sm", "rounded-md", "rounded-lg", "rounded-xl"];
-const shadows = ["shadow-xs", "shadow-sm", "shadow-md", "shadow-lg"];
+const shadows = ["shadow-card", "shadow-card-hover", "shadow-md", "shadow-xl"];
 
 function Swatch({ swatch, label, token }: { swatch: string; label: string; token: string }) {
   return (
@@ -116,11 +122,13 @@ export function FoundationsSection() {
         ))}
       </Specimen>
 
-      <Specimen title="Elevação" description="Discreta e reservada a camadas realmente flutuantes.">
-        {shadows.map((s) => (
-          <div key={s} className="w-28 text-center">
-            <div className={`h-14 rounded-sm bg-surface ${s}`} />
-            <p className="mt-1.5 font-mono text-caption text-fg-muted">{s}</p>
+      <Specimen title="Elevação" description="1 cartões · 2 hover e barras fixas · 3 menus e tooltips · 4 diálogos e gavetas.">
+        {shadows.map((s, i) => (
+          <div key={s} className="w-32 text-center">
+            <div className={`h-14 rounded-lg border border-border bg-surface-raised ${s}`} />
+            <p className="mt-1.5 font-mono text-caption text-fg-muted">
+              {i + 1} · {s}
+            </p>
           </div>
         ))}
       </Specimen>
@@ -131,6 +139,19 @@ export function FoundationsSection() {
             <div className="bg-primary-soft" style={{ width: s, height: s }} />
             <p className="mt-1.5 font-mono text-caption text-fg-muted">{s}</p>
           </div>
+        ))}
+      </Specimen>
+
+      <Specimen title="Papéis de gráfico (Etapa 17)" description="A marca conduz; cor semântica só para julgamento; a meta é sempre o dourado tracejado." className="flex flex-wrap gap-3">
+        {chartRoles.map(([role, color]) => (
+          <span key={role} className="flex items-center gap-1.5 text-caption text-fg-secondary">
+            {role === "target" ? (
+              <span className="h-0 w-4 border-t-2 border-dashed" style={{ borderColor: color }} />
+            ) : (
+              <span className="size-3 rounded-[3px]" style={{ background: color }} />
+            )}
+            {role}
+          </span>
         ))}
       </Specimen>
 

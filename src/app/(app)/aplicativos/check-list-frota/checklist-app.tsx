@@ -219,7 +219,7 @@ export function ChecklistApp({
   if (!context.available) {
     return (
       <>
-        <PageHeader title="Check List de Frota" />
+        <PageHeader eyebrow="Aplicativos" title="Check List de Frota" />
         <PageContent>
           <Alert variant="warning">
             <AlertTitle>O aplicativo ainda não está disponível</AlertTitle>
@@ -257,7 +257,7 @@ export function ChecklistApp({
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Aplicativos"
         title={context.appName}
         description={
           context.version

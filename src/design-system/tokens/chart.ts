@@ -28,9 +28,37 @@ export const chartSemantic = {
 export const chartChrome = {
   grid: "var(--chart-grid)",
   axis: "var(--chart-axis)",
+  axisLine: "var(--chart-axis-line)",
+  label: "var(--chart-label)",
+  crosshair: "var(--chart-crosshair)",
+  hoverBand: "var(--chart-hover-band)",
+  future: "var(--chart-future)",
   tooltipBackground: "var(--chart-tooltip-bg)",
   tooltipForeground: "var(--chart-tooltip-fg)",
+  tooltipSurface: "var(--chart-tooltip-surface)",
+  tooltipBorder: "var(--chart-tooltip-border)",
 } as const;
+
+/**
+ * HFM data-visualization roles (Etapa 17). Charts pick a role, never a hex:
+ * the brand leads, semantic colors only mark a judgement (below target,
+ * critical), and the target/benchmark is always the deep gold dashed line.
+ */
+export const chartTheme = {
+  brandPrimary: "var(--chart-brand-primary)",
+  brandSecondary: "var(--chart-brand-secondary)",
+  accent: "var(--chart-accent)",
+  success: "var(--chart-success)",
+  warning: "var(--chart-warning)",
+  danger: "var(--chart-danger)",
+  neutral: "var(--chart-neutral)",
+  target: "var(--chart-target)",
+  targetLabel: "var(--chart-target-label)",
+  area: "var(--chart-area-primary)",
+  areaFade: "var(--chart-area-primary-fade)",
+} as const;
+
+export type ChartRole = keyof typeof chartTheme;
 
 /** Resolves a CSS variable to its computed value (client only), for canvas-based charts. */
 export function resolveCssVar(variable: string, element: HTMLElement = document.documentElement): string {

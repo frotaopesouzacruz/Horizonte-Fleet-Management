@@ -654,9 +654,9 @@ function KpiBox({
   className?: string;
 }) {
   return (
-    <div className={cn("rounded-md border border-border bg-surface p-3 text-center", className)}>
+    <div className={cn("rounded-lg border border-border bg-surface-raised p-3 text-center shadow-card", className)}>
       <p className={cn(
-        "text-h2 font-bold tabular-nums",
+        "text-h2 font-semibold tabular-nums",
         tone === "success" ? "text-success" : tone === "danger" ? "text-danger" : "text-fg",
       )}>
         {number.format(value)}

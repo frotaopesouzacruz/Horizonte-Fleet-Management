@@ -543,7 +543,7 @@ export function FleetView({
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Gestão de frota"
         title="Cadastro de Frotas"
         description="Gerencie veículos, vínculos operacionais e informações cadastrais da frota."
         primaryAction={
