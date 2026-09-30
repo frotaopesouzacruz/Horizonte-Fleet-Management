@@ -43,17 +43,22 @@ export function stabilityStatus(value: number | null): KpiStatus | undefined {
 export interface StabilityDashboardProps {
   stability: FidelizationStability | null;
   competence: Competence;
-  /** Vínculos da competência abertos por substituição ou inversão (indicadores da Central). */
+  /**
+   * Vínculos da competência abertos por substituição ou inversão (indicadores
+   * da Central). Usado quando a estabilidade não pôde ser calculada; com ela,
+   * o cartão lê `vehicleChangeLinks`, que inclui as trocas inferidas.
+   */
   substitutionsAndInversions: number;
 }
 
 /**
  * Dashboard de Estabilidade (§39–§43).
  *
- * As fórmulas vivem no banco. A distinção que mais importa aqui é a da §42:
- * substituição e inversão são eventos explícitos e contam como mobilização; a
- * troca observada na matriz sem evento por trás é "inferida" e fica em número
- * separado — nunca somada, para a mesma mobilização não contar duas vezes.
+ * As fórmulas vivem no banco. Mobilizações são substituições e inversões —
+ * as registradas (tela ou importação, com `replaces_assignment_id`) e as
+ * inferidas (troca de titular sem evento por trás, típica de cargas antigas),
+ * sem contagem dupla: a troca inferida recíproca entre duas BRs no mesmo dia
+ * é uma inversão (20260930120000).
  */
 export function StabilityDashboard({
   stability,
@@ -63,8 +68,8 @@ export function StabilityDashboard({
   const substitutionsCard = (
     <KpiCard
       label="Substituições e inversões"
-      value={number.format(substitutionsAndInversions)}
-      period={formatCompetence(competence)}
+      value={number.format(stability ? stability.vehicleChangeLinks : substitutionsAndInversions)}
+      period={`Vínculos que entraram por troca · ${formatCompetence(competence)}`}
       icon={<Repeat />}
     />
   );
@@ -151,21 +156,23 @@ export function StabilityDashboard({
             <KpiCard
               label="Trocas inferidas"
               value={number.format(stability.inferredVehicleChanges)}
-              period="Não somadas às mobilizações"
+              period={
+                stability.inferredVehicleChanges > 0
+                  ? `Incluídas nas mobilizações: ${number.format(stability.inferredSubstitutions)} subst. · ${number.format(stability.inferredInversions)} inv.`
+                  : "Incluídas nas mobilizações"
+              }
               icon={<Shuffle />}
             />
           </div>
 
-          {/* §42: o número fica explicado logo abaixo dos cartões — é o único
-              da linha que não entra em nenhuma soma. */}
+          {/* §42: o que é troca inferida e como ela entra nas contas, dito ao lado dos cartões. */}
           <p className="flex items-start gap-1.5 text-caption text-fg-muted">
             <Activity className="mt-0.5 size-3.5 shrink-0" aria-hidden />
             <span>
-              Trocas inferidas são trocas de titular observadas na matriz sem evento explícito por trás
-              (substituição, inversão ou importação-substituição) — por exemplo, períodos consecutivos
-              trazidos pela importação. Ficam fora da soma das mobilizações, para a mesma troca não contar
-              duas vezes, mas a BR que as teve conta como BR com troca na estabilidade da frota.
-              Indicadores resolvidos em{" "}
+              Trocas inferidas são trocas de titular sem evento registrado por trás — por exemplo, períodos
+              consecutivos trazidos por importações anteriores. Entram nas mobilizações sem contagem dupla (a
+              troca recíproca entre duas BRs no mesmo dia conta como uma inversão) e na estabilidade da frota.
+              As importações novas já registram a troca como substituição ou inversão. Indicadores resolvidos em{" "}
               {formatDate(stability.anchorDate)}, sobre o período de {formatDate(stability.periodStart)} a{" "}
               {formatDate(stability.periodEnd)}.
             </span>

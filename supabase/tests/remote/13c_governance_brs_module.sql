@@ -218,16 +218,19 @@ begin
   -- C9: estabilidade sem contagem dupla — inverte B e D a partir de amanha
   perform public.invert_fidelization_vehicles(b.assignment_id, d.assignment_id, current_date + 1, 'Suite 13c: inversao');
   j := public.fidelization_stability(v_org, extract(year from current_date)::int, extract(month from current_date)::int, jsonb_build_object('operation_id', a.operation_id));
-  ok  := (j->>'vehicle_substitutions')::int = 1 and (j->>'vehicle_inversions')::int = 1 and (j->>'mobilizations')::int = 2;
+  -- Desde 20260930120000 as mobilizações somam também as trocas inferidas (dado
+  -- real do mês); os eventos desta suíte ficam nos campos explicit_*.
+  ok  := (j->>'explicit_substitutions')::int = 1 and (j->>'explicit_inversions')::int = 1 and (j->>'explicit_mobilizations')::int = 2
+         and (j->>'mobilizations')::int = 2 + (j->>'inferred_substitutions')::int + (j->>'inferred_inversions')::int;
   -- Desde 20260930100000 a BR com troca inferida (dado real do mês) também conta: 3 ou mais.
   ok2 := (j->>'brs_with_vehicle_change')::int >= 3;
   ok3 := (j->>'fleet_stability_pct')::numeric
          = round(100.0 * (1 - (j->>'brs_with_vehicle_change')::numeric / (j->>'brs_with_vehicle')::int), 1);
   ok4 := (j->>'leadership_coverage_pct')::numeric = round(100.0 * (j->>'brs_with_leader')::int / (j->>'brs_total')::int, 1);
   select (x->>'mobilizations')::int into n from jsonb_array_elements(j->'by_operation') x where (x->>'operation_id')::uuid = a.operation_id;
-  ok5 := n = 2 and (j->>'inferred_vehicle_changes')::int >= 0
+  ok5 := n = (j->>'mobilizations')::int and (j->>'inferred_vehicle_changes')::int >= 0
          and (select count(*) from public.fidelization_assignments where operation_br_id in (b.id, d.id) and source = 'inversion') = 2;
-  r := r || format('C9  estabilidade: 1 substituicao + 1 inversao (2 linhas) = 2 mobilizacoes %s, 3+ BRs com troca %s, formula da frota %s, cobertura %s, por operacao = 2 e inferidas (%s) fora das mobilizacoes %s -> %s%s',
+  r := r || format('C9  estabilidade: 1 substituicao + 1 inversao (2 linhas) = 2 mobilizacoes %s, 3+ BRs com troca %s, formula da frota %s, cobertura %s, por operacao = total e inferidas (%s) somadas uma vez %s -> %s%s',
        ok, ok2, ok3, ok4, j->>'inferred_vehicle_changes', ok5, case when ok and ok2 and ok3 and ok4 and ok5 then 'PASS' else 'FAIL' end, chr(10));
 
   -- C10: replicacao com previa (mes vigente -> proximo), sem sobrescrever

@@ -313,15 +313,29 @@ palavra.
 | troca de motorista | motorista principal iniciado no mês cujo antecessor no mesmo BR terminou na véspera |
 | estabilidade de motoristas | 1 − BRs com troca de motorista / BRs com motorista |
 | cobertura de lideranças | BRs ativas com liderança na data-âncora / BRs ativas |
-| movimentação inferida | troca de titular observada entre vínculos consecutivos **sem** `replaces_assignment_id` (ex.: períodos consecutivos da importação) — mostrada à parte, nunca somada às mobilizações; **conta** para "BR com troca" e, portanto, para a estabilidade |
+| movimentação inferida | troca de titular observada entre vínculos consecutivos **sem** `replaces_assignment_id` (ex.: períodos consecutivos de importações anteriores a 20260930110000). **Entra nas mobilizações** desde 20260930120000: a troca recíproca entre duas BRs no mesmo dia conta como **uma** inversão; a troca sem par, como uma substituição. Conta para "BR com troca" e, portanto, para a estabilidade |
+| mobilizações | substituições + inversões registradas (`explicit_*`) + substituições e inversões inferidas (`inferred_*`). Cada troca entra uma vez: a linha com `replaces_assignment_id` nunca é inferida |
 
 Por que a distinção: no HFC, "mobilizações" misturava linhas explícitas com
 trocas derivadas do grid, uma edição de N dias gerava N linhas idênticas, e
 sob filtro a taxa podia ficar negativa (mapeamento §3 e §7, problemas 04 e
-05). Aqui a substituição e a inversão são as únicas fontes de "mobilização",
-cada uma é **uma** transação e **uma** linha por BR, e a base histórica — que
-chegou por importação e tem 16 trocas de titular sem evento — aparece como
-"inferida", em número separado, para ninguém somar duas vezes.
+05). Aqui cada substituição e cada inversão é **uma** transação e **uma** linha
+por BR. A base que chegou por importação antes de 20260930110000 tem trocas de
+titular sem evento (16 em Setembro/2026, em 8 pares recíprocos); desde
+20260930120000 elas **entram** nas mobilizações — o par recíproco vale uma
+inversão, como o evento que teria sido registrado — e o painel mostra quantas
+entraram (`inferred_substitutions`, `inferred_inversions`). Setembro/2026:
+16 inferidas = 8 inversões; mobilizações = registradas + 8.
+
+Saídas de `fidelization_stability` ligadas às trocas de veículo:
+
+| Campo | Conteúdo |
+|---|---|
+| `explicit_substitutions`, `explicit_inversions`, `explicit_mobilizations` | só os eventos registrados |
+| `inferred_vehicle_changes` | linhas inferidas (vínculos) |
+| `inferred_substitutions`, `inferred_inversions` | as inferidas contadas como eventos (par recíproco = 1 inversão) |
+| `vehicle_substitutions`, `vehicle_inversions`, `mobilizations` | registradas + inferidas |
+| `vehicle_change_links` | vínculos que entraram por troca (substituições + linhas de inversão + inferidas) — o cartão "Substituições e inversões" |
 
 Nos recortes por operação, local e liderança, cada grupo conta os eventos que o
 tocaram; uma inversão entre BRs de cidades diferentes aparece nas duas cidades
@@ -331,7 +345,8 @@ Faixas de cor (a mesma escala nos três cartões): ≥ 95 % verde, ≥ 85 % aten
 abaixo, alerta. Quando o denominador é zero, o cartão mostra "—", não 0 %.
 
 Prova: suíte 13c, C9 — uma substituição mais uma inversão (duas linhas) dão
-2 mobilizações, 3 BRs com troca, e as 16 inferidas ficam de fora.
+2 mobilizações registradas e o total soma as inferidas uma vez; suíte 21 (S1–S5)
+e suíte 22 (M1–M2) para as inferidas e Setembro/2026.
 
 ---
 
@@ -552,7 +567,7 @@ Recorte: competência + operação, estado e cidade do cabeçalho.
 | Motoristas fidelizados | colaboradores distintos vinculados em algum dia da competência |
 | Trocas de veículo (substituições) | vínculos novos na competência ligados a um substituído, fora inversões |
 | Inversões | ⌈linhas de inversão ÷ 2⌉ — uma inversão troca duas placas |
-| Mobilizações | substituições + inversões (as inferidas ficam à parte) |
+| Mobilizações | substituições + inversões, registradas e inferidas (par recíproco inferido = 1 inversão) |
 | Trocas de motorista | motoristas principais que começam na competência logo após outro na mesma BR |
 | Estabilidade da frota | 1 − BRs com troca de veículo (explícita ou inferida, cada BR uma vez) ÷ BRs com veículo |
 | Estabilidade dos motoristas | 1 − BRs com troca de motorista ÷ BRs com motorista |
@@ -581,6 +596,16 @@ temporária não conta como segunda mobilização (P3).
   sobreposições ficam de fora da gravação; o mesmo arquivo (mesmo hash)
   importado de novo é avisado na prévia (Etapa 13).
 * A importação não altera perfil, papel nem permissão de ninguém.
+* **Troca registrada (20260930110000)**: quando a linha importada é titular e
+  a mesma BR tinha outro veículo titular até a véspera, o vínculo criado aponta
+  o anterior (`replaces_assignment_id`) e nasce com `source = 'substitution'`
+  — ou `'inversion'` quando o veículo novo saiu, na véspera, de uma BR que
+  recebe o veículo antigo no mesmo dia (já gravado ou pendente no mesmo lote).
+  O histórico registra "Substituição de veículo" / "Inversão de placas" com
+  origem `import`, o lote e o arquivo nos detalhes. As linhas são gravadas em
+  ordem de início, e o resumo do lote conta `linked_substitutions` e
+  `linked_inversion_rows`. A importação não cria veículo nem vínculo fora do
+  que o arquivo traz e não altera vínculos existentes além do que já fazia.
 * A área Importação lista os lotes (`fidelization_import_history`, com
   `fidelization.import` ou `fidelization.audit`) com as contagens e os erros.
 
@@ -648,6 +673,12 @@ do perfil.
   correção histórica, edição por período, leituras, estabilidade, histórico
   de importações.
 * `20260924110000_fidelization_import_layouts.sql` — layouts salvos.
+* `20260930100000_fidelization_stability_inferred_changes.sql` — a BR com
+  troca inferida conta para a estabilidade da frota.
+* `20260930110000_fidelization_import_links_changes.sql` — a importação liga
+  a troca ao vínculo anterior (substituição ou inversão, origem `import`).
+* `20260930120000_fidelization_mobilizations_inferred.sql` — as trocas
+  inferidas entram nas mobilizações (par recíproco = 1 inversão).
 
 ## 18. Correção: a Central não abria (24/09/2026)
 

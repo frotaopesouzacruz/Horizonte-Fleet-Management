@@ -28,12 +28,13 @@ test.describe("prévia da fidelização", () => {
 /**
  * Dashboard de Estabilidade (§39–§43).
  *
- * O que se verifica aqui é a distinção da §42 na tela: mobilizações são os
- * eventos explícitos (substituição e inversão), a troca inferida fica em número
- * separado, e as fórmulas estão escritas para quem quiser conferir a conta.
+ * O que se verifica aqui é a regra da §42 na tela: mobilizações somam os
+ * eventos registrados (substituição e inversão) e as trocas inferidas — a troca
+ * recíproca entre duas BRs no mesmo dia vale uma inversão —, e o cartão das
+ * inferidas mostra como elas entraram na soma.
  */
 test.describe("dashboard de estabilidade", () => {
-  test("mostra a estabilidade da frota e as trocas inferidas à parte", async ({ page }) => {
+  test("mostra a estabilidade da frota e soma as trocas inferidas às mobilizações", async ({ page }) => {
     const crashes: string[] = [];
     page.on("pageerror", (error) => crashes.push(error.message));
 
@@ -42,28 +43,29 @@ test.describe("dashboard de estabilidade", () => {
     await expect(painel).toBeVisible();
 
     // Cada cartão é uma `section` com o rótulo em `h3`. Selecionar pelo título
-    // exato evita que "Mobilizações" também case com "Não somadas às
+    // exato evita que "Mobilizações" também case com "Incluídas nas
     // mobilizações" no cartão vizinho.
     const cartao = (nome: string) =>
       painel.locator("section").filter({ has: page.getByRole("heading", { name: nome, exact: true }) });
 
-    // 1 − 3/88 = 96,6%, em pt-BR e com uma casa.
+    // 1 − 13/88 = 85,2%, em pt-BR e com uma casa.
     const frota = cartao("Estabilidade da frota");
-    await expect(frota).toContainText("96,6%");
-    await expect(frota).toContainText("3 de 88 BRs com troca de veículo");
+    await expect(frota).toContainText("85,2%");
+    await expect(frota).toContainText("13 de 88 BRs com troca de veículo");
 
     // Sem motorista planejado não há razão — o cartão diz "—", não "100%".
     await expect(cartao("Estabilidade de motoristas")).toContainText("—");
 
-    // 2 substituições + 1 inversão (um par) = 3 mobilizações.
+    // 2 substituições + 1 inversão registradas, mais 16 trocas inferidas em
+    // 8 pares recíprocos (8 inversões) = 11 mobilizações.
     const mobilizacoes = cartao("Mobilizações");
-    await expect(mobilizacoes).toContainText("3");
-    await expect(mobilizacoes).toContainText("2 substituições · 1 inversões");
+    await expect(mobilizacoes).toContainText("11");
+    await expect(mobilizacoes).toContainText("2 substituições · 9 inversões");
 
-    // §42: as 16 trocas inferidas aparecem, e aparecem fora da soma.
+    // §42: as 16 trocas inferidas aparecem, e o cartão diz como entraram na soma.
     const inferidas = cartao("Trocas inferidas");
     await expect(inferidas).toContainText("16");
-    await expect(inferidas).toContainText("Não somadas às mobilizações");
+    await expect(inferidas).toContainText("Incluídas nas mobilizações: 0 subst. · 8 inv.");
 
     expect(crashes, crashes.join("\n")).toEqual([]);
   });
@@ -74,14 +76,16 @@ test.describe("dashboard de estabilidade", () => {
     const cartao = (nome: string) =>
       painel.locator("section").filter({ has: page.getByRole("heading", { name: nome, exact: true }) });
 
-    // O cartão saiu do topo da Central e entrou na linha das trocas do mês.
-    await expect(cartao("Substituições e inversões")).toContainText("3");
-    await expect(cartao("Substituições e inversões")).toContainText("Setembro/2026");
+    // O cartão saiu do topo da Central e entrou na linha das trocas do mês:
+    // conta os vínculos que entraram por troca (2 + 2 linhas da inversão + 16).
+    await expect(cartao("Substituições e inversões")).toContainText("20");
+    await expect(cartao("Substituições e inversões")).toContainText("Vínculos que entraram por troca · Setembro/2026");
 
     // A tabela "Como os indicadores são calculados" foi retirada; a explicação
     // das trocas inferidas, que fica ao lado dos cartões, continua.
     await expect(painel.getByText("Como os indicadores são calculados")).toHaveCount(0);
-    await expect(painel.getByText(/Ficam fora da soma das mobilizações/)).toBeVisible();
+    await expect(painel.getByText(/Entram nas mobilizações sem contagem dupla/)).toBeVisible();
+    await expect(painel.getByText(/As importações novas já registram a troca/)).toBeVisible();
   });
 
   test("os recortes por operação, local e liderança trazem as mesmas colunas", async ({ page }) => {
@@ -89,8 +93,8 @@ test.describe("dashboard de estabilidade", () => {
     const painel = page.getByRole("region", { name: "Dashboard de estabilidade" });
 
     const porOperacao = painel.getByRole("table").first();
-    await expect(porOperacao.getByRole("row").filter({ hasText: "Last Mille MG" })).toContainText("95,2%");
-    await expect(porOperacao.getByRole("row").filter({ hasText: "Redespacho - Belém" })).toContainText("100%");
+    await expect(porOperacao.getByRole("row").filter({ hasText: "Last Mille MG" })).toContainText("82,3%");
+    await expect(porOperacao.getByRole("row").filter({ hasText: "Redespacho - Belém" })).toContainText("92,3%");
 
     await painel.getByRole("tab", { name: "Por local" }).click();
     await expect(painel.getByRole("cell", { name: /Contagem\/MG/ })).toBeVisible();

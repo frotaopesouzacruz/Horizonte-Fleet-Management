@@ -581,13 +581,23 @@ export interface FidelizationStability {
   brsWithDriver: number;
   brsWithoutDriver: number;
   brsWithLeader: number;
+  /** Substituições: registradas (tela ou importação) + trocas inferidas sem par. */
   vehicleSubstitutions: number;
-  /** Pares: uma inversão gera duas linhas e conta como um evento. */
+  /** Inversões: pares registrados + trocas inferidas recíprocas — cada par é um evento. */
   vehicleInversions: number;
-  /** substituições + inversões — eventos explícitos, sem contagem dupla. */
+  /** substituições + inversões, sem contagem dupla (desde 20260930120000, com as inferidas). */
   mobilizations: number;
+  /** Só os eventos registrados com `replaces_assignment_id`. */
+  explicitSubstitutions: number;
+  explicitInversions: number;
+  explicitMobilizations: number;
+  /** A parte inferida das mobilizações: troca recíproca no mesmo dia = uma inversão. */
+  inferredSubstitutions: number;
+  inferredInversions: number;
+  /** Vínculos que entraram por troca (a inversão abre dois), registrada ou inferida. */
+  vehicleChangeLinks: number;
   brsWithVehicleChange: number;
-  /** Trocas observadas na matriz sem evento explícito por trás: informadas à parte, nunca somadas. */
+  /** Linhas de troca observadas sem evento registrado por trás; já incluídas nas mobilizações. */
   inferredVehicleChanges: number;
   driverChanges: number;
   brsWithDriverChange: number;
@@ -646,6 +656,12 @@ export function mapFidelizationStability(raw: unknown): FidelizationStability {
     brsWithoutDriver: num("brs_without_driver"),
     brsWithLeader: num("brs_with_leader"),
     vehicleSubstitutions: num("vehicle_substitutions"),
+    explicitSubstitutions: num("explicit_substitutions"),
+    explicitInversions: num("explicit_inversions"),
+    explicitMobilizations: num("explicit_mobilizations"),
+    inferredSubstitutions: num("inferred_substitutions"),
+    inferredInversions: num("inferred_inversions"),
+    vehicleChangeLinks: num("vehicle_change_links"),
     vehicleInversions: num("vehicle_inversions"),
     mobilizations: num("mobilizations"),
     brsWithVehicleChange: num("brs_with_vehicle_change"),

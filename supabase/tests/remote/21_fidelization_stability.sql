@@ -11,8 +11,9 @@
 --       inferida no mês, cada BR uma vez — conferido contra uma contagem
 --       independente, feita aqui, sobre os vínculos
 --   S2  Estabilidade da frota = 1 − BRs com troca / BRs com veículo
---   S3  Mobilizações continuam sendo só os eventos explícitos; as inferidas
---       continuam no número à parte (sem contagem dupla)
+--   S3  Mobilizações = eventos explícitos + trocas inferidas (migration
+--       20260930120000): as substituições explícitas batem com a contagem
+--       independente, e o total soma as duas partes sem contar duas vezes
 --   S4  Os recortes por operação somam as mesmas BRs com troca, e a
 --       estabilidade de cada operação segue a mesma fórmula
 --   S5  Se o mês tem troca inferida, a estabilidade não é 100%
@@ -78,12 +79,18 @@ begin
   r := r || format('%s S2 estabilidade da frota %s%% = 1 − %s/%s%s',
        case when ok then 'PASS' else 'FAIL' end, j ->> 'fleet_stability_pct', n_expected, n_with_vehicle, chr(10));
 
-  ok := (j ->> 'vehicle_substitutions')::int = n_explicit
+  ok := (j ->> 'explicit_substitutions')::int = n_explicit
+        and (j ->> 'explicit_mobilizations')::int = (j ->> 'explicit_substitutions')::int + (j ->> 'explicit_inversions')::int
+        and (j ->> 'mobilizations')::int = (j ->> 'explicit_mobilizations')::int
+              + (j ->> 'inferred_substitutions')::int + (j ->> 'inferred_inversions')::int
         and (j ->> 'mobilizations')::int = (j ->> 'vehicle_substitutions')::int + (j ->> 'vehicle_inversions')::int
+        and (j ->> 'inferred_substitutions')::int + 2 * (j ->> 'inferred_inversions')::int
+              >= (j ->> 'inferred_vehicle_changes')::int
         and (j ->> 'inferred_vehicle_changes')::int >= n_inferred_brs;
-  r := r || format('%s S3 mobilizações %s (só eventos explícitos: %s substituições + %s inversões), inferidas à parte %s%s',
-       case when ok then 'PASS' else 'FAIL' end, j ->> 'mobilizations', j ->> 'vehicle_substitutions',
-       j ->> 'vehicle_inversions', j ->> 'inferred_vehicle_changes', chr(10));
+  r := r || format('%s S3 mobilizações %s = explícitas %s (%s subst. + %s inv.) + inferidas %s (%s subst. + %s inv.)%s',
+       case when ok then 'PASS' else 'FAIL' end, j ->> 'mobilizations', j ->> 'explicit_mobilizations',
+       j ->> 'explicit_substitutions', j ->> 'explicit_inversions', j ->> 'inferred_vehicle_changes',
+       j ->> 'inferred_substitutions', j ->> 'inferred_inversions', chr(10));
 
   select coalesce(sum((x ->> 'brs_with_change')::int), 0) into n_ops_sum
     from jsonb_array_elements(j -> 'by_operation') x;

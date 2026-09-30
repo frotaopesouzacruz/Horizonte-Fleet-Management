@@ -282,7 +282,9 @@ test.describe("dashboard de estabilidade (Etapa 15)", () => {
     await expect(cartao("BRs sem motorista")).toContainText("27");
     // Os cartões que já existiam continuam lá.
     await expect(cartao("Estabilidade da frota")).toContainText("95,3%");
-    await expect(cartao("Trocas inferidas")).toContainText("Não somadas às mobilizações");
+    await expect(cartao("Trocas inferidas")).toContainText("Incluídas nas mobilizações: 1 subst. · 0 inv.");
+    // 2 substituições + 1 inversão registradas + 1 inferida = 4 mobilizações.
+    await expect(cartao("Mobilizações")).toContainText("3 substituições · 1 inversões");
 
     await painel.getByRole("tab", { name: "Por estado" }).click();
     await expect(painel.getByRole("row").filter({ hasText: /^PA/ })).toContainText("100%");
@@ -290,8 +292,9 @@ test.describe("dashboard de estabilidade (Etapa 15)", () => {
     await expect(painel.getByRole("cell", { name: "Caminhão 3/4" })).toBeVisible();
     await expect(painel.getByRole("row").filter({ hasText: /^Van/ })).toContainText("94,6%");
 
-    // Substituições e inversões vive aqui, com as trocas do mês; a tabela de fórmulas saiu.
-    await expect(cartao("Substituições e inversões")).toContainText("4");
+    // Substituições e inversões vive aqui, com as trocas do mês (vínculos que
+    // entraram por troca: 2 + 2 linhas da inversão + 1 inferida); a tabela de fórmulas saiu.
+    await expect(cartao("Substituições e inversões")).toContainText("5");
     await expect(painel.getByText("Como os indicadores são calculados")).toHaveCount(0);
   });
 });

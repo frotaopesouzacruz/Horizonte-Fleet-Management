@@ -211,20 +211,24 @@ Nenhuma dessas integrações copia dado. Cada uma lê a mesma linha de
 
 As fórmulas estão em [`fidelization.md`](./fidelization.md) §15 (a tabela
 "Como os indicadores são calculados" saiu da tela a pedido). O ponto que mais
-importa, porque era o defeito 04 do HFC (mapeamento §7): **mobilização é evento
-explícito**. Substituição e inversão são linhas com `replaces_assignment_id`;
-a inversão gera duas linhas e conta como **um** evento; a BR com troca conta
+importa, porque era o defeito 04 do HFC (mapeamento §7): **cada troca conta uma
+vez**. Substituição e inversão são linhas com `replaces_assignment_id`; a
+inversão gera duas linhas e conta como **um** evento; a BR com troca conta
 **uma** vez. A troca de titular observada entre dois vínculos consecutivos sem
-evento por trás (típica da carga histórica e da importação) é "movimentação
-inferida" — mostrada à parte, nunca somada às mobilizações.
+evento por trás (típica das importações anteriores a 20260930110000) é
+"movimentação inferida" e, desde 20260930120000, **entra nas mobilizações**: a
+troca recíproca entre duas BRs no mesmo dia vale uma inversão, a troca sem par
+vale uma substituição. Setembro/2026: 16 inferidas = 8 inversões. A importação
+passou a registrar a troca (`replaces_assignment_id`, `source` substitution ou
+inversion, origem `import` no histórico) — ver [`fidelization.md`](./fidelization.md) §17.11.
 
 **Estabilidade da frota (corrigido em 20260930100000):** a razão conta BRs, não
 eventos, então a BR com troca inferida conta como BR com troca — como na taxa
 do HFC (BRs com placa − BRs com qualquer troca) ÷ BRs com placa. Antes, só a
 troca com `replaces_assignment_id` entrava, e Setembro/2026 — 16 trocas vindas
 da importação de 21/09 em 10 BRs — aparecia com 100%; com a regra corrigida,
-88,6% (10 de 88). Mobilizações continuam sendo só os eventos explícitos.
-Suíte `supabase/tests/remote/21_fidelization_stability.sql`.
+88,6% (10 de 88). Suítes `supabase/tests/remote/21_fidelization_stability.sql`
+e `22_fidelization_import_links.sql`.
 
 Nos recortes por operação/local/liderança, cada grupo conta os eventos que o
 tocaram; uma inversão entre BRs de cidades diferentes aparece em cada cidade
@@ -293,7 +297,7 @@ usa BRs, veículos e colaboradores reais; não cria nada fora da transação):
 | C6 | BR do veículo: atual e anteriores pelo `vehicle_id`; `substitutions` |
 | C7 | lideranças: locais com + sem = total; `coverage_pct` = fórmula; escopo da liderança = planner filtrado por ela |
 | C8 | motorista: anterior fechado na véspera com motivo; novo planejado até o fim do vínculo; mesmo motorista recusado; sem motivo recusado; **conflito desfaz o fechamento** |
-| C9 | estabilidade: 1 substituição + 1 inversão (2 linhas) = 2 mobilizações; 3 BRs com troca; fórmula da frota; cobertura; inferidas à parte |
+| C9 | estabilidade: 1 substituição + 1 inversão (2 linhas) = 2 mobilizações registradas (`explicit_*`), total = registradas + inferidas; 3+ BRs com troca; fórmula da frota; cobertura |
 | C10 | replicação: prévia não grava; prévia = 84 novos / 2 preservados / 1 conflito; real = prévia (veículos e motoristas); destino preservado; repetir não sobrescreve |
 | C11 | sem permissão: substituir motorista e replicar recusados (42501); como `authenticated` sem `fidelization.view`/`leadership.view`, diretório vazio, contexto `null`, estabilidade zerada |
 
