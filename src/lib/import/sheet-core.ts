@@ -30,6 +30,9 @@ export function toCellValue(value: unknown): CellValue {
       return record.richText.map((part) => String((part as { text?: string }).text ?? "")).join("");
     }
     if ("hyperlink" in record) return String(record.text ?? record.hyperlink ?? "");
+    // Célula com erro do Excel (#VALUE!, #N/A…): o código do erro, para a
+    // prévia dizer o que veio na planilha — não "[object Object]".
+    if ("error" in record) return String(record.error ?? "");
   }
   return String(value);
 }
