@@ -50,16 +50,21 @@ test("tendência mensal: meta tracejada e navegação por teclado com tooltip", 
   const chart = page.getByRole("group", { name: /Aderência mensal de 2026/ });
   await expect(page.getByRole("img", { name: /Aderência mensal de 2026/ })).toBeVisible();
   await expect(page.getByRole("img", { name: /Aderência mensal de 2026/ }).getByText("Meta 90%")).toBeVisible();
+  // O tooltip é visual; a região aria-live anuncia o mesmo ponto ao leitor de tela.
+  const frame = chart.locator("xpath=..");
+  const live = frame.locator("[aria-live=polite]");
   await chart.focus();
   await page.keyboard.press("Home");
-  await expect(page.getByText("Janeiro/2026", { exact: true })).toBeVisible();
+  await expect(frame.getByText("Janeiro/2026", { exact: true })).toBeVisible();
+  await expect(live).toContainText("Janeiro/2026: 89,41%");
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowRight");
-  await expect(page.getByText("Março/2026", { exact: true })).toBeVisible();
+  await expect(frame.getByText("Março/2026", { exact: true })).toBeVisible();
   await page.keyboard.press("End");
-  await expect(page.getByText("Mês futuro")).toBeVisible();
+  await expect(frame.getByText("Mês futuro", { exact: true })).toBeVisible();
+  await expect(live).toContainText("Dezembro/2026: mês futuro, sem resultado");
   await page.keyboard.press("Escape");
-  await expect(page.getByText("Mês futuro")).toHaveCount(0);
+  await expect(frame.getByText("Mês futuro", { exact: true })).toHaveCount(0);
 });
 
 test("filtros ativos viram chips removíveis", async ({ page }) => {
