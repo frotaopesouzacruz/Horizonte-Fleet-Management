@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import {
-  ArrowLeftRight, Building2, ChevronDown, ChevronLeft, ChevronRight, CircleSlash, FilterX, Loader2, MapPin,
-  Pencil, Plus, Truck, UserRound,
+  ArrowLeftRight, ChevronDown, ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown, CircleSlash, FilterX,
+  Loader2, MapPin, Network, Pencil, Plus, ShieldCheck, Truck,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -101,9 +101,10 @@ interface LeaderGroup { key: string; name: string | null; cities: CityGroup[]; r
 interface OperationGroup { key: string; name: string; leaders: LeaderGroup[]; cities: CityGroup[]; rows: PlannerRow[] }
 
 /**
- * Operação → Liderança → Cidade/UF (matriz) e Operação → Cidade/UF (celular).
- * As linhas já chegam na ordem operação, liderança, cidade, código: os mapas
- * só preservam essa ordem, sem reordenar.
+ * Operação → Liderança → Cidade/UF, a mesma hierarquia do Planner de
+ * Motoristas, na matriz e no celular. As linhas já chegam na ordem operação,
+ * liderança, cidade, código: os mapas só preservam essa ordem, sem reordenar.
+ * `op.cities` só conta os locais distintos da operação.
  */
 function groupRows(rows: PlannerRow[]): OperationGroup[] {
   const operations = new Map<string, OperationGroup>();
@@ -168,14 +169,18 @@ const FILTER_KEYS = { q: "q", leader: "lideranca", vehicle: "placa", vehicleType
 /**
  * Planner de Frotas — o "Grid Mensal de Placas" (§23–§28).
  *
- * Uma linha por BR, uma coluna por dia, agrupadas como a operação pensa:
- * operação → liderança → cidade. Cada vínculo é um bloco que atravessa os seus
- * dias, com o código de frota escrito — cor nunca é o único portador —, e cada
- * dia, ocupado ou vazio, é um botão que abre "Editar fidelização do dia" para
- * aquela BR e aquela data. A edição é por período e passa sempre por prévia.
+ * Agrupado como o Planner de Motoristas: um quadro por operação; dentro, as
+ * lideranças, que abrem com um clique; dentro de cada liderança, a matriz dos
+ * seus locais e BRs — uma linha por BR, uma coluna por dia. Com um filtro
+ * aplicado as lideranças que sobraram já vêm abertas. Cada vínculo é um bloco
+ * que atravessa os seus dias, com o código de frota escrito — cor nunca é o
+ * único portador —, e cada dia, ocupado ou vazio, é um botão que abre "Editar
+ * fidelização do dia" para aquela BR e aquela data. A edição é por período e
+ * passa sempre por prévia.
  *
- * No celular a matriz não existe: 31 colunas espremidas não se leem. Cada BR
- * vira um cartão com os seus períodos escritos e um "Editar período".
+ * No celular a matriz não existe: 31 colunas espremidas não se leem. Dentro
+ * da mesma hierarquia, cada BR vira um cartão com os seus períodos escritos e
+ * um "Editar período".
  */
 export function FleetPlanner({
   matrix,
@@ -248,6 +253,8 @@ export function FleetPlanner({
   };
 
   /* --------------------------------------------------------- recolher */
+  // Operação e local começam abertos; a liderança começa fechada — a não ser
+  // que haja filtro, e então o que sobrou já aparece.
   const [collapsed, setCollapsed] = React.useState<Set<string>>(() => new Set());
   const toggle = (key: string) =>
     setCollapsed((current) => {
@@ -256,6 +263,21 @@ export function FleetPlanner({
       else next.add(key);
       return next;
     });
+  const [leaderOpen, setLeaderOpen] = React.useState<Record<string, boolean>>({});
+  const isLeaderOpen = (key: string) => leaderOpen[key] ?? hasFilters;
+  const toggleLeader = (key: string) => setLeaderOpen((current) => ({ ...current, [key]: !(current[key] ?? hasFilters) }));
+  const leaderKeys = groups.flatMap((op) => op.leaders.map((l) => l.key));
+  const allLeadersOpen = leaderKeys.length > 0 && leaderKeys.every(isLeaderOpen);
+  const setAllLeaders = (value: boolean) => {
+    setLeaderOpen(Object.fromEntries(leaderKeys.map((key) => [key, value])));
+    if (value) {
+      setCollapsed((current) => {
+        const next = new Set(current);
+        for (const op of groups) next.delete(op.key);
+        return next;
+      });
+    }
+  };
 
   /* ------------------------------------------------------------ edição */
   const [editing, setEditing] = React.useState<{ row: PlannerRow; date: string; nonce: number } | null>(null);
@@ -268,21 +290,6 @@ export function FleetPlanner({
   const defaultDate = todayDay ? today : monthStart(competence);
 
   const operationCount = groups.length;
-
-  /* O grid abre com o dia de hoje à vista (a um terço da área dos dias), e não
-     no dia 1: no dia 23, a pergunta é o que vem agora, não o que já passou. A
-     rolagem continua livre para trás. */
-  const scrollRef = React.useRef<HTMLDivElement>(null);
-  const hasRows = rows.length > 0;
-  React.useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || !todayDay || !hasRows) return;
-    const cell = el.querySelector<HTMLElement>(`[data-day="${todayDay}"]`);
-    const label = el.querySelector<HTMLElement>("[data-label-head]");
-    if (!cell || !label || el.clientWidth === 0) return;
-    const visible = el.clientWidth - label.offsetWidth;
-    el.scrollLeft = Math.max(0, cell.offsetLeft - label.offsetWidth - visible / 3);
-  }, [todayDay, hasRows, competence.year, competence.month]);
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -377,6 +384,7 @@ export function FleetPlanner({
 
       {/* ------------------------------------------------- resumo e legenda */}
       <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="flex flex-wrap items-center gap-x-1.5 text-body-sm text-fg-secondary" aria-live="polite">
           <span>
             <strong className="font-semibold text-fg">{plural(rows.length, "BR", "BRs")}</strong>
@@ -395,6 +403,17 @@ export function FleetPlanner({
             </span>
           ) : null}
         </p>
+        {leaderKeys.length > 0 ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            leadingIcon={allLeadersOpen ? <ChevronsDownUp /> : <ChevronsUpDown />}
+            onClick={() => setAllLeaders(!allLeadersOpen)}
+          >
+            {allLeadersOpen ? "Recolher lideranças" : "Expandir lideranças"}
+          </Button>
+        ) : null}
+        </div>
         {rows.length > 0 ? <PlannerLegend /> : null}
       </div>
 
@@ -414,167 +433,145 @@ export function FleetPlanner({
           />
         </Card>
       ) : (
-        <>
-          {/* ------------------------------------------------ matriz (md+) */}
-          <Card className={cn("hidden overflow-hidden md:flex", pending && "opacity-70")}>
-            <div
-              role="region"
-              aria-label={`Grid mensal de placas · ${formatCompetence(competence)}`}
-              aria-busy={pending || undefined}
-              tabIndex={0}
-              ref={scrollRef}
-              className="relative max-h-[72vh] overflow-auto overscroll-x-contain rounded-md hfm-focus-ring"
-              style={{ ["--cell-w" as string]: "2.75rem", ["--label-w" as string]: "18.5rem" }}
-            >
-              <div className="min-w-max">
-                {/* cabeçalho dos dias */}
-                <div className="sticky top-0 z-30 flex border-b border-border bg-surface-elevated">
-                  <div
-                    data-label-head
-                    className="sticky left-0 z-40 flex shrink-0 items-end border-r border-border bg-surface-elevated px-3 py-2"
-                    style={{ width: "var(--label-w)" }}
-                  >
-                    <span className="text-caption font-medium uppercase tracking-wide text-fg-muted">
-                      BR · local · liderança
+        <div className={cn("flex min-w-0 flex-col gap-3", pending && "opacity-70")} aria-busy={pending || undefined}>
+          {groups.map((op) => {
+            const opOpen = !collapsed.has(op.key);
+            const opPanel = `fleet-${op.key.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+            const opWithout = withoutVehicle(op.rows);
+            return (
+              <Card key={op.key} role="region" aria-label={`Operação ${op.name}`} className="min-w-0 overflow-hidden">
+                <button
+                  type="button"
+                  aria-expanded={opOpen}
+                  aria-controls={opPanel}
+                  onClick={() => toggle(op.key)}
+                  className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-left hfm-transition hfm-focus-ring hover:bg-hover-overlay"
+                >
+                  <span className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-1">
+                    <ChevronRight
+                      aria-hidden
+                      className={cn("size-4 shrink-0 text-fg-muted transition-transform", opOpen && "rotate-90")}
+                    />
+                    <Network aria-hidden className="size-4 shrink-0 text-fg-muted" />
+                    <span className="min-w-0">
+                      <span className="block truncate text-body font-semibold text-fg">{op.name}</span>
+                      <span className="block text-caption text-fg-muted">Operação</span>
                     </span>
-                  </div>
-                  <div className="grid shrink-0" style={{ gridTemplateColumns: `repeat(${days}, var(--cell-w))` }}>
-                    {dayList.map((day, i) => {
-                      const dow = weekdayOf(competence.year, competence.month, day);
-                      const isToday = day === todayDay;
+                  </span>
+                  <span className="flex flex-wrap items-center gap-1.5 pl-6 sm:pl-0">
+                    <Badge size="sm">{plural(op.leaders.length, "liderança", "lideranças")}</Badge>
+                    <Badge size="sm">{plural(op.cities.length, "local", "locais")}</Badge>
+                    <Badge size="sm">{plural(op.rows.length, "BR", "BRs")}</Badge>
+                    {opWithout > 0 ? (
+                      <Badge size="sm" variant="warning">{number.format(opWithout)} sem veículo no mês</Badge>
+                    ) : null}
+                  </span>
+                </button>
+
+                {opOpen ? (
+                  <ul id={opPanel} className="flex flex-col border-t border-border">
+                    {op.leaders.map((leader) => {
+                      const open = isLeaderOpen(leader.key);
+                      const panel = `fleet-${leader.key.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+                      const name = leader.name ?? "Sem liderança definida";
+                      const semVeiculo = withoutVehicle(leader.rows);
                       return (
-                        <div
-                          key={day}
-                          data-day={day}
-                          title={`${WEEKDAY_NAMES[dow]}, ${formatDateBr(isoOf(competence, day))}${isToday ? " · hoje" : ""}`}
-                          className={cn(
-                            "flex flex-col items-center justify-center gap-0.5 border-l border-border/60 py-1.5",
-                            weekend[i] && "bg-surface-secondary",
-                            isToday && "bg-primary",
-                          )}
+                        <li
+                          key={leader.key}
+                          aria-label={`Liderança ${name}`}
+                          className="min-w-0 border-b border-border last:border-b-0"
                         >
-                          <span className={cn("text-caption font-semibold tabular-nums", isToday ? "text-primary-fg" : "text-fg")}>
-                            {day}
-                          </span>
-                          <span className={cn("text-caption leading-none", isToday ? "text-primary-fg" : "text-fg-muted")}>
-                            {isToday ? "hoje" : WEEKDAY_INITIALS[dow]}
-                          </span>
-                        </div>
+                          <button
+                            type="button"
+                            aria-expanded={open}
+                            aria-controls={panel}
+                            onClick={() => toggleLeader(leader.key)}
+                            className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5 pr-4 pl-8 text-left hfm-transition hfm-focus-ring hover:bg-hover-overlay"
+                          >
+                            <span className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-1">
+                              <ChevronRight
+                                aria-hidden
+                                className={cn("size-3.5 shrink-0 text-fg-muted transition-transform", open && "rotate-90")}
+                              />
+                              <ShieldCheck aria-hidden className="size-3.5 shrink-0 text-fg-muted" />
+                              <span className="min-w-0">
+                                <span
+                                  className={cn(
+                                    "block truncate text-body-sm font-medium",
+                                    leader.name ? "text-fg" : "text-fg-muted",
+                                  )}
+                                >
+                                  {name}
+                                </span>
+                                <span className="block text-caption text-fg-muted">Liderança</span>
+                              </span>
+                            </span>
+                            <span className="flex flex-wrap items-center gap-1.5 pl-6 sm:pl-0">
+                              <Badge size="sm">{plural(leader.cities.length, "local", "locais")}</Badge>
+                              <Badge size="sm">{plural(leader.rows.length, "BR", "BRs")}</Badge>
+                              {semVeiculo > 0 ? (
+                                <Badge size="sm" variant="warning">{number.format(semVeiculo)} sem veículo no mês</Badge>
+                              ) : null}
+                            </span>
+                          </button>
+
+                          {open ? (
+                            <div id={panel} className="min-w-0 border-t border-border-subtle">
+                              {/* ------------------------------------- matriz (md+) */}
+                              <LeaderMatrix
+                                leader={leader}
+                                days={days}
+                                dayList={dayList}
+                                weekend={weekend}
+                                todayDay={todayDay}
+                                competence={competence}
+                                canEdit={canEdit}
+                                onEdit={openEditor}
+                                onOpenBr={onOpenBr}
+                                isCityOpen={(key) => !collapsed.has(key)}
+                                onToggleCity={toggle}
+                              />
+
+                              {/* ---------------------------------- cartões (celular) */}
+                              <div className="flex min-w-0 flex-col gap-4 p-3 md:hidden">
+                                {leader.cities.map((city) => (
+                                  <section
+                                    key={city.key}
+                                    aria-label={`Local ${city.label}`}
+                                    className="flex min-w-0 flex-col gap-2"
+                                  >
+                                    <h4 className="flex items-center gap-1.5 text-caption font-medium uppercase tracking-wide text-fg-muted">
+                                      <MapPin aria-hidden className="size-3.5 shrink-0" />
+                                      {city.label} · {plural(city.rows.length, "BR", "BRs")}
+                                    </h4>
+                                    <ul className="flex min-w-0 flex-col gap-2">
+                                      {city.rows.map((row) => (
+                                        <li key={row.operationBrId} className="min-w-0">
+                                          <BrCard
+                                            row={row}
+                                            days={days}
+                                            competence={competence}
+                                            canEdit={canEdit}
+                                            onEdit={() => openEditor(row, defaultDate)}
+                                            onOpenBr={onOpenBr}
+                                          />
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </section>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
+                        </li>
                       );
                     })}
-                  </div>
-                </div>
-
-                {groups.map((op) => {
-                  const opOpen = !collapsed.has(op.key);
-                  return (
-                    <React.Fragment key={op.key}>
-                      <GroupHeader
-                        level={0}
-                        open={opOpen}
-                        onToggle={() => toggle(op.key)}
-                        icon={<Building2 />}
-                        title={op.name}
-                        rows={op.rows}
-                      />
-                      {opOpen
-                        ? op.leaders.map((leader) => {
-                            const leaderOpen = !collapsed.has(leader.key);
-                            return (
-                              <React.Fragment key={leader.key}>
-                                <GroupHeader
-                                  level={1}
-                                  open={leaderOpen}
-                                  onToggle={() => toggle(leader.key)}
-                                  icon={<UserRound />}
-                                  title={leader.name ? `Liderança: ${leader.name}` : "Sem liderança definida"}
-                                  rows={leader.rows}
-                                />
-                                {leaderOpen
-                                  ? leader.cities.map((city) => {
-                                      const cityOpen = !collapsed.has(city.key);
-                                      return (
-                                        <React.Fragment key={city.key}>
-                                          <GroupHeader
-                                            level={2}
-                                            open={cityOpen}
-                                            onToggle={() => toggle(city.key)}
-                                            icon={<MapPin />}
-                                            title={city.label}
-                                            rows={city.rows}
-                                          />
-                                          {cityOpen
-                                            ? city.rows.map((row) => (
-                                                <MatrixRow
-                                                  key={row.operationBrId}
-                                                  row={row}
-                                                  days={days}
-                                                  dayList={dayList}
-                                                  weekend={weekend}
-                                                  todayDay={todayDay}
-                                                  competence={competence}
-                                                  canEdit={canEdit}
-                                                  onEdit={openEditor}
-                                                  onOpenBr={onOpenBr}
-                                                />
-                                              ))
-                                            : null}
-                                        </React.Fragment>
-                                      );
-                                    })
-                                  : null}
-                              </React.Fragment>
-                            );
-                          })
-                        : null}
-                    </React.Fragment>
-                  );
-                })}
-              </div>
-            </div>
-          </Card>
-
-          {/* ------------------------------------------- cartões (celular) */}
-          <div className="flex min-w-0 flex-col gap-5 md:hidden" aria-label="BRs da competência">
-            {groups.map((op) => {
-              const semVeiculo = withoutVehicle(op.rows);
-              return (
-                <section key={op.key} aria-label={op.name} className="flex min-w-0 flex-col gap-3">
-                  <h3 className="flex flex-wrap items-center gap-2 text-body-sm font-semibold text-fg">
-                    <Building2 aria-hidden className="size-4 shrink-0 text-fg-muted" />
-                    <span className="min-w-0 break-words">{op.name}</span>
-                    <Badge size="sm">{plural(op.rows.length, "BR", "BRs")}</Badge>
-                    {semVeiculo > 0 ? (
-                      <Badge size="sm" variant="warning">{number.format(semVeiculo)} sem veículo no mês</Badge>
-                    ) : null}
-                  </h3>
-                  {op.cities.map((city) => (
-                    <div key={city.key} className="flex min-w-0 flex-col gap-2">
-                      <h4 className="flex items-center gap-1.5 text-caption font-medium uppercase tracking-wide text-fg-muted">
-                        <MapPin aria-hidden className="size-3.5 shrink-0" />
-                        {city.label} · {plural(city.rows.length, "BR", "BRs")}
-                      </h4>
-                      <ul className="flex min-w-0 flex-col gap-2">
-                        {city.rows.map((row) => (
-                          <li key={row.operationBrId} className="min-w-0">
-                            <BrCard
-                              row={row}
-                              days={days}
-                              competence={competence}
-                              canEdit={canEdit}
-                              onEdit={() => openEditor(row, defaultDate)}
-                              onOpenBr={onOpenBr}
-                            />
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </section>
-              );
-            })}
-          </div>
-        </>
+                  </ul>
+                ) : null}
+              </Card>
+            );
+          })}
+        </div>
       )}
 
       {canEdit ? (
@@ -634,52 +631,142 @@ function PlannerLegend() {
   );
 }
 
-/* ------------------------------------------------------------ group header */
+/* ----------------------------------------------------------- leader matrix */
 
-const HEADER_INDENT = ["pl-3", "pl-8", "pl-12"] as const;
-
-function GroupHeader({
-  level, open, onToggle, icon, title, rows,
+/**
+ * A matriz de uma liderança: cabeçalho dos dias e, por local, as linhas das
+ * BRs. Cada liderança aberta tem a sua, e cada uma abre com o dia de hoje à
+ * vista (a um terço da área dos dias), e não no dia 1: no dia 23, a pergunta é
+ * o que vem agora, não o que já passou. A rolagem continua livre para trás.
+ */
+function LeaderMatrix({
+  leader, days, dayList, weekend, todayDay, competence, canEdit, onEdit, onOpenBr, isCityOpen, onToggleCity,
 }: {
-  level: 0 | 1 | 2;
+  leader: LeaderGroup;
+  days: number;
+  dayList: number[];
+  weekend: boolean[];
+  todayDay: number | null;
+  competence: Competence;
+  canEdit: boolean;
+  onEdit: (row: PlannerRow, date: string) => void;
+  onOpenBr?: (operationBrId: string) => void;
+  isCityOpen: (key: string) => boolean;
+  onToggleCity: (key: string) => void;
+}) {
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !todayDay) return;
+    const cell = el.querySelector<HTMLElement>(`[data-day="${todayDay}"]`);
+    const label = el.querySelector<HTMLElement>("[data-label-head]");
+    if (!cell || !label || el.clientWidth === 0) return;
+    const visible = el.clientWidth - label.offsetWidth;
+    el.scrollLeft = Math.max(0, cell.offsetLeft - label.offsetWidth - visible / 3);
+  }, [todayDay, competence.year, competence.month]);
+
+  return (
+    <div
+      role="region"
+      aria-label={`Grid mensal de placas · ${leader.name ?? "Sem liderança definida"} · ${formatCompetence(competence)}`}
+      tabIndex={0}
+      ref={scrollRef}
+      className="relative hidden max-h-[72vh] overflow-auto overscroll-x-contain hfm-focus-ring md:block"
+      style={{ ["--cell-w" as string]: "2.75rem", ["--label-w" as string]: "18.5rem" }}
+    >
+      <div className="min-w-max">
+        {/* cabeçalho dos dias */}
+        <div className="sticky top-0 z-30 flex border-b border-border bg-surface-elevated">
+          <div
+            data-label-head
+            className="sticky left-0 z-40 flex shrink-0 items-end border-r border-border bg-surface-elevated px-3 py-2"
+            style={{ width: "var(--label-w)" }}
+          >
+            <span className="text-caption font-medium uppercase tracking-wide text-fg-secondary">BR · local</span>
+          </div>
+          <div className="grid shrink-0" style={{ gridTemplateColumns: `repeat(${days}, var(--cell-w))` }}>
+            {dayList.map((day, i) => {
+              const dow = weekdayOf(competence.year, competence.month, day);
+              const isToday = day === todayDay;
+              return (
+                <div
+                  key={day}
+                  data-day={day}
+                  title={`${WEEKDAY_NAMES[dow]}, ${formatDateBr(isoOf(competence, day))}${isToday ? " · hoje" : ""}`}
+                  className={cn(
+                    "flex flex-col items-center justify-center gap-0.5 border-l border-border/60 py-1.5",
+                    weekend[i] && "bg-surface-secondary",
+                    isToday && "bg-primary",
+                  )}
+                >
+                  <span className={cn("text-caption font-semibold tabular-nums", isToday ? "text-primary-fg" : "text-fg")}>
+                    {day}
+                  </span>
+                  <span className={cn("text-caption leading-none", isToday ? "text-primary-fg" : "text-fg-muted")}>
+                    {isToday ? "hoje" : WEEKDAY_INITIALS[dow]}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {leader.cities.map((city) => {
+          const cityOpen = isCityOpen(city.key);
+          return (
+            <React.Fragment key={city.key}>
+              <CityHeader open={cityOpen} onToggle={() => onToggleCity(city.key)} title={city.label} rows={city.rows} />
+              {cityOpen
+                ? city.rows.map((row) => (
+                    <MatrixRow
+                      key={row.operationBrId}
+                      row={row}
+                      days={days}
+                      dayList={dayList}
+                      weekend={weekend}
+                      todayDay={todayDay}
+                      competence={competence}
+                      canEdit={canEdit}
+                      onEdit={onEdit}
+                      onOpenBr={onOpenBr}
+                    />
+                  ))
+                : null}
+            </React.Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- city header */
+
+function CityHeader({
+  open, onToggle, title, rows,
+}: {
   open: boolean;
   onToggle: () => void;
-  icon: React.ReactNode;
   title: string;
   rows: PlannerRow[];
 }) {
   const semVeiculo = withoutVehicle(rows);
   return (
-    <div
-      className={cn(
-        "flex border-b border-border",
-        level === 0 ? "bg-surface-secondary" : level === 1 ? "bg-surface" : "bg-surface",
-      )}
-    >
-      {/* Fixo à esquerda: rolar até o dia 30 não tira o grupo de vista. */}
+    <div className="flex border-b border-border bg-surface-secondary/60">
+      {/* Fixo à esquerda: rolar até o dia 30 não tira o local de vista. */}
       <button
         type="button"
         aria-expanded={open}
         onClick={onToggle}
-        className={cn(
-          "sticky left-0 z-20 flex items-center gap-2 py-2 pr-4 text-left hfm-transition hfm-focus-ring hover:bg-hover-overlay",
-          HEADER_INDENT[level],
-        )}
+        className="sticky left-0 z-20 flex items-center gap-2 py-2 pr-4 pl-3 text-left hfm-transition hfm-focus-ring hover:bg-hover-overlay"
       >
         {open ? (
           <ChevronDown aria-hidden className="size-4 shrink-0 text-fg-muted" />
         ) : (
           <ChevronRight aria-hidden className="size-4 shrink-0 text-fg-muted" />
         )}
-        <span aria-hidden className="flex shrink-0 text-fg-muted [&_svg]:size-4">{icon}</span>
-        <span
-          className={cn(
-            "whitespace-nowrap text-fg",
-            level === 0 ? "text-body-sm font-semibold" : level === 1 ? "text-body-sm font-medium" : "text-body-sm text-fg-secondary",
-          )}
-        >
-          {title}
-        </span>
+        <MapPin aria-hidden className="size-4 shrink-0 text-fg-muted" />
+        <span className="whitespace-nowrap text-body-sm font-medium text-fg">{title}</span>
         <Badge size="sm">{plural(rows.length, "BR", "BRs")}</Badge>
         {semVeiculo > 0 ? (
           <Badge size="sm" variant="warning">{number.format(semVeiculo)} sem veículo no mês</Badge>
@@ -763,11 +850,9 @@ function MatrixRow({ row, days, dayList, weekend, todayDay, competence, canEdit,
           {row.brDescription ? `${row.brDescription} · ` : ""}
           {row.cityName}/{row.stateUf}
         </span>
-        <span className="truncate text-caption text-fg-muted">
-          {row.leaderName ?? "Sem liderança definida"}
-        </span>
+        {/* A liderança é o grupo acima; a exceção do próprio BR fica dita na linha (§43). */}
         {row.leaderLevel === "br" ? (
-          <span className="truncate text-caption font-medium text-accent-soft-fg">por exceção do BR</span>
+          <span className="truncate text-caption font-medium text-accent-soft-fg">liderança por exceção do BR</span>
         ) : null}
       </div>
 
@@ -949,10 +1034,9 @@ function BrCard({
           {row.brDescription ? (
             <p className="truncate text-caption text-fg-secondary">{row.brDescription}</p>
           ) : null}
-          <p className="text-caption text-fg-muted">
-            {row.leaderName ?? "Sem liderança definida"}
-            {row.leaderLevel === "br" ? " · por exceção do BR" : ""}
-          </p>
+          {row.leaderLevel === "br" ? (
+            <p className="text-caption font-medium text-accent-soft-fg">liderança por exceção do BR</p>
+          ) : null}
         </div>
         {segments.length === 0 ? (
           <Badge size="sm" variant="warning" icon={<CircleSlash />}>Sem veículo no mês</Badge>

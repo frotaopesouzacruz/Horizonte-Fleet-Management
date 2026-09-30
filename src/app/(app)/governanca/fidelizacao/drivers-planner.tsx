@@ -389,7 +389,7 @@ export function DriversPlanner({
                   onClick={() => toggleOperation(operation.id)}
                   className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-left hfm-transition hfm-focus-ring hover:bg-hover-overlay"
                 >
-                  <span className="flex min-w-0 flex-1 items-center gap-2">
+                  <span className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-1">
                     <ChevronRight
                       aria-hidden
                       className={cn("size-4 shrink-0 text-fg-muted transition-transform", opOpen && "rotate-90")}
@@ -520,7 +520,7 @@ function LeaderBlock({
         onClick={onToggle}
         className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5 pr-4 pl-8 text-left hfm-transition hfm-focus-ring hover:bg-hover-overlay"
       >
-        <span className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-1">
           <ChevronRight
             aria-hidden
             className={cn("size-3.5 shrink-0 text-fg-muted transition-transform", open && "rotate-90")}

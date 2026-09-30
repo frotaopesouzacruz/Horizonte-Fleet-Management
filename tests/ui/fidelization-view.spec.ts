@@ -45,11 +45,11 @@ test.describe("Central de Fidelização montada", () => {
     const crashes = await abrir(page);
     await area(page, "Planner de frotas").click();
     await expect(page).toHaveURL(/[?&]aba=frotas/);
-    await expect(painelDe(page, "Planner de frotas")).toContainText("BR0024706");
+    await expect(painelDe(page, "Planner de frotas")).toContainText("Daniela Ferreira Lima");
 
     await page.reload();
     await expect(area(page, "Planner de frotas")).toHaveAttribute("aria-selected", "true");
-    await expect(painelDe(page, "Planner de frotas")).toContainText("BR0024706");
+    await expect(painelDe(page, "Planner de frotas")).toContainText("Daniela Ferreira Lima");
 
     // Voltar à Visão geral limpa a chave, em vez de guardar o padrão.
     await area(page, "Visão geral").click();

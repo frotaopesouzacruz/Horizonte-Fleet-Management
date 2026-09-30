@@ -7,57 +7,88 @@ import { test, expect, type Page } from "@playwright/test";
  * componente com dados fixos (Setembro/2026, hoje = 23/09/2026) e troca as duas
  * rotinas do servidor — a busca de placas e `apply_fidelization_period` — por
  * versões que seguem as mesmas regras sobre o fixture. O que se prova aqui é a
- * tela: o agrupamento operação → liderança → cidade, a BR sem veículo dita como
- * tal, o dia que vira período, a prévia obrigatória antes de gravar, o
- * conflito nomeado e a inversão, e a matriz que não espreme 30 colunas.
+ * tela: o agrupamento do Planner de Motoristas — um quadro por operação, a
+ * liderança que abre com um clique e, dentro dela, a matriz por local —, a BR
+ * sem veículo dita como tal, o dia que vira período, a prévia obrigatória
+ * antes de gravar, o conflito nomeado e a inversão, e a matriz que não
+ * espreme 30 colunas.
+ *
+ * No fixture: Daniela Ferreira Lima responde por Contagem (BR0024706,
+ * BR0024715, BR0024733) e Divinópolis (BR0025110, BR0025118); Walace
+ * Rodrigues Santos pela BR0024901, por exceção do BR; Marcos Vinícius
+ * Andrade pelas duas BRs de Belém.
  */
 const PREVIEW = "/dev/preview-central-fidelizacao/planner";
 
-const grid = (page: Page) => page.getByRole("region", { name: /Grid mensal de placas/ });
+/** A matriz de uma liderança; sem nome, a única aberta. */
+const grid = (page: Page, lideranca?: string) =>
+  page.getByRole("region", { name: new RegExp(`Grid mensal de placas${lideranca ? ` · ${lideranca}` : ""}`) });
+const quadro = (page: Page, operacao: string) => page.getByRole("region", { name: `Operação ${operacao}` });
+const botaoLideranca = (page: Page, lideranca: string) =>
+  page.getByRole("button", { name: new RegExp(`^${lideranca}`) });
+/** Abre a liderança (se ainda fechada) e devolve a matriz dela. */
+const abrir = async (page: Page, lideranca: string) => {
+  const botao = botaoLideranca(page, lideranca);
+  if ((await botao.getAttribute("aria-expanded")) !== "true") await botao.click();
+  await expect(botao).toHaveAttribute("aria-expanded", "true");
+  return grid(page, lideranca);
+};
 const dialogOf = (page: Page) => page.getByRole("dialog", { name: "Editar fidelização do dia" });
 
 test.describe("planner de frotas", () => {
-  test("agrupa por operação, liderança e cidade, e recolhe um grupo sem apagá-lo", async ({ page }) => {
+  test("um quadro por operação, a liderança abre a matriz dos seus locais", async ({ page }) => {
     const crashes: string[] = [];
     page.on("pageerror", (error) => crashes.push(error.message));
 
     await page.goto(PREVIEW);
-    const g = grid(page);
-    await expect(g).toBeVisible();
     await expect(page.getByText(/8 BRs · 2 operações · 30 dias · Setembro\/2026/)).toBeVisible();
 
-    // A hierarquia é a da leitura: operação, depois liderança, depois cidade.
-    const headers = await g.locator("button[aria-expanded]").allInnerTexts();
-    expect(headers[0]).toMatch(/^Last Mille MG/);
-    expect(headers[1]).toMatch(/^Liderança: Daniela Ferreira Lima/);
-    expect(headers[2]).toMatch(/^Contagem\/MG/);
-    await expect(g.getByRole("button", { name: /^Divinópolis\/MG/ })).toBeVisible();
-    await expect(g.getByRole("button", { name: /^Liderança: Walace Rodrigues Santos/ })).toBeVisible();
-    await expect(g.getByRole("button", { name: /^Redespacho - Belém/ })).toBeVisible();
-    await expect(g.getByRole("button", { name: /^Liderança: Marcos Vinícius Andrade/ })).toBeVisible();
-    await expect(g.getByRole("button", { name: /^Belém\/PA/ })).toBeVisible();
+    // Os quadros, como no Planner de Motoristas.
+    const lastMille = quadro(page, "Last Mille MG");
+    await expect(lastMille).toContainText("2 lideranças");
+    await expect(lastMille).toContainText("2 locais");
+    await expect(lastMille).toContainText("6 BRs");
+    await expect(quadro(page, "Redespacho - Belém")).toContainText("1 liderança");
+
+    // A liderança começa fechada: nenhuma matriz até abrir.
+    await expect(grid(page)).toHaveCount(0);
+    const daniela = await abrir(page, "Daniela Ferreira Lima");
+    await expect(daniela.getByRole("button", { name: /^Contagem\/MG/ })).toBeVisible();
+    await expect(daniela.getByRole("button", { name: /^Divinópolis\/MG/ })).toBeVisible();
+    await expect(daniela.getByText("BR0024706")).toBeVisible();
+    // Cada liderança só tem as BRs pelas quais responde.
+    await expect(daniela.getByText("BR0024901")).toHaveCount(0);
 
     // §43: a liderança que vem de uma exceção do próprio BR é dita na linha.
-    await expect(g.getByText("por exceção do BR")).toBeVisible();
+    const walace = await abrir(page, "Walace Rodrigues Santos");
+    await expect(walace.getByText("BR0024901")).toBeVisible();
+    await expect(walace.getByText("liderança por exceção do BR")).toBeVisible();
 
-    const lastMille = g.getByRole("button", { name: /^Last Mille MG/ });
-    await lastMille.click();
-    await expect(lastMille).toHaveAttribute("aria-expanded", "false");
-    await expect(g.getByText("BR0024706")).toBeHidden();
-    await expect(g.getByText("Redespacho Belem/Pa_1")).toBeVisible();
-    await lastMille.click();
-    await expect(g.getByText("BR0024706")).toBeVisible();
+    // Recolher a operação esconde as lideranças dela, sem apagar o quadro.
+    const cabecalho = lastMille.getByRole("button", { name: /^Last Mille MG/ });
+    await cabecalho.click();
+    await expect(cabecalho).toHaveAttribute("aria-expanded", "false");
+    await expect(botaoLideranca(page, "Daniela Ferreira Lima")).toHaveCount(0);
+    await expect(botaoLideranca(page, "Marcos Vinícius Andrade")).toBeVisible();
+    await cabecalho.click();
+    await expect(grid(page, "Daniela Ferreira Lima").getByText("BR0024706")).toBeVisible();
+
+    // "Expandir lideranças" abre todas de uma vez.
+    await page.getByRole("button", { name: "Expandir lideranças" }).click();
+    await expect(grid(page, "Marcos Vinícius Andrade").getByText("Redespacho Belem/Pa_1")).toBeVisible();
 
     expect(crashes, crashes.join("\n")).toEqual([]);
   });
 
-  test("uma BR sem veículo aparece como tal na linha, no dia e no grupo", async ({ page }) => {
+  test("uma BR sem veículo aparece como tal na linha, no dia e nos grupos", async ({ page }) => {
     await page.goto(PREVIEW);
-    const g = grid(page);
+    await expect(quadro(page, "Last Mille MG").getByRole("button", { name: /^Last Mille MG.*1 sem veículo no mês/ })).toBeVisible();
+    await expect(botaoLideranca(page, "Daniela Ferreira Lima")).toContainText("1 sem veículo no mês");
+    const g = await abrir(page, "Daniela Ferreira Lima");
     await expect(g.getByText("Sem veículo no mês", { exact: true })).toBeVisible();
     // O dia vazio é um botão que diz o que é, não uma célula muda.
     await expect(g.getByRole("button", { name: "BR0024733 · 10/09/2026 · sem veículo" })).toBeVisible();
-    await expect(g.getByRole("button", { name: /^Contagem\/MG.*1 sem veículo no mês/ }).first()).toBeVisible();
+    await expect(g.getByRole("button", { name: /^Contagem\/MG.*1 sem veículo no mês/ })).toBeVisible();
   });
 
   test("clicar num dia vazio abre o diálogo daquela data; Confirmar só liga depois da prévia", async ({ page }) => {
@@ -65,7 +96,9 @@ test.describe("planner de frotas", () => {
     page.on("pageerror", (error) => crashes.push(error.message));
 
     await page.goto(PREVIEW);
-    await grid(page).getByRole("button", { name: "BR0024901 · 25/09/2026 · sem veículo" }).click();
+    await (await abrir(page, "Walace Rodrigues Santos"))
+      .getByRole("button", { name: "BR0024901 · 25/09/2026 · sem veículo" })
+      .click();
 
     const dialog = dialogOf(page);
     await expect(dialog).toBeVisible();
@@ -106,7 +139,9 @@ test.describe("planner de frotas", () => {
 
   test("substituição num dia ocupado exige motivo e descreve o que acontece antes, durante e depois", async ({ page }) => {
     await page.goto(PREVIEW);
-    await grid(page).getByRole("button", { name: /^BR0024706 · 24\/09\/2026 · VA116/ }).click();
+    await (await abrir(page, "Daniela Ferreira Lima"))
+      .getByRole("button", { name: /^BR0024706 · 24\/09\/2026 · VA116/ })
+      .click();
 
     const dialog = dialogOf(page);
     await expect(dialog.getByRole("region", { name: "Veículo nesta data" })).toContainText("VA116");
@@ -135,7 +170,9 @@ test.describe("planner de frotas", () => {
 
   test("a placa que ocupa outra BR mostra o conflito e oferece a inversão", async ({ page }) => {
     await page.goto(PREVIEW);
-    await grid(page).getByRole("button", { name: /^BR0024715 · 24\/09\/2026 · FL145/ }).click();
+    await (await abrir(page, "Daniela Ferreira Lima"))
+      .getByRole("button", { name: /^BR0024715 · 24\/09\/2026 · FL145/ })
+      .click();
 
     const dialog = dialogOf(page);
     const va116 = dialog.getByRole("button", { name: /^VA116/ });
@@ -169,7 +206,9 @@ test.describe("planner de frotas", () => {
 
   test("um período que começa antes de hoje é correção histórica; sem a permissão, não confirma", async ({ page }) => {
     await page.goto(`${PREVIEW}?sem_historico=1`);
-    await grid(page).getByRole("button", { name: "BR0024901 · 21/09/2026 · sem veículo" }).click();
+    await (await abrir(page, "Walace Rodrigues Santos"))
+      .getByRole("button", { name: "BR0024901 · 21/09/2026 · sem veículo" })
+      .click();
 
     const dialog = dialogOf(page);
     await expect(dialog.getByText("Correção histórica", { exact: true })).toBeVisible();
@@ -185,6 +224,8 @@ test.describe("planner de frotas", () => {
     await page.goto(PREVIEW);
     await page.getByLabel("Situação da alocação").selectOption("without_vehicle");
     await expect(page.getByText(/^1 BR · 1 operação · 30 dias/)).toBeVisible();
+    // Com filtro, as lideranças que sobraram já vêm abertas.
+    await expect(botaoLideranca(page, "Daniela Ferreira Lima")).toHaveAttribute("aria-expanded", "true");
     await expect(grid(page).getByText("BR0024733")).toBeVisible();
 
     await page.getByRole("button", { name: "Limpar filtros" }).first().click();
@@ -197,23 +238,24 @@ test.describe("planner de frotas", () => {
     await expect(page.getByText(/Nenhuma BR corresponde aos filtros/)).toBeVisible();
     await page.getByRole("button", { name: "Limpar filtros" }).last().click();
     await expect(busca).toHaveValue("");
-    await expect(grid(page)).toBeVisible();
+    await expect(quadro(page, "Last Mille MG")).toBeVisible();
   });
 
   test("o código da BR abre a BR; em modo leitura os dias não são botões", async ({ page }) => {
     await page.goto(PREVIEW);
-    await grid(page).getByRole("button", { name: "BR0024706", exact: true }).click();
+    await (await abrir(page, "Daniela Ferreira Lima")).getByRole("button", { name: "BR0024706", exact: true }).click();
     await expect(page.getByRole("status").filter({ hasText: "Abrir BR (prévia): BR0024706" })).toBeVisible();
 
     await page.goto(`${PREVIEW}?leitura=1`);
-    await expect(grid(page).getByText("VA116").first()).toBeVisible();
-    await expect(grid(page).getByRole("button", { name: /· 25\/09\/2026 ·/ })).toHaveCount(0);
+    const leitura = await abrir(page, "Daniela Ferreira Lima");
+    await expect(leitura.getByText("VA116").first()).toBeVisible();
+    await expect(leitura.getByRole("button", { name: /· 25\/09\/2026 ·/ })).toHaveCount(0);
   });
 
   test("desktop: a matriz rola dentro do cartão, sem espremer os dias e sem rolar a página", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(PREVIEW);
-    const g = grid(page);
+    const g = await abrir(page, "Daniela Ferreira Lima");
     await expect(g).toBeVisible();
 
     const { scrollWidth, clientWidth } = await g.evaluate((el) => ({
@@ -251,14 +293,16 @@ test.describe("planner de frotas", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(PREVIEW);
 
-    await expect(grid(page)).toBeHidden();
-    const lastMille = page.getByRole("region", { name: "Last Mille MG" });
+    const lastMille = quadro(page, "Last Mille MG");
     await expect(lastMille).toBeVisible();
-    await expect(page.getByRole("region", { name: "Redespacho - Belém" })).toBeVisible();
+    await expect(quadro(page, "Redespacho - Belém")).toBeVisible();
+    // Mesma hierarquia no celular: a liderança abre os cartões, nunca a matriz.
+    await page.getByRole("button", { name: "Expandir lideranças" }).click();
+    await expect(grid(page)).toHaveCount(0);
     await expect(lastMille.getByText("14/08 – em aberto · VA116 (SNT8E16)")).toBeVisible();
     await expect(lastMille.getByText("01/07 – 14/09 · VA125 (RTA4C09)")).toBeVisible();
     await expect(lastMille.getByText("Sem veículo: 21/09 – 30/09")).toBeVisible();
-    await expect(lastMille.getByText("Sem veículo no mês", { exact: true })).toBeVisible();
+    await expect(lastMille.getByText("Sem veículo no mês", { exact: true }).filter({ visible: true })).toBeVisible();
 
     let overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

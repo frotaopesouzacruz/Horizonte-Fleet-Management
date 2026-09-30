@@ -408,7 +408,7 @@ operações ou lideranças. As tabelas novas são o histórico
 | Área (aba, `aba=`) | O que mostra | Parâmetros próprios na URL |
 |---|---|---|
 | Visão geral (padrão) | Dashboard de Estabilidade (volume, estabilidade e trocas do mês — "Substituições e inversões" entre elas) e hierarquia operacional | — |
-| Planner de frotas (`frotas`) | matriz BR × dia, agrupada por operação → liderança → cidade | `q`, `lideranca`, `placa`, `tipo_equipamento`, `alocacao` |
+| Planner de frotas (`frotas`) | como o Planner de motoristas: um quadro por operação → liderança (abre com um clique; já vem aberta com filtro) → matriz BR × dia da liderança, por local | `q`, `lideranca`, `placa`, `tipo_equipamento`, `alocacao` |
 | Planner de motoristas (`motoristas`) | um quadro por operação → liderança (abre com um clique) → local → BR, com veículo(s) no mês, motoristas e "+ Motorista"; substituir e encerrar | — |
 | Histórico de mobilizações (`historico`) | eventos imutáveis, paginados; vínculos da competência recolhidos abaixo | `mov_de`, `mov_ate`, `mov_tipo`, `mov_assunto`, `mov_veiculo`, `mov_motorista`, `mov_pagina`, `lideranca` |
 | Importação (`importacao`) | histórico de lotes e entrada de arquivos | — |
