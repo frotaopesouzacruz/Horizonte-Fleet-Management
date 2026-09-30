@@ -609,6 +609,40 @@ temporária não conta como segunda mobilização (P3).
 * A área Importação lista os lotes (`fidelization_import_history`, com
   `fidelization.import` ou `fidelization.audit`) com as contagens e os erros.
 
+### 17.11b Exportar a base dos Planners
+
+Menu **Exportar › Base dos Planners › Frotas ou motoristas, com filtros…**
+(permissão `fidelization.export`). Um diálogo monta o recorte e baixa o arquivo
+pela rota `/governanca/fidelizacao/export` (`tipo=base-frotas` ou
+`base-motoristas`), com a mesma auditoria das outras exportações
+(`log_fidelization_export`, tipo `base-frotas-periodos`, `base-frotas-diario`,
+`base-motoristas-periodos` ou `base-motoristas-diario`).
+
+| Filtro | Parâmetro | Regra |
+|---|---|---|
+| Período | `de`, `ate` (aaaa-mm-dd) | entra o vínculo cujo período toca o intervalo; sem datas, a base inteira |
+| Placa ou frota | `placa` | parte da placa ou do código de frota, sem diferenciar caixa nem hífen |
+| BR | `br_codigo` | código exato |
+| Operação | `operacao` | a operação da BR |
+| Local | `uf`, `cidade` | UF e cidade da BR |
+| Arquivo | `format` | `xlsx` ou `csv` |
+
+Dois formatos de linha (`layout`):
+
+* **Um registro por vínculo** (`periodos`): o vínculo inteiro (início, fim,
+  situação, origem, troca registrada, motivos) e o pedaço dele dentro do período
+  (início, fim e dias no período). Frotas: operação, UF, cidade, BR,
+  liderança no fim do período, frota, placa, tipo de equipamento, marca/modelo,
+  titular ou apoio. Motoristas: matrícula, nome, função (principal ou
+  secundário) e o veículo do vínculo.
+* **Grade diária** (`diario`): uma linha por BR e dia, como o Planner mostra —
+  para montar tabelas dinâmicas no Excel. Exige as duas datas e aceita até 366
+  dias; vínculos cancelados ficam de fora.
+
+As linhas vêm das mesmas leituras `security invoker` da Central
+(`fidelization_directory` e `fidelization_drivers`), lidas página a página, sem
+teto: o arquivo só traz o que o perfil de quem exporta enxerga.
+
 ### 17.12 Integrações
 
 | Módulo | Integração |

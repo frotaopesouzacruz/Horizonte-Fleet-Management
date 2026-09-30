@@ -336,3 +336,60 @@ test.describe("celular", () => {
     });
   }
 });
+
+test.describe("exportar a base dos Planners", () => {
+  // O menu Exportar fica no cabeçalho da Central montada, não na prévia das áreas.
+  const abrir = async (page: Page) => {
+    await page.goto("/dev/preview-central-fidelizacao");
+  };
+
+  test("monta o recorte de frotas ou motoristas com período, placa, BR, operação e local", async ({ page }) => {
+    await abrir(page);
+    const urls: string[] = [];
+    await page.route("**/governanca/fidelizacao/export**", async (route) => {
+      urls.push(route.request().url());
+      await route.fulfill({ status: 200, contentType: "text/csv", body: "ok" });
+    });
+
+    await page.getByRole("button", { name: "Exportar" }).click();
+    await page.getByTestId("fidelization-export-base-open").click();
+    const dialog = page.getByTestId("fidelization-export-base");
+    await expect(dialog).toBeVisible();
+    // O período chega com a competência em tela.
+    await expect(dialog.getByLabel("De", { exact: true })).toHaveValue("2026-09-01");
+    await expect(dialog.getByLabel("Até", { exact: true })).toHaveValue("2026-09-30");
+
+    await dialog.getByText("Planner de motoristas", { exact: true }).click();
+    await dialog.getByText("Grade diária (BR × dia)", { exact: true }).click();
+    await dialog.getByLabel("Placa ou frota").fill("SNT0A23");
+    await dialog.getByLabel("BR", { exact: true }).fill("BR0024706");
+    await dialog.getByLabel("Arquivo").selectOption("csv");
+
+    await dialog.getByTestId("fidelization-export-base-submit").click();
+    await expect.poll(() => urls.length).toBeGreaterThan(0);
+    const url = new globalThis.URL(urls[0]);
+    expect(url.searchParams.get("tipo")).toBe("base-motoristas");
+    expect(url.searchParams.get("layout")).toBe("diario");
+    expect(url.searchParams.get("de")).toBe("2026-09-01");
+    expect(url.searchParams.get("ate")).toBe("2026-09-30");
+    expect(url.searchParams.get("placa")).toBe("SNT0A23");
+    expect(url.searchParams.get("br_codigo")).toBe("BR0024706");
+    expect(url.searchParams.get("format")).toBe("csv");
+  });
+
+  test("a grade diária exige as duas datas e no máximo um ano", async ({ page }) => {
+    await abrir(page);
+    await page.getByRole("button", { name: "Exportar" }).click();
+    await page.getByTestId("fidelization-export-base-open").click();
+    const dialog = page.getByTestId("fidelization-export-base");
+    await dialog.getByText("Grade diária (BR × dia)", { exact: true }).click();
+    await dialog.getByLabel("De", { exact: true }).fill("");
+    await expect(dialog.getByText("A grade diária precisa de data inicial e final.")).toBeVisible();
+    await expect(dialog.getByTestId("fidelization-export-base-submit")).toBeDisabled();
+    await dialog.getByLabel("De", { exact: true }).fill("2024-01-01");
+    await expect(dialog.getByText(/aceita até 366 dias/)).toBeVisible();
+    // Por vínculo, qualquer período (ou nenhum) vale.
+    await dialog.getByText("Um registro por vínculo", { exact: true }).click();
+    await expect(dialog.getByTestId("fidelization-export-base-submit")).toBeEnabled();
+  });
+});

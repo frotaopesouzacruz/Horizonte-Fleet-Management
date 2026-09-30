@@ -28,7 +28,7 @@ import type { FidelizationStability } from "@/lib/governance/brs";
 import type {
   FidelizationImportBatch, MovementsPage, PlannerMatrix,
 } from "@/lib/governance/fidelization-central";
-import { formatCompetence, type Competence } from "@/lib/governance/competence";
+import { formatCompetence, monthEnd, monthStart, type Competence } from "@/lib/governance/competence";
 import { AssignmentDrawer } from "./assignment-drawer";
 import { InvertDialog } from "./invert-dialog";
 import { HierarchyPanel } from "./hierarchy-panel";
@@ -40,6 +40,7 @@ import { FleetPlanner } from "./fleet-planner";
 import { DriversPlanner } from "./drivers-planner";
 import { MovementsPanel, type MovementsPanelFilters } from "./movements-panel";
 import { ImportPanel } from "./import-panel";
+import { ExportBaseDialog } from "./export-base-dialog";
 
 const number = new Intl.NumberFormat("pt-BR");
 
@@ -167,6 +168,7 @@ export function FidelizationView({
   const [replicateOpen, setReplicateOpen] = React.useState(false);
   const [substituteRow, setSubstituteRow] = React.useState<DriverPlanRow | null>(null);
   const [onlyMobilisations, setOnlyMobilisations] = React.useState(false);
+  const [exportBaseOpen, setExportBaseOpen] = React.useState(false);
 
   /** A exportação leva a competência e os filtros em tela: o arquivo é o que se vê. */
   const exportHref = (kind: "historico" | "mobilizacoes", format: "xlsx" | "csv") => {
@@ -271,6 +273,11 @@ export function FidelizationView({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Base dos Planners</DropdownMenuLabel>
+                  <DropdownMenuItem onSelect={() => setExportBaseOpen(true)} data-testid="fidelization-export-base-open">
+                    Frotas ou motoristas, com filtros…
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuLabel>Histórico de mobilizações</DropdownMenuLabel>
                   <DropdownMenuItem onSelect={() => window.location.assign(exportHref("mobilizacoes", "xlsx"))}>
                     Mobilizações (XLSX)
@@ -512,6 +519,20 @@ export function FidelizationView({
         canImportBrs={false}
       />
 
+      {canExport ? (
+        <ExportBaseDialog
+          key={`export-base-${exportBaseOpen}`}
+          open={exportBaseOpen}
+          onOpenChange={setExportBaseOpen}
+          defaultFrom={monthStart(competence)}
+          defaultTo={monthEnd(competence)}
+          defaultBase={tab === "motoristas" ? "base-motoristas" : "base-frotas"}
+          operations={operations}
+          coverage={coverage}
+          brCodes={[...new Set(brs.map((b) => b.code))].sort()}
+          initial={{ operationId: filters.operationId, stateId: filters.stateId, cityId: filters.cityId }}
+        />
+      ) : null}
       <ReplicateFidelizationDialog
         key={`replicate-${replicateOpen}`}
         open={replicateOpen}
