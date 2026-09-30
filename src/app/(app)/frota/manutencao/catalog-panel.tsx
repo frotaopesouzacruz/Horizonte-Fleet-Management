@@ -14,6 +14,7 @@ import { ErrorState } from "@/components/feedback/error-state";
 import { useConfirm } from "@/components/feedback/confirm-dialog";
 import { useToast } from "@/components/feedback/toast";
 import { NativeSelect } from "@/components/governance/selects";
+import { cn } from "@/lib/cn";
 import { CriticalityBadge, PlanStatusBadge } from "@/components/maintenance/badges";
 import {
   archiveMaintenanceCluster, archiveMaintenanceService, archiveMaintenanceSupplier, archivePreventiveRule,
@@ -391,7 +392,7 @@ function ServicesSection({
     (s) =>
       (!cluster || s.clusterId === cluster) &&
       (!status || s.status === status) &&
-      matches(q, [s.name, s.clusterName, s.description]),
+      matches(q, [s.name, s.clusterName, s.description, ...(s.aliasNames ?? [])]),
   );
 
   return (
@@ -560,7 +561,10 @@ function SuppliersSection({
   const rows = catalog.suppliers.filter(
     (s) =>
       (!status || s.status === status) &&
-      matches(q, [s.name, s.tradeName, s.documentNumber, s.cityName, formatDocument(s.documentNumber)]),
+      matches(q, [
+        s.name, s.tradeName, s.documentNumber, s.cityName, formatDocument(s.documentNumber),
+        s.externalCode ?? null, s.category ?? null, s.serviceType ?? null, ...(s.aliasNames ?? []),
+      ]),
   );
 
   return (
@@ -589,18 +593,20 @@ function SuppliersSection({
         <>
           <Toolbar summary={`${formatInt(rows.length)} de ${formatInt(catalog.suppliers.length)} fornecedor(es)`}>
             <ToolbarField label="Buscar" className="w-full sm:w-72">
-              <SearchField size="sm" aria-label="Buscar fornecedor" value={q} onValueChange={setQ} placeholder="Nome, fantasia, CNPJ ou cidade" />
+              <SearchField size="sm" aria-label="Buscar fornecedor" value={q} onValueChange={setQ} placeholder="Nome, outro nome, código, CNPJ ou cidade" />
             </ToolbarField>
             <StatusFilter value={status} onChange={setStatus} />
           </Toolbar>
           <TableContainer tabIndex={0} stickyHeader maxHeight="70vh">
-            <Table layout="fixed" style={{ minWidth: 1060 }}>
+            <Table layout="fixed" style={{ minWidth: 1320 }}>
               <TableHeader>
                 <TableRow>
                   <TableHead style={{ width: 280 }}>Nome / fantasia</TableHead>
-                  <TableHead style={{ width: 180 }}>CNPJ/CPF</TableHead>
-                  <TableHead style={{ width: 180 }}>Cidade/UF</TableHead>
-                  <TableHead style={{ width: 240 }}>Clusters atendidos</TableHead>
+                  <TableHead style={{ width: 180 }}>Código · CNPJ/CPF</TableHead>
+                  <TableHead style={{ width: 220 }}>Categoria · tipo</TableHead>
+                  <TableHead style={{ width: 160 }}>Pagamento</TableHead>
+                  <TableHead style={{ width: 150 }}>Cidade/UF</TableHead>
+                  <TableHead style={{ width: 170 }}>Clusters atendidos</TableHead>
                   <TableHead style={{ width: 100 }}>Situação</TableHead>
                   <TableHead style={{ width: 80 }}><span className="sr-only">Ações</span></TableHead>
                 </TableRow>
@@ -608,7 +614,7 @@ function SuppliersSection({
               <TableBody>
                 {rows.length === 0 ? (
                   <TableEmpty
-                    colSpan={6}
+                    colSpan={8}
                     message={catalog.suppliers.length === 0 ? "Nenhum fornecedor cadastrado." : "Nenhum fornecedor corresponde à busca."}
                   />
                 ) : (
@@ -621,9 +627,37 @@ function SuppliersSection({
                           <div className="flex min-w-0 flex-col">
                             <span className="truncate font-medium" title={s.name}>{s.name}</span>
                             {s.tradeName ? <span className="truncate text-caption text-fg-muted" title={s.tradeName}>{s.tradeName}</span> : null}
+                            {s.aliasNames?.length ? (
+                              <span className="truncate text-caption text-fg-muted" title={`Outros nomes: ${s.aliasNames.join("; ")}`}>
+                                Outros nomes: {s.aliasNames.join("; ")}
+                              </span>
+                            ) : null}
                           </div>
                         </TableCell>
-                        <TableCell className="tabular-nums">{formatDocument(s.documentNumber)}</TableCell>
+                        <TableCell>
+                          <div className="flex min-w-0 flex-col tabular-nums">
+                            {s.externalCode ? <span className="truncate text-caption text-fg-muted">Cód. {s.externalCode}</span> : null}
+                            <span className="truncate">{formatDocument(s.documentNumber)}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex min-w-0 flex-col">
+                            <span className={cn("truncate", s.category ? undefined : "text-fg-muted")} title={s.category ?? undefined}>
+                              {s.category ?? "Não informada"}
+                            </span>
+                            {s.serviceType ? <span className="truncate text-caption text-fg-muted" title={s.serviceType}>{s.serviceType}</span> : null}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex min-w-0 flex-col">
+                            <span className={cn("truncate", s.paymentTerms ? undefined : "text-fg-muted")} title={s.paymentTerms ?? undefined}>
+                              {s.paymentTerms ?? "—"}
+                            </span>
+                            {s.financialValidation ? (
+                              <span className="truncate text-caption text-fg-muted">Financeiro: {s.financialValidation}</span>
+                            ) : null}
+                          </div>
+                        </TableCell>
                         <TableCell truncate title={place}>{place}</TableCell>
                         <TableCell truncate title={clusters || undefined} className={clusters ? undefined : "text-fg-muted"}>
                           {clusters || "Não informado"}

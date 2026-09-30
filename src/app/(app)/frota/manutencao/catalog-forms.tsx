@@ -25,7 +25,7 @@ import {
 } from "@/lib/maintenance/actions";
 import type { MaintenanceFilterOptions } from "@/lib/maintenance/queries";
 import {
-  CRITICALITY_LABEL, formatInt, formatKm,
+  CRITICALITY_LABEL, formatInt, formatKm, splitNames,
   type Criticality, type MaintenanceCatalog, type MaintenanceCluster, type MaintenanceOrigin, type MaintenanceSettings,
   type MaintenanceSupplier, type PreventiveRule,
 } from "@/lib/maintenance/types";
@@ -659,6 +659,12 @@ function SupplierForm({
   const [servedCityIds, setServedCityIds] = React.useState<string[]>((supplier?.servedCityIds ?? []).map(String));
   const [status, setStatus] = React.useState<"active" | "inactive">(supplier?.status ?? "active");
   const [notes, setNotes] = React.useState(supplier?.notes ?? "");
+  const [externalCode, setExternalCode] = React.useState(supplier?.externalCode ?? "");
+  const [category, setCategory] = React.useState(supplier?.category ?? "");
+  const [serviceType, setServiceType] = React.useState(supplier?.serviceType ?? "");
+  const [paymentTerms, setPaymentTerms] = React.useState(supplier?.paymentTerms ?? "");
+  const [financialValidation, setFinancialValidation] = React.useState(supplier?.financialValidation ?? "");
+  const [aliasText, setAliasText] = React.useState((supplier?.aliasNames ?? []).join("\n"));
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -721,6 +727,12 @@ function SupplierForm({
           served_city_ids: servedCityIds.map(Number),
           status,
           notes: notes.trim() || null,
+          external_code: externalCode.trim() || null,
+          category: category.trim() || null,
+          service_type: serviceType.trim() || null,
+          payment_terms: paymentTerms.trim() || null,
+          financial_validation: financialValidation.trim() || null,
+          alias_names: splitNames(aliasText),
         }),
       "Não foi possível salvar o fornecedor.",
     );
@@ -778,6 +790,41 @@ function SupplierForm({
                   <StatusSelect value={status} onChange={setStatus} />
                 </FormField>
               </FormGrid>
+            </FormSection>
+
+            <FormSection title="Comercial" description="Como o parceiro aparece no cadastro comercial (base de fornecedores).">
+              <FormGrid columns={2}>
+                <FormField label="Código do parceiro" helperText="Código no sistema de origem (ex.: Cod Rodopar).">
+                  <Input value={externalCode} onChange={(e) => setExternalCode(e.target.value)} maxLength={40} className="tabular-nums" />
+                </FormField>
+                <FormField label="Categoria">
+                  <Input value={category} onChange={(e) => setCategory(e.target.value)} maxLength={80} placeholder="Mecânica, Funilaria, Peças…" />
+                </FormField>
+                <FormField label="Tipo de serviço">
+                  <Input value={serviceType} onChange={(e) => setServiceType(e.target.value)} maxLength={120} placeholder="Revisões Preventivas e Corretivas…" />
+                </FormField>
+                <FormField label="Modelo de pagamento">
+                  <Input value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} maxLength={80} placeholder="30 Dias" />
+                </FormField>
+                <FormField label="Validação do financeiro">
+                  <Input value={financialValidation} onChange={(e) => setFinancialValidation(e.target.value)} maxLength={40} placeholder="OK" />
+                </FormField>
+              </FormGrid>
+            </FormSection>
+
+            <FormSection
+              title="Outros nomes (de-para)"
+              description="Nomes com que este fornecedor aparece nas planilhas de manutenção, um por linha. A importação da base de manutenções reconhece o fornecedor por eles."
+            >
+              <FormField label="Outros nomes" helperText="Ex.: Minas Maquinas Nova Lima. Um nome não pode identificar dois fornecedores.">
+                <Textarea
+                  value={aliasText}
+                  onChange={(e) => setAliasText(e.target.value)}
+                  rows={3}
+                  maxLength={2000}
+                  data-testid="maintenance-supplier-aliases"
+                />
+              </FormField>
             </FormSection>
 
             <FormSection

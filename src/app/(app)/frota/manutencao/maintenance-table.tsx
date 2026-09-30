@@ -233,11 +233,25 @@ const COLUMNS: Column[] = [
     label: "Fornecedor",
     width: 180,
     render: (row) =>
-      row.supplierName || row.serviceOrderNumber ? (
+      row.supplierName || row.supplierNameInformed || row.serviceOrderNumber ? (
         <Two
-          main={row.supplierName ?? <span className="text-fg-muted">Sem fornecedor</span>}
+          main={
+            row.supplierName ??
+            (row.supplierNameInformed ? (
+              <span className="text-fg-secondary">
+                {row.supplierNameInformed} <span className="text-fg-muted">(fora do catálogo)</span>
+              </span>
+            ) : (
+              <span className="text-fg-muted">Sem fornecedor</span>
+            ))
+          }
           sub={row.serviceOrderNumber ? `OS ${row.serviceOrderNumber}` : undefined}
-          title={[row.supplierName, row.serviceOrderNumber ? `OS ${row.serviceOrderNumber}` : null].filter(Boolean).join(" · ")}
+          title={[
+            row.supplierName ?? (row.supplierNameInformed ? `${row.supplierNameInformed} (informado na importação, fora do catálogo)` : null),
+            row.serviceOrderNumber ? `OS ${row.serviceOrderNumber}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         />
       ) : (
         dash

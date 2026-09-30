@@ -60,7 +60,7 @@ export const CATALOG: MaintenanceCatalog = {
     { id: "sv-ali", clusterId: "cl-pne", clusterName: "Pneus e suspensão", name: "Alinhamento e balanceamento", description: null, criticality: "low", status: "active", isPredictive: false, expectedHours: 2, maintenanceTypeCodes: [], vehicleTypeIds: [], checklistLinks: [] },
   ],
   suppliers: [
-    { id: "sp-cen", name: "Oficina Central Diesel Ltda", tradeName: "Oficina Central", documentNumber: "11222333000181", address: "Av. Industrial, 1200", stateId: 31, stateUf: "MG", cityId: 3106200, cityName: "Belo Horizonte", clusterIds: ["cl-mot", "cl-fre"], serviceIds: [], servedCityIds: [], status: "active", notes: null },
+    { id: "sp-cen", name: "Oficina Central Diesel Ltda", tradeName: "Oficina Central", documentNumber: "11222333000181", address: "Av. Industrial, 1200", stateId: 31, stateUf: "MG", cityId: 3106200, cityName: "Belo Horizonte", clusterIds: ["cl-mot", "cl-fre"], serviceIds: [], servedCityIds: [], status: "active", notes: null, externalCode: "239031", category: "Mecanica", serviceType: "Revisões Preventivas e Corretivas", paymentTerms: "30 Dias", financialValidation: "OK", aliasNames: ["Oficina Central BH"] },
     { id: "sp-nor", name: "Norte Freios e Peças", tradeName: null, documentNumber: "22333444000190", address: null, stateId: 15, stateUf: "PA", cityId: 1501402, cityName: "Belém", clusterIds: ["cl-fre"], serviceIds: [], servedCityIds: [], status: "active", notes: null },
   ],
   settings: DEFAULT_SETTINGS,

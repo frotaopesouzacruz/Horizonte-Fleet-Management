@@ -20,7 +20,7 @@ import { useToast } from "@/components/feedback/toast";
 import { NativeSelect } from "@/components/governance/selects";
 import { loadChecklistQuestions, saveMaintenanceService, saveServiceChecklistLinks } from "@/lib/maintenance/actions";
 import type { ChecklistQuestionOption, MaintenanceFilterOptions } from "@/lib/maintenance/queries";
-import type { Criticality, MaintenanceCatalog, MaintenanceService } from "@/lib/maintenance/types";
+import { splitNames, type Criticality, type MaintenanceCatalog, type MaintenanceService } from "@/lib/maintenance/types";
 import {
   CheckboxList, CriticalitySelect, FormDrawer, FormErrorAlert, FormFieldset, FormFooter, FormSection, ReadOnlyAlert,
   StatusSelect, numberText, parseDecimalField, safeCall, type CheckOption,
@@ -105,6 +105,7 @@ function ServiceForm({
   const [criticalityTouched, setCriticalityTouched] = React.useState(Boolean(service));
   const [isPredictive, setIsPredictive] = React.useState(service?.isPredictive ?? false);
   const [status, setStatus] = React.useState<"active" | "inactive">(service?.status ?? "active");
+  const [aliasText, setAliasText] = React.useState((service?.aliasNames ?? []).join("\n"));
   const initialLinks = React.useMemo<LinkDraft[]>(
     () =>
       (service?.checklistLinks ?? []).map((l) => ({
@@ -150,6 +151,7 @@ function ServiceForm({
           criticality,
           is_predictive: isPredictive,
           status,
+          alias_names: splitNames(aliasText),
         }),
       "Não foi possível salvar o serviço.",
     );
@@ -274,6 +276,19 @@ function ServiceForm({
                   </div>
                   <FormField label="Descrição" className="sm:col-span-2">
                     <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} maxLength={1000} />
+                  </FormField>
+                  <FormField
+                    label="Outros nomes (de-para)"
+                    helperText="Nomes antigos com que o serviço aparece nas planilhas, um por linha. A importação da base de manutenções reconhece o serviço por eles."
+                    className="sm:col-span-2"
+                  >
+                    <Textarea
+                      value={aliasText}
+                      onChange={(e) => setAliasText(e.target.value)}
+                      rows={2}
+                      maxLength={2000}
+                      data-testid="maintenance-service-aliases"
+                    />
                   </FormField>
                 </FormGrid>
 

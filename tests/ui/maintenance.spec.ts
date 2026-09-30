@@ -147,6 +147,44 @@ test.describe("manutenção", () => {
     await expect(page.getByText("base_manutencao_2026.xlsx")).toBeVisible();
   });
 
+  test("importações: o layout e o modelo XLSX seguem as planilhas da operação", async ({ page }) => {
+    await page.goto(`${PREVIEW}?aba=importacoes`);
+    const layout = page.getByTestId("maintenance-import-layout");
+    const base = [
+      "Placa", "Tipo de Manutenção", "Categoria (Cluster)", "Serviço", "Parceiro Comercial", "OS", "Data Agendada",
+      "Data de Entrada", "Hora de Entrada", "Previsão de Saída", "Data de Saída", "Hora de Saída", "KM de Entrada", "Situação", "Origem",
+    ];
+    for (const header of base) await expect(layout.getByRole("cell", { name: header, exact: true })).toBeVisible();
+
+    // O modelo baixado é um XLSX com esses cabeçalhos, nessa ordem, antes dos opcionais.
+    const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("maintenance-import-template").click()]);
+    expect(download.suggestedFilename()).toBe("modelo-manutencao-records.xlsx");
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile((await download.path())!);
+    const sheet = workbook.worksheets[0];
+    expect(sheet.name).toBe("Manutenções");
+    const headers = (sheet.getRow(1).values as unknown[]).slice(1).map(String);
+    expect(headers.slice(0, base.length)).toEqual(base);
+
+    await page.getByTestId("maintenance-import-kind-suppliers").click();
+    for (const header of ["Cod Rodopar", "Parceiro Comercial", "CNPJ / CPF", "Categoria", "Tipo", "Modelo de Pagamento", "Validação Financeiro", "Outros Nomes"]) {
+      await expect(layout.getByRole("cell", { name: header, exact: true })).toBeVisible();
+    }
+  });
+
+  test("fornecedor: dados comerciais e outros nomes (de-para) no cadastro", async ({ page }) => {
+    await page.goto(`${PREVIEW}?aba=cadastros&secao=fornecedores`);
+    const section = page.getByTestId("maintenance-catalog-suppliers");
+    await expect(section.getByText("Cód. 239031")).toBeVisible();
+    await expect(section.getByText("Outros nomes: Oficina Central BH")).toBeVisible();
+    await section.getByRole("button", { name: /Oficina Central$/ }).first().click();
+    const drawer = page.getByRole("dialog");
+    await expect(drawer.getByLabel("Código do parceiro")).toHaveValue("239031");
+    await expect(drawer.getByLabel("Modelo de pagamento")).toHaveValue("30 Dias");
+    await expect(drawer.getByTestId("maintenance-supplier-aliases")).toHaveValue("Oficina Central BH");
+  });
+
   test("assistente de abertura: FROTA → SERVIÇO → PROGRAMAÇÃO → KM → REVISÃO", async ({ page }) => {
     await page.goto(`${PREVIEW}?aba=programacao`);
     await page.getByTestId("maintenance-new").click();

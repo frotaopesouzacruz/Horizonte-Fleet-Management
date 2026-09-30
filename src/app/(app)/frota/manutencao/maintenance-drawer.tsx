@@ -696,7 +696,13 @@ function ContextSection({ detail }: { detail: MaintenanceDetail }) {
 
 function ScheduleSection({ detail, catalog }: { detail: MaintenanceDetail; catalog: MaintenanceCatalog }) {
   const open = OPEN_STATUSES.includes(detail.status);
-  const supplier = detail.supplierName ?? (detail.supplierId ? supplierDisplayName(catalog, detail.supplierId) : null);
+  const supplier =
+    detail.supplierName ??
+    (detail.supplierId
+      ? supplierDisplayName(catalog, detail.supplierId)
+      : detail.supplierNameInformed
+        ? `${detail.supplierNameInformed} (informado na importação, fora do catálogo)`
+        : null);
   return (
     <Section title="Programação e execução" testId="maintenance-drawer-schedule">
       <Facts>

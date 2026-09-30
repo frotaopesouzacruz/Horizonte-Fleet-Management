@@ -155,7 +155,16 @@ The daily routine (`hfm_maintenance_daily`, pg_cron, 06:15) reprocesses pending,
 ## Import (`stage_maintenance_import` / `process_maintenance_import`)
 - **Batches:** the file is read in the browser and sent in parts, with no row cap. Each batch stores a sha256 hash, so a file already imported is flagged. Validation and writing also happen in parts.
 - **Preview:** new, updates, unchanged, conflicts, duplicates in file, errors, unknown vehicle / service / supplier.
-- **Idempotency:** the key is vehicle + type + reference date + work order. Re-importing does not duplicate a maintenance or an item.
+- **Idempotency:** the key is vehicle + type + reference date + work order + the supplier text as written in the file. Re-importing does not duplicate a maintenance or an item; re-importing after a de-para fills the supplier link of the same maintenance.
+- **Batch lookup (fixed in `20261001100100`):** the validation parts and the preview carry no `kind`; the base and the batch type now come from the batch itself. Before, catalogue batches (`maintenance_catalog`) were looked up as `maintenance` and the screen said "Esta importação não está mais aberta. Envie a planilha novamente.".
+- **Layouts of the operation's spreadsheets (`20261001100000` / `20261001100100`):** the columns, their labels and the downloaded XLSX template follow the files 06 Clusters, 07 Fornecedores, 08 Parâmetros, 09 Serviços and 10 Manutenções; the old header names are still accepted.
+  - *Clusters:* Cluster, Código, Descrição, Criticidade (+ Status). Re-importing keeps the code and what the file does not bring.
+  - *Serviços:* Categoria (= cluster), Serviço, Tipos Manutenção ("Não se aplica" = no type; Preditiva turns on the predictive flag), Criticidade, Status, Outros Nomes.
+  - *Fornecedores:* Cod Rodopar (`external_code`), Parceiro Comercial, CNPJ / CPF, Categoria, Tipo (`service_type`), Modelo de Pagamento (`payment_terms`), Validação Financeiro (`financial_validation`), Outros Nomes (`alias_names`). An invalid CNPJ/CPF, or one already used by another supplier (or by an earlier row of the file), enters as a supplier without document, with a warning. A supplier is identified by its name only: a CNPJ or a code never renames an existing supplier. Two rows with the same name are an error.
+  - *Parâmetros:* Tipo Equipamento accepts a subcategory ("Toco", "Truck" → Caminhão + subcategory); Modelo accepts a subcategory ("10,5 m³" → Van + subcategory); "—" means empty; Criticidade and Status are stored.
+  - *Manutenções:* Placa, Tipo de Manutenção, Categoria (Cluster), Serviço, Parceiro Comercial, OS, Data Agendada, Data/Hora de Entrada, Previsão de Saída, Data/Hora de Saída, KM de Entrada, Situação, Origem.
+- **De-para ("Outros nomes"):** suppliers and services have `alias_names`, editable in the catalogue forms and importable. The records base recognises a supplier by name, trade name, other name, CNPJ, the canonical form of the name (no accents, punctuation or "Ltda/S/A/Eireli/ME") or the part before "|", always only when the match is unique. A supplier that is not recognised no longer blocks the row: the maintenance is created without the link and keeps the text in `maintenances.supplier_name_informed` (shown as "fora do catálogo"); the preview lists these names. A service is recognised by name or other name; when the row's cluster differs from the catalogue and the name is unique, the catalogue wins (warning).
+- **Records rules:** entry/exit dates are required and checked only when the status is a fact (Em execução, Concluído); a scheduled entry in the future is fine. KM with decimals is read as a number (148398.88 → 148398). Rows of the same workshop entry with different statuses leave the maintenance in the least advanced status and each item with its own; the exit is the last one. An exit earlier than the entry time on the same day drops both times (duration by date). A service repeated in the same entry is a warning and creates no second item.
 - **What the import never does:**
   - create a vehicle or an operation;
   - create a service or a supplier in the records base;
@@ -164,7 +173,7 @@ The daily routine (`hfm_maintenance_daily`, pg_cron, 06:15) reprocesses pending,
   - delete links to findings.
 
 ## Code
-- **Database:** `supabase/migrations/20260928100000` … `20260928106000_maintenance_*.sql`.
+- **Database:** `supabase/migrations/20260928100000` … `20260928106000_maintenance_*.sql`, `20261001100000_maintenance_import_layouts.sql` (columns, de-para, catalogue writes) and `20261001100100_maintenance_import_routines.sql` (stage/process).
 - **Server:**
   - `src/lib/maintenance/queries.ts` (server-only);
   - `actions.ts` (`"use server"`, `Result<T>`);
@@ -173,7 +182,8 @@ The daily routine (`hfm_maintenance_daily`, pg_cron, 06:15) reprocesses pending,
 - **Screens:** `src/app/(app)/frota/manutencao/*`, `src/components/maintenance/*`, preview at `src/app/dev/preview-manutencao`.
 - **Tests:**
   - `supabase/tests/remote/20_maintenance.sql` (T93–T105): one `do` block against the database with data; it ends with `raise exception 'ROLLBACK_TESTES…'`, so everything it creates is rolled back and the PASS/FAIL lines come back in the error message;
-  - `tests/ui/maintenance.spec.ts` (tabs, queues, matrices, wizard, Leadership profile, mobile without horizontal scroll, Axe in light and dark);
+  - `supabase/tests/remote/23_maintenance_import_layouts.sql` (L1–L8): catalogue imports in parts without `kind`, the five layouts, de-para, unknown supplier kept by name, cluster mismatch, KM with decimals, mixed statuses, re-import after de-para;
+  - `tests/ui/maintenance.spec.ts` (tabs, queues, matrices, wizard, Leadership profile, import layout and XLSX template, supplier commercial data and other names, mobile without horizontal scroll, Axe in light and dark);
   - T106 (regression): the other remote suites and the whole Playwright suite.
 
 ## Known limitations (real pending items)

@@ -72,6 +72,8 @@ export interface MaintenanceImportPreview {
   duplicateRows: number;
   maintenances: number;
   alreadyImported: boolean;
+  /** Fornecedores da planilha sem correspondência no catálogo (nome e linhas). */
+  unknownSuppliers: { name: string; rows: number }[];
   categories: Record<string, number>;
   mappedColumns: { header: string; field: string; label: string }[];
   unmappedColumns: string[];
@@ -172,6 +174,7 @@ export async function finalizeMaintenanceImport(
       duplicateRows: num(summary.duplicate_rows),
       maintenances: num(summary.maintenances),
       alreadyImported: summary.already_imported === true,
+      unknownSuppliers: arr(summary.unknown_suppliers).map((u) => ({ name: String(u.name ?? ""), rows: num(u.rows) })),
       categories,
       mappedColumns: columns.mapped,
       unmappedColumns: columns.unmapped,

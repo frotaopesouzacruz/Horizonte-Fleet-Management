@@ -378,6 +378,8 @@ export interface MaintenanceService {
   maintenanceTypeCodes: string[];
   vehicleTypeIds: string[];
   checklistLinks: ChecklistServiceLink[];
+  /** Nomes antigos com que o serviço aparece nas planilhas (de-para da importação). */
+  aliasNames?: string[];
 }
 export interface MaintenanceSupplier {
   id: string;
@@ -394,6 +396,14 @@ export interface MaintenanceSupplier {
   servedCityIds: number[];
   status: "active" | "inactive";
   notes: string | null;
+  /** Código do parceiro no sistema de origem (ex.: Cod Rodopar). */
+  externalCode?: string | null;
+  category?: string | null;
+  serviceType?: string | null;
+  paymentTerms?: string | null;
+  financialValidation?: string | null;
+  /** Outros nomes com que o fornecedor aparece nas planilhas (de-para da importação). */
+  aliasNames?: string[];
 }
 export interface MaintenanceSettings {
   agingBuckets: number[];
@@ -461,6 +471,8 @@ export interface MaintenanceRow {
   unitName: string | null;
   supplierId: string | null;
   supplierName: string | null;
+  /** Fornecedor informado na importação que não foi reconhecido no catálogo. */
+  supplierNameInformed?: string | null;
   serviceOrderNumber: string | null;
   description: string | null;
   requestedOn: string | null;
@@ -1064,3 +1076,21 @@ export function formatStamp(iso: string | null | undefined): string {
 }
 export const vehicleLabel = (plate: string | null | undefined, fleet: string | null | undefined) =>
   [fleet, plate].filter(Boolean).join(" · ") || "—";
+
+/**
+ * "Outros nomes" digitados um por linha (ou separados por ";"): sem vazios e
+ * sem repetir o mesmo nome com outra caixa ou acento.
+ */
+export function splitNames(text: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of text.split(/[;\n]/)) {
+    const name = raw.trim().replace(/\s+/g, " ");
+    const key = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    if (name && !seen.has(key)) {
+      seen.add(key);
+      out.push(name);
+    }
+  }
+  return out;
+}

@@ -48,7 +48,18 @@ const RECOMMENDED_ORDER: MaintenanceImportKind[] = ["clusters", "services", "sup
 const CATEGORY_LABEL: Record<string, string> = {
   unknown_vehicle: "Veículo não encontrado",
   unknown_service: "Serviço fora do catálogo",
-  unknown_supplier: "Fornecedor não cadastrado",
+  unknown_supplier: "Fornecedor não reconhecido (entra sem vínculo)",
+  cluster_mismatch: "Cluster diferente do cadastro (vale o cadastro)",
+  group_status_mixed: "Situações diferentes na mesma entrada",
+  exit_time_before_entry: "Saída antes da hora de entrada (TMM por data)",
+  invalid_km: "KM ilegível (ignorado)",
+  invalid_document: "CNPJ/CPF inválido (sem documento)",
+  duplicate_document: "CNPJ/CPF repetido (sem documento)",
+  duplicate_external_code: "Código repetido no arquivo",
+  unknown_criticality: "Criticidade não reconhecida",
+  type_from_subcategory: "Subcategoria no lugar do tipo",
+  model_is_subcategory: "Subcategoria no lugar do modelo",
+  subcategory_conflict: "Subcategoria divergente",
   unknown_cluster: "Cluster inexistente",
   unknown_type: "Tipo de manutenção não reconhecido",
   type_mapped: "Tipo convertido em Corretiva com origem",
@@ -106,11 +117,11 @@ const BATCH_STATUS: Record<string, { label: string; tone: StatusTone }> = {
 /** Colunas da amostra por base: o que ajuda a reconhecer a linha. */
 const SAMPLE_COLUMNS: Record<MaintenanceImportKind, { key: string; label: string }[]> = {
   records: [
-    { key: "fleet_code", label: "Frota" },
     { key: "license_plate", label: "Placa" },
     { key: "type", label: "Tipo" },
     { key: "status", label: "Situação" },
     { key: "service", label: "Serviço" },
+    { key: "supplier", label: "Parceiro" },
     { key: "entry_date", label: "Entrada" },
     { key: "service_order_number", label: "OS" },
     { key: "existing_code", label: "Manutenção existente" },
@@ -128,9 +139,11 @@ const SAMPLE_COLUMNS: Record<MaintenanceImportKind, { key: string; label: string
     { key: "is_predictive", label: "Preditivo" },
   ],
   suppliers: [
+    { key: "external_code", label: "Código" },
     { key: "name", label: "Fornecedor" },
     { key: "document_number", label: "CNPJ/CPF" },
-    { key: "address", label: "Endereço" },
+    { key: "category", label: "Categoria" },
+    { key: "payment_terms", label: "Pagamento" },
   ],
   preventive_rules: [
     { key: "interval_km", label: "Intervalo (km)" },
@@ -153,14 +166,36 @@ function sampleValue(key: string, value: unknown): string {
   return text;
 }
 
-/** Modelo em CSV gerado no navegador: separador ";" e BOM, como o Excel em pt-BR espera. */
-function downloadTemplate(kind: MaintenanceImportKind) {
-  const cells = templateHeaders(kind).map((h) => (/[;"\n]/.test(h) ? `"${h.replace(/"/g, '""')}"` : h));
-  const blob = new Blob(["﻿" + cells.join(";") + "\r\n"], { type: "text/csv;charset=utf-8" });
+/** Aba e nome do modelo, como as planilhas da operação. */
+const TEMPLATE_SHEET: Record<MaintenanceImportKind, string> = {
+  clusters: "Clusters",
+  services: "Serviços",
+  suppliers: "Fornecedores",
+  preventive_rules: "Parâmetros",
+  records: "Manutenções",
+};
+
+/**
+ * Modelo em XLSX gerado no navegador, com os cabeçalhos do layout na ordem
+ * das planilhas da operação (as colunas opcionais vêm depois).
+ */
+async function downloadTemplate(kind: MaintenanceImportKind) {
+  const ExcelJS = (await import("exceljs")).default;
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet(TEMPLATE_SHEET[kind]);
+  const headers = templateHeaders(kind);
+  sheet.addRow(headers);
+  sheet.getRow(1).font = { bold: true };
+  sheet.views = [{ state: "frozen", ySplit: 1 }];
+  headers.forEach((h, i) => {
+    sheet.getColumn(i + 1).width = Math.min(Math.max(h.length + 4, 12), 40);
+  });
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `modelo-manutencao-${kind.replace(/_/g, "-")}.csv`;
+  link.download = `modelo-manutencao-${kind.replace(/_/g, "-")}.xlsx`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -362,10 +397,10 @@ function ImportWorkspace({ actions }: { actions: PanelActions }) {
             size="sm"
             variant="outline"
             leadingIcon={<Download />}
-            onClick={() => downloadTemplate(kind)}
+            onClick={() => void downloadTemplate(kind)}
             data-testid="maintenance-import-template"
           >
-            Baixar modelo (CSV)
+            Baixar modelo (XLSX)
           </Button>
         </div>
         <TableContainer tabIndex={0}>
@@ -400,7 +435,8 @@ function ImportWorkspace({ actions }: { actions: PanelActions }) {
           </Table>
         </TableContainer>
         <p className="text-caption text-fg-muted">
-          Os cabeçalhos são reconhecidos pelo nome, sem acento nem maiúsculas; colunas a mais são ignoradas e aparecem na prévia.
+          O modelo sai com os cabeçalhos das planilhas da operação, nesta ordem. Os cabeçalhos são reconhecidos pelo nome, sem
+          acento nem maiúsculas (os nomes antigos também valem); colunas a mais são ignoradas e aparecem na prévia.
         </p>
       </div>
 
@@ -423,7 +459,8 @@ function ImportWorkspace({ actions }: { actions: PanelActions }) {
           </Button>
         </div>
         <p id="maintenance-import-file-hint" className="text-caption text-fg-muted">
-          A primeira aba da planilha é lida; a linha 1 é o cabeçalho. Arquivos .xls antigos precisam ser salvos como .xlsx antes.
+          A primeira aba com dados é lida (a de-para em outra aba é ignorada); a linha 1 é o cabeçalho. Arquivos .xls antigos
+          precisam ser salvos como .xlsx antes.
         </p>
       </form>
 
@@ -532,6 +569,31 @@ function PreviewPanel({
         <Stat label="Duplicadas no arquivo" value={preview.duplicateRows} tone="danger" />
         {preview.kind === "records" ? <Stat label="Manutenções resultantes" value={preview.maintenances} tone="primary" /> : null}
       </div>
+
+      {preview.kind === "records" && preview.unknownSuppliers.length ? (
+        <Alert variant="warning" data-testid="maintenance-import-unknown-suppliers">
+          <AlertTitle>
+            {formatInt(preview.unknownSuppliers.length)} fornecedor(es) da planilha não reconhecido(s) no catálogo
+          </AlertTitle>
+          <AlertDescription>
+            <p>
+              As manutenções entram sem vínculo e guardam o nome informado. Para ligar, informe o nome em{" "}
+              <span className="font-medium">Cadastros › Fornecedores › Outros nomes</span> do fornecedor certo e importe o
+              arquivo de novo: a manutenção ganha o vínculo, sem duplicar.
+            </p>
+            <ul className="mt-1.5 flex flex-wrap gap-1.5">
+              {preview.unknownSuppliers.map((u) => (
+                <li key={u.name}>
+                  <Badge variant="neutral" size="sm" title={u.name}>
+                    {u.name}
+                    <span className="ml-1 font-semibold tabular-nums">{formatInt(u.rows)}</span>
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       <Alert variant="neutral" icon={<ShieldCheck />}>
         <AlertTitle>O que a importação nunca faz</AlertTitle>
