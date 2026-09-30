@@ -308,12 +308,12 @@ palavra.
 | universo | BRs ativas da organização, com os filtros (operação, estado, cidade, liderança) |
 | com veículo | BR com titular não cancelado que toca a competência |
 | troca de veículo | vínculo com `replaces_assignment_id` iniciado no mês — substituição, inversão ou importação-substituição. **Um evento por linha; a inversão gera duas linhas e conta como um evento (par)** |
-| BR com troca | BR com pelo menos uma troca no mês — conta **uma** vez |
+| BR com troca | BR com pelo menos uma troca no mês — explícita **ou inferida** — conta **uma** vez (desde 20260930100000) |
 | estabilidade da frota | 1 − BRs com troca / BRs com veículo |
 | troca de motorista | motorista principal iniciado no mês cujo antecessor no mesmo BR terminou na véspera |
 | estabilidade de motoristas | 1 − BRs com troca de motorista / BRs com motorista |
 | cobertura de lideranças | BRs ativas com liderança na data-âncora / BRs ativas |
-| movimentação inferida | troca de titular observada entre vínculos consecutivos **sem** `replaces_assignment_id` — mostrada à parte, nunca somada às mobilizações |
+| movimentação inferida | troca de titular observada entre vínculos consecutivos **sem** `replaces_assignment_id` (ex.: períodos consecutivos da importação) — mostrada à parte, nunca somada às mobilizações; **conta** para "BR com troca" e, portanto, para a estabilidade |
 
 Por que a distinção: no HFC, "mobilizações" misturava linhas explícitas com
 trocas derivadas do grid, uma edição de N dias gerava N linhas idênticas, e
@@ -412,10 +412,12 @@ operações ou lideranças. As tabelas novas são o histórico
 | Planner de motoristas (`motoristas`) | um quadro por operação → liderança (abre com um clique) → local → BR, com veículo(s) no mês, motoristas e "+ Motorista"; substituir e encerrar | — |
 | Histórico de mobilizações (`historico`) | eventos imutáveis, paginados; vínculos da competência recolhidos abaixo | `mov_de`, `mov_ate`, `mov_tipo`, `mov_assunto`, `mov_veiculo`, `mov_motorista`, `mov_pagina`, `lideranca` |
 | Importação (`importacao`) | histórico de lotes e entrada de arquivos | — |
-| Planner de locais e BRs (`locais`) | o planner da Etapa 13, inalterado | `q`, `situacao`, `lideranca`, `veiculo`, `motorista` |
 
 * Não há cartões acima das abas: os números da competência ficam na Visão
   geral, e cada área tem os seus.
+* O Planner de Locais e BRs saiu da Central (a posição é do módulo BRs, que
+  tem a mesma listagem, filtros e exportação). Um link antigo com
+  `aba=locais` abre a Visão geral.
 * O cabeçalho (competência, operação, estado, cidade) vale para todas as
   áreas. Trocar de área não consulta o servidor e mantém a competência;
   trocar a competência mantém a área (`aba` segue na URL).
@@ -552,7 +554,7 @@ Recorte: competência + operação, estado e cidade do cabeçalho.
 | Inversões | ⌈linhas de inversão ÷ 2⌉ — uma inversão troca duas placas |
 | Mobilizações | substituições + inversões (as inferidas ficam à parte) |
 | Trocas de motorista | motoristas principais que começam na competência logo após outro na mesma BR |
-| Estabilidade da frota | 1 − BRs com troca de veículo ÷ BRs com veículo |
+| Estabilidade da frota | 1 − BRs com troca de veículo (explícita ou inferida, cada BR uma vez) ÷ BRs com veículo |
 | Estabilidade dos motoristas | 1 − BRs com troca de motorista ÷ BRs com motorista |
 | Cobertura de liderança | BRs com liderança na data âncora ÷ BRs |
 

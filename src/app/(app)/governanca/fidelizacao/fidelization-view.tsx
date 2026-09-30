@@ -24,14 +24,11 @@ import type {
   DriverPlanRow, FidelizationIndicators, FidelizationRow,
   HierarchyOperation, OperationBrRow,
 } from "@/lib/governance/queries";
-import type { BrPlannerIndicators, BrPlannerRow } from "@/lib/governance/br-planner";
 import type { FidelizationStability } from "@/lib/governance/brs";
 import type {
   FidelizationImportBatch, MovementsPage, PlannerMatrix,
 } from "@/lib/governance/fidelization-central";
 import { formatCompetence, type Competence } from "@/lib/governance/competence";
-import { BrPlanner } from "./br-planner";
-import { BrsModuleNotice } from "./brs-module-notice";
 import { AssignmentDrawer } from "./assignment-drawer";
 import { InvertDialog } from "./invert-dialog";
 import { HierarchyPanel } from "./hierarchy-panel";
@@ -66,10 +63,11 @@ const BRS_MODULE_FILTERS = ["operacao", "uf", "cidade", "ano", "mes"] as const;
 
 /**
  * As áreas da Central de Fidelização (Etapa 15, §5), na ordem da leitura:
- * o panorama, os dois planners, o que já aconteceu, a entrada de arquivos e,
- * por fim, o Planner de Locais e BRs da Etapa 13, que continua aqui.
+ * o panorama, os dois planners, o que já aconteceu e a entrada de arquivos.
+ * O Planner de Locais e BRs saiu daqui: a posição é do módulo BRs. Um link
+ * antigo com `aba=locais` cai na Visão geral.
  */
-const TABS = ["visao-geral", "frotas", "motoristas", "historico", "importacao", "locais"] as const;
+const TABS = ["visao-geral", "frotas", "motoristas", "historico", "importacao"] as const;
 type TabValue = (typeof TABS)[number];
 const isTab = (value: string | null): value is TabValue =>
   value !== null && (TABS as readonly string[]).includes(value);
@@ -82,8 +80,6 @@ export interface FidelizationViewProps {
   hierarchy: HierarchyOperation[];
   indicators: FidelizationIndicators | null;
   stability: FidelizationStability | null;
-  plannerRows: BrPlannerRow[];
-  plannerIndicators: BrPlannerIndicators | null;
   leaders: { id: string; name: string }[];
   competence: Competence;
   operations: { id: string; name: string; status: string }[];
@@ -141,8 +137,6 @@ export function FidelizationView({
   hierarchy,
   indicators,
   stability,
-  plannerRows,
-  plannerIndicators,
   leaders,
   competence,
   operations,
@@ -175,7 +169,7 @@ export function FidelizationView({
   const [onlyMobilisations, setOnlyMobilisations] = React.useState(false);
 
   /** A exportação leva a competência e os filtros em tela: o arquivo é o que se vê. */
-  const exportHref = (kind: "planner" | "historico" | "mobilizacoes", format: "xlsx" | "csv") => {
+  const exportHref = (kind: "historico" | "mobilizacoes", format: "xlsx" | "csv") => {
     const next = new URLSearchParams(params.toString());
     next.set("tipo", kind);
     next.set("format", format);
@@ -277,14 +271,6 @@ export function FidelizationView({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Planner de locais e BRs</DropdownMenuLabel>
-                  <DropdownMenuItem onSelect={() => window.location.assign(exportHref("planner", "xlsx"))}>
-                    Planner (XLSX)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => window.location.assign(exportHref("planner", "csv"))}>
-                    Planner (CSV)
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
                   <DropdownMenuLabel>Histórico de mobilizações</DropdownMenuLabel>
                   <DropdownMenuItem onSelect={() => window.location.assign(exportHref("mobilizacoes", "xlsx"))}>
                     Mobilizações (XLSX)
@@ -397,7 +383,6 @@ export function FidelizationView({
             <TabsTrigger value="motoristas">Planner de motoristas</TabsTrigger>
             <TabsTrigger value="historico">Histórico de mobilizações</TabsTrigger>
             {showImport ? <TabsTrigger value="importacao">Importação</TabsTrigger> : null}
-            <TabsTrigger value="locais">Planner de locais e BRs</TabsTrigger>
           </TabsList>
 
           {/* ----------------------------------------------------- visão geral */}
@@ -485,23 +470,6 @@ export function FidelizationView({
             </TabsContent>
           ) : null}
 
-          {/* ------------------------------------------- planner de locais e BRs */}
-          <TabsContent value="locais" className="flex flex-col gap-4">
-            <BrsModuleNotice href={brsModuleHref} />
-            <BrPlanner
-              rows={plannerRows}
-              indicators={plannerIndicators}
-              competence={competence}
-              operations={operations}
-              coverage={coverage}
-              leaders={leaders}
-              filters={filters}
-              onNavigate={navigate}
-              canManageBrs={false}
-              pending={pending}
-              onOpenPlanning={openPlanningById}
-            />
-          </TabsContent>
         </Tabs>
       </PageContent>
 

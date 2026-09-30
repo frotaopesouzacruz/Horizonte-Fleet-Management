@@ -1,26 +1,19 @@
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageContent, PageHeader } from "@/components/layout/page-header";
-import { BrsModuleNotice } from "@/app/(app)/governanca/fidelizacao/brs-module-notice";
-import { PreviewPlanner } from "./preview-planner";
 import { PreviewImport } from "./preview-import";
 import { PreviewAssignment } from "./preview-assignment";
 import { PreviewStability } from "./preview-stability";
 
 /**
- * Renders the Planner de Locais e BRs and the Dashboard de Estabilidade
- * against fixed data.
+ * Renders the Dashboard de Estabilidade and the fidelization import and
+ * assignment drawers against fixed data.
  *
  * The real screen sits behind a session and an organisation, which makes it
  * impossible to look at from an environment that cannot reach Supabase. Same
- * gate as the design system: absent from a normal production build.
- *
- * The fixture is shaped like the real base on purpose — one position that
- * changed plates, one without a vehicle, one whose leader comes from the city
- * and one from a BR-level exception — because those are the four states the
- * screen has to tell apart. The stability dashboard sits below the planner so
- * the planner keeps being the first table on the page, which is what the
- * existing specs address.
+ * gate as the design system: absent from a normal production build. The
+ * Planner de Locais e BRs that used to open this page left the Central de
+ * Fidelização — the position belongs to the BRs module (`/dev/preview-brs`).
  */
 export const metadata = { title: "Preview · Fidelização", robots: { index: false, follow: false } };
 
@@ -45,7 +38,7 @@ export default function PreviewPage() {
     >
       <PageHeader
         title="Fidelização"
-        description="Planner de Locais e BRs e Dashboard de Estabilidade com dados fixos, para inspeção visual sem sessão."
+        description="Dashboard de Estabilidade, importação e vínculo com dados fixos, para inspeção visual sem sessão."
         secondaryActions={
           <>
             <PreviewImport />
@@ -55,9 +48,6 @@ export default function PreviewPage() {
         }
       />
       <PageContent className="flex flex-col gap-5">
-        {/* §38: o mesmo aviso da aba "Planner de locais e BRs" da tela real. */}
-        <BrsModuleNotice href="/governanca/brs" />
-        <PreviewPlanner />
         <PreviewStability />
       </PageContent>
     </AppShell>

@@ -30,8 +30,8 @@ No HFM a regra é uma só, e esta etapa não a relaxou:
   cadastrar em lote, importar, exportar, inativar e reativar acontecem aqui.
 * **Operações e Fidelização só apontam para cá.** O detalhe da operação ganhou
   o atalho "Consultar BRs desta operação"; a aba *Planner de locais e BRs* da
-  Fidelização virou consulta e planejamento, com um aviso e um link para o
-  módulo. Os três drawers de cadastro (`BrFormDrawer`, `BrBatchDrawer`,
+  Fidelização foi retirada — a listagem das posições é este módulo, e a
+  Central aponta para cá na Importação. Os três drawers de cadastro (`BrFormDrawer`, `BrBatchDrawer`,
   `BrHistoryDrawer`) foram movidos para `src/components/governance/brs/` e são
   os mesmos componentes — não há um segundo formulário.
 
@@ -170,7 +170,7 @@ existe e está testado; a adoção por cada módulo é evolução deles.
 | Módulo | O que mudou | Fonte |
 |---|---|---|
 | **Operações** | formulário em abas *Dados gerais* / *Aplicativos* (mesma lógica de Tipos de Equipamento, mesma fonte `application_links`); atalho "Consultar BRs desta operação" → `/governanca/brs?operacao=…` | `application_links_overview`, `operation_brs` |
-| **Fidelização** | Planner de locais e BRs em modo consulta + aviso e link; importação de BRs saiu daqui (só alocações); Visão geral com o Dashboard de Estabilidade; Planner de motoristas com substituição transacional; "Replicar competência" (veículos e motoristas, com prévia); histórico rotula `replication` | `fidelization_*`, `br_planner_rows` |
+| **Fidelização** | O Planner de locais e BRs saiu da Central (a listagem é este módulo); importação de BRs saiu daqui (só alocações); Visão geral com o Dashboard de Estabilidade; Planner de motoristas com substituição transacional; "Replicar competência" (veículos e motoristas, com prévia); histórico rotula `replication` | `fidelization_*`, `br_planner_rows` |
 | **Lideranças** | cartões de cobertura (locais sem liderança, %), "sob responsabilidade" (BRs, veículos, motoristas) e a gaveta "o que esta liderança responde" | `leadership_indicators`, `leadership_scope_summary` |
 | **Cadastro de Frotas** | aba *Fidelização* no detalhe do veículo: BR atual e anteriores, períodos, origem, substituições; link para o módulo | `vehicle_br_history` |
 | **Aderência / Check List** | continuam gravando `operation_br_id`; o detalhe da BR conta checklists e obrigações do mês por esse id | `checklist_executions`, `adherence_obligation_status` |
@@ -215,8 +215,16 @@ importa, porque era o defeito 04 do HFC (mapeamento §7): **mobilização é eve
 explícito**. Substituição e inversão são linhas com `replaces_assignment_id`;
 a inversão gera duas linhas e conta como **um** evento; a BR com troca conta
 **uma** vez. A troca de titular observada entre dois vínculos consecutivos sem
-evento por trás (típica da carga histórica) é "movimentação inferida" — mostrada
-à parte, nunca somada.
+evento por trás (típica da carga histórica e da importação) é "movimentação
+inferida" — mostrada à parte, nunca somada às mobilizações.
+
+**Estabilidade da frota (corrigido em 20260930100000):** a razão conta BRs, não
+eventos, então a BR com troca inferida conta como BR com troca — como na taxa
+do HFC (BRs com placa − BRs com qualquer troca) ÷ BRs com placa. Antes, só a
+troca com `replaces_assignment_id` entrava, e Setembro/2026 — 16 trocas vindas
+da importação de 21/09 em 10 BRs — aparecia com 100%; com a regra corrigida,
+88,6% (10 de 88). Mobilizações continuam sendo só os eventos explícitos.
+Suíte `supabase/tests/remote/21_fidelization_stability.sql`.
 
 Nos recortes por operação/local/liderança, cada grupo conta os eventos que o
 tocaram; uma inversão entre BRs de cidades diferentes aparece em cada cidade

@@ -17,7 +17,6 @@ const AREAS = [
   "Planner de motoristas",
   "Histórico de mobilizações",
   "Importação",
-  "Planner de locais e BRs",
 ];
 
 const abrir = async (page: Page, query = "") => {
@@ -112,6 +111,17 @@ test.describe("Central de Fidelização montada", () => {
   });
 });
 
+test("o Planner de locais e BRs saiu da Central; o link antigo cai na Visão geral", async ({ page }) => {
+  const crashes = await abrir(page, "?aba=locais");
+  await expect(areas(page).getByRole("tab", { name: "Planner de locais e BRs" })).toHaveCount(0);
+  await expect(areas(page).getByRole("tab", { name: "Visão geral" })).toHaveAttribute("aria-selected", "true");
+  // A exportação do planner de locais é do módulo BRs, não daqui.
+  await page.getByRole("button", { name: "Exportar" }).click();
+  await expect(page.getByRole("menuitem", { name: /Planner/ })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: "Mobilizações (XLSX)" })).toBeVisible();
+  expect(crashes, crashes.join("\n")).toEqual([]);
+});
+
 for (const size of [
   { name: "390", width: 390, height: 844 },
   { name: "1440", width: 1440, height: 900 },
@@ -124,7 +134,6 @@ for (const size of [
       ["motoristas", "Planner de motoristas"],
       ["historico", "Histórico de mobilizações"],
       ["importacao", "Importação"],
-      ["locais", "Planner de locais e BRs"],
     ];
     for (const [aba, nome] of abas) {
       await page.goto(`${URL}${aba ? `?aba=${aba}` : ""}`);

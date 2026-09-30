@@ -162,8 +162,10 @@ export function StabilityDashboard({
             <Activity className="mt-0.5 size-3.5 shrink-0" aria-hidden />
             <span>
               Trocas inferidas são trocas de titular observadas na matriz sem evento explícito por trás
-              (substituição, inversão ou importação-substituição). Ficam fora da soma das mobilizações,
-              para a mesma troca não contar duas vezes. Indicadores resolvidos em{" "}
+              (substituição, inversão ou importação-substituição) — por exemplo, períodos consecutivos
+              trazidos pela importação. Ficam fora da soma das mobilizações, para a mesma troca não contar
+              duas vezes, mas a BR que as teve conta como BR com troca na estabilidade da frota.
+              Indicadores resolvidos em{" "}
               {formatDate(stability.anchorDate)}, sobre o período de {formatDate(stability.periodStart)} a{" "}
               {formatDate(stability.periodEnd)}.
             </span>

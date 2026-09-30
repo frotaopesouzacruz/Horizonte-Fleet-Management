@@ -10,13 +10,7 @@ import {
   type FidelizationIndicators,
   type HierarchyOperation,
 } from "@/lib/governance/queries";
-import {
-  getBrPlannerIndicators,
-  listBrPlannerRows,
-  listLeadershipOptions,
-  type BrPlannerIndicators,
-  type BrPlannerRow,
-} from "@/lib/governance/br-planner";
+import { listLeadershipOptions } from "@/lib/governance/br-planner";
 import { getFidelizationStability, type FidelizationStability } from "@/lib/governance/brs";
 import {
   getPlannerMatrix,
@@ -69,24 +63,9 @@ export default async function FidelizationPage({
   };
 
   /**
-   * Os filtros próprios do Planner de Locais e BRs (§25). Somam-se ao recorte
-   * da tela — operação, estado e cidade —, não o substituem: quem filtra por
-   * "sem veículo" continua olhando a operação que escolheu no cabeçalho.
-   */
-  const plannerFilters = {
-    ...filters,
-    q: first(params, "q"),
-    status: first(params, "situacao"),
-    leaderEmployeeId: first(params, "lideranca"),
-    vehicle: first(params, "veiculo"),
-    driver: first(params, "motorista"),
-  };
-
-  /**
    * Os filtros do Planner de Frotas (§25). Busca, liderança e situação somam-se
-   * ao recorte do cabeçalho. `q` e `lideranca` têm o mesmo sentido no Planner de
-   * Locais e por isso são compartilhados; a placa digitada é `placa`, porque
-   * `veiculo` já quer dizer "com / sem veículo" no Planner de Locais.
+   * ao recorte do cabeçalho. A placa digitada é `placa`, porque `veiculo` quer
+   * dizer "com / sem veículo" no módulo BRs, que recebe o mesmo recorte.
    */
   const fleetFilters = {
     ...filters,
@@ -128,8 +107,6 @@ export default async function FidelizationPage({
     options,
     hierarchy,
     indicators,
-    plannerRows,
-    plannerIndicators,
     leaders,
     stability,
     matrix,
@@ -152,10 +129,6 @@ export default async function FidelizationPage({
     getOperationalHierarchy(orgId, filters.operationId).catch(() => [] as HierarchyOperation[]),
     getFidelizationIndicators(orgId, competence, filters).catch(
       () => null as FidelizationIndicators | null,
-    ),
-    listBrPlannerRows(orgId, competence, plannerFilters).catch(() => [] as BrPlannerRow[]),
-    getBrPlannerIndicators(orgId, competence, plannerFilters).catch(
-      () => null as BrPlannerIndicators | null,
     ),
     listLeadershipOptions(orgId).catch(() => [] as { id: string; name: string }[]),
     // §39: o Dashboard de Estabilidade segue o recorte da tela — operação,
@@ -194,13 +167,11 @@ export default async function FidelizationPage({
       hierarchy={hierarchy}
       indicators={indicators}
       stability={stability}
-      plannerRows={plannerRows}
-      plannerIndicators={plannerIndicators}
       leaders={leaders}
       competence={competence}
       operations={options.operations}
       coverage={options.coverage}
-      filters={plannerFilters}
+      filters={filters}
       matrix={matrix}
       fleetFilters={fleetFilters}
       vehicleTypes={vehicleTypes}

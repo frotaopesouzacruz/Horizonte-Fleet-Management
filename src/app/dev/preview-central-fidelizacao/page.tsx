@@ -17,7 +17,7 @@ import { PLANNER_LEADERS, PLANNER_VEHICLE_TYPES } from "./fixture-planner";
 /**
  * A Central de Fidelização inteira (Etapa 15) — a mesma `FidelizationView` da
  * rota real — com dados fixos de Setembro/2026. As prévias `planner` e `areas`
- * exercitam cada área isolada; esta confere o que só existe junto: as seis
+ * exercitam cada área isolada; esta confere o que só existe junto: as cinco
  * abas, a aba guardada na URL e a competência preservada ao trocar de área.
  *
  * Mesmo portão das outras prévias: ausente de um build de produção normal. As
@@ -104,8 +104,6 @@ export default async function PreviewCentralPage({ searchParams }: { searchParam
           hierarchy={[]}
           indicators={null}
           stability={isFixtureMonth ? STABILITY : null}
-          plannerRows={[]}
-          plannerIndicators={null}
           leaders={PLANNER_LEADERS}
           competence={competence}
           operations={OPERATIONS}
