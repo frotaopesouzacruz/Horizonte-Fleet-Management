@@ -55,7 +55,12 @@ export interface BrDirectoryOptions {
   dir?: string;
 }
 
-export const BR_PAGE_SIZE = 50;
+/**
+ * O máximo que `br_directory` aceita. A listagem agrupa por operação e local
+ * dentro da página: com 200 por página, uma operação só se divide entre páginas
+ * quando o recorte passa disso.
+ */
+export const BR_PAGE_SIZE = 200;
 
 /**
  * §24: a listagem do módulo, paginada e ordenada no servidor. Os filtros são

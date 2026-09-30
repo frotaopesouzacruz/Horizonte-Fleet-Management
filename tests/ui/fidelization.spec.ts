@@ -158,15 +158,20 @@ test.describe("dashboard de estabilidade", () => {
     expect(crashes, crashes.join("\n")).toEqual([]);
   });
 
-  test("as fórmulas ficam escritas e a mobilização inferida é mostrada à parte", async ({ page }) => {
+  test("substituições e inversões ficam junto das trocas do mês, sem a tabela de fórmulas", async ({ page }) => {
     await page.goto("/dev/preview-fidelizacao");
     const painel = page.getByRole("region", { name: "Dashboard de estabilidade" });
+    const cartao = (nome: string) =>
+      painel.locator("section").filter({ has: page.getByRole("heading", { name: nome, exact: true }) });
 
-    const formulas = painel.getByText("Como os indicadores são calculados");
-    await formulas.click();
-    await expect(painel.getByText("Estabilidade da frota = 1 − BRs com troca / BRs com veículo")).toBeVisible();
-    await expect(painel.getByText(/mostrada à parte — sem contagem dupla/)).toBeVisible();
-    await expect(painel.getByText(/A inversão gera duas linhas e conta como UM evento/)).toBeVisible();
+    // O cartão saiu do topo da Central e entrou na linha das trocas do mês.
+    await expect(cartao("Substituições e inversões")).toContainText("3");
+    await expect(cartao("Substituições e inversões")).toContainText("Setembro/2026");
+
+    // A tabela "Como os indicadores são calculados" foi retirada; a explicação
+    // das trocas inferidas, que fica ao lado dos cartões, continua.
+    await expect(painel.getByText("Como os indicadores são calculados")).toHaveCount(0);
+    await expect(painel.getByText(/Ficam fora da soma das mobilizações/)).toBeVisible();
   });
 
   test("os recortes por operação, local e liderança trazem as mesmas colunas", async ({ page }) => {

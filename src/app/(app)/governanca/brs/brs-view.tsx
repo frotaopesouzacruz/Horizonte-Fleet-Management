@@ -23,7 +23,7 @@ import { loadBrDetail, loadBrImpact, setOperationBrStatus } from "@/lib/governan
 import type { BrDirectoryPage, BrDirectoryRow, BrSort } from "@/lib/governance/brs";
 import type { BrPlannerFilters, BrPlannerIndicators } from "@/lib/governance/br-planner";
 import type { Competence } from "@/lib/governance/competence";
-import { BrsTable } from "./brs-table";
+import { BrsHierarchy } from "./brs-hierarchy";
 import { BrsFilters } from "./brs-filters";
 import { BrsIndicators } from "./brs-indicators";
 import { BrDetailDrawer } from "./br-detail-drawer";
@@ -311,7 +311,7 @@ export function BrsView({
           </Card>
         ) : (
           <div className="flex flex-col gap-3">
-            <BrsTable
+            <BrsHierarchy
               rows={page.rows}
               sort={sort}
               dir={dir}

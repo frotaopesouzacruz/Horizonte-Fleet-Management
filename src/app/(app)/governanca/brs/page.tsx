@@ -31,9 +31,9 @@ const first = (params: SearchParams, key: string): string | undefined => {
  * pede, então o escopo de operação decide quais posições voltam — não esta
  * página.
  *
- * A listagem é paginada e ordenada no servidor (§24): 50 posições por página,
- * cada uma já resolvida com liderança, veículo e motorista na data-âncora da
- * competência, em uma consulta só (§67).
+ * A listagem é paginada e ordenada no servidor (§24): até 200 posições por
+ * página, cada uma já resolvida com liderança, veículo e motorista na
+ * data-âncora da competência, em uma consulta só (§67).
  */
 export default async function BrsPage({
   searchParams,

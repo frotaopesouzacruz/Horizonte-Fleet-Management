@@ -56,5 +56,5 @@ const STABILITY: FidelizationStability = {
 };
 
 export function PreviewStability() {
-  return <StabilityDashboard stability={STABILITY} competence={{ year: 2026, month: 9 }} />;
+  return <StabilityDashboard stability={STABILITY} competence={{ year: 2026, month: 9 }} substitutionsAndInversions={3} />;
 }

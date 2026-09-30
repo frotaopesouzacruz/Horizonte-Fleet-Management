@@ -58,7 +58,7 @@ export function PreviewAreas() {
   return (
     <>
       <PreviewArea id="area-visao-geral" title="Visão geral">
-        <StabilityDashboard stability={STABILITY} competence={COMPETENCE} />
+        <StabilityDashboard stability={STABILITY} competence={COMPETENCE} substitutionsAndInversions={4} />
       </PreviewArea>
 
       <PreviewArea id="area-motoristas" title="Motoristas por BR">

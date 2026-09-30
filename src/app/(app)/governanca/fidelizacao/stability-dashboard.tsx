@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import {
-  Activity, ArrowLeftRight, CarFront, ChevronDown, Gauge, MapPin, ShieldCheck, Shuffle, Truck, UserRound,
-  UserRoundX, Users,
+  Activity, ArrowLeftRight, CarFront, Gauge, MapPin, Repeat, ShieldCheck, Shuffle, Truck, UserRound, UserRoundX,
+  Users,
 } from "lucide-react";
 import { KpiCard, type KpiStatus } from "@/components/ui/kpi-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -43,19 +43,32 @@ export function stabilityStatus(value: number | null): KpiStatus | undefined {
 export interface StabilityDashboardProps {
   stability: FidelizationStability | null;
   competence: Competence;
+  /** Vínculos da competência abertos por substituição ou inversão (indicadores da Central). */
+  substitutionsAndInversions: number;
 }
 
 /**
  * Dashboard de Estabilidade (§39–§43).
  *
- * As fórmulas vivem no banco e estão listadas no rodapé, palavra por palavra,
- * porque um indicador que a pessoa não consegue reproduzir é um número em que
- * ela não confia. A distinção que mais importa aqui é a da §42: substituição e
- * inversão são eventos explícitos e contam como mobilização; a troca observada
- * na matriz sem evento por trás é "inferida" e fica em número separado — nunca
- * somada, para a mesma mobilização não contar duas vezes.
+ * As fórmulas vivem no banco. A distinção que mais importa aqui é a da §42:
+ * substituição e inversão são eventos explícitos e contam como mobilização; a
+ * troca observada na matriz sem evento por trás é "inferida" e fica em número
+ * separado — nunca somada, para a mesma mobilização não contar duas vezes.
  */
-export function StabilityDashboard({ stability, competence }: StabilityDashboardProps) {
+export function StabilityDashboard({
+  stability,
+  competence,
+  substitutionsAndInversions,
+}: StabilityDashboardProps) {
+  const substitutionsCard = (
+    <KpiCard
+      label="Substituições e inversões"
+      value={number.format(substitutionsAndInversions)}
+      period={formatCompetence(competence)}
+      icon={<Repeat />}
+    />
+  );
+
   return (
     <section aria-label="Dashboard de estabilidade" className="flex flex-col gap-4">
       {stability ? (
@@ -117,12 +130,18 @@ export function StabilityDashboard({ stability, competence }: StabilityDashboard
               period={`${number.format(stability.brsWithLeader)} de ${number.format(stability.brsTotal)} BRs ativas com liderança`}
               icon={<ShieldCheck />}
             />
+          </div>
+
+          {/* As trocas do mês lado a lado: os eventos explícitos, os vínculos que
+              eles abriram, as BRs afetadas e, à parte, as inferidas. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <KpiCard
               label="Mobilizações"
               value={number.format(stability.mobilizations)}
               period={`${number.format(stability.vehicleSubstitutions)} substituições · ${number.format(stability.vehicleInversions)} inversões`}
               icon={<ArrowLeftRight />}
             />
+            {substitutionsCard}
             <KpiCard
               label="BRs com troca de veículo"
               value={number.format(stability.brsWithVehicleChange)}
@@ -137,8 +156,8 @@ export function StabilityDashboard({ stability, competence }: StabilityDashboard
             />
           </div>
 
-          {/* §42: o número fica explicado ao lado do cartão, não só no rodapé —
-              é o único da linha que não entra em nenhuma soma. */}
+          {/* §42: o número fica explicado logo abaixo dos cartões — é o único
+              da linha que não entra em nenhuma soma. */}
           <p className="flex items-start gap-1.5 text-caption text-fg-muted">
             <Activity className="mt-0.5 size-3.5 shrink-0" aria-hidden />
             <span>
@@ -184,15 +203,18 @@ export function StabilityDashboard({ stability, competence }: StabilityDashboard
           </Card>
         </>
       ) : (
-        <Alert variant="neutral">
-          <AlertDescription>
-            Os indicadores de estabilidade não puderam ser calculados agora. A hierarquia abaixo
-            continua disponível.
-          </AlertDescription>
-        </Alert>
+        <>
+          <Alert variant="neutral">
+            <AlertDescription>
+              Os indicadores de estabilidade não puderam ser calculados agora. A hierarquia abaixo
+              continua disponível.
+            </AlertDescription>
+          </Alert>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {substitutionsCard}
+          </div>
+        </>
       )}
-
-      <FormulasCard />
     </section>
   );
 }
@@ -236,71 +258,5 @@ function BreakdownTable({ rows, firstColumn }: { rows: StabilityBreakdownRow[]; 
         </TableBody>
       </Table>
     </TableContainer>
-  );
-}
-
-/**
- * As fórmulas, tal como o banco as aplica (§39–§43). Fechado por padrão: quem
- * já as conhece não precisa rolar por elas todo dia, e quem duvida de um número
- * abre e confere.
- */
-function FormulasCard() {
-  return (
-    <Card>
-      <details className="group">
-        <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-body-sm font-semibold text-fg hfm-focus-ring [&::-webkit-details-marker]:hidden">
-          <ChevronDown
-            aria-hidden
-            className="size-4 shrink-0 text-fg-muted transition-transform group-open:rotate-180"
-          />
-          Como os indicadores são calculados
-        </summary>
-        <div className="border-t border-border px-4 py-3">
-          <ul className="flex list-disc flex-col gap-1.5 pl-5 text-body-sm text-fg-secondary">
-            <li>
-              <strong className="text-fg">Universo</strong> = BRs ativas do filtro.
-            </li>
-            <li>
-              <strong className="text-fg">BRs cadastradas</strong> = todas as BRs do recorte, inclusive inativas.{" "}
-              <strong className="text-fg">Veículos fidelizados</strong> = veículos distintos com vínculo titular não
-              cancelado que toca a competência. <strong className="text-fg">Motoristas fidelizados</strong> =
-              colaboradores distintos com vínculo de motorista, principal ou secundário, na competência.
-            </li>
-            <li>
-              <strong className="text-fg">Com veículo</strong> = BR com titular não cancelado que toca a
-              competência.
-            </li>
-            <li>
-              <strong className="text-fg">Troca de veículo</strong> = vínculo com{" "}
-              <code className="rounded-xs bg-surface-secondary px-1 text-caption">replaces_assignment_id</code>{" "}
-              iniciado no mês (substituição, inversão ou importação-substituição). A inversão gera duas
-              linhas e conta como UM evento; a BR com troca conta uma vez.
-            </li>
-            <li>
-              <strong className="text-fg">Estabilidade da frota</strong> = 1 − BRs com troca / BRs com
-              veículo.
-            </li>
-            <li>
-              <strong className="text-fg">Troca de motorista</strong> = motorista principal iniciado no mês
-              cujo antecessor no mesmo BR terminou na véspera.
-            </li>
-            <li>
-              <strong className="text-fg">Estabilidade de motoristas</strong> = 1 − BRs com troca de
-              motorista / BRs com motorista.
-            </li>
-            <li>
-              <strong className="text-fg">Cobertura</strong> = BRs ativas com liderança na data-âncora / BRs
-              ativas.
-            </li>
-            <li>
-              <strong className="text-fg">Mobilização inferida</strong> = troca de titular entre vínculos
-              consecutivos sem{" "}
-              <code className="rounded-xs bg-surface-secondary px-1 text-caption">replaces_assignment_id</code>,
-              mostrada à parte — sem contagem dupla com as mobilizações.
-            </li>
-          </ul>
-        </div>
-      </details>
-    </Card>
   );
 }

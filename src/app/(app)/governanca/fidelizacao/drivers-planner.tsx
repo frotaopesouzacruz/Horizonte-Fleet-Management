@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import {
-  ChevronRight, ChevronsDownUp, ChevronsUpDown, Info, Plus, Truck, UserRound, UserRoundPen, UserRoundX, Users,
+  ChevronRight, ChevronsDownUp, ChevronsUpDown, Info, MapPin, Network, Plus, ShieldCheck, Truck, UserRound,
+  UserRoundPen, UserRoundX, Users,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";
@@ -72,6 +73,98 @@ interface BrGroup {
   vehicles: VehicleInMonth[];
 }
 
+/** Local = cidade/UF. A mesma cidade pode aparecer sob duas lideranças quando há exceção por BR. */
+interface CityGroup {
+  key: string;
+  cityName: string;
+  stateUf: string;
+  brs: BrGroup[];
+}
+
+interface LeaderGroup {
+  key: string;
+  leaderName: string | null;
+  cities: CityGroup[];
+  brs: number;
+  withoutDriver: number;
+}
+
+interface OperationGroup {
+  id: string;
+  name: string;
+  leaders: LeaderGroup[];
+  cities: number;
+  brs: number;
+  withoutDriver: number;
+}
+
+const collator = new Intl.Collator("pt-BR", { sensitivity: "base" });
+
+/**
+ * Operação → Liderança → Local → BR, a hierarquia em que a liderança
+ * trabalha. A liderança é a da competência (Planner de Lideranças, com a
+ * exceção por BR), então uma BR com exceção fica sob quem responde por ela, e
+ * não sob a liderança da cidade. Dentro de cada local, as BRs seguem a ordem
+ * da matriz.
+ */
+function groupByOperation(groups: BrGroup[]): OperationGroup[] {
+  const operations = new Map<string, { name: string; leaders: Map<string, LeaderGroup> }>();
+  for (const group of groups) {
+    const { row } = group;
+    const operation =
+      operations.get(row.operationId) ?? { name: row.operationName, leaders: new Map<string, LeaderGroup>() };
+    operations.set(row.operationId, operation);
+
+    const leaderKey = row.leaderEmployeeId ?? "sem-lideranca";
+    const leader: LeaderGroup =
+      operation.leaders.get(leaderKey) ??
+      { key: `${row.operationId}:${leaderKey}`, leaderName: row.leaderName, cities: [], brs: 0, withoutDriver: 0 };
+    operation.leaders.set(leaderKey, leader);
+
+    const cityKey = `${leader.key}:${row.cityId}`;
+    let city = leader.cities.find((c) => c.key === cityKey);
+    if (!city) {
+      city = { key: cityKey, cityName: row.cityName, stateUf: row.stateUf, brs: [] };
+      leader.cities.push(city);
+    }
+    city.brs.push(group);
+    leader.brs += 1;
+    if (group.activeDrivers === 0) leader.withoutDriver += 1;
+  }
+
+  return [...operations.entries()]
+    .map(([id, { name, leaders }]) => {
+      const list = [...leaders.values()]
+        .map((leader) => ({
+          ...leader,
+          cities: [...leader.cities].sort(
+            (a, b) => collator.compare(a.stateUf, b.stateUf) || collator.compare(a.cityName, b.cityName),
+          ),
+        }))
+        // Quem responde vem em ordem alfabética; a ausência de liderança fica por último, dita por extenso.
+        .sort((a, b) =>
+          a.leaderName === null ? 1 : b.leaderName === null ? -1 : collator.compare(a.leaderName, b.leaderName),
+        );
+      const cityIds = new Set(list.flatMap((l) => l.cities.map((c) => `${c.stateUf}:${c.cityName}`)));
+      return {
+        id,
+        name,
+        leaders: list,
+        cities: cityIds.size,
+        brs: list.reduce((sum, l) => sum + l.brs, 0),
+        withoutDriver: list.reduce((sum, l) => sum + l.withoutDriver, 0),
+      };
+    })
+    .sort((a, b) => collator.compare(a.name, b.name));
+}
+
+const plural = (value: number, one: string, many: string) =>
+  `${number.format(value)} ${value === 1 ? one : many}`;
+
+/** Colunas da linha da BR, iguais no cabeçalho de cada liderança. */
+const BR_GRID =
+  "md:grid md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.3fr)_minmax(9rem,0.9fr)_8.5rem] md:items-center md:gap-4";
+
 export interface DriversPlannerProps {
   matrix: PlannerMatrix;
   driverPlans: DriverPlanRow[];
@@ -108,6 +201,8 @@ export function DriversPlanner({
   const competenceYear = matrix.competence.slice(0, 4);
   const [query, setQuery] = React.useState("");
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
+  const [leaderExpanded, setLeaderExpanded] = React.useState<Record<string, boolean>>({});
+  const [operationExpanded, setOperationExpanded] = React.useState<Record<string, boolean>>({});
   const [endRow, setEndRow] = React.useState<DriverPlanRow | null>(null);
 
   const groups = React.useMemo<BrGroup[]>(() => {
@@ -175,13 +270,33 @@ export function DriversPlanner({
 
   const isOpen = (id: string) => expanded[id] ?? openedByDriver.has(id);
   const toggle = (id: string) => setExpanded((prev) => ({ ...prev, [id]: !(prev[id] ?? openedByDriver.has(id)) }));
-  const setAll = (value: boolean) =>
-    setExpanded((prev) => {
+
+  const operationGroups = React.useMemo(() => groupByOperation(visible), [visible]);
+
+  // A liderança abre com um clique; com uma busca digitada, as que sobraram já
+  // vêm abertas — o resultado não fica escondido atrás de outro clique.
+  const isLeaderOpen = (key: string) => leaderExpanded[key] ?? Boolean(term);
+  const toggleLeader = (key: string) =>
+    setLeaderExpanded((prev) => ({ ...prev, [key]: !(prev[key] ?? Boolean(term)) }));
+  const isOperationOpen = (id: string) => operationExpanded[id] ?? true;
+  const toggleOperation = (id: string) => setOperationExpanded((prev) => ({ ...prev, [id]: !(prev[id] ?? true) }));
+
+  const leaderKeys = operationGroups.flatMap((o) => o.leaders.map((l) => l.key));
+  const allOpen = leaderKeys.length > 0 && leaderKeys.every(isLeaderOpen);
+  const setAll = (value: boolean) => {
+    setLeaderExpanded((prev) => {
       const next = { ...prev };
-      for (const g of visible) next[g.row.operationBrId] = value;
+      for (const key of leaderKeys) next[key] = value;
       return next;
     });
-  const allOpen = visible.length > 0 && visible.every((g) => isOpen(g.row.operationBrId));
+    if (value) {
+      setOperationExpanded((prev) => {
+        const next = { ...prev };
+        for (const o of operationGroups) next[o.id] = true;
+        return next;
+      });
+    }
+  };
 
   const formatShort = (value: string) => {
     const [y, m, d] = value.split("-");
@@ -229,7 +344,7 @@ export function DriversPlanner({
             leadingIcon={allOpen ? <ChevronsDownUp /> : <ChevronsUpDown />}
             onClick={() => setAll(!allOpen)}
           >
-            {allOpen ? "Recolher todas" : "Expandir todas"}
+            {allOpen ? "Recolher lideranças" : "Expandir lideranças"}
           </Button>
         ) : null}
         {term ? (
@@ -261,33 +376,72 @@ export function DriversPlanner({
           }
         />
       ) : (
-        <Card className="overflow-hidden">
-          <div
-            aria-hidden
-            className="hidden border-b border-border bg-surface-secondary px-4 py-2 text-caption font-semibold text-fg-secondary md:grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.2fr)_minmax(9rem,0.8fr)_8.5rem] md:gap-4"
-          >
-            <span className="pl-6">BR e local</span>
-            <span>Veículo(s) no mês</span>
-            <span>Motoristas</span>
-            <span />
-          </div>
-          <ul className="flex flex-col">
-            {visible.map((group) => (
-              <BrBlock
-                key={group.row.operationBrId}
-                group={group}
-                open={isOpen(group.row.operationBrId)}
-                onToggle={() => toggle(group.row.operationBrId)}
-                competenceLabel={competenceLabel}
-                canChangeDriver={canChangeDriver}
-                onOpenBr={onOpenBr}
-                onSubstitute={onSubstitute}
-                onEnd={setEndRow}
-                period={period}
-              />
-            ))}
-          </ul>
-        </Card>
+        <div className="flex flex-col gap-3">
+          {operationGroups.map((operation) => {
+            const opOpen = isOperationOpen(operation.id);
+            const opPanel = `drivers-op-${operation.id}`;
+            return (
+              <Card key={operation.id} className="overflow-hidden" aria-label={`Operação ${operation.name}`} role="region">
+                <button
+                  type="button"
+                  aria-expanded={opOpen}
+                  aria-controls={opPanel}
+                  onClick={() => toggleOperation(operation.id)}
+                  className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-left hfm-transition hfm-focus-ring hover:bg-hover-overlay"
+                >
+                  <span className="flex min-w-0 flex-1 items-center gap-2">
+                    <ChevronRight
+                      aria-hidden
+                      className={cn("size-4 shrink-0 text-fg-muted transition-transform", opOpen && "rotate-90")}
+                    />
+                    <Network aria-hidden className="size-4 shrink-0 text-fg-muted" />
+                    <span className="min-w-0">
+                      <span className="block truncate text-body font-semibold text-fg">{operation.name}</span>
+                      <span className="block text-caption text-fg-muted">Operação</span>
+                    </span>
+                  </span>
+                  <span className="flex flex-wrap items-center gap-1.5 pl-6 sm:pl-0">
+                    <Badge variant="neutral" appearance="soft" size="sm">
+                      {plural(operation.leaders.length, "liderança", "lideranças")}
+                    </Badge>
+                    <Badge variant="neutral" appearance="soft" size="sm">
+                      {plural(operation.cities, "local", "locais")}
+                    </Badge>
+                    <Badge variant="neutral" appearance="soft" size="sm">
+                      {plural(operation.brs, "BR", "BRs")}
+                    </Badge>
+                    {operation.withoutDriver > 0 ? (
+                      <Badge variant="warning" appearance="soft" size="sm">
+                        {number.format(operation.withoutDriver)} sem motorista
+                      </Badge>
+                    ) : null}
+                  </span>
+                </button>
+
+                {opOpen ? (
+                  <ul id={opPanel} className="flex flex-col border-t border-border">
+                    {operation.leaders.map((leader) => (
+                      <LeaderBlock
+                        key={leader.key}
+                        leader={leader}
+                        open={isLeaderOpen(leader.key)}
+                        onToggle={() => toggleLeader(leader.key)}
+                        isBrOpen={isOpen}
+                        onToggleBr={toggle}
+                        competenceLabel={competenceLabel}
+                        canChangeDriver={canChangeDriver}
+                        onOpenBr={onOpenBr}
+                        onSubstitute={onSubstitute}
+                        onEnd={setEndRow}
+                        period={period}
+                      />
+                    ))}
+                  </ul>
+                ) : null}
+              </Card>
+            );
+          })}
+        </div>
       )}
 
       {/* A linha é a chave: outro motorista remonta o diálogo com o formulário limpo. */}
@@ -334,6 +488,108 @@ function SummaryItem({
   );
 }
 
+function LeaderBlock({
+  leader,
+  open,
+  onToggle,
+  isBrOpen,
+  onToggleBr,
+  ...brProps
+}: {
+  leader: LeaderGroup;
+  open: boolean;
+  onToggle: () => void;
+  isBrOpen: (operationBrId: string) => boolean;
+  onToggleBr: (operationBrId: string) => void;
+  competenceLabel: string;
+  canChangeDriver: boolean;
+  onOpenBr: (operationBrId: string) => void;
+  onSubstitute: (row: DriverPlanRow) => void;
+  onEnd: (row: DriverPlanRow) => void;
+  period: (plan: DriverPlanRow) => string;
+}) {
+  const panelId = `drivers-leader-${leader.key.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+  const name = leader.leaderName ?? "Sem liderança definida";
+
+  return (
+    <li className="border-b border-border last:border-b-0" aria-label={`Liderança ${name}`}>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={onToggle}
+        className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5 pr-4 pl-8 text-left hfm-transition hfm-focus-ring hover:bg-hover-overlay"
+      >
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+          <ChevronRight
+            aria-hidden
+            className={cn("size-3.5 shrink-0 text-fg-muted transition-transform", open && "rotate-90")}
+          />
+          <ShieldCheck aria-hidden className="size-3.5 shrink-0 text-fg-muted" />
+          <span className="min-w-0">
+            <span className={cn("block truncate text-body-sm font-medium", leader.leaderName ? "text-fg" : "text-fg-muted")}>
+              {name}
+            </span>
+            <span className="block text-caption text-fg-muted">Liderança</span>
+          </span>
+        </span>
+        <span className="flex flex-wrap items-center gap-1.5 pl-6 sm:pl-0">
+          <Badge variant="neutral" appearance="soft" size="sm">
+            {plural(leader.cities.length, "local", "locais")}
+          </Badge>
+          <Badge variant="neutral" appearance="soft" size="sm">
+            {plural(leader.brs, "BR", "BRs")}
+          </Badge>
+          {leader.withoutDriver > 0 ? (
+            <Badge variant="warning" appearance="soft" size="sm">
+              {number.format(leader.withoutDriver)} sem motorista
+            </Badge>
+          ) : null}
+        </span>
+      </button>
+
+      {open ? (
+        <div id={panelId} className="border-t border-border-subtle">
+          <div
+            aria-hidden
+            className={cn(
+              "hidden bg-surface-secondary py-2 pr-4 pl-12 text-caption font-semibold text-fg-secondary",
+              BR_GRID,
+            )}
+          >
+            <span className="pl-6">BR</span>
+            <span>Veículo(s) no mês</span>
+            <span>Motoristas</span>
+            <span />
+          </div>
+          {leader.cities.map((city) => (
+            <section key={city.key} aria-label={`Local ${city.cityName}/${city.stateUf}`}>
+              <p className="flex items-center gap-1.5 border-t border-border-subtle bg-surface-secondary/60 py-1.5 pr-4 pl-12 text-caption font-medium text-fg-secondary">
+                <MapPin aria-hidden className="size-3.5 shrink-0 text-fg-muted" />
+                <span className="truncate">
+                  {city.cityName}/{city.stateUf}
+                </span>
+                <span className="text-fg-muted">· {plural(city.brs.length, "BR", "BRs")}</span>
+              </p>
+              <ul className="flex flex-col">
+                {city.brs.map((group) => (
+                  <BrBlock
+                    key={group.row.operationBrId}
+                    group={group}
+                    open={isBrOpen(group.row.operationBrId)}
+                    onToggle={() => onToggleBr(group.row.operationBrId)}
+                    {...brProps}
+                  />
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
 function BrBlock({
   group,
   open,
@@ -360,11 +616,11 @@ function BrBlock({
 
   return (
     <li
-      className="border-b border-border last:border-b-0"
+      className="border-t border-border-subtle"
       data-br={row.brCode}
       aria-label={`BR ${row.brCode}`}
     >
-      <div className="flex flex-col gap-2 px-4 py-3 md:grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.2fr)_minmax(9rem,0.8fr)_8.5rem] md:items-center md:gap-4">
+      <div className={cn("flex flex-col gap-2 py-3 pr-4 pl-12", BR_GRID)}>
         <button
           type="button"
           aria-expanded={open}
@@ -377,10 +633,17 @@ function BrBlock({
             className={cn("mt-0.5 size-4 shrink-0 text-fg-muted transition-transform", open && "rotate-90")}
           />
           <span className="min-w-0">
-            <span className="block truncate font-semibold text-fg">{row.brCode}</span>
-            <span className="block text-caption text-fg-muted">
-              {row.operationName} · {row.cityName}/{row.stateUf}
+            <span className="flex items-center gap-1.5">
+              <span className="truncate font-semibold text-fg">{row.brCode}</span>
+              {row.brStatus !== "active" ? (
+                <Badge variant="neutral" appearance="soft" size="sm">
+                  Inativa
+                </Badge>
+              ) : null}
             </span>
+            {row.brDescription ? (
+              <span className="block truncate text-caption text-fg-muted">{row.brDescription}</span>
+            ) : null}
           </span>
         </button>
 
@@ -439,7 +702,7 @@ function BrBlock({
       </div>
 
       {open ? (
-        <div id={panelId} className="border-t border-border-subtle bg-surface-secondary/60 px-4 py-3">
+        <div id={panelId} className="border-t border-border-subtle bg-surface-secondary/60 py-3 pr-4 pl-12">
           {drivers.length === 0 ? (
             <p className="pl-6 text-body-sm text-fg-muted">
               Nenhum motorista vinculado a esta BR em {competenceLabel}.

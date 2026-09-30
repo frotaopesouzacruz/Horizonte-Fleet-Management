@@ -133,7 +133,7 @@ export function QuestionCard({
       </div>
 
       {nonConforming ? (
-        <p className="flex items-center gap-1.5 text-caption text-warning-fg">
+        <p className="flex items-center gap-1.5 text-caption text-warning-soft-fg">
           <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
           Inconformidade registrada{question.criticality === "critica" ? " — item crítico" : ""}.
         </p>

@@ -65,12 +65,28 @@ Nenhuma BR conta duas vezes: "com substituição no período" conta a BR uma vez
 mesmo que ela tenha trocado de placa três vezes no mês, e "por liderança" soma
 exatamente "com liderança".
 
+### Filtros
+A competência fica sozinha na primeira linha — ela decide o que "atual" quer
+dizer em toda a tela —, e Busca, Operação, Estado, Cidade, Liderança,
+Situação, Veículo, Motorista e Substituição no período se alinham logo abaixo.
+
 ### Listagem
-Paginada e ordenada **no servidor** (50 por página): código e descrição,
-operação, estado/cidade, situação, liderança vigente (e de onde ela veio:
-exceção do BR, cidade ou operação), veículo atual, motorista atual, início da
-alocação, última movimentação (com a marca "substituição" quando houve no mês)
-e ações. Abaixo de `lg` a tabela vira cartões por BR, com as mesmas ações.
+No desenho da Hierarquia Operacional da Central de Fidelização: um quadro por
+**operação** (locais, BRs, com e sem veículo, inativas), a faixa do
+**estado**, a **cidade** (recolhível, com BRs e sem veículo) e, dentro dela,
+uma linha por **BR** com código e descrição, situação, liderança vigente (e de
+onde ela veio: exceção do BR, cidade ou operação), veículo atual com frota e
+início da alocação, motorista atual, última movimentação (com a marca
+"substituição" quando houve no mês) e as ações (detalhar, histórico, editar,
+inativar). Nenhuma informação da antiga tabela saiu.
+
+Paginada e ordenada **no servidor** (200 por página — o máximo de
+`br_directory` —, para uma operação só se dividir entre páginas acima disso).
+Operação, estado e cidade seguem em ordem alfabética; a ordem escolhida
+(código, situação, liderança, veículo, motorista, última movimentação) vale
+dentro de cada cidade e é escolhida pelo cabeçalho de colunas de cada quadro
+— ou, abaixo de `xl`, por uma lista. Abaixo de `xl` a linha vira cartão com
+os rótulos à esquerda e as mesmas ações.
 
 ### Detalhe (gaveta)
 Abas **Dados** (cadastro + contexto na data-âncora: veículo, motorista,
@@ -193,8 +209,8 @@ Nenhuma dessas integrações copia dado. Cada uma lê a mesma linha de
 
 ## 7. Dashboard de Estabilidade — definições
 
-As fórmulas estão em [`fidelization.md`](./fidelization.md) §15 e no rodapé do
-próprio dashboard ("Como os indicadores são calculados"). O ponto que mais
+As fórmulas estão em [`fidelization.md`](./fidelization.md) §15 (a tabela
+"Como os indicadores são calculados" saiu da tela a pedido). O ponto que mais
 importa, porque era o defeito 04 do HFC (mapeamento §7): **mobilização é evento
 explícito**. Substituição e inversão são linhas com `replaces_assignment_id`;
 a inversão gera duas linhas e conta como **um** evento; a BR com troca conta

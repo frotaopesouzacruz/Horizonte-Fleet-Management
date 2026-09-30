@@ -2,16 +2,13 @@
 
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  ArrowLeftRight, CalendarDays, ChevronDown, CircleSlash, CopyCheck, Download, MapPin, Truck, Upload,
-} from "lucide-react";
+import { ArrowLeftRight, CalendarDays, ChevronDown, CopyCheck, Download, Upload } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PageContent, PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { KpiCard } from "@/components/ui/kpi-card";
 import { FilterBar } from "@/components/ui/filter-bar";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -391,34 +388,6 @@ export function FidelizationView({
       />
 
       <PageContent className="flex flex-col gap-5">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <KpiCard
-            label="Posições operacionais"
-            value={number.format(indicators?.totalBrs ?? brs.length)}
-            period={`${number.format(indicators?.activeBrs ?? 0)} ativas`}
-            icon={<MapPin />}
-          />
-          <KpiCard
-            label="BRs com veículo"
-            value={number.format(indicators?.brsWithVehicle ?? 0)}
-            period={formatCompetence(competence)}
-            icon={<Truck />}
-          />
-          <KpiCard
-            label="BRs sem veículo"
-            value={number.format(indicators?.brsWithoutVehicle ?? 0)}
-            period={formatCompetence(competence)}
-            status={(indicators?.brsWithoutVehicle ?? 0) > 0 ? "warning" : undefined}
-            icon={<CircleSlash />}
-          />
-          <KpiCard
-            label="Substituições e inversões"
-            value={number.format((indicators?.substitutions ?? 0) + (indicators?.inversions ?? 0))}
-            period={formatCompetence(competence)}
-            icon={<ArrowLeftRight />}
-          />
-        </div>
-
         {/* §5: a ordem das abas é a ordem da leitura — primeiro o panorama,
             depois os planners, o que já aconteceu e a entrada de arquivos. */}
         <Tabs value={tab} onValueChange={selectTab}>
@@ -433,7 +402,11 @@ export function FidelizationView({
 
           {/* ----------------------------------------------------- visão geral */}
           <TabsContent value="visao-geral" className="flex flex-col gap-5">
-            <StabilityDashboard stability={stability} competence={competence} />
+            <StabilityDashboard
+              stability={stability}
+              competence={competence}
+              substitutionsAndInversions={(indicators?.substitutions ?? 0) + (indicators?.inversions ?? 0)}
+            />
 
             <section aria-labelledby="hierarquia-operacional" className="flex flex-col gap-3">
               <h2 id="hierarquia-operacional" className="text-h4 font-semibold text-fg">

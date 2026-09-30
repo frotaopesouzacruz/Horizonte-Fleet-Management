@@ -106,13 +106,51 @@ test.describe("histórico de movimentações", () => {
   });
 });
 
+/** Abre a liderança dentro do quadro da operação — os locais e as BRs ficam dentro dela. */
+const abrirLideranca = async (page: Page, operacao: string, lideranca: string) => {
+  const planner = page.getByRole("region", { name: "Planner de motoristas" });
+  const quadro = planner.getByRole("region", { name: `Operação ${operacao}` });
+  const item = quadro.getByRole("listitem", { name: `Liderança ${lideranca}` });
+  const botao = item.getByRole("button", { name: new RegExp(`^${lideranca}`) });
+  if ((await botao.getAttribute("aria-expanded")) !== "true") await botao.click();
+  await expect(botao).toHaveAttribute("aria-expanded", "true");
+  return item;
+};
+
 test.describe("planner de motoristas", () => {
-  test("agrupa por BR, diz qual BR está sem motorista e oferece as ações", async ({ page }) => {
+  test("separa por operação, depois liderança, local e BR", async ({ page }) => {
+    const crashes = await abrir(page);
+    const planner = page.getByRole("region", { name: "Planner de motoristas" });
+
+    // Um quadro por operação.
+    const lastMile = planner.getByRole("region", { name: "Operação Last Mille MG" });
+    const belem = planner.getByRole("region", { name: "Operação Redespacho - Belém" });
+    await expect(lastMile).toBeVisible();
+    await expect(belem).toBeVisible();
+    await expect(lastMile).toContainText("2 lideranças");
+    await expect(belem).toContainText("1 sem motorista");
+
+    // A liderança começa fechada: as BRs aparecem ao abri-la, dentro do local.
+    const daniela = lastMile.getByRole("listitem", { name: "Liderança Daniela Ferreira Lima" });
+    await expect(daniela.getByRole("listitem", { name: "BR BR0024706" })).toHaveCount(0);
+    await abrirLideranca(page, "Last Mille MG", "Daniela Ferreira Lima");
+    const contagem = daniela.getByRole("region", { name: "Local Contagem/MG" });
+    await expect(contagem.getByRole("listitem", { name: "BR BR0024706" })).toBeVisible();
+    // Cada liderança só tem as BRs pelas quais responde.
+    await expect(daniela.getByRole("listitem", { name: "BR BR0024901" })).toHaveCount(0);
+
+    expect(crashes, crashes.join("\n")).toEqual([]);
+  });
+
+  test("diz qual BR está sem motorista e oferece as ações", async ({ page }) => {
     const crashes = await abrir(page);
     const planner = page.getByRole("region", { name: "Planner de motoristas" });
 
     const resumo = planner.getByRole("definition");
     await expect(resumo).toHaveText(["3", "1", "5"]);
+
+    await abrirLideranca(page, "Redespacho - Belém", "Marcos Vinícius Andrade");
+    await abrirLideranca(page, "Last Mille MG", "Daniela Ferreira Lima");
 
     // A BR sem nenhum vínculo de motorista é dita, não é uma linha vazia.
     const vazia = planner.getByRole("listitem", { name: "BR BR0031009" });
@@ -170,6 +208,7 @@ test.describe("planner de motoristas", () => {
   test("encerrar o motorista exige o motivo", async ({ page }) => {
     await abrir(page);
     const planner = page.getByRole("region", { name: "Planner de motoristas" });
+    await abrirLideranca(page, "Last Mille MG", "Walace Rodrigues Santos");
     const br = planner.getByRole("listitem", { name: "BR BR0024901" });
     await br.getByRole("button", { name: /^BR0024901/ }).click();
     const vigente = br.getByRole("table", { name: "Motoristas da BR0024901" }).getByRole("row").filter({ hasText: "Vigente" });
@@ -251,8 +290,9 @@ test.describe("dashboard de estabilidade (Etapa 15)", () => {
     await expect(painel.getByRole("cell", { name: "Caminhão 3/4" })).toBeVisible();
     await expect(painel.getByRole("row").filter({ hasText: /^Van/ })).toContainText("94,6%");
 
-    await painel.getByText("Como os indicadores são calculados").click();
-    await expect(painel.getByText(/veículos distintos com vínculo titular não\s+cancelado/)).toBeVisible();
+    // Substituições e inversões vive aqui, com as trocas do mês; a tabela de fórmulas saiu.
+    await expect(cartao("Substituições e inversões")).toContainText("4");
+    await expect(painel.getByText("Como os indicadores são calculados")).toHaveCount(0);
   });
 });
 
@@ -266,6 +306,7 @@ test.describe("celular", () => {
     await expect(historico.getByRole("table", { name: "Movimentações" })).toBeHidden();
 
     const planner = page.getByRole("region", { name: "Planner de motoristas" });
+    await abrirLideranca(page, "Last Mille MG", "Daniela Ferreira Lima");
     await planner.getByRole("button", { name: /^BR0024706/ }).click();
     await expect(planner.getByRole("list", { name: "Motoristas da BR0024706" })).toBeVisible();
 

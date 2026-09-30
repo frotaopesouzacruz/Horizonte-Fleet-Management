@@ -336,7 +336,7 @@ export function BrPlanner({
                                     ) : null}
                                   </>
                                 ) : (
-                                  <span className="text-warning-fg">Sem veículo</span>
+                                  <span className="text-warning-soft-fg">Sem veículo</span>
                                 )}
                               </TableCell>
                               <TableCell>

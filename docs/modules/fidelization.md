@@ -407,13 +407,15 @@ operações ou lideranças. As tabelas novas são o histórico
 
 | Área (aba, `aba=`) | O que mostra | Parâmetros próprios na URL |
 |---|---|---|
-| Visão geral (padrão) | Dashboard de Estabilidade e hierarquia operacional | — |
+| Visão geral (padrão) | Dashboard de Estabilidade (volume, estabilidade e trocas do mês — "Substituições e inversões" entre elas) e hierarquia operacional | — |
 | Planner de frotas (`frotas`) | matriz BR × dia, agrupada por operação → liderança → cidade | `q`, `lideranca`, `placa`, `tipo_equipamento`, `alocacao` |
-| Planner de motoristas (`motoristas`) | motoristas por BR, substituir e encerrar | — |
+| Planner de motoristas (`motoristas`) | um quadro por operação → liderança (abre com um clique) → local → BR, com veículo(s) no mês, motoristas e "+ Motorista"; substituir e encerrar | — |
 | Histórico de mobilizações (`historico`) | eventos imutáveis, paginados; vínculos da competência recolhidos abaixo | `mov_de`, `mov_ate`, `mov_tipo`, `mov_assunto`, `mov_veiculo`, `mov_motorista`, `mov_pagina`, `lideranca` |
 | Importação (`importacao`) | histórico de lotes e entrada de arquivos | — |
 | Planner de locais e BRs (`locais`) | o planner da Etapa 13, inalterado | `q`, `situacao`, `lideranca`, `veiculo`, `motorista` |
 
+* Não há cartões acima das abas: os números da competência ficam na Visão
+  geral, e cada área tem os seus.
 * O cabeçalho (competência, operação, estado, cidade) vale para todas as
   áreas. Trocar de área não consulta o servidor e mantém a competência;
   trocar a competência mantém a área (`aba` segue na URL).
