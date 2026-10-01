@@ -35,6 +35,9 @@ export const metadata: Metadata = {
 type SearchParams = SearchParamsLike;
 const first = firstParam;
 
+/** Teto da fila da Programação (abertas): acima disso a tela pede para refinar os filtros. */
+const SCHEDULE_LIMIT = 1000;
+
 const SORTS: MaintenanceSortKey[] = ["reference", "requested", "scheduled", "entry", "exit", "code", "plate", "status", "duration"];
 
 function parseList(params: SearchParams, defaults: Pick<ListState, "sort" | "dir">): ListState {
@@ -98,9 +101,11 @@ export default async function MaintenancePage({ searchParams }: { searchParams: 
       ...filters,
       openOnly: filters.status || filters.queue === "completed_today" ? filters.openOnly : true,
     };
+    // A fila é dividida em quadros por situação e agrupada por operação/cidade
+    // na tela: precisa do conjunto inteiro (as abertas cabem com folga), não de uma página.
     const [kpis, page] = await Promise.all([
       safe(getScheduleKpis(orgId, { ...filters, queue: undefined, status: undefined }), "schedule_kpis"),
-      safe(listMaintenances(orgId, listFilters, list), "schedule_list"),
+      safe(listMaintenances(orgId, listFilters, { ...list, page: 1, pageSize: SCHEDULE_LIMIT }), "schedule_list"),
     ]);
     data.schedule = { kpis, page, list };
     data.today = kpis?.today ?? page?.today ?? "";
@@ -113,7 +118,6 @@ export default async function MaintenancePage({ searchParams }: { searchParams: 
       model: first(params, "modelo"),
       operation: filters.operation,
       city: filters.city,
-      br: filters.br,
       status: first(params, "mp_situacao"),
     };
     const matrix = await safe(getPreventiveMatrix(orgId, pf), "preventive_matrix");

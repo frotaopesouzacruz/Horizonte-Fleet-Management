@@ -14,6 +14,12 @@ export interface PageHeaderProps extends Omit<React.HTMLAttributes<HTMLDivElemen
   filters?: React.ReactNode;
   /** Tabs or view switchers rendered at the bottom edge of the header. */
   tabs?: React.ReactNode;
+  /**
+   * `bottom` (padrão): abas na borda inferior, abaixo dos filtros.
+   * `top`: abas logo abaixo do título e os filtros abaixo delas — para módulos
+   * em que a aba escolhe a tela e os filtros valem para a tela escolhida.
+   */
+  tabsPlacement?: "bottom" | "top";
   /** Optional status/badge next to the title. */
   meta?: React.ReactNode;
   /** Módulo ou área acima do título ("Gestão de checklist"), quando não há breadcrumb. */
@@ -34,16 +40,18 @@ export function PageHeader({
   secondaryActions,
   filters,
   tabs,
+  tabsPlacement = "bottom",
   meta,
   eyebrow,
   className,
   ...props
 }: PageHeaderProps) {
+  const tabsOnTop = Boolean(tabs) && tabsPlacement === "top";
   return (
     <div
       className={cn(
         "flex flex-col gap-3 border-b border-border bg-surface-header px-4 pt-4 sm:px-6 sm:pt-5",
-        tabs ? "pb-0" : "pb-4",
+        tabs && !tabsOnTop ? "pb-0" : tabsOnTop && !filters ? "pb-0" : "pb-4",
         className,
       )}
       {...props}
@@ -70,8 +78,11 @@ export function PageHeader({
         ) : null}
       </div>
 
-      {filters ? <div className="-mx-1 border-t border-border-subtle pt-1">{filters}</div> : null}
-      {tabs ? <div className="-mb-px">{tabs}</div> : null}
+      {tabsOnTop ? <div className={filters ? undefined : "-mb-px"}>{tabs}</div> : null}
+      {filters ? (
+        <div className={cn("-mx-1", tabsOnTop ? "pt-0.5" : "border-t border-border-subtle pt-1")}>{filters}</div>
+      ) : null}
+      {tabs && !tabsOnTop ? <div className="-mb-px">{tabs}</div> : null}
     </div>
   );
 }

@@ -821,7 +821,7 @@ export function StartDialog({ open, onOpenChange, detail, catalog, onSuccess }: 
         <DialogBody className="flex flex-col gap-3">
           <KmResolutionView km={done.km} />
           <p className="text-caption text-fg-muted">
-            O contexto operacional (operação, BR, liderança) foi fixado na data de entrada. Para corrigir o KM, use “KM de entrada” na gaveta.
+            O contexto operacional (operação e cidade) foi fixado na data de entrada. Para corrigir o KM, use “KM de entrada” na gaveta.
           </p>
         </DialogBody>
         <DialogFooter>

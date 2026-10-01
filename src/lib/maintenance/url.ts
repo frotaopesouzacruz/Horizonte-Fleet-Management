@@ -30,7 +30,6 @@ export function parseMaintenanceFilters(params: SearchParamsLike): MaintenanceFi
     operation: get("operation"),
     state: get("state"),
     city: get("city"),
-    br: get("br"),
     leader: get("leader"),
     unit: get("unit"),
     supplier: get("supplier"),

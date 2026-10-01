@@ -115,7 +115,7 @@ test.describe("manutenção", () => {
     await expect(page.locator("table").first().getByText("Sistema de freios").first()).toBeVisible();
   });
 
-  test("base geral: tabela e hierarquia Operação → Cidade → BR → Veículo", async ({ page }) => {
+  test("base geral: tabela e hierarquia Operação → Cidade → Veículo (sem BR)", async ({ page }) => {
     await page.goto(`${PREVIEW}?aba=base`);
     await expect(page.getByText("MAN-2026-000069").first()).toBeVisible();
     await expect(page.getByText("Reaberta").first()).toBeVisible();
@@ -125,6 +125,20 @@ test.describe("manutenção", () => {
     const tree = page.getByTestId("maintenance-hierarchy");
     await expect(tree.getByText("Last Mille MG").first()).toBeVisible();
     await expect(tree.getByText("Redespacho - Belém/Pa").first()).toBeVisible();
+    // BR não faz parte do módulo Manutenção.
+    await expect(tree.getByText(/^(BR |Sem BR)/)).toHaveCount(0);
+  });
+
+  test("atalhos das telas logo abaixo do título e filtros abaixo deles; gaveta sem trilha nem BR", async ({ page }) => {
+    await page.goto(`${PREVIEW}?aba=visao-geral`);
+    const title = page.getByRole("heading", { level: 1, name: "Manutenção" });
+    const tabs = page.getByRole("tablist", { name: "Telas da Manutenção" });
+    const filters = page.getByRole("button", { name: "Mais filtros" }).first();
+    const [t, l, f] = await Promise.all([title.boundingBox(), tabs.boundingBox(), filters.boundingBox()]);
+    expect(t && l && f).toBeTruthy();
+    expect(l!.y).toBeGreaterThan(t!.y);
+    expect(f!.y).toBeGreaterThan(l!.y);
+    await expect(page.getByRole("combobox", { name: /BR/ })).toHaveCount(0);
   });
 
   test("cadastros: seções, mapeamento Serviços × Check List e prévia dos marcos preventivos", async ({ page }) => {

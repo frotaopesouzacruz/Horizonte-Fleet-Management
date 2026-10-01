@@ -235,7 +235,7 @@ export function PredictivePanel({ predictive, options, catalog, perms, actions }
           aria-label="Filtrar por operação"
           value={filters.operation ?? ""}
           disabled={pending}
-          onChange={(e) => set({ operacao: e.target.value || null, uf: null, cidade: null, br: null })}
+          onChange={(e) => set({ operacao: e.target.value || null, uf: null, cidade: null })}
           className="min-w-[11rem]"
         >
           <option value="">Todas</option>

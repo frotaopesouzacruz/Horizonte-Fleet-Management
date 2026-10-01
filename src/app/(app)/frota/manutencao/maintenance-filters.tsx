@@ -23,9 +23,9 @@ import type { Navigate } from "./shared";
 /**
  * Filtros comuns da Visão geral, Programação e Base geral.
  *
- * Todos por id oficial (operação, UF, cidade, BR, liderança, tipo de
+ * Todos por id oficial (operação, UF, cidade, liderança, tipo de
  * equipamento, fornecedor, cluster, serviço) — nunca por texto. Operação →
- * UF → Cidade → BR se encadeiam pela cobertura da operação: escolher a
+ * UF → Cidade se encadeiam pela cobertura da operação: escolher a
  * operação limpa o que ficou fora dela. Cada mudança é uma ida ao servidor.
  */
 
@@ -76,21 +76,13 @@ export function MaintenanceFilterBar({
     return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   }, [options.coverage, filters.state, filters.operation]);
 
-  const brs = React.useMemo(
-    () =>
-      options.brs.filter(
-        (b) => (!filters.operation || b.operationId === filters.operation) && (!filters.city || String(b.cityId) === filters.city),
-      ),
-    [options.brs, filters.operation, filters.city],
-  );
-
   const services = React.useMemo(
     () => catalog.services.filter((s) => !filters.cluster || s.clusterId === filters.cluster),
     [catalog.services, filters.cluster],
   );
 
   const moreKeys: (keyof MaintenanceFilters)[] = [
-    "vehicleType", "br", "leader", "unit", "supplier", "cluster", "service", "origin", "priority", "km", "fleet",
+    "vehicleType", "leader", "unit", "supplier", "cluster", "service", "origin", "priority", "km", "fleet",
   ];
   const moreCount = moreKeys.filter((k) => Boolean(filters[k])).length;
   const anyActive =
@@ -136,7 +128,7 @@ export function MaintenanceFilterBar({
           aria-label="Filtrar por operação"
           value={filters.operation ?? ""}
           disabled={pending}
-          onChange={(e) => set("operation", e.target.value || null, { [P.state]: null, [P.city]: null, [P.br]: null })}
+          onChange={(e) => set("operation", e.target.value || null, { [P.state]: null, [P.city]: null })}
           className="min-w-[11rem]"
         >
           <option value="">Todas</option>
@@ -152,7 +144,7 @@ export function MaintenanceFilterBar({
           aria-label="Filtrar por estado"
           value={filters.state ?? ""}
           disabled={pending}
-          onChange={(e) => set("state", e.target.value || null, { [P.city]: null, [P.br]: null })}
+          onChange={(e) => set("state", e.target.value || null, { [P.city]: null })}
           className="min-w-[5.5rem]"
         >
           <option value="">Todas</option>
@@ -168,7 +160,7 @@ export function MaintenanceFilterBar({
           aria-label="Filtrar por cidade"
           value={filters.city ?? ""}
           disabled={pending || !filters.state}
-          onChange={(e) => set("city", e.target.value || null, { [P.br]: null })}
+          onChange={(e) => set("city", e.target.value || null)}
           className="min-w-[10rem]"
         >
           <option value="">{filters.state ? "Todas" : "Escolha a UF"}</option>
@@ -243,14 +235,6 @@ export function MaintenanceFilterBar({
                 <option value="">Todos</option>
                 {options.vehicleTypes.map((t) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </NativeSelect>
-            </Field>
-            <Field label="BR">
-              <NativeSelect fieldSize="sm" value={filters.br ?? ""} onChange={(e) => set("br", e.target.value || null)}>
-                <option value="">Todas</option>
-                {brs.map((b) => (
-                  <option key={b.id} value={b.id}>{b.code}</option>
                 ))}
               </NativeSelect>
             </Field>

@@ -131,12 +131,6 @@ const STEPS: { n: Step; label: string; hint: string }[] = [
 
 const CRITICALITIES: Criticality[] = ["low", "medium", "high", "critical"];
 const VEHICLE_STATUS_LABEL: Record<string, string> = { active: "Ativa", inactive: "Inativa" };
-const CONTEXT_SOURCE_LABEL: Record<string, string> = {
-  fidelization: "Fidelização (BR na data)",
-  allocation: "Alocação operacional",
-  none: "Sem vínculo operacional na data",
-};
-
 interface Plan {
   status: InitialStatus;
   requestedOn: string;
@@ -1073,13 +1067,8 @@ function ContextFacts({ context }: { context: MaintenanceContext }) {
     <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <Fact label="Operação">{context.operationName}</Fact>
       <Fact label="Cidade/UF">{city}</Fact>
-      <Fact label="BR">{context.brCode}</Fact>
-      <Fact label="Liderança">{context.leaderName}</Fact>
       <Fact label="Filial">{context.unitName}</Fact>
-      <Fact label="Fonte">
-        {CONTEXT_SOURCE_LABEL[context.source] ?? context.source}
-        <span className="text-fg-muted"> · {formatDate(context.date)}</span>
-      </Fact>
+      <Fact label="Data do contexto">{formatDate(context.date)}</Fact>
     </dl>
   );
 }

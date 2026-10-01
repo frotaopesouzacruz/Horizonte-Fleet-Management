@@ -131,7 +131,7 @@ function AlertBadges({ row }: { row: MaintenanceRow }) {
 
 function location(row: MaintenanceRow) {
   const city = row.cityName ? `${row.cityName}${row.stateUf ? `/${row.stateUf}` : ""}` : row.stateUf;
-  return [city, row.brCode ? `BR ${row.brCode}` : null].filter(Boolean).join(" · ");
+  return city ?? "";
 }
 
 function ExitCell({ row }: { row: MaintenanceRow }) {
@@ -218,7 +218,7 @@ const COLUMNS: Column[] = [
   },
   {
     key: "location",
-    label: "Operação / Cidade / BR",
+    label: "Operação / Cidade",
     width: 210,
     render: (row) => (
       <Two

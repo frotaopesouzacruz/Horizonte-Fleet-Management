@@ -54,9 +54,6 @@ import {
   type Result,
 } from "@/lib/maintenance/actions";
 import {
-  CRITICALITY_LABEL,
-  EVENT_LABEL,
-  EVENT_SOURCE_LABEL,
   ITEM_RESULT_LABEL,
   ITEM_STATUS_LABEL,
   KM_SOURCE_LABEL,
@@ -74,10 +71,8 @@ import {
   type Criticality,
   type ItemResult,
   type ItemStatus,
-  type KmStatus,
   type MaintenanceCatalog,
   type MaintenanceDetail,
-  type MaintenanceEvent,
   type MaintenanceFindingLink,
   type MaintenanceItemDetail,
   type MaintenanceStatus,
@@ -134,12 +129,6 @@ export function MaintenanceDrawer(props: MaintenanceDrawerProps) {
 // ---------------------------------------------------------------------------
 // Vocabulário local
 // ---------------------------------------------------------------------------
-
-const CONTEXT_SOURCE_LABEL: Record<string, string> = {
-  fidelization: "Fidelização (BR na data)",
-  allocation: "Alocação operacional",
-  none: "Sem vínculo operacional na data",
-};
 
 const LINK_ORIGIN_LABEL: Record<string, string> = {
   opened_from_finding: "Abertura a partir do apontamento",
@@ -355,7 +344,6 @@ function DrawerInner({
         <FindingsSection detail={detail} canUnlink={can.unlink} onUnlink={(finding) => setDialog({ kind: "unlink", finding })} />
         <MaintenanceActionPlans maintenanceId={detail.id} />
         {detail.recurrence.length > 0 ? <RecurrenceSection detail={detail} onOpenMaintenance={onOpenMaintenance} /> : null}
-        <TrailSection detail={detail} catalog={catalog} fullAudit={perms.viewAudit} />
       </DrawerBody>
 
       {dialog?.kind === "schedule" ? <ScheduleDialog {...dialogProps} /> : null}
@@ -675,17 +663,14 @@ function ContextSection({ detail }: { detail: MaintenanceDetail }) {
   return (
     <Section
       title="Contexto operacional histórico"
-      description="Onde o veículo estava NA DATA da manutenção (entrada real ou, antes dela, a solicitação). Fica preservado: mudanças posteriores de fidelização ou alocação não reescrevem este registro."
+      description="Onde o veículo estava NA DATA da manutenção (entrada real ou, antes dela, a solicitação). Fica preservado: mudanças posteriores de alocação não reescrevem este registro."
       testId="maintenance-drawer-context"
     >
       <Facts>
         <Fact label="Operação">{detail.operationName}</Fact>
         <Fact label="Cidade/UF">{city}</Fact>
-        <Fact label="BR">{detail.brCode}</Fact>
-        <Fact label="Liderança na data">{detail.leaderName}</Fact>
         <Fact label="Filial">{detail.unitName}</Fact>
         <Fact label="Data do contexto">{formatDate(detail.contextDate)}</Fact>
-        <Fact label="Fonte do contexto">{detail.contextSource ? CONTEXT_SOURCE_LABEL[detail.contextSource] ?? detail.contextSource : null}</Fact>
       </Facts>
       {detail.contextSource === "none" ? (
         <p className="text-caption text-fg-muted">
@@ -982,194 +967,3 @@ function RecurrenceSection({ detail, onOpenMaintenance }: { detail: MaintenanceD
   );
 }
 
-// ---------------------------------------------------------------------------
-// Trilha
-// ---------------------------------------------------------------------------
-
-type Json = Record<string, unknown>;
-const asObj = (v: unknown): Json | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Json) : null);
-const asStr = (v: unknown): string | null => (typeof v === "string" && v ? v : typeof v === "number" ? String(v) : null);
-const asNum = (v: unknown): number | null => (typeof v === "number" ? v : typeof v === "string" && v !== "" && !Number.isNaN(Number(v)) ? Number(v) : null);
-const asList = (v: unknown): Json[] => (Array.isArray(v) ? v.map(asObj).filter((x): x is Json => Boolean(x)) : []);
-const kmStatusText = (v: unknown) => {
-  const s = asStr(v);
-  return s ? KM_STATUS_LABEL[s as KmStatus] ?? s : "—";
-};
-
-interface FieldDef {
-  key: string;
-  label: string;
-  format: (v: unknown) => string;
-}
-
-function diffLines(before: Json | null, after: Json | null, fields: FieldDef[]): string[] {
-  if (!before && !after) return [];
-  const lines: string[] = [];
-  for (const f of fields) {
-    const a = before?.[f.key] ?? null;
-    const b = after?.[f.key] ?? null;
-    if (JSON.stringify(a) === JSON.stringify(b)) continue;
-    lines.push(`${f.label}: ${f.format(a)} → ${f.format(b)}`);
-  }
-  return lines;
-}
-
-function eventDetails(e: MaintenanceEvent, catalog: MaintenanceCatalog): string[] {
-  const p = e.payload ?? {};
-  const before = asObj(p.before);
-  const after = asObj(p.after);
-  const supplier = (v: unknown) => supplierDisplayName(catalog, asStr(v));
-  const date = (v: unknown) => formatDate(asStr(v));
-  const time = (v: unknown) => asStr(v)?.slice(0, 5) ?? "—";
-  const text = (v: unknown) => asStr(v) ?? "—";
-  const services = (v: unknown) => asList(v).map((i) => asStr(i.service)).filter(Boolean).join(", ");
-
-  switch (e.type) {
-    case "rescheduled":
-      return diffLines(before, after, [
-        { key: "scheduledDate", label: "Data agendada", format: date },
-        { key: "scheduledTime", label: "Hora agendada", format: time },
-        { key: "expectedExitDate", label: "Previsão de saída", format: date },
-        { key: "expectedExitTime", label: "Hora prevista de saída", format: time },
-        { key: "supplierId", label: "Fornecedor", format: supplier },
-      ]);
-    case "supplier_changed":
-      return [`Fornecedor: ${supplier(p.before)} → ${supplier(p.after)}`];
-    case "unscheduled":
-      return before ? [`Agendamento desfeito: ${formatDateTime(asStr(before.scheduledDate), asStr(before.scheduledTime))}`] : [];
-    case "scheduled":
-      return [
-        `Agendada para ${formatDateTime(asStr(p.scheduledDate), asStr(p.scheduledTime))}`,
-        asStr(p.expectedExitDate) ? `Previsão de saída: ${date(p.expectedExitDate)}` : "",
-        asStr(p.supplierId) ? `Fornecedor: ${supplier(p.supplierId)}` : "",
-        asStr(p.serviceOrderNumber) ? `OS: ${text(p.serviceOrderNumber)}` : "",
-      ].filter(Boolean);
-    case "started": {
-      const km = asObj(p.entryKm);
-      return [
-        `Entrada real: ${formatDateTime(asStr(p.entryDate), asStr(p.entryTime))}`,
-        km ? `KM de entrada: ${formatKm(asNum(km.km))} (${kmStatusText(km.status)})` : "",
-        asStr(p.supplierId) ? `Fornecedor: ${supplier(p.supplierId)}` : "",
-        p.contextChanged === true ? "Contexto operacional atualizado para a data de entrada." : "",
-      ].filter(Boolean);
-    }
-    case "completed": {
-      const items = asList(p.items).map((i) => {
-        const status = asStr(i.status);
-        const result = asStr(i.result);
-        return `${text(i.service)}: ${status ? ITEM_STATUS_LABEL[status as ItemStatus] ?? status : "—"}${result ? ` (${ITEM_RESULT_LABEL[result as ItemResult] ?? result})` : ""}`;
-      });
-      const hours = asNum(p.durationHours);
-      return [
-        `Saída real: ${formatDateTime(asStr(p.exitDate), asStr(p.exitTime))}`,
-        hours != null ? `TMM gravado: ${formatHours(hours)}` : "",
-        ...items,
-      ].filter(Boolean);
-    }
-    case "km_changed":
-      return before || after
-        ? [`KM: ${formatKm(asNum(before?.km))} (${kmStatusText(before?.status)}) → ${formatKm(asNum(after?.km))} (${kmStatusText(after?.status)})`]
-        : [];
-    case "details_updated":
-      return diffLines(before, after, [
-        { key: "priority", label: "Prioridade", format: (v) => (asStr(v) ? CRITICALITY_LABEL[asStr(v) as Criticality] ?? text(v) : "—") },
-        { key: "originId", label: "Origem", format: (v) => catalog.origins.find((o) => o.id === asStr(v))?.name ?? (asStr(v) ? "Origem fora do catálogo" : "—") },
-        { key: "description", label: "Descrição", format: text },
-        { key: "notes", label: "Observações", format: text },
-        { key: "schedulingNotes", label: "Observações do agendamento", format: text },
-        { key: "serviceOrderNumber", label: "OS", format: text },
-      ]);
-    case "items_added": {
-      const names = services(p.items);
-      return names ? [`Serviços: ${names}`] : [];
-    }
-    case "item_removed":
-      return asStr(p.service) ? [`Serviço: ${text(p.service)}${asStr(p.cluster) ? ` (${text(p.cluster)})` : ""}`] : [];
-    case "reopened":
-      return asStr(p.previousExitDate)
-        ? [`Saída anterior: ${formatDateTime(asStr(p.previousExitDate), asStr(p.previousExitTime))} — preservada na trilha.`]
-        : [];
-    case "created": {
-      const names = services(p.items);
-      return [
-        names ? `Serviços: ${names}` : "",
-        asStr(p.scheduledDate) ? `Agendada para ${date(p.scheduledDate)}` : "",
-        asStr(p.entryDate) ? `Entrada real: ${date(p.entryDate)}` : "",
-      ].filter(Boolean);
-    }
-    case "finding_linked": {
-      const n = Array.isArray(p.answers) ? p.answers.length : 0;
-      return n ? [`${n} apontamento(s) do Check List`] : [];
-    }
-    case "finding_resolved": {
-      const n = Array.isArray(p.findings) ? p.findings.length : 0;
-      return n ? [`${n} apontamento(s) tratado(s) pela conclusão`] : [];
-    }
-    default:
-      return [];
-  }
-}
-
-function eventAuthor(e: MaintenanceEvent): string {
-  if (e.source === "user") return e.actor ?? "Usuário";
-  const source = EVENT_SOURCE_LABEL[e.source] ?? e.source;
-  return e.actor ? `${source} (${e.actor})` : source;
-}
-
-function TrailSection({ detail, catalog, fullAudit }: { detail: MaintenanceDetail; catalog: MaintenanceCatalog; fullAudit: boolean }) {
-  const events = detail.events;
-  return (
-    <Section
-      title="Trilha"
-      description={
-        fullAudit
-          ? "Tudo o que aconteceu com esta manutenção, em ordem cronológica. Nada é apagado: reprogramações e reaberturas ficam com o antes e o depois."
-          : "Linha do tempo resumida. Motivos e valores anteriores e novos exigem a permissão de auditoria da Manutenção."
-      }
-      testId="maintenance-drawer-trail"
-    >
-      {events.length === 0 ? (
-        <p className="text-body-sm text-fg-muted">Sem eventos registrados.</p>
-      ) : (
-        <ol className="flex flex-col">
-          {events.map((e, index) => {
-            const lines = fullAudit ? eventDetails(e, catalog) : [];
-            const last = index === events.length - 1;
-            return (
-              <li key={e.id} className={cn("relative flex gap-3", !last && "pb-4")} data-testid="maintenance-event">
-                <span aria-hidden className="relative flex w-3 shrink-0 justify-center">
-                  {!last ? <span className="absolute top-3 -bottom-1 w-px bg-border" /> : null}
-                  <span className="relative mt-1.5 size-2.5 rounded-full border-2 border-surface bg-primary" />
-                </span>
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="text-body-sm font-semibold text-fg">{EVENT_LABEL[e.type] ?? e.type}</span>
-                    {fullAudit && e.toStatus && e.fromStatus !== e.toStatus ? (
-                      <span className="text-caption text-fg-secondary">
-                        {e.fromStatus ? `${STATUS_LABEL[e.fromStatus] ?? e.fromStatus} → ` : "→ "}
-                        {STATUS_LABEL[e.toStatus] ?? e.toStatus}
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="text-caption text-fg-muted">
-                    {eventAuthor(e)} · <time dateTime={e.occurredAt}>{formatStamp(e.occurredAt)}</time>
-                  </p>
-                  {fullAudit && e.reason ? <p className="text-body-sm text-fg">“{e.reason}”</p> : null}
-                  {lines.length > 0 ? (
-                    <ul className="mt-0.5 flex flex-col gap-0.5">
-                      {lines.map((line, i) => (
-                        <li key={i} className="text-caption break-words text-fg-secondary">
-                          {line}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </div>
-              </li>
-            );
-          })}
-        </ol>
-      )}
-    </Section>
-  );
-}

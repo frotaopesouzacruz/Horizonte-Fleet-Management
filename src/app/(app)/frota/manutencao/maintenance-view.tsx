@@ -77,8 +77,17 @@ export function MaintenanceView({ data }: { data: MaintenanceViewData }) {
 
   const showFilters = tab === "visao-geral" || tab === "programacao" || tab === "base";
 
+  // Atalhos das telas logo abaixo do título e, abaixo deles, os filtros da tela
+  // escolhida: o Tabs envolve o cabeçalho e o conteúdo para a barra de abas
+  // morar no cabeçalho.
   return (
-    <>
+    <Tabs
+      value={tab}
+      onValueChange={(v) =>
+        navigate({ aba: v, pagina: null, ordenar: null, dir: null, visao: null, secao: null, fila: null })
+      }
+      className="gap-0"
+    >
       <PageHeader eyebrow="Gestão de frota"
         title="Manutenção"
         description="Programação, execução, preventiva, preditiva e base geral das manutenções da frota."
@@ -110,6 +119,16 @@ export function MaintenanceView({ data }: { data: MaintenanceViewData }) {
             </DropdownMenu>
           ) : undefined
         }
+        tabsPlacement="top"
+        tabs={
+          <TabsList className="w-max max-w-full" aria-label="Telas da Manutenção">
+            {tabs.map((t) => (
+              <TabsTrigger key={t} value={t} data-testid={`maintenance-tab-${t}`}>
+                {TAB_LABEL[t as MaintenanceTab]}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        }
         filters={
           showFilters ? (
             <MaintenanceFilterBar
@@ -125,60 +144,43 @@ export function MaintenanceView({ data }: { data: MaintenanceViewData }) {
       />
 
       <PageContent className="flex flex-col gap-5">
-        <Tabs
-          value={tab}
-          onValueChange={(v) =>
-            navigate({ aba: v, pagina: null, ordenar: null, dir: null, visao: null, secao: null, fila: null })
-          }
-        >
-          <div className="-mx-1 overflow-x-auto px-1 pb-1">
-            <TabsList className="w-max">
-              {tabs.map((t) => (
-                <TabsTrigger key={t} value={t}>
-                  {TAB_LABEL[t as MaintenanceTab]}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </div>
-
-          <div aria-busy={pending} className={pending ? "opacity-70 transition-opacity" : "transition-opacity"}>
-            {tab === "visao-geral" ? (
-              <TabsContent value="visao-geral">
-                <OverviewPanel dashboard={data.dashboard ?? null} filters={data.filters} catalog={data.catalog} actions={actions} />
-              </TabsContent>
-            ) : null}
-            {tab === "programacao" && data.schedule ? (
-              <TabsContent value="programacao">
-                <SchedulePanel schedule={data.schedule} filters={data.filters} catalog={data.catalog} perms={perms} actions={actions} />
-              </TabsContent>
-            ) : null}
-            {tab === "preventiva" && data.preventive ? (
-              <TabsContent value="preventiva">
-                <PreventivePanel preventive={data.preventive} options={data.options} catalog={data.catalog} perms={perms} actions={actions} />
-              </TabsContent>
-            ) : null}
-            {tab === "preditiva" && data.predictive ? (
-              <TabsContent value="preditiva">
-                <PredictivePanel predictive={data.predictive} options={data.options} catalog={data.catalog} perms={perms} actions={actions} />
-              </TabsContent>
-            ) : null}
-            {tab === "base" && data.base ? (
-              <TabsContent value="base">
-                <BasePanel base={data.base} filters={data.filters} catalog={data.catalog} perms={perms} actions={actions} />
-              </TabsContent>
-            ) : null}
-            {tab === "cadastros" && data.cadastros ? (
-              <TabsContent value="cadastros">
-                <CatalogPanel cadastros={data.cadastros} catalog={data.catalog} options={data.options} perms={perms} actions={actions} />
-              </TabsContent>
-            ) : null}
-            {tab === "importacoes" && data.importacoes ? (
-              <TabsContent value="importacoes">
-                <ImportPanel importacoes={data.importacoes} perms={perms} actions={actions} />
-              </TabsContent>
-            ) : null}
-          </div>
-        </Tabs>
+        <div aria-busy={pending} className={pending ? "opacity-70 transition-opacity" : "transition-opacity"}>
+          {tab === "visao-geral" ? (
+            <TabsContent value="visao-geral">
+              <OverviewPanel dashboard={data.dashboard ?? null} filters={data.filters} catalog={data.catalog} actions={actions} />
+            </TabsContent>
+          ) : null}
+          {tab === "programacao" && data.schedule ? (
+            <TabsContent value="programacao">
+              <SchedulePanel schedule={data.schedule} filters={data.filters} catalog={data.catalog} perms={perms} actions={actions} />
+            </TabsContent>
+          ) : null}
+          {tab === "preventiva" && data.preventive ? (
+            <TabsContent value="preventiva">
+              <PreventivePanel preventive={data.preventive} options={data.options} catalog={data.catalog} perms={perms} actions={actions} />
+            </TabsContent>
+          ) : null}
+          {tab === "preditiva" && data.predictive ? (
+            <TabsContent value="preditiva">
+              <PredictivePanel predictive={data.predictive} options={data.options} catalog={data.catalog} perms={perms} actions={actions} />
+            </TabsContent>
+          ) : null}
+          {tab === "base" && data.base ? (
+            <TabsContent value="base">
+              <BasePanel base={data.base} filters={data.filters} catalog={data.catalog} perms={perms} actions={actions} />
+            </TabsContent>
+          ) : null}
+          {tab === "cadastros" && data.cadastros ? (
+            <TabsContent value="cadastros">
+              <CatalogPanel cadastros={data.cadastros} catalog={data.catalog} options={data.options} perms={perms} actions={actions} />
+            </TabsContent>
+          ) : null}
+          {tab === "importacoes" && data.importacoes ? (
+            <TabsContent value="importacoes">
+              <ImportPanel importacoes={data.importacoes} perms={perms} actions={actions} />
+            </TabsContent>
+          ) : null}
+        </div>
       </PageContent>
 
       <MaintenanceDrawer
@@ -212,6 +214,6 @@ export function MaintenanceView({ data }: { data: MaintenanceViewData }) {
           }}
         />
       ) : null}
-    </>
+    </Tabs>
   );
 }

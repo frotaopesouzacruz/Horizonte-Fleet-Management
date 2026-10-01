@@ -23,7 +23,7 @@ import type { MaintenancePerms, MaintenanceViewData, Navigate, PanelActions } fr
 
 /**
  * Base geral — todas as manutenções do recorte, em tabela paginada ou
- * agrupadas por Operação → Cidade (UF) → BR → Veículo. A hierarquia é só
+ * agrupadas por Operação → Cidade (UF) → Veículo. A hierarquia é só
  * agrupamento das linhas que o servidor já filtrou (pelo contexto histórico
  * gravado na manutenção); a tela soma contadores, não decide nada.
  */
@@ -43,16 +43,16 @@ const VIEWS: { value: View; label: string; icon: React.ReactNode }[] = [
   { value: "hierarquia", label: "Hierarquia", icon: <ListTree /> },
 ];
 
-const LEVEL_LABEL = ["Operação", "Cidade", "BR", "Veículo"] as const;
+const LEVEL_LABEL = ["Operação", "Cidade", "Veículo"] as const;
 
 // ---------------------------------------------------------------------------
 // Árvore (montada no cliente, só agrupando)
 // ---------------------------------------------------------------------------
 interface TreeNode {
   key: string;
-  level: 0 | 1 | 2 | 3;
+  level: 0 | 1 | 2;
   label: string;
-  /** "Sem operação", "Sem BR"… vão para o fim do nível. */
+  /** "Sem operação", "Sem cidade"… vão para o fim do nível. */
   missing: boolean;
   total: number;
   open: number;
@@ -72,11 +72,6 @@ function node(map: Map<string, TreeNode>, key: string, level: TreeNode["level"],
   return n;
 }
 
-function brLabel(code: string | null) {
-  if (!code) return "Sem BR";
-  return /^br/i.test(code) ? code : `BR ${code}`;
-}
-
 function buildTree(rows: HierarchyRow[]): Map<string, TreeNode> {
   const roots = new Map<string, TreeNode>();
   for (const r of rows) {
@@ -87,10 +82,9 @@ function buildTree(rows: HierarchyRow[]): Map<string, TreeNode> {
         ? `Sem cidade (${r.stateUf})`
         : "Sem cidade";
     const city = node(op.children, `${op.key}|c:${r.cityId ?? `uf-${r.stateUf ?? "-"}`}`, 1, cityLabel, r.cityId == null);
-    const br = node(city.children, `${city.key}|b:${r.brId ?? "-"}`, 2, brLabel(r.brCode), !r.brId);
-    const vehicle = node(br.children, `${br.key}|v:${r.vehicleId}`, 3, vehicleLabel(r.licensePlate, r.fleetCode), false);
+    const vehicle = node(city.children, `${city.key}|v:${r.vehicleId}`, 2, vehicleLabel(r.licensePlate, r.fleetCode), false);
     vehicle.vehicleId = r.vehicleId;
-    for (const n of [op, city, br, vehicle]) {
+    for (const n of [op, city, vehicle]) {
       n.total += r.total;
       n.open += r.open;
       n.inProgress += r.inProgress;
@@ -110,7 +104,7 @@ function sorted(map: Map<string, TreeNode>): TreeNode[] {
 
 function allGroupKeys(map: Map<string, TreeNode>, out: string[] = []): string[] {
   for (const n of map.values()) {
-    if (n.level < 3) {
+    if (n.level < 2) {
       out.push(n.key);
       allGroupKeys(n.children, out);
     }
@@ -144,7 +138,7 @@ function HierarchyView({ rows, navigate, pending }: { rows: HierarchyRow[]; navi
   const walk = (map: Map<string, TreeNode>) => {
     for (const n of sorted(map)) {
       visible.push(n);
-      if (n.level < 3 && isOpen(n)) walk(n.children);
+      if (n.level < 2 && isOpen(n)) walk(n.children);
     }
   };
   walk(tree);
@@ -171,10 +165,10 @@ function HierarchyView({ rows, navigate, pending }: { rows: HierarchyRow[]; navi
       </div>
 
       <TableContainer tabIndex={0} stickyHeader maxHeight="max(24rem, calc(100dvh - 18rem))">
-        <Table layout="fixed" style={{ minWidth }} aria-label="Manutenções por operação, cidade, BR e veículo">
+        <Table layout="fixed" style={{ minWidth }} aria-label="Manutenções por operação, cidade e veículo">
           <TableHeader>
             <TableRow>
-              <TableHead style={{ width: widths[0] }}>Operação → Cidade (UF) → BR → Veículo</TableHead>
+              <TableHead style={{ width: widths[0] }}>Operação → Cidade (UF) → Veículo</TableHead>
               <TableHead style={{ width: widths[1] }} numeric>Veículos</TableHead>
               <TableHead style={{ width: widths[2] }} numeric>Manutenções</TableHead>
               <TableHead style={{ width: widths[3] }} numeric>Abertas</TableHead>
@@ -187,7 +181,7 @@ function HierarchyView({ rows, navigate, pending }: { rows: HierarchyRow[]; navi
           </TableHeader>
           <TableBody>
             {visible.map((n) => {
-              const leaf = n.level === 3;
+              const leaf = n.level === 2;
               const expanded = !leaf && isOpen(n);
               return (
                 <TableRow

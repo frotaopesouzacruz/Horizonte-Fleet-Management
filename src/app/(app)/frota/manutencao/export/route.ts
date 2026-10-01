@@ -32,7 +32,7 @@ const PAGE = 1000;
 const SORTS: MaintenanceSortKey[] = ["reference", "requested", "scheduled", "entry", "exit", "code", "plate", "status", "duration"];
 
 const HEADERS = [
-  "Código", "Tipo", "Situação", "Prioridade", "Origem", "Frota", "Placa", "Operação", "UF", "Cidade", "BR", "Liderança",
+  "Código", "Tipo", "Situação", "Prioridade", "Origem", "Frota", "Placa", "Operação", "UF", "Cidade", "Liderança",
   "Filial", "Fornecedor", "OS", "Clusters", "Serviços", "Situação dos serviços", "Solicitação", "Agendamento",
   "Hora agendada", "Previsão de saída", "Entrada", "Hora de entrada", "Saída", "Hora de saída", "TMM (h)",
   "Precisão do TMM", "KM de entrada", "Situação do KM", "Fonte do KM", "Entrada atrasada", "Saída vencida",
@@ -55,7 +55,6 @@ function toRow(m: MaintenanceRow): ExportCell[] {
     m.operationName,
     m.stateUf,
     m.cityName,
-    m.brCode,
     m.leaderName,
     m.unitName,
     m.supplierName,
