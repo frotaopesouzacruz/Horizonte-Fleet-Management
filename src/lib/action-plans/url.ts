@@ -14,7 +14,7 @@ export const firstParam = (params: SearchParamsLike, key: string): string | unde
 
 const isoDate = (v: string | undefined) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
 
-const DEADLINES: Deadline[] = ["overdue", "today", "soon", "on_time", "no_due", "treated_on_time", "treated_late", "cancelled"];
+const DEADLINES: Deadline[] = ["overdue", "today", "soon", "upcoming", "on_time", "no_due", "treated_on_time", "treated_late", "cancelled"];
 
 export function parseActionPlanFilters(params: SearchParamsLike): ActionPlanFilters {
   const get = (key: keyof ActionPlanFilters) => firstParam(params, FILTER_PARAM[key]);
@@ -27,7 +27,7 @@ export function parseActionPlanFilters(params: SearchParamsLike): ActionPlanFilt
     to: isoDate(get("to")),
     q: get("q"),
     status: get("status"),
-    statusGroup: group === "open" || group === "closed" ? group : undefined,
+    statusGroup: group === "open" || group === "closed" || group === "all" ? group : undefined,
     priority: get("priority"),
     operation: get("operation"),
     state: get("state"),

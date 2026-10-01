@@ -55,7 +55,7 @@ export function filtersPayload(f: ActionPlanFilters): Record<string, Json> {
   if (f.from) out.date_from = f.from;
   if (f.to) out.date_to = f.to;
   put("statuses", list(f.status));
-  if (f.statusGroup) out.status_group = f.statusGroup;
+  if (f.statusGroup === "open" || f.statusGroup === "closed") out.status_group = f.statusGroup;
   put("priorities", list(f.priority));
   put("operation_ids", list(f.operation));
   put("state_ids", ints(f.state));

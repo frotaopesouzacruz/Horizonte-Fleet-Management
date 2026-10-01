@@ -30,7 +30,8 @@ export type ItemStatus =
 
 export type Priority = "low" | "medium" | "high" | "critical";
 export type AnalysisState = "new" | "in_analysis" | "awaiting_maintenance";
-export type Deadline = "overdue" | "today" | "soon" | "on_time" | "no_due" | "treated_on_time" | "treated_late" | "cancelled";
+/** "upcoming" só existe como filtro: vence hoje ou em breve. */
+export type Deadline = "overdue" | "today" | "soon" | "upcoming" | "on_time" | "no_due" | "treated_on_time" | "treated_late" | "cancelled";
 export type Confidence = "high" | "medium" | "manual_review" | "none";
 export type Grouping = "operation" | "cluster" | "vehicle" | "priority" | "responsible";
 export type ResolutionKind = "resolved_without_maintenance" | "improper" | "cancelled" | "validated_by_maintenance";
@@ -187,7 +188,7 @@ export interface ActionPlanDashboard {
   topRecurrentVehicles: { key: string; label: string; sub: string | null; recurrences: number; occurrences: number; open: number }[];
   resolutionOrigin: KeyValue[];
   tmrByPriority: { key: Priority; avg: number | null; median: number | null; n: number }[];
-  tmrByCluster: { key: string; avg: number | null; n: number }[];
+  tmrByCluster: { key: string | null; label: string; avg: number | null; n: number }[];
   trend: { bucket: string; newItems: number; treatedItems: number; newPlans: number; closedPlans: number; backlog: number }[];
   coverage: Coverage;
 }
@@ -612,7 +613,8 @@ export interface ActionPlanFilters {
   to?: string;
   q?: string;
   status?: string;
-  statusGroup?: "open" | "closed";
+  /** all = todas as situações (o portal abre nos abertos quando nada é escolhido). */
+  statusGroup?: "open" | "closed" | "all";
   priority?: string;
   operation?: string;
   state?: string;

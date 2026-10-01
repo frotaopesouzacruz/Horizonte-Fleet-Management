@@ -15,7 +15,7 @@
 --   city_ids[], unit_ids[], br_ids[], leader_ids[], vehicle_ids[],
 --   vehicle_type_ids[], cluster_keys[], question_keys[], action_keys[],
 --   responsible_ids[], unassigned, with_maintenance (true|false), deadline
---   (overdue|today|soon|on_time|no_due|treated_on_time|treated_late),
+--   (overdue|today|soon|upcoming = hoje ou em breve|on_time|no_due|treated_on_time|treated_late),
 --   recurrence, fleet_status (active|inactive|all), mine, plan_ids[]
 create or replace function private.action_plan_filtered(p_organization_id uuid, p_filters jsonb)
 returns setof public.action_plans
@@ -103,7 +103,9 @@ as $$
             when p.due_on < f.today then 'overdue'
             when p.due_on = f.today then 'today'
             when p.due_on <= f.today + f.soon then 'soon'
-            else 'on_time' end)
+            else 'on_time' end
+          or (f.deadline = 'upcoming' and not private.action_plan_terminal(p.status)
+              and p.due_on between f.today and f.today + f.soon))
      and (f.fleet_status = 'all'
           or (f.fleet_status = 'active') = private.maintenance_vehicle_active(p.vehicle_id));
 $$;
@@ -386,7 +388,7 @@ begin
             or e.leader_employee_id = any (private.jsonb_uuid_array(p_filters -> 'leader_ids')))
   ),
   tmr as (
-    select extract(epoch from (closed_at - first_occurrence_at)) / 86400.0 as d, priority, cluster_name, operation_id
+    select extract(epoch from (closed_at - first_occurrence_at)) / 86400.0 as d, priority, cluster_key, cluster_name, operation_id
       from pl where status in ('resolved', 'resolved_without_maintenance', 'improper') and closed_at is not null
   ),
   kpi as (
@@ -506,9 +508,10 @@ begin
                           from (select priority, round(avg(d)::numeric, 1) a,
                                        round((percentile_cont(0.5) within group (order by d))::numeric, 1) md, count(*) n
                                   from tmr group by priority) x),
-    'tmr_by_cluster', (select coalesce(jsonb_agg(jsonb_build_object('key', cluster_name, 'avg', a, 'n', n) order by a desc), '[]')
-                         from (select coalesce(cluster_name, 'Sem cluster') cluster_name, round(avg(d)::numeric, 1) a, count(*) n
-                                 from tmr group by 1) x),
+    'tmr_by_cluster', (select coalesce(jsonb_agg(jsonb_build_object('key', cluster_key, 'label', label, 'avg', a, 'n', n) order by a desc), '[]')
+                         from (select cluster_key, coalesce(max(cluster_name), cluster_key, 'Sem cluster') label,
+                                      round(avg(d)::numeric, 1) a, count(*) n
+                                 from tmr group by cluster_key) x),
     'trend', (
       with b as (
         select gs::date as bucket_start,
