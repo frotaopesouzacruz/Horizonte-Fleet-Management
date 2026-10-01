@@ -468,8 +468,7 @@ begin
     'checklist_action_parameters', 'action_plan_settings', 'action_plans', 'action_plan_items',
     'action_plan_maintenance_links', 'action_plan_ingestions']
   loop
-    execute format('drop trigger if exists %I on public.%I', t || '_set_stamps', t);
-    execute format('create trigger %I before insert or update on public.%I for each row execute function private.tg_set_stamps()',
+    execute format('create or replace trigger %I before insert or update on public.%I for each row execute function private.tg_set_stamps()',
                    t || '_set_stamps', t);
   end loop;
 
@@ -477,23 +476,20 @@ begin
   -- configurações e vínculos); plano e apontamento têm trilha própria.
   foreach t in array array['checklist_action_parameters', 'action_plan_settings', 'action_plan_maintenance_links']
   loop
-    execute format('drop trigger if exists %I on public.%I', t || '_audit', t);
-    execute format('create trigger %I after insert or update or delete on public.%I for each row execute function private.tg_audit()',
+    execute format('create or replace trigger %I after insert or update or delete on public.%I for each row execute function private.tg_audit()',
                    t || '_audit', t);
   end loop;
 
   foreach t in array array[
     'checklist_action_parameters', 'action_plans', 'action_plan_items', 'action_plan_maintenance_links', 'action_plan_ingestions']
   loop
-    execute format('drop trigger if exists %I on public.%I', t || '_prevent_tenant_change', t);
-    execute format('create trigger %I before update on public.%I for each row execute function private.tg_prevent_tenant_change()',
+    execute format('create or replace trigger %I before update on public.%I for each row execute function private.tg_prevent_tenant_change()',
                    t || '_prevent_tenant_change', t);
   end loop;
 
   foreach t in array array['action_plan_item_resolutions', 'action_plan_events']
   loop
-    execute format('drop trigger if exists %I on public.%I', t || '_append_only', t);
-    execute format('create trigger %I before update or delete on public.%I for each row execute function private.tg_block_mutation()',
+    execute format('create or replace trigger %I before update or delete on public.%I for each row execute function private.tg_block_mutation()',
                    t || '_append_only', t);
   end loop;
 end $$;
@@ -516,8 +512,7 @@ declare
 begin
   foreach t in array array['action_plans', 'action_plan_items', 'action_plan_maintenance_links']
   loop
-    execute format('drop trigger if exists %I on public.%I', t || '_no_delete', t);
-    execute format('create trigger %I before delete on public.%I for each row execute function private.tg_action_plan_no_delete()',
+    execute format('create or replace trigger %I before delete on public.%I for each row execute function private.tg_action_plan_no_delete()',
                    t || '_no_delete', t);
   end loop;
 end $$;
@@ -534,25 +529,45 @@ alter table public.action_plan_maintenance_links  enable row level security;
 alter table public.action_plan_events             enable row level security;
 alter table public.action_plan_ingestions         enable row level security;
 
-drop policy if exists checklist_action_parameters_select on public.checklist_action_parameters;
-create policy checklist_action_parameters_select on public.checklist_action_parameters
-  for select to authenticated
-  using (organization_id in (select private.permitted_org_ids('action_plans.view')));
+do $pol$
+begin
+  if exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'checklist_action_parameters' and policyname = 'checklist_action_parameters_select') then
+    alter policy checklist_action_parameters_select on public.checklist_action_parameters to authenticated
+      using (organization_id in (select private.permitted_org_ids('action_plans.view')));
+  else
+    create policy checklist_action_parameters_select on public.checklist_action_parameters for select to authenticated
+      using (organization_id in (select private.permitted_org_ids('action_plans.view')));
+  end if;
+end $pol$;
 
-drop policy if exists action_plan_settings_select on public.action_plan_settings;
-create policy action_plan_settings_select on public.action_plan_settings
-  for select to authenticated
-  using (organization_id in (select private.permitted_org_ids('action_plans.view')));
+do $pol$
+begin
+  if exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'action_plan_settings' and policyname = 'action_plan_settings_select') then
+    alter policy action_plan_settings_select on public.action_plan_settings to authenticated
+      using (organization_id in (select private.permitted_org_ids('action_plans.view')));
+  else
+    create policy action_plan_settings_select on public.action_plan_settings for select to authenticated
+      using (organization_id in (select private.permitted_org_ids('action_plans.view')));
+  end if;
+end $pol$;
 
 -- O plano é lido pelo escopo do CONTEXTO em que o problema foi apontado (a
 -- operação gravada do 1º apontamento), não pela alocação de hoje. Sem operação
 -- no contexto, vale o escopo atual do veículo.
-drop policy if exists action_plans_select on public.action_plans;
-create policy action_plans_select on public.action_plans
-  for select to authenticated
-  using (organization_id in (select private.permitted_org_ids('action_plans.view'))
+do $pol$
+begin
+  if exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'action_plans' and policyname = 'action_plans_select') then
+    alter policy action_plans_select on public.action_plans to authenticated
+      using (organization_id in (select private.permitted_org_ids('action_plans.view'))
          and (operation_id in (select private.accessible_operation_ids())
               or (operation_id is null and private.vehicle_in_scope(organization_id, vehicle_id))));
+  else
+    create policy action_plans_select on public.action_plans for select to authenticated
+      using (organization_id in (select private.permitted_org_ids('action_plans.view'))
+         and (operation_id in (select private.accessible_operation_ids())
+              or (operation_id is null and private.vehicle_in_scope(organization_id, vehicle_id))));
+  end if;
+end $pol$;
 
 do $$
 declare
@@ -560,18 +575,30 @@ declare
 begin
   foreach t in array array['action_plan_items', 'action_plan_item_resolutions', 'action_plan_maintenance_links', 'action_plan_events']
   loop
-    execute format('drop policy if exists %I on public.%I', t || '_select', t);
-    execute format($p$
-      create policy %I on public.%I for select to authenticated
-      using (exists (select 1 from public.action_plans p where p.id = plan_id))
-    $p$, t || '_select', t);
+    if exists (select 1 from pg_policies where schemaname = 'public' and tablename = t and policyname = t || '_select') then
+      execute format($p$
+        alter policy %I on public.%I to authenticated
+        using (exists (select 1 from public.action_plans p where p.id = plan_id))
+      $p$, t || '_select', t);
+    else
+      execute format($p$
+        create policy %I on public.%I for select to authenticated
+        using (exists (select 1 from public.action_plans p where p.id = plan_id))
+      $p$, t || '_select', t);
+    end if;
   end loop;
 end $$;
 
-drop policy if exists action_plan_ingestions_select on public.action_plan_ingestions;
-create policy action_plan_ingestions_select on public.action_plan_ingestions
-  for select to authenticated
-  using (organization_id in (select private.permitted_org_ids('action_plans.view_audit')));
+do $pol$
+begin
+  if exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'action_plan_ingestions' and policyname = 'action_plan_ingestions_select') then
+    alter policy action_plan_ingestions_select on public.action_plan_ingestions to authenticated
+      using (organization_id in (select private.permitted_org_ids('action_plans.view_audit')));
+  else
+    create policy action_plan_ingestions_select on public.action_plan_ingestions for select to authenticated
+      using (organization_id in (select private.permitted_org_ids('action_plans.view_audit')));
+  end if;
+end $pol$;
 
 -- O Supabase concede ALL (inclusive TRUNCATE, que a RLS não cobre) a anon e
 -- authenticated em tabelas novas do schema public. Aqui só se lê.
@@ -602,47 +629,47 @@ insert into public.action_plan_settings (organization_id)
 select o.id from public.organizations o where o.deleted_at is null
 on conflict (organization_id) do nothing;
 
-create temporary table tmp_action_titles (question_key text primary key, title text);
-insert into tmp_action_titles values
-  ('5s.limpeza_externa',                'Limpeza externa inadequada'),
-  ('5s.limpeza_interna',                'Limpeza interna/cabine inadequada'),
-  ('extintor.capacidade_8kg',           'Extintor de 8 kg ausente'),
-  ('extintor.validade_pressao',         'Extintor vencido ou despressurizado'),
-  ('implementos.camera_re',             'Câmera de ré com falha'),
-  ('implementos.controle_auxiliar',     'Controle auxiliar (mão amiga) com falha'),
-  ('implementos.plataforma_hidraulica', 'Plataforma hidráulica com falha'),
-  ('implementos.prateleiras',           'Prateleiras em más condições'),
-  ('implementos.sirene_re',             'Sirene de ré com falha'),
-  ('implementos.tela_multimidia',       'Tela multimídia com falha'),
-  ('luzes.farois',                      'Faróis com falha'),
-  ('luzes.freio',                       'Luz de freio com falha'),
-  ('luzes.re',                          'Luz de ré com falha'),
-  ('luzes.setas',                       'Setas com falha'),
-  ('mecanica.freio_estacionario',       'Freio estacionário com falha'),
-  ('mecanica.freios_servico',           'Freios de serviço com falha'),
-  ('mecanica.nivel_agua_radiador',      'Nível de água do radiador inadequado'),
-  ('mecanica.nivel_arla',               'Nível de ARLA inadequado'),
-  ('mecanica.nivel_oleo',               'Nível de óleo do motor inadequado'),
-  ('mecanica.problema_mecanico',        'Problema mecânico relatado'),
-  ('pneus.dianteiros',                  'Pneus dianteiros em más condições'),
-  ('pneus.estepe',                      'Estepe ausente'),
-  ('pneus.traseiros',                   'Pneus traseiros em más condições'),
-  ('qualidade.embalagens',              'Embalagens inadequadas'),
-  ('qualidade.inspecao_mercadoria',     'Mercadoria sem inspeção visual'),
-  ('qualidade.verificacoes_previas',    'Verificações prévias não realizadas'),
-  ('seguranca.alarme',                  'Alarme com falha'),
-  ('seguranca.buzina',                  'Buzina com falha'),
-  ('seguranca.carregador_celular',      'Carregador de celular com falha'),
-  ('seguranca.chave_roda',              'Chave de roda ausente'),
-  ('seguranca.cintos',                  'Travas dos cintos de segurança com falha'),
-  ('seguranca.limpadores',              'Limpadores de para-brisa com falha'),
-  ('seguranca.macaco',                  'Macaco hidráulico ausente');
-
 do $seed$
 declare
   o   record;
   q   record;
   c   record;
+  -- Títulos padrão por chave de pergunta (o administrador ajusta depois).
+  v_titles jsonb := $titles${
+    "5s.limpeza_externa":                "Limpeza externa inadequada",
+    "5s.limpeza_interna":                "Limpeza interna/cabine inadequada",
+    "extintor.capacidade_8kg":           "Extintor de 8 kg ausente",
+    "extintor.validade_pressao":         "Extintor vencido ou despressurizado",
+    "implementos.camera_re":             "Câmera de ré com falha",
+    "implementos.controle_auxiliar":     "Controle auxiliar (mão amiga) com falha",
+    "implementos.plataforma_hidraulica": "Plataforma hidráulica com falha",
+    "implementos.prateleiras":           "Prateleiras em más condições",
+    "implementos.sirene_re":             "Sirene de ré com falha",
+    "implementos.tela_multimidia":       "Tela multimídia com falha",
+    "luzes.farois":                      "Faróis com falha",
+    "luzes.freio":                       "Luz de freio com falha",
+    "luzes.re":                          "Luz de ré com falha",
+    "luzes.setas":                       "Setas com falha",
+    "mecanica.freio_estacionario":       "Freio estacionário com falha",
+    "mecanica.freios_servico":           "Freios de serviço com falha",
+    "mecanica.nivel_agua_radiador":      "Nível de água do radiador inadequado",
+    "mecanica.nivel_arla":               "Nível de ARLA inadequado",
+    "mecanica.nivel_oleo":               "Nível de óleo do motor inadequado",
+    "mecanica.problema_mecanico":        "Problema mecânico relatado",
+    "pneus.dianteiros":                  "Pneus dianteiros em más condições",
+    "pneus.estepe":                      "Estepe ausente",
+    "pneus.traseiros":                   "Pneus traseiros em más condições",
+    "qualidade.embalagens":              "Embalagens inadequadas",
+    "qualidade.inspecao_mercadoria":     "Mercadoria sem inspeção visual",
+    "qualidade.verificacoes_previas":    "Verificações prévias não realizadas",
+    "seguranca.alarme":                  "Alarme com falha",
+    "seguranca.buzina":                  "Buzina com falha",
+    "seguranca.carregador_celular":      "Carregador de celular com falha",
+    "seguranca.chave_roda":              "Chave de roda ausente",
+    "seguranca.cintos":                  "Travas dos cintos de segurança com falha",
+    "seguranca.limpadores":              "Limpadores de para-brisa com falha",
+    "seguranca.macaco":                  "Macaco hidráulico ausente"
+  }$titles$::jsonb;
 begin
   for o in
     select a.organization_id, a.id as app_id
@@ -668,7 +695,7 @@ begin
          case when q.question_key = 'funilaria.avaria' then 'damage' else 'maintenance' end,
          case when q.has_select then 'trigger' else 'standalone' end,
          case when q.question_key = 'funilaria.avaria' then false else coalesce(q.generates_action_plan, true) end,
-         (select t.title from tmp_action_titles t where t.question_key = q.question_key),
+         v_titles ->> q.question_key,
          case
            when q.question_key = 'funilaria.avaria' then null
            when q.question_key in ('mecanica.freios_servico', 'mecanica.freio_estacionario',
@@ -704,5 +731,3 @@ begin
     end loop;
   end loop;
 end $seed$;
-
-drop table if exists tmp_action_titles;

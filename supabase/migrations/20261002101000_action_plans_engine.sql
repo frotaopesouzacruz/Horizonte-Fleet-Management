@@ -955,8 +955,7 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists outbox_action_plans_consume on public.outbox_events;
-create trigger outbox_action_plans_consume
+create or replace trigger outbox_action_plans_consume
   after insert on public.outbox_events
   for each row execute function private.tg_outbox_action_plans();
 
@@ -986,8 +985,7 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists checklist_answers_action_plans on public.checklist_execution_answers;
-create trigger checklist_answers_action_plans
+create or replace trigger checklist_answers_action_plans
   after update on public.checklist_execution_answers
   for each row execute function private.tg_answers_action_plans();
 
@@ -1045,9 +1043,7 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists maintenance_finding_links_action_plans on public.maintenance_finding_links;
-drop trigger if exists maintenance_finding_links_action_plans_link on public.maintenance_finding_links;
-create trigger maintenance_finding_links_action_plans_link
+create or replace trigger maintenance_finding_links_action_plans_link
   after insert on public.maintenance_finding_links
   for each row execute function private.tg_finding_links_action_plans_link();
 
@@ -1076,11 +1072,17 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists maintenance_finding_links_action_plans_refresh on public.maintenance_finding_links;
-create constraint trigger maintenance_finding_links_action_plans_refresh
-  after insert or update or delete on public.maintenance_finding_links
-  deferrable initially deferred
-  for each row execute function private.tg_finding_links_action_plans_refresh();
+do $trg$
+begin
+  -- Gatilho de restrição (adiado) não aceita OR REPLACE: cria só se faltar.
+  if not exists (select 1 from pg_trigger
+                  where tgrelid = 'public.maintenance_finding_links'::regclass and tgname = 'maintenance_finding_links_action_plans_refresh') then
+    create constraint trigger maintenance_finding_links_action_plans_refresh
+      after insert or update or delete on public.maintenance_finding_links
+      deferrable initially deferred
+      for each row execute function private.tg_finding_links_action_plans_refresh();
+  end if;
+end $trg$;
 
 create or replace function private.tg_maintenances_action_plans()
 returns trigger
@@ -1106,11 +1108,17 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists maintenances_action_plans on public.maintenances;
-create constraint trigger maintenances_action_plans
-  after update on public.maintenances
-  deferrable initially deferred
-  for each row execute function private.tg_maintenances_action_plans();
+do $trg$
+begin
+  -- Gatilho de restrição (adiado) não aceita OR REPLACE: cria só se faltar.
+  if not exists (select 1 from pg_trigger
+                  where tgrelid = 'public.maintenances'::regclass and tgname = 'maintenances_action_plans') then
+    create constraint trigger maintenances_action_plans
+      after update on public.maintenances
+      deferrable initially deferred
+      for each row execute function private.tg_maintenances_action_plans();
+  end if;
+end $trg$;
 
 -- -----------------------------------------------------------------------------
 -- 9. Conciliação plano × manutenção
