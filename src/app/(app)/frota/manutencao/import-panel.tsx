@@ -82,6 +82,17 @@ const CATEGORY_LABEL: Record<string, string> = {
   no_preventive_rule: "MP sem regra preventiva do veículo (sem vínculo)",
   cycle_out_of_plan: "MP além dos ciclos da regra (sem vínculo)",
   matched_by_os: "Mesma entrada reconhecida pela OS (fornecedor reescrito)",
+  reidentified: "Aberta reconhecida (OS ou data mudou na planilha)",
+  reidentify_ambiguous: "Mais de uma aberta candidata (segue como nova)",
+  os_kept: "OS ausente na planilha (mantida a do HFM)",
+  os_changed: "OS alterada pela planilha",
+  rescheduled: "Reprogramada pela planilha",
+  reschedule_before_request: "Data agendada antes da solicitação (mantida a do HFM)",
+  unknown_operation: "Operação não encontrada (entra sem operação)",
+  ambiguous_operation: "Operação ambígua (entra sem operação)",
+  ambiguous_city: "Cidade em mais de um estado (informe a UF)",
+  city_outside_operation: "Cidade fora da abrangência da operação",
+  context_divergent: "Contexto divergente (mantido o do HFM)",
   duplicate_in_file: "Repetida no arquivo",
   conflict: "Conflito: alterada no HFM",
   unchanged: "Já importada, sem mudança",
@@ -121,6 +132,8 @@ const BATCH_STATUS: Record<string, { label: string; tone: StatusTone }> = {
 const SAMPLE_COLUMNS: Record<MaintenanceImportKind, { key: string; label: string }[]> = {
   records: [
     { key: "license_plate", label: "Placa" },
+    { key: "operation_name", label: "Operação" },
+    { key: "city_label", label: "Cidade/UF" },
     { key: "type", label: "Tipo" },
     { key: "status", label: "Situação" },
     { key: "service", label: "Serviço" },
@@ -571,6 +584,12 @@ function PreviewPanel({
         <Stat label="Conflitos" value={preview.conflictRows} tone="warning" />
         <Stat label="Duplicadas no arquivo" value={preview.duplicateRows} tone="danger" />
         {preview.kind === "records" ? <Stat label="Manutenções resultantes" value={preview.maintenances} tone="primary" /> : null}
+        {preview.kind === "records" ? (
+          <Stat label="Operação a preencher" value={preview.contextFillRows} tone="primary" testId="maintenance-import-context-fill" />
+        ) : null}
+        {preview.kind === "records" ? (
+          <Stat label="Abertas reconhecidas" value={preview.reidentifiedRows} tone="warning" testId="maintenance-import-reidentified" />
+        ) : null}
       </div>
 
       {preview.kind === "records" && preview.unknownSuppliers.length ? (

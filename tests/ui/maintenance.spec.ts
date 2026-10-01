@@ -165,7 +165,7 @@ test.describe("manutenção", () => {
     await page.goto(`${PREVIEW}?aba=importacoes`);
     const layout = page.getByTestId("maintenance-import-layout");
     const base = [
-      "Placa", "Tipo de Manutenção", "Categoria (Cluster)", "Serviço", "Parceiro Comercial", "OS", "Data Agendada",
+      "Placa", "Operação", "Cidade/UF", "Tipo de Manutenção", "Categoria (Cluster)", "Serviço", "Parceiro Comercial", "OS", "Data Agendada",
       "Data de Entrada", "Hora de Entrada", "Previsão de Saída", "Data de Saída", "Hora de Saída", "KM de Entrada", "Situação", "Origem",
     ];
     for (const header of base) await expect(layout.getByRole("cell", { name: header, exact: true })).toBeVisible();

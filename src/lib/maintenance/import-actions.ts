@@ -71,6 +71,10 @@ export interface MaintenanceImportPreview {
   conflictRows: number;
   duplicateRows: number;
   maintenances: number;
+  /** Existentes sem operação que recebem a operação/cidade da planilha. */
+  contextFillRows: number;
+  /** Abertas reconhecidas apesar de a planilha ter mudado a OS ou a data. */
+  reidentifiedRows: number;
   alreadyImported: boolean;
   /** Fornecedores da planilha sem correspondência no catálogo (nome e linhas). */
   unknownSuppliers: { name: string; rows: number }[];
@@ -173,6 +177,8 @@ export async function finalizeMaintenanceImport(
       conflictRows: num(summary.conflict_rows),
       duplicateRows: num(summary.duplicate_rows),
       maintenances: num(summary.maintenances),
+      contextFillRows: num(summary.context_fill_rows),
+      reidentifiedRows: num(summary.reidentified_rows),
       alreadyImported: summary.already_imported === true,
       unknownSuppliers: arr(summary.unknown_suppliers).map((u) => ({ name: String(u.name ?? ""), rows: num(u.rows) })),
       categories,

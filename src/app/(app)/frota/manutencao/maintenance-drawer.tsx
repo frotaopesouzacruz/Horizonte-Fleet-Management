@@ -674,7 +674,9 @@ function ContextSection({ detail }: { detail: MaintenanceDetail }) {
       </Facts>
       {detail.contextSource === "none" ? (
         <p className="text-caption text-fg-muted">
-          Na data, o veículo não tinha fidelização nem alocação registradas; a manutenção fica sem operação atribuída.
+          {detail.operationName
+            ? "Na data, o veículo não tinha fidelização nem alocação registradas; operação e cidade vêm da planilha importada."
+            : "Na data, o veículo não tinha fidelização nem alocação registradas; a manutenção fica sem operação atribuída."}
         </p>
       ) : null}
     </Section>

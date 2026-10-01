@@ -22,7 +22,7 @@ export interface MaintenanceImportColumn {
 }
 
 export const IMPORT_KINDS: { kind: MaintenanceImportKind; label: string; description: string }[] = [
-  { kind: "records", label: "Base de manutenções", description: "Manutenções e seus serviços. Uma linha por serviço; linhas do mesmo veículo, tipo, data, OS e fornecedor formam uma manutenção." },
+  { kind: "records", label: "Base de manutenções", description: "Manutenções e seus serviços. Uma linha por serviço; linhas do mesmo veículo, tipo, data, OS e fornecedor formam uma manutenção. Operação e Cidade/UF completam o contexto quando o HFM não o tem." },
   { kind: "clusters", label: "Clusters técnicos", description: "Agrupadores técnicos dos serviços (Motor, Freios, Elétrica…)." },
   { kind: "services", label: "Serviços", description: "Serviços por cluster (categoria), com tipos de manutenção aplicáveis, criticidade e outros nomes." },
   { kind: "suppliers", label: "Fornecedores", description: "Parceiros comerciais: código, CNPJ/CPF, categoria, tipo, pagamento e outros nomes." },
@@ -41,6 +41,8 @@ const col = (field: string, label: string, required: boolean, aliases: string[],
 export const IMPORT_COLUMNS: Record<MaintenanceImportKind, MaintenanceImportColumn[]> = {
   records: [
     col("license_plate", "Placa", false, ["placa", "plate", "license plate"], "placa do veículo (ou informe a frota)"),
+    col("operation", "Operação", false, ["operacao", "operacao local", "tipo de operacao", "operation"], "operação cadastrada (acento e maiúsculas não importam); vale quando o HFM não tem o contexto do veículo na data — nunca sobrescreve; não encontrada entra sem operação (aviso)"),
+    col("city", "Cidade/UF", false, ["cidade uf", "cidade", "local", "municipio", "city"], "Belém/PA ou só Belém: sem UF, vale a cidade da abrangência da operação; ambígua entra sem cidade (aviso)"),
     col("maintenance_type", "Tipo de Manutenção", true, ["tipo de manutencao", "tipo manutencao", "tipo", "natureza", "type"], "Preventiva, Corretiva ou Preditiva (Socorro em rota e Entrega técnica entram como Corretiva com essa origem)"),
     col("cluster", "Categoria (Cluster)", false, ["categoria cluster", "categoria", "cluster", "grupo", "sistema", "cluster tecnico"], "cluster do serviço; se divergir do cadastro, vale o cadastro (aviso)"),
     col("service", "Serviço", true, ["servico", "servicos", "service", "item", "descricao do servico"], "serviço do catálogo, pelo nome ou por um dos outros nomes — nunca é criado pela importação"),
