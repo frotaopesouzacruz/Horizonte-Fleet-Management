@@ -121,7 +121,7 @@ $$;
 create or replace function private.fidelization_parse_day(p_value text, p_competence date)
 returns date
 language plpgsql
-immutable
+stable
 set search_path = ''
 as $$
 declare
@@ -230,6 +230,8 @@ create or replace trigger fidelization_competences_guard
   before update on public.fidelization_competences
   for each row execute function private.tg_fidelization_competence_guard();
 
+-- Carimbos, organização imutável, auditoria e nada de exclusão (o cabeçalho
+-- é o histórico da competência). Os mesmos gatilhos das demais tabelas do HFM.
 create or replace trigger fidelization_competences_set_stamps
   before insert or update on public.fidelization_competences
   for each row execute function private.tg_set_stamps();
@@ -316,8 +318,6 @@ create table if not exists public.fidelization_history_positions (
     check (br_code_snapshot is null or private.fidelization_br_code_clean(br_code_snapshot) is not null),
   constraint fidelization_history_br_consistency_check
     check (operation_br_id is null or br_code_snapshot is not null),
-  constraint fidelization_history_identity_check
-    check (license_plate_snapshot is not null or fleet_code_snapshot is not null),
   constraint fidelization_history_batch_check
     check (import_batch is null or length(import_batch) <= 200),
   constraint fidelization_history_position_key unique (competence_id, vehicle_id, first_day)
@@ -1018,16 +1018,16 @@ begin
   select coalesce(array_agg(s.id), '{}'::uuid[]) into v_ops from private.accessible_operation_ids() s(id);
 
   if jsonb_typeof(f -> 'operation_ids') = 'array' then
-    select array_agg(e::uuid) into v_f_ops from jsonb_array_elements_text(f -> 'operation_ids') e;
+    select array_agg(e.v::uuid) into v_f_ops from jsonb_array_elements_text(f -> 'operation_ids') e(v);
   end if;
   if jsonb_typeof(f -> 'city_ids') = 'array' then
-    select array_agg(e::integer) into v_f_cities from jsonb_array_elements_text(f -> 'city_ids') e;
+    select array_agg(e.v::integer) into v_f_cities from jsonb_array_elements_text(f -> 'city_ids') e(v);
   end if;
   if jsonb_typeof(f -> 'br_ids') = 'array' then
-    select array_agg(e::uuid) into v_f_brs from jsonb_array_elements_text(f -> 'br_ids') e;
+    select array_agg(e.v::uuid) into v_f_brs from jsonb_array_elements_text(f -> 'br_ids') e(v);
   end if;
   if jsonb_typeof(f -> 'br_codes') = 'array' then
-    select array_agg(upper(btrim(e))) into v_f_codes from jsonb_array_elements_text(f -> 'br_codes') e;
+    select array_agg(upper(btrim(e.v))) into v_f_codes from jsonb_array_elements_text(f -> 'br_codes') e(v);
   end if;
 
   select * into h from public.fidelization_competences c
@@ -1210,7 +1210,9 @@ declare
   v_comp     date;
   v_plate    text;
   v_fleet    text;
-  v_vehicle  record;
+  v_vehicle_id    uuid;
+  v_vehicle_plate text;
+  v_vehicle_fleet text;
   v_op       uuid;
   v_city     integer;
   v_state    smallint;
@@ -1267,22 +1269,22 @@ begin
       -- Veículo (nunca criado)
       v_plate := private.normalize_plate(r ->> 'plate');
       v_fleet := nullif(upper(btrim(coalesce(r ->> 'fleet_code', ''))), '');
-      v_vehicle := null;
+      v_vehicle_id := null; v_vehicle_plate := null; v_vehicle_fleet := null;
       if v_plate is not null then
-        select v.id, v.license_plate, v.fleet_code into v_vehicle
+        select v.id, v.license_plate, v.fleet_code into v_vehicle_id, v_vehicle_plate, v_vehicle_fleet
           from public.vehicles v
          where v.organization_id = p_organization_id and private.normalize_plate(v.license_plate) = v_plate
          order by (v.deleted_at is null) desc, v.created_at
          limit 1;
       end if;
-      if v_vehicle.id is null and v_fleet is not null then
-        select v.id, v.license_plate, v.fleet_code into v_vehicle
+      if v_vehicle_id is null and v_fleet is not null then
+        select v.id, v.license_plate, v.fleet_code into v_vehicle_id, v_vehicle_plate, v_vehicle_fleet
           from public.vehicles v
          where v.organization_id = p_organization_id and upper(btrim(v.fleet_code)) = v_fleet
          order by (v.deleted_at is null) desc, v.created_at
          limit 1;
       end if;
-      if v_vehicle.id is null then
+      if v_vehicle_id is null then
         raise exception 'Veículo % não cadastrado na frota (o histórico não cria veículos).',
           coalesce(r ->> 'plate', r ->> 'fleet_code', '(sem placa)') using errcode = 'no_data_found';
       end if;
@@ -1319,7 +1321,7 @@ begin
         end if;
       end if;
       if v_city is null then
-        raise exception 'Cidade "%"%s não encontrada.', v_city_raw, coalesce('/' || v_uf, '') using errcode = 'no_data_found';
+        raise exception 'Cidade "%"% não encontrada.', v_city_raw, coalesce('/' || v_uf, '') using errcode = 'no_data_found';
       end if;
       if v_uf is not null and not exists (select 1 from public.states st where st.id = v_state and st.uf = v_uf) then
         raise exception 'A cidade % não é da UF %.', v_city_raw, v_uf using errcode = 'invalid_parameter_value';
@@ -1374,22 +1376,22 @@ begin
       -- Sobreposição da mesma placa no mês: aviso (o histórico é como veio).
       if v_header.id is not null and exists (
            select 1 from public.fidelization_history_positions p
-            where p.competence_id = v_header.id and p.vehicle_id = v_vehicle.id and p.first_day <> v_first
+            where p.competence_id = v_header.id and p.vehicle_id = v_vehicle_id and p.first_day <> v_first
               and p.first_day <= v_last and p.last_day >= v_first) then
         n_warn := n_warn + 1;
         if jsonb_array_length(v_warnings) < 50 then
           v_warnings := v_warnings || jsonb_build_object('row', i, 'message',
-            format('A placa %s já tem outra posição sobreposta em %s.', coalesce(v_vehicle.license_plate, v_vehicle.fleet_code),
+            format('A placa %s já tem outra posição sobreposta em %s.', coalesce(v_vehicle_plate, v_vehicle_fleet),
                    private.fidelization_competence_label(v_comp)));
         end if;
       end if;
 
-      v_key := v_comp::text || '|' || v_vehicle.id::text || '|' || v_first::text;
+      v_key := v_comp::text || '|' || v_vehicle_id::text || '|' || v_first::text;
       v_id := null;
       if p_dry_run then
         if v_seen ? v_key or (v_header.id is not null and exists (
              select 1 from public.fidelization_history_positions p
-              where p.competence_id = v_header.id and p.vehicle_id = v_vehicle.id and p.first_day = v_first)) then
+              where p.competence_id = v_header.id and p.vehicle_id = v_vehicle_id and p.first_day = v_first)) then
           n_dup := n_dup + 1;
         else
           n_ins := n_ins + 1;
@@ -1401,7 +1403,7 @@ begin
            operation_id, state_id, city_id, operation_br_id, br_code_snapshot, first_day, last_day, days,
            origin, import_batch, created_by)
         values
-          (p_organization_id, v_header.id, v_comp, v_vehicle.id, v_vehicle.license_plate, v_vehicle.fleet_code,
+          (p_organization_id, v_header.id, v_comp, v_vehicle_id, v_vehicle_plate, v_vehicle_fleet,
            v_op, v_state, v_city, v_br_id, v_br_code, v_first, v_last, v_days,
            'historical_import', v_batch, auth.uid())
         on conflict (competence_id, vehicle_id, first_day) do nothing

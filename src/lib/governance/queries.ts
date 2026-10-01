@@ -2,7 +2,16 @@ import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/supabase/fetch-all";
+import type { Json } from "@/types/database.types";
 import { monthStart, monthEnd, type Competence } from "./competence";
+import {
+  mapCompetenceSummary,
+  mapHistoryEvolution,
+  mapHistoryRows,
+  type FidelizationCompetenceSummary,
+  type FidelizationHistoryEvolution,
+  type FidelizationHistoryRows,
+} from "./fidelization-competence";
 
 /**
  * The operational governance service — Lideranças and Fidelização.
@@ -380,6 +389,8 @@ export interface FidelizationRow {
   replacesAssignmentId: string | null;
   isCurrent: boolean;
   updatedAt: string | null;
+  /** Quem gravou o vínculo; nulo = rotina do sistema (replicação automática). */
+  createdBy: string | null;
 }
 
 export async function listFidelizationHistory(
@@ -435,7 +446,86 @@ export async function listFidelizationHistory(
     replacesAssignmentId: (row.replaces_assignment_id as string) ?? null,
     isCurrent: Boolean(row.is_current),
     updatedAt: (row.updated_at as string) ?? null,
+    createdBy: (row.created_by as string) ?? null,
   }));
+}
+
+/* ------------------------------------------------ competência mensal contínua */
+
+export type {
+  FidelizationCompetenceSummary,
+  FidelizationHistoryEvolution,
+  FidelizationHistoryRows,
+} from "./fidelization-competence";
+
+/**
+ * O resumo da competência em tela: tipo, situação (derivada no banco), origem,
+ * placas, BRs e locais no escopo de quem consulta, última atualização e o mês
+ * anterior (data de referência e placas encontradas para a replicação).
+ */
+export async function getFidelizationCompetenceSummary(
+  organizationId: string,
+  competence: Competence,
+): Promise<FidelizationCompetenceSummary> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("fidelization_competence_summary", {
+    p_organization_id: organizationId,
+    p_year: competence.year,
+    p_month: competence.month,
+  });
+  if (error) throw new Error(error.message);
+  return mapCompetenceSummary(data);
+}
+
+export interface FidelizationHistoryFilters {
+  operationIds?: string[];
+  cityIds?: number[];
+  brIds?: string[];
+  brCodes?: string[];
+  noBr?: boolean;
+  q?: string;
+}
+
+/**
+ * O histórico consolidado (2024/2025, somente consulta) de uma competência.
+ * Sem filtros a tela recebe o mês inteiro e filtra no navegador; os filtros
+ * existem para exportações e consultas pontuais.
+ */
+export async function getFidelizationHistoryRows(
+  organizationId: string,
+  competence: Competence,
+  filters: FidelizationHistoryFilters = {},
+): Promise<FidelizationHistoryRows> {
+  const supabase = await createClient();
+  const payload: Record<string, unknown> = {};
+  if (filters.operationIds?.length) payload.operation_ids = filters.operationIds;
+  if (filters.cityIds?.length) payload.city_ids = filters.cityIds;
+  if (filters.brIds?.length) payload.br_ids = filters.brIds;
+  if (filters.brCodes?.length) payload.br_codes = filters.brCodes;
+  if (filters.noBr) payload.no_br = true;
+  if (filters.q) payload.q = filters.q;
+  const { data, error } = await supabase.rpc("fidelization_history_rows", {
+    p_organization_id: organizationId,
+    p_year: competence.year,
+    p_month: competence.month,
+    p_filters: payload as Json,
+  });
+  if (error) throw new Error(error.message);
+  return mapHistoryRows(data);
+}
+
+/** A evolução mês a mês de um ano histórico: placas, BRs, locais e mudanças. */
+export async function getFidelizationHistoryEvolution(
+  organizationId: string,
+  year: number,
+): Promise<FidelizationHistoryEvolution> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("fidelization_history_evolution", {
+    p_organization_id: organizationId,
+    p_year: year,
+  });
+  if (error) throw new Error(error.message);
+  return mapHistoryEvolution(data);
 }
 
 /* ------------------------------------------------------------- hierarquia */

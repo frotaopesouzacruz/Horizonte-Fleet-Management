@@ -931,16 +931,39 @@ export interface FidelizationReplicationRow {
   licensePlate: string | null;
   status: FidelizationReplicationStatus;
   note: string | null;
+  /** No conflito: a BR já tem outro veículo no destino, ou o veículo já está em outra BR. */
+  conflictKind: "br_occupied" | "vehicle_elsewhere" | null;
+  operationId: string | null;
   driverEmployeeId: string | null;
   driverName: string | null;
   driverStatus: "new" | "kept" | "conflict" | "skipped_inactive_driver" | null;
   driverNote: string | null;
 }
 
+/** A competência de destino já criada (pela rotina, pela tela ou pela importação). */
+export interface FidelizationReplicationDestination {
+  origin: string | null;
+  originLabel: string | null;
+  createdAt: string | null;
+  createdByName: string | null;
+  runs: number;
+}
+
 export interface FidelizationReplicationPreview {
   dryRun: boolean;
   from: string;
   to: string;
+  fromLabel: string;
+  toLabel: string;
+  /** Último dia da competência de origem: a posição vigente nesse dia é a que se replica. */
+  referenceDate: string | null;
+  /** Placas (titulares) vigentes na data de referência, no recorte. */
+  platesFound: number;
+  /** A competência de destino já existia: a execução só complementa o que falta. */
+  alreadyCreated: boolean;
+  destination: FidelizationReplicationDestination | null;
+  /** Situação dos vínculos criados: confirmado no mês corrente, planejado nos demais. */
+  status: string | null;
   vehicles: { new: number; kept: number; conflicts: number; skipped: number };
   drivers: { new: number; kept: number; conflicts: number; skipped: number };
   rows: FidelizationReplicationRow[];
@@ -994,12 +1017,17 @@ export async function replicateFidelizationCompetence(input: {
       licensePlate: (r.license_plate as string) ?? null,
       status: (r.status as FidelizationReplicationStatus) ?? "new",
       note: (r.note as string) ?? null,
+      conflictKind: (r.conflict_kind as FidelizationReplicationRow["conflictKind"]) ?? null,
+      operationId: (r.operation_id as string) ?? null,
       driverEmployeeId: (r.driver_employee_id as string) ?? null,
       driverName: (r.driver_name as string) ?? null,
       driverStatus: (r.driver_status as FidelizationReplicationRow["driverStatus"]) ?? null,
       driverNote: (r.driver_note as string) ?? null,
     }),
   );
+
+  const destination =
+    d.destination && typeof d.destination === "object" ? (d.destination as Record<string, unknown>) : null;
 
   if (!input.dryRun) revalidateFidelization();
   return {
@@ -1008,6 +1036,21 @@ export async function replicateFidelizationCompetence(input: {
       dryRun: Boolean(d.dry_run),
       from: String(d.from ?? ""),
       to: String(d.to ?? ""),
+      fromLabel: String(d.from_label ?? ""),
+      toLabel: String(d.to_label ?? ""),
+      referenceDate: (d.reference_date as string) ?? null,
+      platesFound: Number(d.plates_found ?? 0),
+      alreadyCreated: Boolean(d.already_created),
+      destination: destination
+        ? {
+            origin: (destination.origin as string) ?? null,
+            originLabel: (destination.origin_label as string) ?? null,
+            createdAt: (destination.created_at as string) ?? null,
+            createdByName: (destination.created_by_name as string) ?? null,
+            runs: Number(destination.runs ?? 0),
+          }
+        : null,
+      status: (d.status as string) ?? null,
       vehicles: counts("vehicles"),
       drivers: counts("drivers"),
       rows,

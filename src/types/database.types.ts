@@ -6436,6 +6436,32 @@ export type Database = {
         }
         Returns: Json
       }
+      fidelization_competence_summary: {
+        Args: { p_month: number; p_organization_id: string; p_year: number }
+        Returns: Json
+      }
+      fidelization_history_evolution: {
+        Args: { p_organization_id: string; p_year: number }
+        Returns: Json
+      }
+      fidelization_history_rows: {
+        Args: {
+          p_filters?: Json
+          p_month: number
+          p_organization_id: string
+          p_year: number
+        }
+        Returns: Json
+      }
+      import_fidelization_history: {
+        Args: {
+          p_batch?: string
+          p_dry_run?: boolean
+          p_organization_id: string
+          p_rows: Json
+        }
+        Returns: Json
+      }
       log_maintenance_export: {
         Args: {
           p_filters?: Json

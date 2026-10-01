@@ -28,6 +28,9 @@
 --   C9   §42  estabilidade sem contagem dupla: substituição = 1 evento,
 --             inversão = 1 evento (duas linhas), trocas inferidas à parte
 --   C10  §37  replicação com prévia: prévia não grava; real = prévia;
+--             (desde 20261002106000: BR já planejada no destino com OUTRO
+--             veículo é conflito — preservada, nunca sobrescrita; "já
+--             existente" é só a mesma placa na mesma BR)
 --             destino já planejado preservado; veículo em outra BR = conflito;
 --             repetir não sobrescreve
 --   C11  §63  sem permissão: substituir motorista, replicar, e o diretório e
@@ -235,6 +238,8 @@ begin
 
   -- C10: replicacao com previa (mes vigente -> proximo), sem sobrescrever
   -- B ja planejada no destino com o veiculo antigo de A (livre em outubro); D planejada com o veiculo de E (conflito para E).
+  -- Desde 20261002106000 (competencia mensal continua): B e D ja planejadas com OUTRO veiculo sao conflito
+  -- (BR ocupada, preservada) e E tambem (veiculo em outra BR); "ja existente" e so a mesma placa na mesma BR.
   j := public.save_fidelization_assignment(v_org, jsonb_build_object('operation_br_id', b.id, 'vehicle_id', a.vehicle_id,
          'start_date', to_char(date_trunc('month', current_date) + interval '1 month', 'YYYY-MM-DD'),
          'end_date', to_char(date_trunc('month', current_date) + interval '2 month - 1 day', 'YYYY-MM-DD'), 'source', 'manual', 'reason', 'Suite 13c: destino'));
@@ -254,10 +259,10 @@ begin
          null, true, true);
   select count(*) into n2 from public.fidelization_assignments where organization_id = v_org;
   ok  := n2 = n and (j->>'dry_run')::boolean;
-  ok2 := (j->'vehicles'->>'kept')::int = 2 and (j->'vehicles'->>'conflicts')::int = 1
+  ok2 := (j->'vehicles'->>'kept')::int = 0 and (j->'vehicles'->>'conflicts')::int = 3
          and (j->'vehicles'->>'new')::int = v_src - 3
          and exists (select 1 from jsonb_array_elements(j->'rows') x where (x->>'br_id')::uuid = e.id and x->>'status' = 'conflict')
-         and exists (select 1 from jsonb_array_elements(j->'rows') x where (x->>'br_id')::uuid = b.id and x->>'status' = 'kept');
+         and exists (select 1 from jsonb_array_elements(j->'rows') x where (x->>'br_id')::uuid = b.id and x->>'status' = 'conflict' and x->>'conflict_kind' = 'br_occupied');
   j2 := public.replicate_fidelization_competence(v_org, extract(year from current_date)::int, extract(month from current_date)::int,
          extract(year from date_trunc('month', current_date) + interval '1 month')::int, extract(month from date_trunc('month', current_date) + interval '1 month')::int,
          null, true, false);
@@ -274,8 +279,8 @@ begin
          extract(year from date_trunc('month', current_date) + interval '1 month')::int, extract(month from date_trunc('month', current_date) + interval '1 month')::int,
          null, true, false);
   select count(*) into n5 from public.fidelization_assignments where organization_id = v_org and source = 'replication';
-  ok5 := (j3->'vehicles'->>'new')::int = 0 and (j3->'vehicles'->>'kept')::int = v_src - 1 and (j3->'vehicles'->>'conflicts')::int = 1 and n5 = n3;
-  r := r || format('C10 replicacao: previa nao grava %s, previa = %s novos/2 preservados/1 conflito %s, real = previa (veiculos %s, motoristas %s) %s, destino preservado %s, repetir nao sobrescreve %s -> %s%s',
+  ok5 := (j3->'vehicles'->>'new')::int = 0 and (j3->'vehicles'->>'kept')::int = v_src - 3 and (j3->'vehicles'->>'conflicts')::int = 3 and n5 = n3;
+  r := r || format('C10 replicacao: previa nao grava %s, previa = %s novos/0 ja existentes/3 conflitos %s, real = previa (veiculos %s, motoristas %s) %s, destino preservado %s, repetir nao sobrescreve %s -> %s%s',
        ok, v_src - 3, ok2, n3, n4, ok3, ok4, ok5, case when ok and ok2 and ok3 and ok4 and ok5 then 'PASS' else 'FAIL' end, chr(10));
 
   -- C11: sem permissao (rebaixamento temporario, desfeito por excecao)
