@@ -63,14 +63,25 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', v_user, 'role', 'authenticated')::text, true);
   v_today := private.maintenance_today(v_org);
 
-  -- A: veículo ativo com BR titular vigente há ≥ 7 dias; B: outro veículo, de OUTRA operação.
+  -- A: veículo ativo com a mesma BR titular há ≥ 7 dias; B: outro veículo, de OUTRA operação.
   select v.id, v.fleet_code, v.license_plate, v.vehicle_type_id, b.id as br_id, b.code as br_code, b.operation_id
     into v_a
     from public.fidelization_assignments a
     join public.operation_brs b on b.id = a.operation_br_id and b.deleted_at is null
     join public.vehicles v on v.id = a.vehicle_id and v.status = 'active' and v.deleted_at is null
    where a.organization_id = v_org and a.status <> 'cancelled' and a.vehicle_role = 'primary'
-     and a.start_date <= v_today - 7 and (a.end_date is null or a.end_date >= v_today)
+     and a.start_date <= v_today and (a.end_date is null or a.end_date >= v_today)
+     -- Mesma BR nos últimos 7 dias, ainda que em registros mensais contíguos
+     -- (a competência nova começa no dia 1º): um vínculo da mesma BR cobre
+     -- hoje − 7 e nenhum de outra BR cruza a janela.
+     and exists (select 1 from public.fidelization_assignments a7
+                  where a7.vehicle_id = a.vehicle_id and a7.operation_br_id = a.operation_br_id
+                    and a7.status <> 'cancelled' and a7.vehicle_role = 'primary'
+                    and a7.start_date <= v_today - 7 and (a7.end_date is null or a7.end_date >= v_today - 7))
+     and not exists (select 1 from public.fidelization_assignments ax
+                      where ax.vehicle_id = a.vehicle_id and ax.operation_br_id <> a.operation_br_id
+                        and ax.status <> 'cancelled' and ax.vehicle_role = 'primary'
+                        and ax.start_date <= v_today and (ax.end_date is null or ax.end_date >= v_today - 7))
    order by b.code limit 1;
   select v.id, v.fleet_code, v.license_plate, v.vehicle_type_id, b.id as br_id, b.operation_id
     into v_b
@@ -78,7 +89,18 @@ begin
     join public.operation_brs b on b.id = a.operation_br_id and b.deleted_at is null
     join public.vehicles v on v.id = a.vehicle_id and v.status = 'active' and v.deleted_at is null
    where a.organization_id = v_org and a.status <> 'cancelled' and a.vehicle_role = 'primary'
-     and a.start_date <= v_today - 7 and (a.end_date is null or a.end_date >= v_today)
+     and a.start_date <= v_today and (a.end_date is null or a.end_date >= v_today)
+     -- Mesma BR nos últimos 7 dias, ainda que em registros mensais contíguos
+     -- (a competência nova começa no dia 1º): um vínculo da mesma BR cobre
+     -- hoje − 7 e nenhum de outra BR cruza a janela.
+     and exists (select 1 from public.fidelization_assignments a7
+                  where a7.vehicle_id = a.vehicle_id and a7.operation_br_id = a.operation_br_id
+                    and a7.status <> 'cancelled' and a7.vehicle_role = 'primary'
+                    and a7.start_date <= v_today - 7 and (a7.end_date is null or a7.end_date >= v_today - 7))
+     and not exists (select 1 from public.fidelization_assignments ax
+                      where ax.vehicle_id = a.vehicle_id and ax.operation_br_id <> a.operation_br_id
+                        and ax.status <> 'cancelled' and ax.vehicle_role = 'primary'
+                        and ax.start_date <= v_today and (ax.end_date is null or ax.end_date >= v_today - 7))
      and b.operation_id <> v_a.operation_id
    order by b.code limit 1;
   -- C: veículo de outro tipo ou o de menor KM do tipo de A (preventiva); F: veículo para os casos de KM.

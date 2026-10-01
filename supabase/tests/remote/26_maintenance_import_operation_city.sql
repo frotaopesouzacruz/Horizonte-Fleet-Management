@@ -46,15 +46,20 @@ begin
   v_today := private.maintenance_today(v_org);
 
   -- Veículos: v2 sem nenhuma manutenção (ciclos preventivos limpos); v4 sem
-  -- contexto oficial hoje (Fidelização/alocação), para a manutenção nova.
+  -- contexto oficial hoje (Fidelização/alocação), para a manutenção nova. Com a
+  -- competência mensal toda a frota real tem fidelização vigente, então v4 é
+  -- um veículo de teste criado aqui (some com o rollback), do tipo de v2.
   select v.id, v.license_plate, v.vehicle_type_id, v.vehicle_subcategory_id, v.vehicle_model_id into v2 from public.vehicles v
    where v.organization_id = v_org and v.status = 'active' and v.deleted_at is null
      and not exists (select 1 from public.maintenances m where m.vehicle_id = v.id)
    order by v.fleet_code limit 1;
+  insert into public.vehicles (organization_id, vehicle_type_id, vehicle_subcategory_id, fleet_code, license_plate, status)
+  values (v_org, v2.vehicle_type_id, v2.vehicle_subcategory_id, 'SUITE26-SEMCTX', 'SUITE26X', 'active');
   select v.id, v.license_plate into v4 from public.vehicles v
-   where v.organization_id = v_org and v.status = 'active' and v.deleted_at is null and v.id <> v2.id
-     and private.maintenance_context(v_org, v.id, v_today) ->> 'operation_id' is null
-   order by v.fleet_code limit 1;
+   where v.organization_id = v_org and v.license_plate = 'SUITE26X' and v.deleted_at is null;
+  if private.maintenance_context(v_org, v4.id, v_today) ->> 'operation_id' is not null then
+    raise exception 'FIXTURE: o veículo de teste SUITE26X já nasceu com contexto oficial';
+  end if;
   select v.id, v.license_plate into v1 from public.vehicles v
    where v.organization_id = v_org and v.status = 'active' and v.deleted_at is null and v.id not in (v2.id, v4.id)
    order by v.fleet_code limit 1;
