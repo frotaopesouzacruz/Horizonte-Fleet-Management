@@ -497,7 +497,13 @@ begin
                   'message', format('%s já importada, sem mudança.', v_m.code));
       end if;
 
-      delete from public.import_errors e
+      -- Os achados que a reidentificação torna superados não são apagados: ficam
+      -- marcados como 'superseded', com a mensagem original — a
+      -- trilha da validação continua completa e as contagens da prévia (por
+      -- código exato) deixam de considerá-los.
+      update public.import_errors e
+         set code = 'superseded',
+             message = '[Superado pela reidentificação] ' || e.message
        where e.batch_id = p_batch_id and e.row_number = v_row.row_number and e.code in ('duplicate_in_file', 'context_divergent');
       update public.import_rows set
         normalized_data = v_d || jsonb_build_object(

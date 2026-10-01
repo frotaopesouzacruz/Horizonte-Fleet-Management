@@ -94,6 +94,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   city_outside_operation: "Cidade fora da abrangência da operação",
   context_divergent: "Contexto divergente (mantido o do HFM)",
   duplicate_in_file: "Repetida no arquivo",
+  superseded: "Aviso superado pela reidentificação",
   conflict: "Conflito: alterada no HFM",
   unchanged: "Já importada, sem mudança",
   unknown_city: "Cidade não encontrada",
