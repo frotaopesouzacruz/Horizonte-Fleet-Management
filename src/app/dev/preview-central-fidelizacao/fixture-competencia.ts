@@ -271,17 +271,22 @@ export function historyEvolutionFor(year: number): FidelizationHistoryEvolution 
   const plates = year === 2024 ? plates2024 : plates2025;
   return {
     year,
-    months: plates.map((n, index) => ({
-      competence: `${year}-${String(index + 1).padStart(2, "0")}`,
-      month: index + 1,
-      label: `${MONTHS[index + 1]}/${year}`,
-      loaded: n > 0,
-      plates: n,
-      brs: year === 2024 ? 0 : Math.max(0, n - 1),
-      locais: n > 0 ? (year === 2024 ? 5 : 5) : 0,
-      positions: n > 0 ? n + (index % 3) : 0,
-      changes: n > 0 ? (index * 7) % 4 : 0,
-    })),
+    months: plates.map((n, index) => {
+      // Os meses que a prévia abre (03/2024 e 05/2025) batem com as linhas da fixture.
+      const shown = (year === 2024 && index + 1 === 3) || (year === 2025 && index + 1 === 5);
+      const rows = shown ? historyRowsFor({ year, month: index + 1 }) : null;
+      return {
+        competence: `${year}-${String(index + 1).padStart(2, "0")}`,
+        month: index + 1,
+        label: `${MONTHS[index + 1]}/${year}`,
+        loaded: n > 0,
+        plates: rows ? rows.totals.plates : n,
+        brs: rows ? rows.totals.brs : year === 2024 ? 0 : Math.max(0, n - 1),
+        locais: rows ? rows.totals.locais : n > 0 ? 5 : 0,
+        positions: rows ? rows.rows.length : n > 0 ? n + (index % 3) : 0,
+        changes: rows ? (year === 2024 ? 1 : 1) : n > 0 ? (index * 7) % 4 : 0,
+      };
+    }),
   };
 }
 

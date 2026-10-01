@@ -365,9 +365,11 @@ para vínculos cancelados ou já encerrados.
 ### Replicar competência (`replicate_fidelization_competence`)
 Copia os titulares vigentes no último dia da competência de origem para a
 competência de destino, e, opcionalmente, o motorista principal de cada um.
-Nunca sobrescreve: o destino já planejado é **preservado**, o veículo já usado
-em outra BR no destino é **conflito**, BR ou veículo inativo é **ignorado**;
-só o resto é **novo**. A prévia (`dry_run`) não grava e devolve as mesmas
+Nunca sobrescreve: a mesma placa já na mesma BR no destino é **já existente**;
+a BR já planejada no destino com **outro** veículo, ou o veículo já usado em
+outra BR no destino, é **conflito** (o destino fica como está); BR ou veículo
+inativo é **ignorado**; só o resto é **novo**. (Até 20261002106000, a BR
+planejada com outro veículo contava como "preservada"; ver §19.) A prévia (`dry_run`) não grava e devolve as mesmas
 contagens e as mesmas linhas da gravação; repetir devolve zero novos. Os
 vínculos criados nascem `planned`, `source = 'replication'`,
 `reason = 'Replicado de MM/AAAA'`, e os motoristas entram só onde o vínculo de
@@ -730,3 +732,126 @@ A mesma causa (`states(uf)` a partir de `operation_cities`) deixava vazios os
 filtros de Estado e Cidade da Fidelização, das BRs, das Lideranças e da
 Aderência — `getGovernanceOptions` agora lê `cities → states` e registra o erro
 em vez de engoli-lo.
+
+---
+
+## 19. Competência mensal contínua (Frota × BR × Local)
+
+Migration `20261002106000_fidelization_competences.sql` · suíte SQL 27 ·
+Playwright `fidelization-competence.spec.ts`.
+
+### 19.1 A regra
+
+* A competência é o **mês do calendário**. Ao virar o mês, a posição vigente
+  no **último dia** do mês anterior vira a posição inicial do novo mês
+  (30/09/2026 → Outubro/2026), em **vínculos mensais novos** (1º ao último
+  dia). Nenhum vínculo anterior é estendido, alterado ou apagado.
+* As mudanças do mês seguem pelas rotinas de sempre (substituir, inverter,
+  encerrar, edição por período). A replicação seguinte lê o último dia
+  (31/10 → Novembro): quem foi substituído em 15/10 sai, o substituto entra.
+* **Lideranças não são lidas nem escritas** pela replicação.
+
+### 19.2 Um motor, dois gatilhos
+
+`private.fidelization_replicate(org, origem, destino, motoristas, prévia,
+modo, situação, operação, escopo)` é a única implementação; não confere
+permissão (quem chama confere) e trava a competência de destino
+(`pg_advisory_xact_lock`).
+
+| Gatilho | Como | Situação dos vínculos |
+|---|---|---|
+| **Automático** | `private.fidelization_competence_tick()` pelo pg_cron (`hfm_fidelization_competence_tick`, `7 3 * * *` = 00:07 BRT, diário). Para cada organização ativa, no mês corrente do fuso dela: só roda se **não existe cabeçalho** da competência e o mês anterior tem titulares no último dia. Uma vez criada, nunca roda de novo. | `confirmed` |
+| **Manual** | "Replicar competência" → `replicate_fidelization_competence` (mesma assinatura e permissões de antes: `fidelization.plan`, `+change_driver` para motoristas, escopo de operação). | `confirmed` no mês corrente, `planned` nos demais |
+
+Classificação (prévia = execução): **nova** · **já existente** (mesma placa na
+mesma BR no destino) · **conflito** (BR ocupada por outro veículo, ou veículo
+em outra BR) · **ignorada** (BR ou veículo inativo). A resposta traz também
+`reference_date`, `plates_found` e `already_created`.
+
+**Idempotência.** Nunca duplica placa × competência × BR. Se o destino já foi
+criado, o diálogo diz quando, por quem e de que jeito ("A competência
+Outubro/2026 já foi criada em 01/10/2026 00:07 por Rotina automática
+(Replicação automática). Nenhum registro será duplicado.") e o botão vira
+**Complementar (N placas)** — desabilitado com N = 0. Complementar mantém a
+origem do cabeçalho, soma `runs` e troca `last_run`.
+
+Mês corrente já começado: a complementação manual desde o dia 1º passa pelo
+`fidelization_historical_guard` (exige `fidelization.manage_historical_data`).
+A rotina automática não tem usuário e não passa por ele.
+
+### 19.3 Origem
+
+`source` continua `'replication'` para as duas replicações (a constraint
+`fidelization_source_check` não mudou). Quem gravou distingue:
+
+| Rótulo | Regra (`private.fidelization_origin_label`, `fidelizationOriginLabel`) |
+|---|---|
+| Importação histórica | `source = 'import'` |
+| Replicação automática | `source = 'replication'` e `created_by` nulo (rotina) |
+| Replicação manual | `source = 'replication'` e `created_by` preenchido |
+| Alteração manual | `manual`, `substitution`, `inversion` (o tipo aparece junto) |
+
+Auditoria: cada vínculo criado passa pelo `tg_audit` (quem, quando, BR,
+veículo, origem); o cabeçalho também (cada execução, com as contagens); os
+eventos do Histórico de Mobilizações carregam `details.replication = auto |
+manual` e a competência, e a tela e a exportação dizem "Replicação
+automática/manual".
+
+### 19.4 Cabeçalho e situação
+
+`public.fidelization_competences` (uma linha por organização × mês): tipo
+(`historical` até 12/2025, `operational` a partir de 01/2026 — constraint),
+origem (`historical_import`, `auto_replication`, `manual_replication`,
+`manual`), competência de origem, data de referência, `last_run`, `runs`.
+Sem DELETE (gatilho), competência/tipo/origem imutáveis, auditado, leitura
+pela RLS com `fidelization.view`, escrita só pelas rotinas. As competências
+01–09/2026 receberam cabeçalho `historical_import` (vieram da importação de
+2026).
+
+A **situação** é derivada, nunca gravada: Histórica (consulta) · Encerrada
+(mês passado) · Em andamento (mês corrente) · Planejada (mês futuro) · Não
+criada (sem cabeçalho e sem vínculos).
+
+`fidelization_competence_summary(org, ano, mês)` devolve tipo, situação,
+origem, competência de origem, data de referência, placas, BRs, locais
+(operação × cidade) e operações **no escopo de quem consulta**, a última
+atualização (cabeçalho, vínculos do mês e eventos do mês) com o nome de quem
+fez, e o mês anterior (data de referência e placas encontradas). A Central
+mostra isso na **faixa da competência**, abaixo do seletor, em todas as áreas.
+
+### 19.5 Histórico 2024/2025 — somente consulta
+
+`public.fidelization_history_positions`: a posição consolidada de cada placa
+em cada mês (operação, UF, cidade, BR quando houver, primeiro e último dia,
+dias), imutável (`tg_block_mutation`), com RLS por permissão **e** operação
+(`operation_id in (select private.accessible_operation_ids())`, avaliado uma
+vez por consulta). **Nunca recalculado e nunca usado para recriar vínculos**:
+o motor recusa origem ou destino antes de 01/2026.
+
+* **BR ausente é NULL de verdade** — `"-"`, `"BR 000"`, `"Sem BR"`, `"Não
+  informado"` viram NULL na carga, e uma constraint recusa marcadores. A tela
+  escreve "—".
+* 2024 (sem BR): Operação → Cidade → Placas. 2025 (com BR): Operação → BR →
+  Local/Cidade → Placas, com filtro por BR (inclusive "Sem BR"). O
+  agrupamento segue o dado do mês.
+* Na Central, uma competência histórica abre a área **Histórico
+  consolidado** (no lugar do Planner de frotas), com filtros por operação,
+  cidade, BR e placa, grupos recolhíveis e a **Evolução do ano**
+  (`fidelization_history_evolution`: placas, BRs, locais e mudanças por mês).
+* Carga: `import_fidelization_history(org, linhas, lote, prévia)` — exige
+  `fidelization.import` **e** `fidelization.manage_historical_data`; linhas
+  `{competence 'AAAA-MM', plate, fleet_code, operation, uf, city (nome ou
+  IBGE), br_code, first_day, last_day, days}`; veículo pela placa normalizada
+  (nunca cria veículo), operação pelo nome sem acento/caixa ou código, cidade
+  pelo IBGE ou nome + UF, BR pelo código na operação + cidade (não achou:
+  grava só o código e avisa); recusa 2026 em diante; idempotente (competência,
+  veículo, primeiro dia); devolve inseridas, duplicadas, avisos e erros com
+  exemplos. Nunca toca `fidelization_assignments`.
+
+### 19.6 Testes
+
+| Suíte | Resultado (01/10/2026, banco local) |
+|---|---|
+| SQL 27 — C1–C13 (prévia, rotina sem usuário, idempotência, complemento, troca no meio do mês, lideranças intactas, origem, histórico, RLS, permissões) | 13/13 |
+| SQL 13c (C10 atualizado: BR planejada com outro veículo = conflito) e 15 (M4) em base sintética | iguais à base sem a migration, exceto C10 (mudança intencional) |
+| Playwright `fidelization*.spec.ts` | 56/56 |
