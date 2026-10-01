@@ -104,10 +104,16 @@ begin
      and b.operation_id <> v_a.operation_id
    order by b.code limit 1;
   -- C: veículo de outro tipo ou o de menor KM do tipo de A (preventiva); F: veículo para os casos de KM.
-  select v.id, v.vehicle_type_id, r.odometer_km as km into v_c
+  -- (C sem parâmetro preventivo para o seu tipo/subcategoria/modelo: o teste
+  -- cria o dele, o mais específico para C.)
+  select v.id, v.vehicle_type_id, v.vehicle_subcategory_id, v.vehicle_model_id, r.odometer_km as km into v_c
     from public.vehicles v join public.vehicle_odometer_readings r on r.vehicle_id = v.id and r.superseded_by is null
    where v.organization_id = v_org and v.status = 'active' and v.deleted_at is null and v.id not in (v_a.id, v_b.id)
      and private.vehicle_in_scope(v_org, v.id) and r.odometer_km > 5000
+     and not exists (select 1 from public.maintenance_preventive_rules pr
+                      where pr.organization_id = v_org and pr.deleted_at is null and pr.vehicle_type_id = v.vehicle_type_id
+                        and pr.vehicle_subcategory_id is not distinct from v.vehicle_subcategory_id
+                        and pr.vehicle_model_id is not distinct from v.vehicle_model_id)
    order by r.odometer_km limit 1;
   select v.id, r.odometer_km as km, r.reading_date into v_f
     from public.vehicles v join public.vehicle_odometer_readings r on r.vehicle_id = v.id and r.superseded_by is null
@@ -184,7 +190,8 @@ begin
   -- ---------------------------------------------------------- T95/T96 --
   begin
     -- Marco MP1 = KM de C + 100, alerta 5%: C entra em "A programar".
-    j := public.maintenance_save_preventive_rule(v_org, jsonb_build_object('vehicle_type_id', v_c.vehicle_type_id, 'service_id', s_rev,
+    j := public.maintenance_save_preventive_rule(v_org, jsonb_build_object('vehicle_type_id', v_c.vehicle_type_id,
+           'vehicle_subcategory_id', v_c.vehicle_subcategory_id, 'vehicle_model_id', v_c.vehicle_model_id, 'service_id', s_rev,
            'interval_km', v_c.km + 100, 'initial_km', 0, 'cycle_count', 3, 'alert_before_pct', 5, 'tolerance_after_pct', 5));
     select c.id into v_cycle from public.maintenance_preventive_cycles c where c.vehicle_id = v_c.id and c.cycle_number = 1;
     select s.status into txt from private.maintenance_preventive_state(v_org) s where s.cycle_id = v_cycle;
@@ -360,7 +367,10 @@ begin
 
   -- ----------------------------------------------------------- T102/T103 --
   begin
-    j := public.maintenance_dashboard(v_org, jsonb_build_object('date_from', v_today - 30, 'date_to', v_today));
+    -- O painel lista os 10 fornecedores com mais manutenções; filtrado pelo
+    -- fornecedor do teste, ele tem de aparecer com a concluída.
+    j := public.maintenance_dashboard(v_org, jsonb_build_object('date_from', v_today - 30, 'date_to', v_today,
+                                                                'supplier_ids', jsonb_build_array(v_sup)));
     select (s ->> 'completed')::int >= 1 into ok from jsonb_array_elements(j -> 'suppliers') s where s ->> 'supplier' = 'Suite20 Oficina Central';
     k := public.maintenance_list(v_org, jsonb_build_object('supplier_ids', jsonb_build_array(v_sup)), 'reference', 'desc', 50, 0);
     r := r || format('%s T102 fornecedor: nos indicadores com concluída=%s; filtro por fornecedor devolve %s manutenção(ões)%s',
