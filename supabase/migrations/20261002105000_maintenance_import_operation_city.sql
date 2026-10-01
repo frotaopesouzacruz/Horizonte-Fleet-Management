@@ -185,10 +185,10 @@ begin
         end if;
         if v_city.id is null and v_n > 1 then
           v_msgs := v_msgs || jsonb_build_object('level', 'warning', 'field', 'city', 'code', 'ambiguous_city',
-                    'message', format('Cidade "%s" existe em mais de um estado (%s)%s: informe a UF (ex.: %s/%s). A linha entra sem cidade.',
+                    'message', format('Cidade "%s" existe em mais de um estado (%s)%s: informe a UF (ex.: %s/UF). A linha entra sem cidade.',
                                       v_city_raw, v_ufs,
                                       case when v_op.id is not null then format(' e não está na abrangência de %s', v_op.name) else '' end,
-                                      v_name, split_part(v_ufs, ', ', 1)));
+                                      v_name));
         elsif v_city.id is null then
           v_msgs := v_msgs || jsonb_build_object('level', 'warning', 'field', 'city', 'code', 'unknown_city',
                     'message', format('Cidade "%s" não encontrada: a linha entra sem cidade.', v_city_raw));
@@ -217,6 +217,31 @@ $$;
 revoke all on function private.maintenance_import_resolve_context(uuid, text, text) from public, anon;
 grant execute on function private.maintenance_import_resolve_context(uuid, text, text) to authenticated, service_role;
 
+-- Nomes e vínculos a partir dos ids guardados na linha. A linha da
+-- importação guarda só operation_id e city_id: cada chave a mais no
+-- normalized_data passa a linha do limite de compressão (TOAST) e a validação,
+-- que relê as linhas já validadas, fica bem mais lenta.
+create or replace function private.maintenance_import_context_of(p_operation_id uuid, p_city_id integer)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'operation_id', o.id, 'operation_name', o.name,
+    'operation_city_id', (select oc.id from public.operation_cities oc where oc.operation_id = o.id and oc.city_id = c.id),
+    'city_id', c.id, 'state_id', c.state_id, 'city_name', c.name, 'state_uf', s.uf::text,
+    'label', concat_ws(' — ', o.name, c.name || coalesce('/' || s.uf::text, '')))
+  from (select 1) one
+  left join public.operations o on o.id = p_operation_id
+  left join public.cities c on c.id = p_city_id
+  left join public.states s on s.id = c.state_id;
+$$;
+
+revoke all on function private.maintenance_import_context_of(uuid, integer) from public, anon;
+grant execute on function private.maintenance_import_context_of(uuid, integer) to authenticated, service_role;
+
 -- -----------------------------------------------------------------------------
 -- 3. Preencher o contexto vazio de uma manutenção com o da planilha
 -- -----------------------------------------------------------------------------
@@ -232,6 +257,7 @@ set search_path = ''
 as $$
 declare
   v_m      public.maintenances;
+  v_ctx    jsonb;
   v_leader record;
 begin
   if nullif(p_row ->> 'operation_id', '') is null then
@@ -241,17 +267,18 @@ begin
   if v_m.id is null or v_m.operation_id is not null then
     return false;
   end if;
+  v_ctx := private.maintenance_import_context_of((p_row ->> 'operation_id')::uuid, (p_row ->> 'city_id')::integer);
   select * into v_leader
-    from private.adherence_leader_at((p_row ->> 'operation_id')::uuid, (p_row ->> 'operation_city_id')::uuid, null, v_m.context_date)
+    from private.adherence_leader_at((v_ctx ->> 'operation_id')::uuid, (v_ctx ->> 'operation_city_id')::uuid, null, v_m.context_date)
    limit 1;
   update public.maintenances set
-    operation_id             = (p_row ->> 'operation_id')::uuid,
-    operation_city_id        = (p_row ->> 'operation_city_id')::uuid,
-    state_id                 = (p_row ->> 'state_id')::smallint,
-    city_id                  = (p_row ->> 'city_id')::integer,
-    operation_name_snapshot  = p_row ->> 'operation_name',
-    city_name_snapshot       = p_row ->> 'city_name',
-    state_uf_snapshot        = p_row ->> 'state_uf',
+    operation_id             = (v_ctx ->> 'operation_id')::uuid,
+    operation_city_id        = (v_ctx ->> 'operation_city_id')::uuid,
+    state_id                 = (v_ctx ->> 'state_id')::smallint,
+    city_id                  = (v_ctx ->> 'city_id')::integer,
+    operation_name_snapshot  = v_ctx ->> 'operation_name',
+    city_name_snapshot       = v_ctx ->> 'city_name',
+    state_uf_snapshot        = v_ctx ->> 'state_uf',
     leader_employee_id       = coalesce(leader_employee_id, v_leader.employee_id),
     leadership_assignment_id = coalesce(leadership_assignment_id, v_leader.leadership_assignment_id),
     leader_name_snapshot     = coalesce(leader_name_snapshot,
@@ -261,8 +288,8 @@ begin
     perform private.maintenance_log(v_m.organization_id, v_m.id, 'import_updated', null, null,
       'Operação e cidade informadas na planilha ' || coalesce(p_file_name, 'importada'),
       jsonb_build_object('batch_id', p_batch_id, 'change', 'context_filled', 'context_source', 'import',
-                         'operation_id', p_row ->> 'operation_id', 'operation_name', p_row ->> 'operation_name',
-                         'city_id', p_row ->> 'city_id', 'city_name', p_row ->> 'city_name', 'state_uf', p_row ->> 'state_uf'),
+                         'operation_id', v_ctx ->> 'operation_id', 'operation_name', v_ctx ->> 'operation_name',
+                         'city_id', v_ctx ->> 'city_id', 'city_name', v_ctx ->> 'city_name', 'state_uf', v_ctx ->> 'state_uf'),
       'import');
   end if;
   return true;
@@ -280,8 +307,9 @@ grant execute on function private.maintenance_import_fill_context(uuid, jsonb, u
 -- a sua manutenção e nasceria outra. Esta etapa, na primeira prévia do lote
 -- (depois de todas as linhas validadas), reconhece a manutenção. Regra, por
 -- entrada do arquivo (group_key):
---   a) a entrada só tem linhas abertas na planilha (Há agendar/Agendado) e
---      nenhuma reconhecida pela OS (fornecedor reescrito) nem em conflito;
+--   a) a entrada só tem linhas abertas na planilha (Há agendar/Agendado),
+--      nenhuma reconhecida pela OS (fornecedor reescrito) e nenhuma marcada
+--      só para preencher o contexto de uma manutenção em conflito;
 --   b) linhas "sobrando" da entrada: a chave não existe no HFM (seria nova),
 --      ou a manutenção da chave não tem o serviço (seria item novo nela), ou
 --      o serviço repete outra linha da mesma entrada (a OS sumiu e a linha
@@ -335,7 +363,9 @@ begin
        where r.d ->> 'vehicle_id' is not null and r.d ->> 'service_id' is not null and r.d ->> 'type' is not null
          and ((r.action in ('create', 'update') and r.d ->> 'existing_id' is null)
               or (r.action = 'update' and r.d ->> 'existing_id' is not null
-                  and not coalesce((r.d ->> 'existing_has_item')::boolean, true))
+                  and not exists (select 1 from public.maintenance_items i
+                                   where i.maintenance_id = (r.d ->> 'existing_id')::uuid
+                                     and i.service_id = (r.d ->> 'service_id')::uuid))
               or r.d ? 'dup_of')
     ), grp as (
       select r.d ->> 'group_key' as g,
@@ -439,7 +469,10 @@ begin
                                     v_d ->> 'service_order_number'));
       end if;
       if v_m.maintenance_type_code = 'preventive' and (v_d ->> 'preventive_cycle') is not null
-         and v_m.cycle_number is distinct from (v_d ->> 'preventive_cycle')::integer then
+         and v_m.cycle_number is distinct from (v_d ->> 'preventive_cycle')::integer
+         and exists (select 1 from public.maintenance_preventive_rules pr
+                      where pr.id = private.maintenance_preventive_rule_for(v_m.vehicle_id)
+                        and (v_d ->> 'preventive_cycle')::integer <= pr.cycle_count) then
         v_change := true;
       end if;
       -- Contexto: preenche o vazio; diferente, avisa e mantém.
@@ -451,7 +484,7 @@ begin
         v_msgs := v_msgs || jsonb_build_object('level', 'warning', 'field', 'operation', 'code', 'context_divergent',
                   'message', format('Contexto divergente: mantido o do HFM (%s); planilha: %s.',
                                     concat_ws(' — ', v_m.operation_name_snapshot, v_m.city_name_snapshot || coalesce('/' || v_m.state_uf_snapshot, '')),
-                                    concat_ws(' — ', v_d ->> 'operation_name', (v_d ->> 'city_name') || coalesce('/' || (v_d ->> 'state_uf'), ''))));
+                                    private.maintenance_import_context_of((v_d ->> 'operation_id')::uuid, (v_d ->> 'city_id')::integer) ->> 'label'));
       end if;
 
       v_msgs := jsonb_build_array(jsonb_build_object('level', 'warning', 'field', null, 'code', 'reidentified',
@@ -468,7 +501,7 @@ begin
        where e.batch_id = p_batch_id and e.row_number = v_row.row_number and e.code in ('duplicate_in_file', 'context_divergent');
       update public.import_rows set
         normalized_data = v_d || jsonb_build_object(
-          'existing_id', v_m.id, 'existing_code', v_m.code, 'existing_cycle', v_m.cycle_number, 'existing_has_item', true,
+          'existing_id', v_m.id, 'existing_code', v_m.code, 'existing_cycle', v_m.cycle_number,
           'matched_by_os', false, 'reidentified', true, 'file_group_key', v_g.g, 'move_key', v_g.move_key,
           'group_key', 'reid:' || v_m.id::text, 'item_key', 'reid:' || v_m.id::text || ':' || (v_d ->> 'service_id')),
         action = case when v_change then 'update' else 'skip' end,
@@ -519,6 +552,7 @@ declare
   n_total int; n_valid int; n_warn int; n_err int; v_msg jsonb;
   -- operação/cidade da planilha e o estado do lote antes desta chamada
   v_ctx jsonb; v_fill boolean; v_dup_row integer; v_batch_status text := 'draft';
+  v_cycle_ok boolean;  -- o MP da linha pode virar vínculo (há regra e o ciclo está nela)
 begin
   if not private.has_permission(p_organization_id, 'maintenance.import') then
     raise exception 'Você não possui permissão para importar manutenção.' using errcode = 'insufficient_privilege';
@@ -784,10 +818,12 @@ begin
         -- O MP só vira vínculo se o veículo tiver regra preventiva e o ciclo
         -- existir nela; senão a linha entra, mas o aviso diz por que a matriz
         -- não muda.
+        v_cycle_ok := false;
         if v_type_code = 'preventive' and v_cycle is not null and v_vehicle.id is not null then
           v_rule := null;
           select pr.id, pr.cycle_count into v_rule from public.maintenance_preventive_rules pr
            where pr.id = private.maintenance_preventive_rule_for(v_vehicle.id);
+          v_cycle_ok := v_rule.id is not null and v_cycle <= v_rule.cycle_count;
           if v_rule.id is null then
             v_msgs := v_msgs || jsonb_build_object('level', 'warning', 'field', 'preventive_cycle', 'code', 'no_preventive_rule',
                       'message', format('MP%s informado, mas o veículo não tem regra preventiva (tipo, subcategoria ou modelo): a manutenção entra sem vínculo com a matriz.', v_cycle));
@@ -892,11 +928,9 @@ begin
           'description', nullif(btrim(r ->> 'description'), ''), 'notes', nullif(btrim(r ->> 'notes'), ''),
           'group_key', v_group, 'item_key', v_key,
           'license_plate', r ->> 'license_plate', 'fleet_code', r ->> 'fleet_code', 'service', r ->> 'service', 'supplier', v_informed,
-          'operation', nullif(btrim(r ->> 'operation'), ''), 'city', nullif(btrim(r ->> 'city'), ''),
-          'operation_id', v_ctx ->> 'operation_id', 'operation_name', v_ctx ->> 'operation_name',
-          'operation_city_id', v_ctx ->> 'operation_city_id', 'city_id', (v_ctx ->> 'city_id')::integer,
-          'state_id', (v_ctx ->> 'state_id')::integer, 'city_name', v_ctx ->> 'city_name', 'state_uf', v_ctx ->> 'state_uf',
-          'city_label', (v_ctx ->> 'city_name') || coalesce('/' || (v_ctx ->> 'state_uf'), ''));
+          -- Só os ids (nomes por private.maintenance_import_context_of): a
+          -- linha precisa caber sem compressão.
+          'operation_id', v_ctx ->> 'operation_id', 'city_id', (v_ctx ->> 'city_id')::integer);
         if v_dup then
           -- A prévia pode reconhecer a linha repetida como outra manutenção
           -- aberta (a OS sumiu): ver private.maintenance_import_reidentify.
@@ -912,7 +946,8 @@ begin
                     'message', format('Contexto divergente: mantido o do HFM (%s); planilha: %s.',
                                       concat_ws(' — ', v_existing.operation_name_snapshot,
                                                 v_existing.city_name_snapshot || coalesce('/' || v_existing.state_uf_snapshot, '')),
-                                      concat_ws(' — ', v_ctx ->> 'operation_name', v_norm ->> 'city_label')));
+                                      concat_ws(' — ', v_ctx ->> 'operation_name',
+                                                (v_ctx ->> 'city_name') || coalesce('/' || (v_ctx ->> 'state_uf'), ''))));
         end if;
 
         if exists (select 1 from jsonb_array_elements(v_msgs) m where m ->> 'level' = 'error') then
@@ -935,7 +970,10 @@ begin
                 and (v_existing.status = v_status or (v_status = 'completed' and v_existing.item_status = 'done'))
                 and v_existing.supplier_id is not distinct from v_supplier
                 and (v_supplier is not null or v_existing.supplier_name_informed is not distinct from v_informed)
-                and (v_type_code <> 'preventive' or v_cycle is null or v_existing.cycle_number is not distinct from v_cycle)
+                -- MP que não pode virar vínculo (sem regra, além da regra) não
+                -- é mudança: reimportar não acusaria "atualizar" para sempre.
+                and (v_type_code <> 'preventive' or v_cycle is null or not v_cycle_ok
+                     or v_existing.cycle_number is not distinct from v_cycle)
                 and not v_fallback and not v_fill then
             v_level := 'warning'; v_action := 'skip';
             v_msgs := v_msgs || jsonb_build_object('level', 'warning', 'field', null, 'code', 'unchanged',
@@ -947,8 +985,7 @@ begin
             end if;
           end if;
           v_norm := v_norm || jsonb_build_object('existing_id', v_existing.id, 'existing_code', v_existing.code,
-                                                 'existing_cycle', v_existing.cycle_number, 'matched_by_os', v_fallback,
-                                                 'existing_has_item', coalesce(v_existing.has_item, false));
+                                                 'existing_cycle', v_existing.cycle_number, 'matched_by_os', v_fallback);
         elsif exists (select 1 from public.import_rows x
                        where x.batch_id = v_batch and x.id <> v_pend.id and x.status <> 'pending'
                          and x.normalized_data ->> 'group_key' = v_group and x.action = 'create') then
@@ -1282,8 +1319,15 @@ begin
                               from (select * from public.import_errors x where x.batch_id = v_batch
                                      order by (x.level = 'error') desc, x.row_number limit 300) e), '[]'::jsonb),
       'sample', coalesce((select jsonb_agg(jsonb_build_object('row_number', i.row_number, 'status', i.status, 'action', i.action,
-                                                              'data', i.normalized_data) order by i.row_number)
-                            from (select * from public.import_rows x where x.batch_id = v_batch order by x.row_number limit 12) i), '[]'::jsonb))
+                                                              'data', case when v_kind = 'records' and (i.normalized_data ? 'operation_id' or i.normalized_data ? 'city_id')
+                                                                           then i.normalized_data || jsonb_build_object(
+                                                                                  'operation_name', c.ctx ->> 'operation_name',
+                                                                                  'city_label', (c.ctx ->> 'city_name') || coalesce('/' || (c.ctx ->> 'state_uf'), ''))
+                                                                           else i.normalized_data end) order by i.row_number)
+                            from (select * from public.import_rows x where x.batch_id = v_batch order by x.row_number limit 12) i
+                            left join lateral (select private.maintenance_import_context_of((i.normalized_data ->> 'operation_id')::uuid,
+                                                                                            (i.normalized_data ->> 'city_id')::integer) as ctx) c
+                              on v_kind = 'records'), '[]'::jsonb))
       from public.import_batches b where b.id = v_batch);
 end;
 $$;
@@ -1401,8 +1445,9 @@ begin
             update public.maintenances set import_key = v_first ->> 'file_group_key' where id = v_m.id;
             v_m.import_key := v_first ->> 'file_group_key';
           end if;
-        elsif v_m.id is not null and not exists (select 1 from public.maintenances x
-                                                  where x.organization_id = p_organization_id and x.import_key = v_group.group_key) then
+        elsif v_m.id is not null and not coalesce((v_first ->> 'context_only')::boolean, false)
+              and not exists (select 1 from public.maintenances x
+                               where x.organization_id = p_organization_id and x.import_key = v_group.group_key) then
           update public.maintenances set import_key = v_group.group_key where id = v_m.id;
           v_m.import_key := v_group.group_key;
         end if;
@@ -1522,9 +1567,8 @@ begin
           if (v_context ->> 'operation_id') is null then
             if private.maintenance_import_fill_context(v_m.id, v_ctx_row, p_batch_id, v_batch.file_name, false) then
               v_ctx_applied := 'sheet';
-              v_sheet := jsonb_build_object('context_source', 'import',
-                           'operation_id', v_ctx_row ->> 'operation_id', 'operation_name', v_ctx_row ->> 'operation_name',
-                           'city_id', v_ctx_row ->> 'city_id', 'city_name', v_ctx_row ->> 'city_name', 'state_uf', v_ctx_row ->> 'state_uf');
+              v_sheet := (private.maintenance_import_context_of((v_ctx_row ->> 'operation_id')::uuid, (v_ctx_row ->> 'city_id')::integer)
+                          - 'label') || jsonb_build_object('context_source', 'import');
             end if;
           elsif (v_context ->> 'operation_id')::uuid <> (v_ctx_row ->> 'operation_id')::uuid then
             insert into public.import_errors (organization_id, batch_id, row_number, level, field, code, message)
@@ -1532,7 +1576,8 @@ begin
                     format('Contexto divergente: mantido o do HFM (%s); planilha: %s.',
                            concat_ws(' — ', v_context ->> 'operation_name',
                                      (v_context ->> 'city_name') || coalesce('/' || (v_context ->> 'state_uf'), '')),
-                           concat_ws(' — ', v_ctx_row ->> 'operation_name', v_ctx_row ->> 'city_label')));
+                           private.maintenance_import_context_of((v_ctx_row ->> 'operation_id')::uuid,
+                                                                 (v_ctx_row ->> 'city_id')::integer) ->> 'label'));
           end if;
         end if;
         if v_m.entry_date is not null then
