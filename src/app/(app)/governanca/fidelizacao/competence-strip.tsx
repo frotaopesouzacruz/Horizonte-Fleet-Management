@@ -86,7 +86,7 @@ export function CompetenceStrip({ summary, fallbackLabel }: CompetenceStripProps
           </span>
           <div className="flex min-w-0 flex-col gap-1">
             <span className="text-overline font-semibold uppercase text-fg-muted">Competência</span>
-            <span className="text-h3 font-semibold leading-tight text-fg" data-testid="fidelization-competence-label">
+            <span className="text-h1 font-semibold text-fg" data-testid="fidelization-competence-label">
               {label}
             </span>
             <span className="flex flex-wrap items-center gap-1.5">
@@ -139,7 +139,7 @@ function Fact({
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
       <dt className="text-caption text-fg-muted">{label}</dt>
-      <dd className={cn("font-semibold tabular-nums text-fg", small ? "text-body" : "text-h4")}>{value}</dd>
+      <dd className={cn("font-semibold tabular-nums text-fg", small ? "text-body" : "text-h2")}>{value}</dd>
       {hint ? <dd className="truncate text-caption text-fg-secondary">{hint}</dd> : null}
     </div>
   );
