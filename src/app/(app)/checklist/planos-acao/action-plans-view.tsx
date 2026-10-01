@@ -202,6 +202,7 @@ export function ActionPlansView({ data }: { data: ActionPlansViewData }) {
           if (!open) setTraceId(null);
         }}
         actions={actions}
+        perms={perms}
         fixtures={data.fixtures}
       />
 
