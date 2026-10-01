@@ -33,7 +33,7 @@ select set_config('request.jwt.claims',
 do $t$
 declare
   v_org uuid; v_uid uuid; v_today date;
-  v1 record; v2 record; v3 record; v4 record; v5 record;
+  v1 record; v2 record; v3 record; v4 record; v5 record; x_tpl record;
   op_a uuid; op_b uuid; op_c uuid;
   j jsonb; k jsonb; c jsonb; x jsonb; ok boolean;
   v_rows jsonb; v_base jsonb;
@@ -45,30 +45,28 @@ begin
   v_uid := (current_setting('request.jwt.claims', true)::jsonb ->> 'sub')::uuid;
   v_today := private.maintenance_today(v_org);
 
-  -- Veículos: v2 sem nenhuma manutenção (ciclos preventivos limpos); v4 sem
-  -- contexto oficial hoje (Fidelização/alocação), para a manutenção nova. Com a
-  -- competência mensal toda a frota real tem fidelização vigente, então v4 é
-  -- um veículo de teste criado aqui (some com o rollback), do tipo de v2.
-  select v.id, v.license_plate, v.vehicle_type_id, v.vehicle_subcategory_id, v.vehicle_model_id into v2 from public.vehicles v
+  -- Veículos: cinco veículos de teste criados aqui (somem com o rollback), do
+  -- tipo/subcategoria/modelo de um veículo real sem manutenções (ciclos
+  -- preventivos limpos). Com a competência mensal da Fidelização toda a frota
+  -- real tem contexto oficial em qualquer data recente, e o teste precisa de
+  -- veículos SEM contexto oficial (a planilha é que traz operação e cidade).
+  select v.vehicle_type_id, v.vehicle_subcategory_id, v.vehicle_model_id into x_tpl from public.vehicles v
    where v.organization_id = v_org and v.status = 'active' and v.deleted_at is null
      and not exists (select 1 from public.maintenances m where m.vehicle_id = v.id)
    order by v.fleet_code limit 1;
-  insert into public.vehicles (organization_id, vehicle_type_id, vehicle_subcategory_id, fleet_code, license_plate, status)
-  values (v_org, v2.vehicle_type_id, v2.vehicle_subcategory_id, 'SUITE26-SEMCTX', 'SUITE26X', 'active');
-  select v.id, v.license_plate into v4 from public.vehicles v
-   where v.organization_id = v_org and v.license_plate = 'SUITE26X' and v.deleted_at is null;
-  if private.maintenance_context(v_org, v4.id, v_today) ->> 'operation_id' is not null then
-    raise exception 'FIXTURE: o veículo de teste SUITE26X já nasceu com contexto oficial';
+  insert into public.vehicles (organization_id, vehicle_type_id, vehicle_subcategory_id, vehicle_model_id, fleet_code, license_plate, status)
+  select v_org, x_tpl.vehicle_type_id, x_tpl.vehicle_subcategory_id, x_tpl.vehicle_model_id, 'SUITE26-' || s.k, 'SUITE26' || s.k, 'active'
+    from unnest(array['A', 'B', 'C', 'D', 'E']) as s(k);
+  select v.id, v.license_plate into v1 from public.vehicles v where v.organization_id = v_org and v.license_plate = 'SUITE26A' and v.deleted_at is null;
+  select v.id, v.license_plate, v.vehicle_type_id, v.vehicle_subcategory_id, v.vehicle_model_id into v2 from public.vehicles v
+   where v.organization_id = v_org and v.license_plate = 'SUITE26B' and v.deleted_at is null;
+  select v.id, v.license_plate into v3 from public.vehicles v where v.organization_id = v_org and v.license_plate = 'SUITE26C' and v.deleted_at is null;
+  select v.id, v.license_plate into v4 from public.vehicles v where v.organization_id = v_org and v.license_plate = 'SUITE26D' and v.deleted_at is null;
+  select v.id, v.license_plate into v5 from public.vehicles v where v.organization_id = v_org and v.license_plate = 'SUITE26E' and v.deleted_at is null;
+  if exists (select 1 from (values (v1.id), (v2.id), (v3.id), (v4.id), (v5.id)) t(id)
+              where private.maintenance_context(v_org, t.id, v_today) ->> 'operation_id' is not null) then
+    raise exception 'FIXTURE: veículo de teste já nasceu com contexto oficial';
   end if;
-  select v.id, v.license_plate into v1 from public.vehicles v
-   where v.organization_id = v_org and v.status = 'active' and v.deleted_at is null and v.id not in (v2.id, v4.id)
-   order by v.fleet_code limit 1;
-  select v.id, v.license_plate into v3 from public.vehicles v
-   where v.organization_id = v_org and v.status = 'active' and v.deleted_at is null and v.id not in (v1.id, v2.id, v4.id)
-   order by v.fleet_code limit 1;
-  select v.id, v.license_plate into v5 from public.vehicles v
-   where v.organization_id = v_org and v.status = 'active' and v.deleted_at is null and v.id not in (v1.id, v2.id, v3.id, v4.id)
-   order by v.fleet_code limit 1;
 
   -- Operações (nomes com acento e barra) e a geografia delas.
   insert into public.operations (organization_id, name, status) values (v_org, 'Suite26 Redespacho Belém / PA', 'active') returning id into op_a;
