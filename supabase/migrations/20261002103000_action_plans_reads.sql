@@ -1580,6 +1580,50 @@ end;
 $$;
 
 -- -----------------------------------------------------------------------------
+-- 13d. Registro da exportação (auditoria) — sem registro não há arquivo
+-- -----------------------------------------------------------------------------
+create or replace function public.log_action_plan_export(
+  p_organization_id uuid, p_format text, p_scope text, p_row_count integer, p_filters jsonb default '{}'::jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_filters jsonb := coalesce(p_filters, '{}'::jsonb);
+  v_clean   jsonb := '{}'::jsonb;
+  k text;
+begin
+  if auth.uid() is null then
+    raise exception 'Sessão expirada. Entre novamente para continuar.' using errcode = 'insufficient_privilege';
+  end if;
+  if not (private.has_permission(p_organization_id, 'action_plans.export')
+          and private.has_permission(p_organization_id, 'action_plans.view')) then
+    raise exception 'Você não possui permissão para exportar planos de ação.' using errcode = 'insufficient_privilege';
+  end if;
+  if p_format is null or p_format not in ('xlsx', 'csv') or p_scope not in ('plans', 'items') then
+    raise exception 'Formato de exportação inválido.' using errcode = 'invalid_parameter_value';
+  end if;
+  if p_row_count is null or p_row_count < 0 then
+    raise exception 'Quantidade de linhas inválida.' using errcode = 'invalid_parameter_value';
+  end if;
+  if jsonb_typeof(v_filters) <> 'object' then
+    v_filters := '{}'::jsonb;
+  end if;
+  foreach k in array array['aba', 'de', 'ate', 'q', 'situacao', 'grupo', 'prioridade', 'operacao', 'uf', 'cidade', 'filial',
+                           'br', 'lideranca', 'veiculo', 'tipo', 'cluster', 'pergunta', 'item', 'responsavel',
+                           'sem_responsavel', 'manutencao', 'prazo', 'reincidente', 'frota', 'meus', 'ordenar', 'dir'] loop
+    if nullif(v_filters ->> k, '') is not null then
+      v_clean := v_clean || jsonb_build_object(k, left(v_filters ->> k, 120));
+    end if;
+  end loop;
+  insert into public.audit_logs (organization_id, user_id, entity_type, entity_id, action, new_data)
+  values (p_organization_id, (select auth.uid()), 'action_plan_export', null, 'EXPORT',
+          jsonb_build_object('format', p_format, 'scope', p_scope, 'row_count', p_row_count, 'filters', v_clean));
+end;
+$$;
+
+-- -----------------------------------------------------------------------------
 -- 14. Permissões de execução
 -- -----------------------------------------------------------------------------
 revoke execute on function
@@ -1613,7 +1657,8 @@ begin
     'public.action_plan_catalog(uuid)',
     'public.action_plan_followup_import(uuid, jsonb, boolean)',
     'public.action_plan_export_items(uuid, jsonb, integer, integer)',
-    'public.action_plan_for_maintenance(uuid)']
+    'public.action_plan_for_maintenance(uuid)',
+    'public.log_action_plan_export(uuid, text, text, integer, jsonb)']
   loop
     execute format('revoke execute on function %s from public, anon', f);
     execute format('grant execute on function %s to authenticated', f);

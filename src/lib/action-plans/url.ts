@@ -45,7 +45,7 @@ export function parseActionPlanFilters(params: SearchParamsLike): ActionPlanFilt
     withMaintenance: withM === "yes" || withM === "no" ? withM : undefined,
     deadline: (DEADLINES as string[]).includes(deadline ?? "") ? (deadline as Deadline) : undefined,
     recurrence: get("recurrence") === "1",
-    fleet: fleet === "inactive" || fleet === "all" ? fleet : undefined,
+    fleet: fleet === "active" || fleet === "inactive" || fleet === "all" ? fleet : undefined,
     mine: get("mine") === "1",
   };
 }
