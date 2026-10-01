@@ -11,20 +11,22 @@ How the HFC (the Lovable reference) was mapped, and the comparison with it, is i
 | Tab | What it answers | Permission |
 |---|---|---|
 | **Visão geral** | TMM, corrective TMM and P90, volume versus previous period, downtime, SLA, immobilised and available fleet, open work, overdue items, preventive and predictive status, possible recurrence, monthly volume by type, mix, aging, volume × TMM by cluster, top services and suppliers | `maintenance.view_dashboard` |
-| **Programação & execução** | 9 queue KPIs (to schedule, scheduled, in progress, scheduled today, exit forecast overdue, overdue without scheduling, late for entry, over SLA, completed today). Each KPI filters the list below using the **same definition** as the database. | `maintenance.view` |
-| **Preventiva** | Vehicle × MP1..MPn matrix with milestone, remaining or excess KM, status, adherence and open maintenance. Generating a maintenance is idempotent. The inactive fleet is shown as history. | `maintenance.view` (generating needs `manage_preventive`) |
+| **Programação & execução** | 9 queue KPIs (to schedule, scheduled, in progress, scheduled today, exit forecast overdue, overdue without scheduling, late for entry, over SLA, completed today). Each KPI filters the queue below using the **same definition** as the database. The queue is split into **one board per status** (Há agendar, Agendadas, Em execução, then any other status in the result), each grouped by **Operação → Cidade/UF** with collapsible groups and per-group alerts. The whole open queue is loaded at once (up to 1,000 rows; above that the screen asks to refine the filters). | `maintenance.view` |
+| **Preventiva** | Three boards — **Frotas com preventiva vencida crítica / vencida / a programar** — with Placa, Tipo de operação, Local, Tipo de equipamento, Ciclo, KM atual, KM previsto and KM excedido; each vehicle appears once, on the board of its most severe pending cycle, and the **Nova manutenção** button opens the scheduling of the preventive maintenance of that cycle (an open maintenance is shown by its code instead). Below, the vehicle × MP1..MPn matrix **grouped by equipment type**; each cycle card is tinted (background, border and a stripe) in the status colour — Crítica, Vencida, A programar, Não atingida, Realizada, Sem KM (dashed). Generating a maintenance is idempotent. The inactive fleet is shown as history. | `maintenance.view` (generating needs `manage_preventive`) |
 | **Preditiva** | Technical status (KM or days band) kept **separate** from execution status. Alerts, vehicle × item matrix, verifications (CONFORME / MONITORAR / NÃO CONFORME / NÃO REALIZADO) with a traceable decision, cycle history and reset. | `maintenance.view` (actions need `manage_predictive`) |
-| **Base geral** | Paginated table sorted on the server, and hierarchy Operação → Cidade → BR → Veículo | `maintenance.view_base` |
+| **Base geral** | Paginated table sorted on the server, and hierarchy Operação → Cidade → Veículo | `maintenance.view_base` |
 | **Cadastros** | Clusters, services (with the Services × Check List mapping), suppliers, preventive parameters, predictive plans (versions, items, script, coverage), origins, settings | `manage_*` (read-only without it) |
 | **Importações** | 5 layouts (clusters, services, suppliers, preventive parameters, maintenance base), preview, confirmation, history | `maintenance.import` |
 
+Layout: the tab bar sits right under the title "Manutenção" and the filters of the chosen tab sit below it (`PageHeader tabsPlacement="top"`). **BR is not used anywhere in the Maintenance module** (no filter, column, hierarchy level, wizard fact or export column); the column stays in the database only as part of the historical snapshot.
+
 Screens shared by all tabs:
-- **Maintenance detail drawer:** the whole lifecycle, KM, services, Check List findings, possible recurrence and the audit trail.
+- **Maintenance detail drawer:** the whole lifecycle, KM, services, Check List findings and possible recurrence. The historical operational context shows operation, city/UF, branch and the context date (no leadership, BR or context source). The audit trail is no longer shown in the drawer; it stays in `maintenance_events`.
 - **Opening wizard:** FROTA → SERVIÇO → PROGRAMAÇÃO → KM → REVISÃO.
 - **Export:** XLSX/CSV with the on-screen filters, no row cap, and an audit entry.
 - **"Manutenção" tab in the vehicle detail of Cadastro de Frotas:** a query against the base, not a copy.
 
-All screen state lives in the URL: tab, filters (`de`, `ate`, `operacao`, `uf`, `cidade`, `br`, `lideranca`, `tipo`, `situacao`, `fornecedor`, `cluster`, `servico`, `veiculo`, `fila`…), sort order and page. The server loads **only the open tab**.
+All screen state lives in the URL: tab, filters (`de`, `ate`, `operacao`, `uf`, `cidade`, `lideranca`, `tipo`, `situacao`, `fornecedor`, `cluster`, `servico`, `veiculo`, `fila`…), sort order and page. The server loads **only the open tab**.
 
 ## Data model (`public`)
 
@@ -142,6 +144,7 @@ The daily routine (`hfm_maintenance_daily`, pg_cron, 06:15) reprocesses pending,
   - `maintenances`: organisation (`permitted_org_ids('maintenance.view')`) + scope by the context's operation (`accessible_operation_ids`), or by the vehicle's scope (`vehicle_in_scope`) when there is no context;
   - items, events and links follow the parent maintenance;
   - cycles and verifications follow the vehicle.
+  - **Performance (`20261002104000`):** the scope is evaluated **once per query**, never per row. `maintenances` uses `operation_id in (select accessible_operation_ids())` or `vehicle_id in (select vehicle_scope_ids('maintenance.view'))`; children use `maintenance_id in (select id from maintenances)`; cycles, verifications, odometer readings, vehicles and assignments use the same vehicle set. `private.vehicle_scope_ids(permission)` / `private.org_vehicle_scope_ids(org)` are the rule of `vehicle_in_scope` written as a set. Before, the Visão geral took 11.5 s in production and hit the 8 s `statement_timeout` ("Não foi possível carregar a visão geral"); measured locally with the same data, dashboard 40 s → 0.7 s, preventive matrix 8 s → 0.26 s, open queue 6.8 s → 0.8 s, with identical results.
 - **Direct writes are not allowed:** `revoke all` from `anon` and `authenticated`, and `grant select` only.
 - **Writes:** every write goes through a `SECURITY DEFINER` RPC that checks permission, scope (`assert_vehicle_access` / `maintenance_lock`), transition and integrity in the same transaction.
 - **Multi-tenancy:** composite FKs `(organization_id, id)` and `tg_prevent_tenant_change`.
