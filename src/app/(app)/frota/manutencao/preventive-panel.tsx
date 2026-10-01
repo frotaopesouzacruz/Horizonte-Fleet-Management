@@ -2,7 +2,20 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
-import { AlertTriangle, CalendarPlus, History, RefreshCw, SlidersHorizontal, X } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarClock,
+  CalendarPlus,
+  ChevronRight,
+  FoldVertical,
+  History,
+  RefreshCw,
+  SlidersHorizontal,
+  UnfoldVertical,
+  X,
+  XCircle,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,18 +25,18 @@ import {
 } from "@/components/ui/dialog";
 import { FilterBar } from "@/components/ui/filter-bar";
 import { FormField } from "@/components/ui/form-field";
-import { Pagination } from "@/components/ui/pagination";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SearchField } from "@/components/ui/search-field";
-import type { StatusTone } from "@/components/ui/status-badge";
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { StatusBadge, statusTone, type StatusTone } from "@/components/ui/status-badge";
+import {
+  Table, TableBody, TableCaption, TableCell, TableContainer, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/feedback/alert";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { ErrorState } from "@/components/feedback/error-state";
 import { useToast } from "@/components/feedback/toast";
 import { NativeSelect } from "@/components/governance/selects";
-import { PreventiveStatusBadge } from "@/components/maintenance/badges";
 import { schedulePreventiveCycle, syncPreventiveCycles } from "@/lib/maintenance/actions";
 import type { MaintenanceFilterOptions, PreventiveFilters } from "@/lib/maintenance/queries";
 import {
@@ -46,11 +59,13 @@ import type { MaintenancePerms, PanelActions } from "./shared";
 /**
  * Manutenção → Preventiva.
  *
- * Veículos nas linhas, ciclos MP1..MPn nas colunas. Situação, marco, saldo e
- * aderência de cada ciclo chegam prontos do servidor (faixa de alerta e
- * tolerância do parâmetro); a tela só apresenta e chama as rotinas: gerar a
- * manutenção do ciclo (idempotente) e sincronizar os ciclos. A frota inativa
- * é histórico — consulta, sem geração.
+ * Veículos nas linhas, ciclos MP1..MPn nas colunas, agrupados por tipo de
+ * equipamento. Situação, marco, saldo e aderência de cada ciclo chegam prontos
+ * do servidor (faixa de alerta e tolerância do parâmetro); a tela só apresenta
+ * e chama as rotinas: criar a manutenção do ciclo (idempotente, já agendada ou
+ * "Há agendar") e sincronizar os ciclos. Acima da matriz, os quadros de frotas
+ * com preventiva crítica, vencida e a programar — o mesmo recorte do HFC.
+ * A frota inativa é histórico — consulta, sem geração e sem quadros.
  */
 
 // ---------------------------------------------------------------------------
@@ -172,6 +187,63 @@ export interface PreventivePanelProps {
 const STATUS_ORDER: PreventiveStatus[] = ["critical", "due", "to_schedule", "not_reached", "completed", "no_km"];
 const ACTIONABLE: PreventiveStatus[] = ["to_schedule", "due", "critical"];
 
+/**
+ * Formatação condicional do ciclo. O cartão inteiro leva o tom da situação —
+ * fundo suave, borda e faixa sólida no canto esquerdo —, e o selo com ícone e
+ * texto continua lá: a cor nunca é o único sinal. "Sem KM" fica no neutro, mas
+ * com borda tracejada e faixa pontilhada, para não se confundir com "Não
+ * atingida". Texto sobre o fundo suave usa os tons `*-soft-fg`, legíveis em
+ * light e dark.
+ */
+const STATUS_CARD: Record<PreventiveStatus, { bg: string; border: string; stripe: string; fg: string }> = {
+  critical: { bg: "bg-danger-soft", border: "border-danger/50", stripe: "bg-danger", fg: "text-danger-soft-fg" },
+  due: { bg: "bg-warning-soft", border: "border-warning/50", stripe: "bg-warning", fg: "text-warning-soft-fg" },
+  to_schedule: { bg: "bg-info-soft", border: "border-info/50", stripe: "bg-info", fg: "text-info-soft-fg" },
+  not_reached: { bg: "bg-neutral-soft", border: "border-neutral/40", stripe: "bg-neutral", fg: "text-neutral-soft-fg" },
+  completed: { bg: "bg-success-soft", border: "border-success/50", stripe: "bg-success", fg: "text-success-soft-fg" },
+  no_km: {
+    bg: "bg-surface-secondary",
+    border: "border-dashed border-neutral/60",
+    stripe: "bg-[repeating-linear-gradient(to_bottom,var(--neutral)_0_4px,transparent_4px_8px)]",
+    fg: "text-fg-muted",
+  },
+};
+
+const cardTone = (status: PreventiveStatus) => cn(STATUS_CARD[status].bg, STATUS_CARD[status].border);
+
+/** Faixa sólida no canto esquerdo, na cor da situação (decorativa). */
+function ToneStripe({ status, className }: { status: PreventiveStatus; className?: string }) {
+  return <span aria-hidden className={cn("pointer-events-none absolute inset-y-0 left-0 w-1", STATUS_CARD[status].stripe, className)} />;
+}
+
+/** Selo da situação sobre o cartão tingido: fundo da superfície para destacar, com ícone e texto. */
+function CycleStatusBadge({ status, size = "sm" }: { status: PreventiveStatus; size?: "sm" | "md" }) {
+  return (
+    <StatusBadge status={PREVENTIVE_STATUS_TONE[status] ?? "neutral"} size={size} withIcon className="bg-surface">
+      {PREVENTIVE_STATUS_LABEL[status] ?? status}
+    </StatusBadge>
+  );
+}
+
+/** Miniatura do cartão: a legenda e os contadores do grupo seguem a mesma formatação da célula. */
+function StatusChip({ status, count }: { status: PreventiveStatus; count?: number }) {
+  const Icon = statusTone(PREVENTIVE_STATUS_TONE[status] ?? "neutral").icon;
+  return (
+    <span
+      className={cn(
+        "relative inline-flex h-6 shrink-0 items-center gap-1 overflow-hidden rounded-xs border py-0.5 pl-2.5 pr-2 text-caption font-medium",
+        cardTone(status),
+        STATUS_CARD[status].fg,
+      )}
+    >
+      <ToneStripe status={status} className="w-[3px]" />
+      <Icon className="size-3 shrink-0" aria-hidden />
+      <span>{PREVENTIVE_STATUS_LABEL[status] ?? status}</span>
+      {count != null ? <span className="font-semibold tabular-nums">{formatInt(count)}</span> : null}
+    </span>
+  );
+}
+
 const DIAGNOSTIC_LABEL: Record<string, string> = {
   no_rule: "Sem parâmetro preventivo para este tipo/modelo.",
   no_km: "Sem leitura oficial de KM: os marcos não podem ser avaliados.",
@@ -196,23 +268,125 @@ function adherenceText(c: PreventiveCycleCell): string | null {
   return parts.length ? `${label} · ${parts.join(" · ")}` : label;
 }
 
-function balance(c: PreventiveCycleCell): { text: string; title: string } {
+function balance(c: PreventiveCycleCell): { text: string; title: string; exceeded: boolean } {
   if (c.kmExceeded != null && c.kmExceeded > 0) {
-    return { text: `+${formatInt(c.kmExceeded)} km`, title: `${formatInt(c.kmExceeded)} km além do marco` };
+    return { text: `+${formatInt(c.kmExceeded)} km`, title: `${formatInt(c.kmExceeded)} km além do marco`, exceeded: true };
   }
   if (c.kmRemaining != null) {
-    return { text: `faltam ${formatInt(c.kmRemaining)} km`, title: `Faltam ${formatInt(c.kmRemaining)} km para o marco` };
+    return { text: `faltam ${formatInt(c.kmRemaining)} km`, title: `Faltam ${formatInt(c.kmRemaining)} km para o marco`, exceeded: false };
   }
-  return { text: "saldo indisponível", title: "Sem KM para calcular o saldo" };
+  return { text: "saldo indisponível", title: "Sem KM para calcular o saldo", exceeded: false };
 }
 
-type ScheduleTarget = { cycle: PreventiveCycleCell; row: PreventiveMatrixRow };
+/** De onde o diálogo foi aberto: o título repete a ação do botão que o abriu. */
+type ScheduleOrigin = "board" | "matrix";
+type ScheduleTarget = { cycle: PreventiveCycleCell; row: PreventiveMatrixRow; origin: ScheduleOrigin };
+
+// ---------------------------------------------------------------- quadros
+
+type BoardStatus = "critical" | "due" | "to_schedule";
+
+/** Gravidade para escolher o ciclo do veículo: crítica > vencida > a programar. */
+const BOARD_RANK: Record<BoardStatus, number> = { critical: 0, due: 1, to_schedule: 2 };
+const isBoardStatus = (s: PreventiveStatus): s is BoardStatus => s in BOARD_RANK;
+
+const BOARDS: { status: BoardStatus; title: string; hint: string; icon: LucideIcon; badge: "danger" | "warning" | "info" }[] = [
+  {
+    status: "critical",
+    title: "Frotas com preventiva vencida crítica",
+    hint: "KM além da tolerância do marco · maior KM excedido primeiro",
+    icon: XCircle,
+    badge: "danger",
+  },
+  {
+    status: "due",
+    title: "Frotas com preventiva vencida",
+    hint: "Marco ultrapassado, dentro da tolerância · maior KM excedido primeiro",
+    icon: AlertTriangle,
+    badge: "warning",
+  },
+  {
+    status: "to_schedule",
+    title: "Frotas com preventiva a programar",
+    hint: "Na faixa de alerta antes do marco · menor saldo primeiro",
+    icon: CalendarClock,
+    badge: "info",
+  },
+];
+
+const BOARD_PREVIEW = 10;
+
+interface BoardEntry {
+  row: PreventiveMatrixRow;
+  /** Ciclo mais grave do veículo (o de menor número, entre os de mesma gravidade). */
+  cycle: PreventiveCycleCell & { status: BoardStatus };
+  /** Os demais ciclos pendentes (críticos, vencidos ou a programar) do veículo. */
+  others: PreventiveCycleCell[];
+}
+
+/** Uma linha por veículo, no quadro do seu ciclo pendente mais grave. */
+function boardEntries(rows: PreventiveMatrixRow[]): Record<BoardStatus, BoardEntry[]> {
+  const out: Record<BoardStatus, BoardEntry[]> = { critical: [], due: [], to_schedule: [] };
+  for (const row of rows) {
+    const pending = row.cycles.filter((c): c is BoardEntry["cycle"] => isBoardStatus(c.status));
+    if (!pending.length) continue;
+    const cycle = pending.reduce((best, c) => {
+      const diff = BOARD_RANK[c.status] - BOARD_RANK[best.status];
+      return diff < 0 || (diff === 0 && c.number < best.number) ? c : best;
+    });
+    out[cycle.status].push({ row, cycle, others: pending.filter((c) => c !== cycle).sort((a, b) => a.number - b.number) });
+  }
+  const plate = (e: BoardEntry) => e.row.licensePlate ?? e.row.fleetCode ?? "";
+  const byPlate = (a: BoardEntry, b: BoardEntry) => plate(a).localeCompare(plate(b), "pt-BR");
+  const byExceeded = (a: BoardEntry, b: BoardEntry) => (b.cycle.kmExceeded ?? 0) - (a.cycle.kmExceeded ?? 0) || byPlate(a, b);
+  const remaining = (e: BoardEntry) => e.cycle.kmRemaining ?? Number.MAX_SAFE_INTEGER;
+  out.critical.sort(byExceeded);
+  out.due.sort(byExceeded);
+  out.to_schedule.sort((a, b) => remaining(a) - remaining(b) || byPlate(a, b));
+  return out;
+}
+
+// ---------------------------------------------------------------- grupos
+
+const NO_TYPE_KEY = "\u0000sem-tipo";
+const NO_TYPE_LABEL = "Sem tipo";
+const GROUP_INITIAL = 25;
+const GROUP_STEP = 50;
+
+interface MatrixGroupData {
+  key: string;
+  label: string;
+  rows: PreventiveMatrixRow[];
+  /** Ciclos críticos, vencidos e a programar no grupo. */
+  counts: Record<BoardStatus, number>;
+}
+
+/** Linhas por tipo de equipamento, em ordem alfabética (pt-BR); "Sem tipo" por último. */
+function groupByType(rows: PreventiveMatrixRow[]): MatrixGroupData[] {
+  const map = new Map<string, MatrixGroupData>();
+  for (const row of rows) {
+    const name = row.typeName?.trim();
+    const key = name || NO_TYPE_KEY;
+    let group = map.get(key);
+    if (!group) {
+      group = { key, label: name || NO_TYPE_LABEL, rows: [], counts: { critical: 0, due: 0, to_schedule: 0 } };
+      map.set(key, group);
+    }
+    group.rows.push(row);
+    for (const c of row.cycles) if (isBoardStatus(c.status)) group.counts[c.status] += 1;
+  }
+  return [...map.values()].sort((a, b) => {
+    if (a.key === NO_TYPE_KEY || b.key === NO_TYPE_KEY) return a.key === NO_TYPE_KEY ? 1 : -1;
+    return a.label.localeCompare(b.label, "pt-BR");
+  });
+}
 
 export function PreventivePanel({ preventive, options, catalog, perms, actions }: PreventivePanelProps) {
   const { matrix, filters } = preventive;
   const { toast } = useToast();
   const [syncing, startSync] = React.useTransition();
   const [target, setTarget] = React.useState<ScheduleTarget | null>(null);
+  const [collapsed, setCollapsed] = React.useState<ReadonlySet<string>>(() => new Set());
   const pending = actions.pending;
 
   const inactive = (matrix?.situation ?? filters.situation) === "inactive";
@@ -239,30 +413,26 @@ export function PreventivePanel({ preventive, options, catalog, perms, actions }
     return [...seen.values()].sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
   }, [options.coverage, filters.operation]);
 
-  const brs = React.useMemo(
-    () =>
-      options.brs.filter(
-        (b) => (!filters.operation || b.operationId === filters.operation) && (!filters.city || String(b.cityId) === filters.city),
-      ),
-    [options.brs, filters.operation, filters.city],
-  );
-
-  const moreCount = [filters.model, filters.city, filters.br].filter(Boolean).length;
+  const moreCount = [filters.model, filters.city].filter(Boolean).length;
   const anyFilter = Boolean(
-    filters.q || filters.status || filters.vehicleType || filters.model || filters.operation || filters.city || filters.br,
+    filters.q || filters.status || filters.vehicleType || filters.model || filters.operation || filters.city,
   );
-  const clearFilters = () =>
-    set({ q: null, mp_situacao: null, equipamento: null, modelo: null, operacao: null, cidade: null, br: null });
+  const clearFilters = () => set({ q: null, mp_situacao: null, equipamento: null, modelo: null, operacao: null, cidade: null });
 
   // ---------------------------------------------------------------- matriz
   const rows = React.useMemo(() => matrix?.rows ?? [], [matrix]);
-  const maxCycle = React.useMemo(
-    () => rows.reduce((max, r) => r.cycles.reduce((m, c) => Math.max(m, c.number), max), 0),
-    [rows],
-  );
-  const cycleNumbers = React.useMemo(() => Array.from({ length: maxCycle }, (_, i) => i + 1), [maxCycle]);
-  const { page, pageSize, start, pageSizes } = useUrlPage(rows.length);
-  const pageRows = rows.slice(start, start + pageSize);
+  const groups = React.useMemo(() => groupByType(rows), [rows]);
+  const boards = React.useMemo(() => boardEntries(rows), [rows]);
+  const anyOpen = groups.some((g) => !collapsed.has(g.key));
+
+  const toggleGroup = (key: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  const toggleAll = () => setCollapsed(anyOpen ? new Set(groups.map((g) => g.key)) : new Set());
 
   const sync = () =>
     startSync(async () => {
@@ -334,7 +504,7 @@ export function PreventivePanel({ preventive, options, catalog, perms, actions }
           aria-label="Filtrar por operação"
           value={filters.operation ?? ""}
           disabled={pending}
-          onChange={(e) => set({ operacao: e.target.value || null, uf: null, cidade: null, br: null })}
+          onChange={(e) => set({ operacao: e.target.value || null, uf: null, cidade: null })}
           className="min-w-[11rem]"
         >
           <option value="">Todas</option>
@@ -369,7 +539,7 @@ export function PreventivePanel({ preventive, options, catalog, perms, actions }
         </PopoverTrigger>
         <PopoverContent align="end" className="w-[min(92vw,30rem)]">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <FilterField label="Modelo" className="sm:col-span-2">
+            <FilterField label="Modelo">
               <NativeSelect fieldSize="sm" value={filters.model ?? ""} onChange={(e) => set({ modelo: e.target.value || null })}>
                 <option value="">Todos</option>
                 {models.map((m) => (
@@ -383,20 +553,12 @@ export function PreventivePanel({ preventive, options, catalog, perms, actions }
                 value={filters.city ?? ""}
                 onChange={(e) => {
                   const city = cities.find((c) => String(c.id) === e.target.value);
-                  set({ cidade: city ? String(city.id) : null, uf: city ? String(city.stateId) : null, br: null });
+                  set({ cidade: city ? String(city.id) : null, uf: city ? String(city.stateId) : null });
                 }}
               >
                 <option value="">Todas</option>
                 {cities.map((c) => (
                   <option key={c.id} value={c.id}>{c.label}</option>
-                ))}
-              </NativeSelect>
-            </FilterField>
-            <FilterField label="BR">
-              <NativeSelect fieldSize="sm" value={filters.br ?? ""} onChange={(e) => set({ br: e.target.value || null })}>
-                <option value="">Todas</option>
-                {brs.map((b) => (
-                  <option key={b.id} value={b.id}>{b.code}</option>
                 ))}
               </NativeSelect>
             </FilterField>
@@ -470,6 +632,22 @@ export function PreventivePanel({ preventive, options, catalog, perms, actions }
         <StatTile label="Programadas" value={formatInt(s?.programmed ?? 0)} unit="com manutenção aberta" tone="info" />
       </section>
 
+      {!inactive && rows.length > 0 ? (
+        <section aria-label="Frotas com preventiva pendente" className="flex flex-col gap-3" data-testid="maintenance-preventive-boards">
+          {BOARDS.map((board) => (
+            <PreventiveBoard
+              key={board.status}
+              {...board}
+              entries={boards[board.status]}
+              canGenerate={canGenerate}
+              pending={pending}
+              onSchedule={(entry) => setTarget({ cycle: entry.cycle, row: entry.row, origin: "board" })}
+              onOpenMaintenance={actions.openMaintenance}
+            />
+          ))}
+        </section>
+      ) : null}
+
       <section className="flex flex-col gap-3 rounded-md border border-border bg-surface p-3 sm:p-4" aria-labelledby="preventive-matrix-title">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
@@ -477,32 +655,46 @@ export function PreventivePanel({ preventive, options, catalog, perms, actions }
               Matriz preventiva · veículos × ciclos MP
             </h3>
             <p className="text-caption text-fg-muted">
-              {formatInt(rows.length)} veículo(s) · situação calculada pelo servidor a partir do KM atual, do marco de
-              cada ciclo e da faixa de alerta/tolerância do parâmetro.
+              {formatInt(rows.length)} veículo(s) em {formatInt(groups.length)} tipo(s) de equipamento · situação
+              calculada pelo servidor a partir do KM atual, do marco de cada ciclo e da faixa de alerta/tolerância do
+              parâmetro.
             </p>
           </div>
-          {canSync ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              leadingIcon={<RefreshCw />}
-              onClick={sync}
-              loading={syncing}
-              disabled={pending}
-              data-testid="maintenance-preventive-sync"
-            >
-              Sincronizar ciclos
-            </Button>
-          ) : null}
+          <div className="flex flex-wrap items-center gap-2">
+            {groups.length > 1 ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                leadingIcon={anyOpen ? <FoldVertical /> : <UnfoldVertical />}
+                onClick={toggleAll}
+                data-testid="maintenance-preventive-groups-toggle"
+              >
+                {anyOpen ? "Recolher grupos" : "Expandir grupos"}
+              </Button>
+            ) : null}
+            {canSync ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                leadingIcon={<RefreshCw />}
+                onClick={sync}
+                loading={syncing}
+                disabled={pending}
+                data-testid="maintenance-preventive-sync"
+              >
+                Sincronizar ciclos
+              </Button>
+            ) : null}
+          </div>
         </div>
 
-        <ul className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-caption text-fg-muted" aria-label="Legenda das situações">
+        <ul className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-caption text-fg-muted" aria-label="Legenda das situações">
           {STATUS_ORDER.map((code) => (
-            <li key={code}>
-              <PreventiveStatusBadge status={code} size="sm" />
+            <li key={code} className="flex">
+              <StatusChip status={code} />
             </li>
           ))}
-          <li>“faltam X km” = antes do marco · “+X km” = além do marco</li>
+          <li className="sm:ml-1">“faltam X km” = antes do marco · “+X km” = além do marco</li>
           <li>Código azul = manutenção aberta para o ciclo</li>
         </ul>
 
@@ -527,50 +719,19 @@ export function PreventivePanel({ preventive, options, catalog, perms, actions }
             }
           />
         ) : (
-          <>
-            <TableContainer tabIndex={0} stickyHeader maxHeight="72vh" data-testid="maintenance-preventive-matrix">
-              <Table layout="fixed" style={{ minWidth: `${16 + Math.max(maxCycle, 1) * 10.5}rem` }}>
-                <TableHeader>
-                  <TableRow>
-                    {/* Veículo, tipo, operação e KM numa coluna fixa: a rolagem horizontal
-                        fica toda para os ciclos MP, que é o que se compara. */}
-                    <TableHead className="left-0 z-20! w-[12.5rem] border-r border-border sm:w-[16rem]">Veículo · KM atual</TableHead>
-                    {cycleNumbers.length ? (
-                      cycleNumbers.map((n) => (
-                        <TableHead key={n} className="w-[10.5rem]">MP{n}</TableHead>
-                      ))
-                    ) : (
-                      <TableHead className="w-[10.5rem]">Ciclos MP</TableHead>
-                    )}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pageRows.map((row) => (
-                    <MatrixRow
-                      key={row.vehicleId}
-                      row={row}
-                      cycleNumbers={cycleNumbers}
-                      canGenerate={canGenerate}
-                      onGenerate={(cycle) => setTarget({ cycle, row })}
-                      onOpenMaintenance={actions.openMaintenance}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            {rows.length > pageSizes[0] ? (
-              <Pagination
-                page={page}
-                pageSize={pageSize}
-                total={rows.length}
-                pageSizeOptions={pageSizes}
-                disabled={pending}
-                onPageChange={(p) => actions.navigate({ pagina: String(p) })}
-                onPageSizeChange={(size) => actions.navigate({ por_pagina: String(size), pagina: null })}
-                label="Páginas da matriz preventiva"
+          <div className="flex flex-col gap-3" data-testid="maintenance-preventive-matrix">
+            {groups.map((group) => (
+              <MatrixGroup
+                key={group.key}
+                group={group}
+                open={!collapsed.has(group.key)}
+                onToggle={() => toggleGroup(group.key)}
+                canGenerate={canGenerate}
+                onGenerate={(cycle, row) => setTarget({ cycle, row, origin: "matrix" })}
+                onOpenMaintenance={actions.openMaintenance}
               />
-            ) : null}
-          </>
+            ))}
+          </div>
         )}
       </section>
 
@@ -591,8 +752,312 @@ export function PreventivePanel({ preventive, options, catalog, perms, actions }
 }
 
 // ---------------------------------------------------------------------------
-// Linha e célula
+// Quadros: frotas com preventiva crítica, vencida e a programar
 // ---------------------------------------------------------------------------
+
+function PreventiveBoard({
+  status, title, hint, icon: Icon, badge, entries, canGenerate, pending, onSchedule, onOpenMaintenance,
+}: (typeof BOARDS)[number] & {
+  entries: BoardEntry[];
+  canGenerate: boolean;
+  pending: boolean;
+  onSchedule: (entry: BoardEntry) => void;
+  onOpenMaintenance: (id: string) => void;
+}) {
+  const [showAll, setShowAll] = React.useState(false);
+  const titleId = React.useId();
+  const tone = STATUS_CARD[status];
+  const visible = showAll ? entries : entries.slice(0, BOARD_PREVIEW);
+  const exceededBoard = status !== "to_schedule";
+
+  return (
+    <section
+      aria-labelledby={titleId}
+      className={cn("min-w-0 overflow-hidden rounded-md border bg-surface shadow-card", tone.border)}
+      data-testid={`maintenance-preventive-board-${status}`}
+    >
+      <header className={cn("relative flex flex-wrap items-center gap-x-3 gap-y-1 border-b py-2.5 pl-4 pr-3", cardTone(status))}>
+        <ToneStripe status={status} />
+        <Icon className={cn("size-4 shrink-0", tone.fg)} aria-hidden />
+        <h3 id={titleId} className="flex min-w-0 items-center gap-2 text-label font-semibold text-fg">
+          <span>{title}</span>
+          <Badge variant={badge} appearance="solid" size="sm" className="tabular-nums">
+            {formatInt(entries.length)}
+            <span className="sr-only"> {entries.length === 1 ? "frota" : "frotas"}</span>
+          </Badge>
+        </h3>
+        <p className="w-full text-caption text-fg-secondary sm:ml-auto sm:w-auto">{hint}</p>
+      </header>
+
+      {entries.length === 0 ? (
+        <p className="px-4 py-3 text-body-sm text-fg-muted">Nenhuma frota nesta situação.</p>
+      ) : (
+        <>
+          <TableContainer tabIndex={0} className="isolate rounded-none border-0">
+            {/* Larguras em %, iguais nos três quadros: as colunas se alinham de um quadro para o outro. */}
+            <Table layout="fixed" className="min-w-[64rem]">
+              <TableCaption className="sr-only">
+                {title}: placa, tipo de operação, local, tipo de equipamento, ciclo, KM atual, KM previsto, KM excedido e ação.
+              </TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="sticky left-0 z-[2] w-[9%] border-r border-border-subtle bg-surface-secondary">Placa</TableHead>
+                  <TableHead className="w-[14%]">Tipo de operação</TableHead>
+                  <TableHead className="w-[10%]">Local</TableHead>
+                  <TableHead className="w-[13%]">Tipo de equipamento</TableHead>
+                  <TableHead className="w-[8%]">Ciclo</TableHead>
+                  <TableHead numeric className="w-[10%]">KM atual</TableHead>
+                  <TableHead numeric className="w-[9%]">KM previsto</TableHead>
+                  <TableHead numeric className="w-[10%]">KM excedido</TableHead>
+                  <TableHead className="w-[17%]">Ação</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visible.map((entry) => (
+                  <BoardRow
+                    key={entry.row.vehicleId}
+                    entry={entry}
+                    exceededBoard={exceededBoard}
+                    canGenerate={canGenerate}
+                    pending={pending}
+                    onSchedule={() => onSchedule(entry)}
+                    onOpenMaintenance={onOpenMaintenance}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          {entries.length > BOARD_PREVIEW ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border-subtle px-3 py-1.5 text-caption text-fg-muted">
+              <span>
+                {showAll ? `Todas as ${formatInt(entries.length)} frotas` : `${formatInt(BOARD_PREVIEW)} de ${formatInt(entries.length)} frotas`}
+              </span>
+              <Button variant="ghost" size="sm" aria-expanded={showAll} onClick={() => setShowAll((v) => !v)}>
+                {showAll ? `Mostrar só as ${formatInt(BOARD_PREVIEW)} primeiras` : `Mostrar todos (${formatInt(entries.length)})`}
+              </Button>
+            </div>
+          ) : null}
+        </>
+      )}
+    </section>
+  );
+}
+
+function BoardRow({
+  entry, exceededBoard, canGenerate, pending, onSchedule, onOpenMaintenance,
+}: {
+  entry: BoardEntry;
+  exceededBoard: boolean;
+  canGenerate: boolean;
+  pending: boolean;
+  onSchedule: () => void;
+  onOpenMaintenance: (id: string) => void;
+}) {
+  const { row, cycle, others } = entry;
+  const vehicle = vehicleLabel(row.licensePlate, row.fleetCode);
+  const tone = STATUS_CARD[cycle.status];
+  const exceeded = cycle.kmExceeded != null && cycle.kmExceeded > 0 ? cycle.kmExceeded : null;
+  const open = cycle.openMaintenance;
+
+  return (
+    <TableRow className="align-top" data-testid="maintenance-preventive-board-row">
+      <TableCell className="sticky left-0 z-[1] border-r border-border-subtle bg-surface py-2 align-top">
+        <p className="font-semibold text-fg">{row.licensePlate ?? "Sem placa"}</p>
+        <p className="text-caption text-fg-muted">{row.fleetCode ?? "—"}</p>
+      </TableCell>
+      <TableCell className="py-2 align-top text-fg-secondary">{row.operationName ?? "Sem operação"}</TableCell>
+      <TableCell className="py-2 align-top text-fg-secondary">{row.cityName ?? "—"}</TableCell>
+      <TableCell className="py-2 align-top text-fg-secondary">{row.typeName ?? NO_TYPE_LABEL}</TableCell>
+      <TableCell className="py-2 align-top">
+        <p className="font-semibold text-fg">MP{cycle.number}</p>
+        {others.length ? (
+          <p
+            className="text-caption text-fg-muted"
+            title={`Também pendentes: ${others.map((c) => `MP${c.number} (${PREVENTIVE_STATUS_LABEL[c.status]})`).join(", ")}`}
+          >
+            +{others.length} {others.length === 1 ? "ciclo pendente" : "ciclos pendentes"}
+          </p>
+        ) : null}
+      </TableCell>
+      <TableCell numeric className="py-2 align-top">
+        <p className="whitespace-nowrap text-fg">{formatKm(row.currentKm)}</p>
+        <p className="whitespace-nowrap text-caption text-fg-muted">{row.currentKmDate ? `em ${formatDate(row.currentKmDate)}` : "sem leitura"}</p>
+      </TableCell>
+      <TableCell numeric className="whitespace-nowrap py-2 align-top text-fg">{formatKm(cycle.milestoneKm)}</TableCell>
+      <TableCell numeric className="py-2 align-top">
+        {exceeded != null ? (
+          <p className={cn("whitespace-nowrap font-semibold", tone.fg)}>+{formatKm(exceeded)}</p>
+        ) : (
+          <>
+            <p className="text-fg-muted">
+              <span aria-hidden>—</span>
+              <span className="sr-only">Sem KM excedido</span>
+            </p>
+            {!exceededBoard && cycle.kmRemaining != null ? (
+              <p className="whitespace-nowrap text-caption text-fg-muted">faltam {formatKm(cycle.kmRemaining)}</p>
+            ) : null}
+          </>
+        )}
+      </TableCell>
+      <TableCell className="py-1.5 align-top">
+        {open ? (
+          <div className="flex flex-col items-start py-0.5">
+            <button
+              type="button"
+              className="rounded-xs text-left font-semibold text-link underline-offset-2 hover:underline hfm-focus-ring"
+              onClick={() => onOpenMaintenance(open.id)}
+              aria-label={`Abrir a manutenção ${open.code} do MP${cycle.number} de ${vehicle}`}
+            >
+              {open.code}
+            </button>
+            <span className="text-caption text-fg-muted">{STATUS_LABEL[open.status] ?? open.status}</span>
+          </div>
+        ) : canGenerate ? (
+          <Button
+            size="sm"
+            variant="outline"
+            leadingIcon={<CalendarPlus />}
+            onClick={onSchedule}
+            disabled={pending}
+            aria-label={`Nova manutenção preventiva: agendar o MP${cycle.number} de ${vehicle}`}
+            data-testid="maintenance-preventive-new"
+          >
+            Nova manutenção
+          </Button>
+        ) : (
+          <span className="text-fg-muted">—</span>
+        )}
+      </TableCell>
+    </TableRow>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Grupo por tipo de equipamento, linha e célula
+// ---------------------------------------------------------------------------
+
+function MatrixGroup({
+  group, open, onToggle, canGenerate, onGenerate, onOpenMaintenance,
+}: {
+  group: MatrixGroupData;
+  open: boolean;
+  onToggle: () => void;
+  canGenerate: boolean;
+  onGenerate: (cycle: PreventiveCycleCell, row: PreventiveMatrixRow) => void;
+  onOpenMaintenance: (id: string) => void;
+}) {
+  // "Mostrar mais" local ao grupo: a página nasce leve mesmo com a frota inteira no recorte.
+  const [limit, setLimit] = React.useState(GROUP_INITIAL);
+  const id = React.useId();
+  const maxCycle = React.useMemo(
+    () => group.rows.reduce((max, r) => r.cycles.reduce((m, c) => Math.max(m, c.number), max), 0),
+    [group.rows],
+  );
+  const cycleNumbers = React.useMemo(() => Array.from({ length: maxCycle }, (_, i) => i + 1), [maxCycle]);
+  const shown = group.rows.slice(0, limit);
+  const rest = group.rows.length - shown.length;
+  const next = Math.min(GROUP_STEP, rest);
+  const pendingCounts = (["critical", "due", "to_schedule"] as const).filter((code) => group.counts[code] > 0);
+
+  return (
+    <section
+      className="min-w-0 overflow-hidden rounded-md border border-border"
+      aria-labelledby={`${id}-title`}
+      data-testid="maintenance-preventive-group"
+      data-type={group.label}
+    >
+      <h4 className="text-body-sm">
+        <button
+          type="button"
+          id={`${id}-title`}
+          aria-expanded={open}
+          aria-controls={`${id}-body`}
+          onClick={onToggle}
+          className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 bg-surface-secondary px-3 py-2 text-left hfm-transition hfm-focus-ring hover:bg-surface-hover"
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <ChevronRight className={cn("size-4 shrink-0 text-fg-muted hfm-transition", open && "rotate-90")} aria-hidden />
+            <span className="truncate font-semibold text-fg">{group.label}</span>
+            <span className="shrink-0 text-caption font-normal text-fg-muted">
+              {formatInt(group.rows.length)} {group.rows.length === 1 ? "veículo" : "veículos"}
+            </span>
+          </span>
+          <span className="flex flex-wrap items-center gap-1.5 sm:ml-auto">
+            {pendingCounts.length ? (
+              pendingCounts.map((code) => <StatusChip key={code} status={code} count={group.counts[code]} />)
+            ) : (
+              <span className="text-caption font-normal text-fg-muted">Sem ciclos pendentes</span>
+            )}
+          </span>
+        </button>
+      </h4>
+      <div id={`${id}-body`} hidden={!open}>
+        {open ? (
+          <>
+            {/* `isolate`: o cabeçalho fixo (z-20) fica contido na tabela e nunca passa por cima da barra do topo. */}
+            <TableContainer tabIndex={0} stickyHeader maxHeight="72vh" className="isolate rounded-none border-x-0 border-b-0">
+              <Table layout="fixed" style={{ minWidth: `${16 + Math.max(maxCycle, 1) * 10.5}rem` }}>
+                <TableCaption className="sr-only">
+                  Matriz preventiva de {group.label}: veículos nas linhas, ciclos MP nas colunas.
+                </TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    {/* Veículo, modelo, operação e KM numa coluna fixa: a rolagem horizontal
+                        fica toda para os ciclos MP, que é o que se compara. */}
+                    <TableHead className="left-0 z-20! w-[12.5rem] border-r border-border sm:w-[16rem]">Veículo · KM atual</TableHead>
+                    {cycleNumbers.length ? (
+                      cycleNumbers.map((n) => (
+                        <TableHead key={n} className="w-[10.5rem]">MP{n}</TableHead>
+                      ))
+                    ) : (
+                      <TableHead className="w-[10.5rem]">Ciclos MP</TableHead>
+                    )}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {shown.map((row) => (
+                    <MatrixRow
+                      key={row.vehicleId}
+                      row={row}
+                      cycleNumbers={cycleNumbers}
+                      canGenerate={canGenerate}
+                      onGenerate={(cycle) => onGenerate(cycle, row)}
+                      onOpenMaintenance={onOpenMaintenance}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            {group.rows.length > GROUP_INITIAL ? (
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-3 py-1.5 text-caption text-fg-muted">
+                <span>
+                  {formatInt(shown.length)} de {formatInt(group.rows.length)} veículos
+                </span>
+                <div className="flex flex-wrap items-center gap-1">
+                  {rest > 0 ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setLimit((v) => v + GROUP_STEP)}
+                      aria-label={`Mostrar mais ${formatInt(next)} veículos de ${group.label}`}
+                    >
+                      Mostrar mais {formatInt(next)}
+                    </Button>
+                  ) : null}
+                  {limit > GROUP_INITIAL ? (
+                    <Button variant="ghost" size="sm" onClick={() => setLimit(GROUP_INITIAL)}>
+                      Mostrar menos
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+    </section>
+  );
+}
 
 function MatrixRow({
   row, cycleNumbers, canGenerate, onGenerate, onOpenMaintenance,
@@ -606,6 +1071,8 @@ function MatrixRow({
   const byNumber = new Map(row.cycles.map((c) => [c.number, c]));
   const warnings = diagnosticsOf(row);
   const label = vehicleLabel(row.licensePlate, row.fleetCode);
+  // O tipo já está no cabeçalho do grupo: aqui vai o modelo (e a subcategoria).
+  const model = [row.modelName, row.subcategoryName].filter(Boolean).join(" · ");
 
   return (
     <TableRow className="align-top" data-testid="maintenance-preventive-row">
@@ -616,9 +1083,9 @@ function MatrixRow({
               {row.fleetCode ?? "—"} <span className="font-normal text-fg-muted">{row.licensePlate ?? ""}</span>
             </p>
             <p className="truncate text-caption text-fg-secondary" title={[row.typeName, row.modelName, row.subcategoryName].filter(Boolean).join(" · ")}>
-              {[row.typeName, row.modelName].filter(Boolean).join(" · ") || "—"}
+              {model || row.typeName || "—"}
             </p>
-            <p className="truncate text-caption text-fg-muted" title={[row.operationName, row.cityName, row.brCode ? `BR ${row.brCode}` : null].filter(Boolean).join(" · ")}>
+            <p className="truncate text-caption text-fg-muted" title={[row.operationName, row.cityName].filter(Boolean).join(" · ")}>
               {[row.operationName ?? "Sem operação", row.cityName].filter(Boolean).join(" · ")}
             </p>
             <p className="text-caption tabular-nums text-fg">
@@ -694,7 +1161,7 @@ function CycleCell({
   onGenerate: () => void;
   onOpenMaintenance: (id: string) => void;
 }) {
-  const tone = PREVENTIVE_STATUS_TONE[cycle.status] ?? "neutral";
+  const tone = STATUS_CARD[cycle.status] ?? STATUS_CARD.not_reached;
   const done = cycle.status === "completed";
   const actionable = canGenerate && ACTIONABLE.includes(cycle.status) && !cycle.openMaintenance;
   const bal = balance(cycle);
@@ -703,12 +1170,13 @@ function CycleCell({
   return (
     <div
       className={cn(
-        "flex min-h-[5rem] flex-col items-start gap-1 rounded-sm border border-border-subtle border-l-2 bg-surface px-2 py-1.5 text-caption",
-        TONE_BORDER[tone],
+        "relative flex min-h-[5.5rem] flex-col items-start gap-1 overflow-hidden rounded-sm border py-1.5 pl-3 pr-2 text-caption",
+        cardTone(cycle.status),
       )}
       data-status={cycle.status}
     >
-      <PreventiveStatusBadge status={cycle.status} size="sm" />
+      <ToneStripe status={cycle.status} />
+      <CycleStatusBadge status={cycle.status} />
       <span className="font-semibold text-fg tabular-nums" title="Marco do ciclo">
         <span className="sr-only">Marco </span>
         {formatKm(cycle.milestoneKm)}
@@ -732,7 +1200,9 @@ function CycleCell({
           ) : null}
         </>
       ) : (
-        <span className="text-fg-secondary tabular-nums" title={bal.title}>{bal.text}</span>
+        <span className={cn("tabular-nums", bal.exceeded ? cn("font-semibold", tone.fg) : "text-fg-secondary")} title={bal.title}>
+          {bal.text}
+        </span>
       )}
       {cycle.openMaintenance ? (
         <button
@@ -742,15 +1212,15 @@ function CycleCell({
           aria-label={`Abrir a manutenção ${cycle.openMaintenance.code} do MP${cycle.number} de ${vehicle}`}
         >
           {cycle.openMaintenance.code}
-          <span className="font-normal text-fg-muted"> · {STATUS_LABEL[cycle.openMaintenance.status] ?? cycle.openMaintenance.status}</span>
+          <span className="font-normal text-fg-secondary"> · {STATUS_LABEL[cycle.openMaintenance.status] ?? cycle.openMaintenance.status}</span>
         </button>
       ) : null}
       {actionable ? (
         <Button
           size="sm"
-          variant="secondary"
+          variant="outline"
           leadingIcon={<CalendarPlus />}
-          className="mt-0.5 h-7 w-full justify-center px-2 text-caption"
+          className="mt-auto h-7 w-full justify-center px-2 text-caption"
           onClick={onGenerate}
           aria-label={`Gerar manutenção para o MP${cycle.number} de ${vehicle}`}
           data-testid="maintenance-preventive-generate"
@@ -763,7 +1233,7 @@ function CycleCell({
 }
 
 // ---------------------------------------------------------------------------
-// Gerar manutenção do ciclo
+// Nova manutenção preventiva: agendamento do ciclo
 // ---------------------------------------------------------------------------
 
 function ScheduleCycleDialog({
@@ -809,7 +1279,7 @@ function ScheduleCycleForm({
   const [busy, startTransition] = React.useTransition();
   const [date, setDate] = React.useState("");
   const [supplier, setSupplier] = React.useState("");
-  const { cycle, row } = target;
+  const { cycle, row, origin } = target;
   const vehicle = vehicleLabel(row.licensePlate, row.fleetCode);
   const suppliers = React.useMemo(
     () =>
@@ -820,15 +1290,14 @@ function ScheduleCycleForm({
     [catalog.suppliers],
   );
   const bal = balance(cycle);
+  const scheduledDate = canSchedule ? date || null : null;
+  const context = [row.typeName, row.operationName, row.cityName].filter(Boolean).join(" · ");
 
   const submit = () =>
     startTransition(async () => {
-      const result = await schedulePreventiveCycle(cycle.id, {
-        scheduledDate: canSchedule ? date || null : null,
-        supplierId: supplier || null,
-      });
+      const result = await schedulePreventiveCycle(cycle.id, { scheduledDate, supplierId: supplier || null });
       if (!result.ok || !result.data) {
-        toast({ title: result.error ?? "Não foi possível gerar a manutenção preventiva.", variant: "danger" });
+        toast({ title: result.error ?? "Não foi possível criar a manutenção preventiva.", variant: "danger" });
         return;
       }
       const { id, code, created } = result.data;
@@ -836,7 +1305,13 @@ function ScheduleCycleForm({
       if (created === false) {
         toast({ title: `Já existia a manutenção ${code}.`, description: "Nenhuma nova foi criada para este ciclo.", variant: "info" });
       } else {
-        toast({ title: `Manutenção ${code} gerada.`, description: `Preventiva MP${cycle.number} de ${vehicle}.`, variant: "success" });
+        toast({
+          title: scheduledDate ? `Manutenção ${code} criada e agendada.` : `Manutenção ${code} criada.`,
+          description: scheduledDate
+            ? `Preventiva MP${cycle.number} de ${vehicle} agendada para ${formatDate(scheduledDate)}.`
+            : `Preventiva MP${cycle.number} de ${vehicle} · Há agendar.`,
+          variant: "success",
+        });
       }
       actions.refresh();
       actions.openMaintenance(id);
@@ -845,27 +1320,36 @@ function ScheduleCycleForm({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Gerar manutenção preventiva</DialogTitle>
+        {/* O título repete o botão que abriu o diálogo ("Nova manutenção" no quadro, "Gerar" na matriz). */}
+        <DialogTitle>{origin === "matrix" ? "Gerar manutenção preventiva" : "Nova manutenção preventiva"}</DialogTitle>
         <DialogDescription>
-          MP{cycle.number} · marco {formatKm(cycle.milestoneKm)} · {vehicle}
+          Agendamento do MP{cycle.number} · marco {formatKm(cycle.milestoneKm)} · {vehicle}
         </DialogDescription>
       </DialogHeader>
       <DialogBody className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-2 text-body-sm">
-          <PreventiveStatusBadge status={cycle.status} />
-          <span className="text-fg-secondary tabular-nums">{bal.title}</span>
+        <div className={cn("relative flex flex-col gap-1 overflow-hidden rounded-sm border py-2 pl-4 pr-3", cardTone(cycle.status))}>
+          <ToneStripe status={cycle.status} />
+          <div className="flex flex-wrap items-center gap-2 text-body-sm">
+            <CycleStatusBadge status={cycle.status} />
+            <span className={cn("tabular-nums", bal.exceeded ? cn("font-semibold", STATUS_CARD[cycle.status].fg) : "text-fg-secondary")}>
+              {bal.title}
+            </span>
+          </div>
+          <p className="text-caption text-fg-secondary">
+            {context ? `${context} · ` : ""}KM atual {formatKm(row.currentKm)}
+          </p>
         </div>
         {canSchedule ? (
           <FormField
-            label="Data de agendamento"
+            label="Data do agendamento"
             labelHint="Opcional"
-            helperText="Sem data, a manutenção nasce como Há agendar; com data, já nasce agendada."
+            helperText="Sem data, a manutenção é criada como Há agendar; com data, já nasce agendada."
           >
             <DateInput value={date} min={today || undefined} onChange={(e) => setDate(e.target.value)} />
           </FormField>
         ) : (
           <p className="text-caption text-fg-muted">
-            A manutenção nasce como Há agendar; o agendamento fica com quem tem permissão de agendar.
+            A manutenção é criada como Há agendar; o agendamento fica com quem tem permissão de agendar.
           </p>
         )}
         <FormField label="Fornecedor" labelHint="Opcional">
@@ -886,7 +1370,7 @@ function ScheduleCycleForm({
           Cancelar
         </Button>
         <Button leadingIcon={<CalendarPlus />} onClick={submit} loading={busy} data-testid="maintenance-preventive-schedule-submit">
-          Gerar manutenção
+          {scheduledDate ? "Criar e agendar" : "Criar manutenção"}
         </Button>
       </DialogFooter>
     </>

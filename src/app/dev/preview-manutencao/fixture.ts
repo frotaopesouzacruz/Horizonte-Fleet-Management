@@ -133,10 +133,15 @@ export const ROWS: MaintenanceRow[] = [
 
 const pageOf = (rows: MaintenanceRow[]): MaintenancePage => ({ total: rows.length, rows, limit: 50, offset: 0, today: TODAY });
 export const BASE_PAGE = pageOf(ROWS);
-export const SCHEDULE_PAGE = pageOf(ROWS.filter((r) => ["to_schedule", "scheduled", "in_progress"].includes(r.status)));
+// Só na fila da Programação: uma operação com duas cidades no mesmo quadro e uma manutenção sem operação/cidade.
+const SCHEDULE_EXTRA: MaintenanceRow[] = [
+  row({ id: "m8", code: "MAN-2026-000124", type: "preventive", status: "scheduled", vehicleId: "v5", fleetCode: "FL145", licensePlate: "UHJ4I15", operationId: OPS.mg.id, operationName: OPS.mg.name, stateUf: "MG", cityId: 3122306, cityName: "Divinópolis", originId: "or-ps", originName: "Programação preventiva", requestedOn: "2026-09-25", scheduledDate: "2026-09-30", scheduledTime: "14:00:00", expectedExitDate: "2026-09-30", expectedExitTime: "18:00:00", supplierId: "sp-cen", supplierName: "Oficina Central Diesel Ltda", ageDays: 3, items: [item("i11", "sv-oleo"), item("i12", "sv-ali")] }),
+  row({ id: "m9", code: "MAN-2026-000126", type: "corrective", status: "to_schedule", vehicleId: "v7", fleetCode: "VA188", licensePlate: "SNT2C88", originId: "or-dr", originName: "Relato do motorista", requestedOn: "2026-09-27", ageDays: 1, items: [item("i13", "sv-far")] }),
+];
+export const SCHEDULE_PAGE = pageOf([...ROWS.filter((r) => ["to_schedule", "scheduled", "in_progress"].includes(r.status)), ...SCHEDULE_EXTRA]);
 
 export const SCHEDULE_KPIS: ScheduleKpis = {
-  today: TODAY, toSchedule: 1, scheduled: 2, inProgress: 1, scheduledToday: 1, lateEntry: 1, exitOverdue: 1,
+  today: TODAY, toSchedule: 2, scheduled: 3, inProgress: 1, scheduledToday: 1, lateEntry: 1, exitOverdue: 1,
   unscheduledOverdue: 1, overSla: 1, completedToday: 0, defaultSlaHours: 72, scheduleOverdueDays: 5,
 };
 
@@ -211,43 +216,115 @@ const mp = (vehicle: string, n: number, status: PreventiveMatrix["rows"][number]
   completedKm: null, completedMaintenanceId: null, adherence: null, adherenceKm: null, adherencePct: null, openMaintenance: null, ...extra,
 });
 
+type PreventiveRowSeed = PreventiveMatrix["rows"][number];
+
+/*
+ * Parâmetro de 10.000 km com alerta e tolerância de 5% (500 km), como o
+ * servidor classifica: marco − 500 ≤ KM ≤ marco → A programar; até marco + 500
+ * → Vencida; além disso → Crítica (um MP pulado também fica Crítica).
+ * Dois tipos de equipamento, com veículos nos três quadros e um sem leitura.
+ */
+const PREVENTIVE_ROWS: PreventiveRowSeed[] = [
+  {
+    vehicleId: "v1", licensePlate: "SNT8E16", fleetCode: "VA116", typeName: "Van", subcategoryName: "Van carga", modelName: "Master",
+    operationId: OPS.mg.id, operationName: OPS.mg.name, cityName: "Divinópolis", brCode: "BR0024107", vehicleStatus: "active",
+    currentKm: 51230, currentKmDate: "2026-09-27", hasRule: true, diagnostics: [],
+    cycles: [
+      mp("1", 1, "completed", 10000, { completedOn: "2026-02-10", completedKm: 9870, adherence: "on_time", adherenceKm: -130, adherencePct: -1.3 }),
+      mp("1", 2, "completed", 20000, { completedOn: "2026-04-22", completedKm: 21400, adherence: "late", adherenceKm: 1400, adherencePct: 14 }),
+      mp("1", 3, "completed", 30000, { completedOn: "2026-06-11", completedKm: 29100, adherence: "early", adherenceKm: -900, adherencePct: -9 }),
+      mp("1", 4, "completed", 40000, { completedOn: "2026-07-30", completedKm: 40210, adherence: "on_time", adherenceKm: 210, adherencePct: 2.1 }),
+      mp("1", 5, "critical", 50000, { kmExceeded: 1230 }),
+      mp("1", 6, "not_reached", 60000, { kmRemaining: 8770 }),
+    ],
+  },
+  {
+    vehicleId: "v2", licensePlate: "SNT8G21", fleetCode: "VA131", typeName: "Van", subcategoryName: "Van carga", modelName: "Master",
+    operationId: OPS.mg.id, operationName: OPS.mg.name, cityName: "Contagem", brCode: "BR0024901", vehicleStatus: "active",
+    currentKm: 29640, currentKmDate: "2026-09-26", hasRule: true, diagnostics: [],
+    cycles: [
+      mp("2", 1, "completed", 10000, { completedOn: "2026-03-02", completedKm: 10120, adherence: "on_time", adherenceKm: 120, adherencePct: 1.2 }),
+      mp("2", 2, "completed", 20000, { completedOn: "2026-06-18", completedKm: 19750, adherence: "on_time", adherenceKm: -250, adherencePct: -2.5 }),
+      mp("2", 3, "to_schedule", 30000, { kmRemaining: 360, openMaintenance: { id: "m2", code: "MAN-2026-000121", status: "scheduled" } }),
+      mp("2", 4, "not_reached", 40000, { kmRemaining: 10360 }),
+      mp("2", 5, "not_reached", 50000, { kmRemaining: 20360 }),
+      mp("2", 6, "not_reached", 60000, { kmRemaining: 30360 }),
+    ],
+  },
+  {
+    vehicleId: "v4", licensePlate: "SNT1A73", fleetCode: "VA163", typeName: "Van", subcategoryName: "Van carga", modelName: "Master",
+    operationId: OPS.pa.id, operationName: OPS.pa.name, cityName: "Belém", brCode: "Redespacho Belem/Pa_1", vehicleStatus: "active",
+    currentKm: 40320, currentKmDate: "2026-09-25", hasRule: true, diagnostics: [],
+    cycles: [
+      mp("4", 1, "completed", 10000, { completedOn: "2025-11-04", completedKm: 9980, adherence: "on_time", adherenceKm: -20, adherencePct: -0.2 }),
+      mp("4", 2, "completed", 20000, { completedOn: "2026-02-19", completedKm: 20310, adherence: "on_time", adherenceKm: 310, adherencePct: 3.1 }),
+      mp("4", 3, "critical", 30000, { kmExceeded: 10320 }),
+      mp("4", 4, "due", 40000, { kmExceeded: 320 }),
+      mp("4", 5, "not_reached", 50000, { kmRemaining: 9680 }),
+      mp("4", 6, "not_reached", 60000, { kmRemaining: 19680 }),
+    ],
+  },
+  {
+    vehicleId: "v5", licensePlate: "UHJ4I15", fleetCode: "FL145", typeName: "Frota Leve ADM", subcategoryName: null, modelName: null,
+    operationId: OPS.mg.id, operationName: OPS.mg.name, cityName: "Divinópolis", brCode: null, vehicleStatus: "active",
+    currentKm: 12050, currentKmDate: "2026-09-20", hasRule: false, diagnostics: ["Sem parâmetro preventivo para este tipo/modelo."], cycles: [],
+  },
+  {
+    vehicleId: "v21", licensePlate: "RNB3C47", fleetCode: "FL150", typeName: "Frota Leve ADM", subcategoryName: null, modelName: "Onix",
+    operationId: OPS.mg.id, operationName: OPS.mg.name, cityName: "Contagem", brCode: "BR0024901", vehicleStatus: "active",
+    currentKm: 21900, currentKmDate: "2026-09-27", hasRule: true, diagnostics: [],
+    cycles: [
+      mp("21", 1, "completed", 10000, { completedOn: "2026-01-15", completedKm: 10450, adherence: "on_time", adherenceKm: 450, adherencePct: 4.5 }),
+      mp("21", 2, "critical", 20000, { kmExceeded: 1900 }),
+      mp("21", 3, "not_reached", 30000, { kmRemaining: 8100 }),
+    ],
+  },
+  {
+    vehicleId: "v22", licensePlate: "RNB4E88", fleetCode: "FL151", typeName: "Frota Leve ADM", subcategoryName: null, modelName: "Onix",
+    operationId: OPS.mg.id, operationName: OPS.mg.name, cityName: "Divinópolis", brCode: "BR0024107", vehicleStatus: "active",
+    currentKm: 30210, currentKmDate: "2026-09-26", hasRule: true, diagnostics: [],
+    cycles: [
+      mp("22", 1, "completed", 10000, { completedOn: "2025-12-01", completedKm: 9640, adherence: "early", adherenceKm: -360, adherencePct: -3.6 }),
+      mp("22", 2, "completed", 20000, { completedOn: "2026-05-12", completedKm: 20090, adherence: "on_time", adherenceKm: 90, adherencePct: 0.9 }),
+      mp("22", 3, "due", 30000, { kmExceeded: 210 }),
+    ],
+  },
+  {
+    vehicleId: "v23", licensePlate: "RNB1A09", fleetCode: "FL148", typeName: "Frota Leve ADM", subcategoryName: null, modelName: "Onix",
+    operationId: OPS.pa.id, operationName: OPS.pa.name, cityName: "Belém", brCode: null, vehicleStatus: "active",
+    currentKm: 9620, currentKmDate: "2026-09-24", hasRule: true, diagnostics: [],
+    cycles: [
+      mp("23", 1, "to_schedule", 10000, { kmRemaining: 380 }),
+      mp("23", 2, "not_reached", 20000, { kmRemaining: 10380 }),
+      mp("23", 3, "not_reached", 30000, { kmRemaining: 20380 }),
+    ],
+  },
+  {
+    vehicleId: "v24", licensePlate: "RNB5D12", fleetCode: "FL152", typeName: "Frota Leve ADM", subcategoryName: null, modelName: "Onix",
+    operationId: OPS.pa.id, operationName: OPS.pa.name, cityName: "Belém", brCode: null, vehicleStatus: "active",
+    currentKm: null, currentKmDate: null, hasRule: true, diagnostics: ["no_km"],
+    cycles: [mp("24", 1, "no_km", 10000), mp("24", 2, "no_km", 20000), mp("24", 3, "no_km", 30000)],
+  },
+];
+
+const cyclesWith = (status: PreventiveRowSeed["cycles"][number]["status"]) =>
+  PREVENTIVE_ROWS.reduce((n, r) => n + r.cycles.filter((c) => c.status === status).length, 0);
+
 export const PREVENTIVE: PreventiveMatrix = {
   today: TODAY,
   situation: "active",
-  summary: { vehicles: 4, noRule: 1, noKm: 0, notReached: 6, toSchedule: 1, due: 1, critical: 1, completed: 4, programmed: 1 },
-  rows: [
-    {
-      vehicleId: "v1", licensePlate: "SNT8E16", fleetCode: "VA116", typeName: "Van", subcategoryName: "Van carga", modelName: "Master",
-      operationId: OPS.mg.id, operationName: OPS.mg.name, cityName: "Divinópolis", brCode: "BR0024107", vehicleStatus: "active",
-      currentKm: 51230, currentKmDate: "2026-09-27", hasRule: true, diagnostics: [],
-      cycles: [
-        mp("1", 1, "completed", 10000, { completedOn: "2026-02-10", completedKm: 9870, adherence: "on_time", adherenceKm: -130, adherencePct: -1.3 }),
-        mp("1", 2, "completed", 20000, { completedOn: "2026-04-22", completedKm: 21400, adherence: "late", adherenceKm: 1400, adherencePct: 14 }),
-        mp("1", 3, "completed", 30000, { completedOn: "2026-06-11", completedKm: 29100, adherence: "early", adherenceKm: -900, adherencePct: -9 }),
-        mp("1", 4, "completed", 40000, { completedOn: "2026-07-30", completedKm: 40210, adherence: "on_time", adherenceKm: 210, adherencePct: 2.1 }),
-        mp("1", 5, "critical", 50000, { kmExceeded: 1230 }),
-        mp("1", 6, "not_reached", 60000, { kmRemaining: 8770 }),
-      ],
-    },
-    {
-      vehicleId: "v2", licensePlate: "SNT8G21", fleetCode: "VA131", typeName: "Van", subcategoryName: "Van carga", modelName: "Master",
-      operationId: OPS.mg.id, operationName: OPS.mg.name, cityName: "Contagem", brCode: "BR0024901", vehicleStatus: "active",
-      currentKm: 29640, currentKmDate: "2026-09-26", hasRule: true, diagnostics: [],
-      cycles: [
-        mp("2", 1, "due", 10000, { kmExceeded: 19640 }),
-        mp("2", 2, "due", 20000, { kmExceeded: 9640 }),
-        mp("2", 3, "to_schedule", 30000, { kmRemaining: 360, openMaintenance: { id: "m2", code: "MAN-2026-000121", status: "scheduled" } }),
-        mp("2", 4, "not_reached", 40000, { kmRemaining: 10360 }),
-        mp("2", 5, "not_reached", 50000, { kmRemaining: 20360 }),
-        mp("2", 6, "not_reached", 60000, { kmRemaining: 30360 }),
-      ],
-    },
-    {
-      vehicleId: "v5", licensePlate: "UHJ4I15", fleetCode: "FL145", typeName: "Frota Leve ADM", subcategoryName: null, modelName: null,
-      operationId: OPS.mg.id, operationName: OPS.mg.name, cityName: "Divinópolis", brCode: null, vehicleStatus: "active",
-      currentKm: 12050, currentKmDate: "2026-09-20", hasRule: false, diagnostics: ["Sem parâmetro preventivo para este tipo/modelo."], cycles: [],
-    },
-  ],
+  summary: {
+    vehicles: PREVENTIVE_ROWS.length,
+    noRule: PREVENTIVE_ROWS.filter((r) => !r.hasRule).length,
+    noKm: PREVENTIVE_ROWS.filter((r) => r.hasRule && r.currentKm == null).length,
+    notReached: cyclesWith("not_reached"),
+    toSchedule: cyclesWith("to_schedule"),
+    due: cyclesWith("due"),
+    critical: cyclesWith("critical"),
+    completed: cyclesWith("completed"),
+    programmed: PREVENTIVE_ROWS.reduce((n, r) => n + r.cycles.filter((c) => c.openMaintenance).length, 0),
+  },
+  rows: PREVENTIVE_ROWS,
 };
 
 const cell = (cycleId: string, status: PredictiveOverview["rows"][number]["cells"][string]["status"], extra: Partial<PredictiveOverview["rows"][number]["cells"][string]> = {}) => ({
