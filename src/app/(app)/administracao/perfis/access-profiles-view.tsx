@@ -84,6 +84,9 @@ const MODULE_LABELS: Record<string, string> = {
   vehicles: "Frota",
   drivers: "Condutores",
   audit: "Auditoria",
+  maintenance: "Manutenção",
+  adherence: "Aderência",
+  action_plans: "Planos de ação",
 };
 
 const moduleLabel = (module: string) => MODULE_LABELS[module] ?? module;

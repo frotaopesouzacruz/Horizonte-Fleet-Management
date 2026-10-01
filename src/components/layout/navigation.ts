@@ -5,10 +5,12 @@ import {
   CalendarRange,
   CircleDot,
   ClipboardCheck,
+  ClipboardList,
   Fuel,
   Gauge,
   LayoutDashboard,
   MapPin,
+  MessageSquareText,
   Network,
   ShieldAlert,
   ShieldCheck,
@@ -231,6 +233,22 @@ export const navigation: NavGroup[] = [
         icon: UserCheck,
         permission: "adherence.view_own",
       },
+      {
+        // Plano de Ação de Manutenção: as inconformidades técnicas do Check
+        // List, da ocorrência à resolução.
+        label: "Planos de ação",
+        href: "/checklist/planos-acao",
+        icon: ClipboardList,
+        permission: "action_plans.view",
+      },
+      {
+        // §65: o motorista acompanha o que ele mesmo apontou, por permissão
+        // própria — sem receber o portal de planos.
+        label: "Meus apontamentos",
+        href: "/checklist/planos-acao/meus-apontamentos",
+        icon: MessageSquareText,
+        permission: "action_plans.view_own",
+      },
     ],
   },
   {
@@ -271,7 +289,8 @@ export function isActivePath(pathname: string, href: string): boolean {
   const within = (base: string) => pathname === base || pathname.startsWith(base + "/");
   if (!within(href)) return false;
   // Uma entrada mais específica é dona do caminho: em Aderência › Minha
-  // situação, só "Minha situação" fica ativa.
+  // situação, só "Minha situação" fica ativa; em Planos de ação › Meus
+  // apontamentos, só "Meus apontamentos".
   return !navigation.some((group) =>
     group.items.some((item) => item.href !== href && item.href.startsWith(href + "/") && within(item.href)),
   );

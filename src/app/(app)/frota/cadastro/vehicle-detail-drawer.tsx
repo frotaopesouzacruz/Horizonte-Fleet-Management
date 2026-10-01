@@ -48,6 +48,7 @@ import { listOperationsForFleet } from "@/lib/fleet/option-actions";
 import { loadVehicleBrHistory } from "@/lib/governance/actions";
 import type { VehicleBrHistory, VehicleBrRow } from "@/lib/governance/brs";
 import { VehicleMaintenanceHistory } from "@/components/maintenance/vehicle-maintenance-history";
+import { VehicleActionPlans } from "@/components/action-plans/vehicle-action-plans";
 import { useOperationGeography } from "./use-operation-geography";
 import { formatDate, formatPlate } from "./fleet-view";
 
@@ -136,6 +137,8 @@ export function VehicleDetailDrawer({
   const canViewBrs = can("fidelization.view");
   // Etapa 16: o histórico de manutenção é consulta à base oficial do módulo.
   const canViewMaintenance = can("maintenance.view_base");
+  // Planos de Ação: consulta aos planos do veículo (a tratativa é no módulo).
+  const canViewActionPlans = can("action_plans.view");
 
   /**
    * The Fidelização tab loads only when it is first shown for this vehicle
@@ -243,6 +246,7 @@ export function VehicleDetailDrawer({
                 {canViewBrs ? <TabsTrigger value="fidelizacao">Fidelização</TabsTrigger> : null}
                 <TabsTrigger value="km">Quilometragem</TabsTrigger>
                 {canViewMaintenance ? <TabsTrigger value="manutencao">Manutenção</TabsTrigger> : null}
+                {canViewActionPlans ? <TabsTrigger value="planos-acao">Planos de ação</TabsTrigger> : null}
                 <TabsTrigger value="historico">Histórico</TabsTrigger>
               </TabsList>
 
@@ -367,6 +371,14 @@ export function VehicleDetailDrawer({
               {canViewMaintenance && vehicleId ? (
                 <TabsContent value="manutencao" className="flex flex-col gap-4">
                   <VehicleMaintenanceHistory vehicleId={vehicleId} />
+                </TabsContent>
+              ) : null}
+
+              {/* ---------------------------------------- planos de ação -- */}
+              {/* Consulta pelo id do veículo; tratar o plano é no módulo. */}
+              {canViewActionPlans && vehicleId ? (
+                <TabsContent value="planos-acao" className="flex flex-col gap-4">
+                  <VehicleActionPlans vehicleId={vehicleId} />
                 </TabsContent>
               ) : null}
 
