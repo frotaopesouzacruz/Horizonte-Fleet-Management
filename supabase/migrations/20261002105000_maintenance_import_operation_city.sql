@@ -24,11 +24,12 @@
 --     divergente". Alterada por usuário (conflito): só o contexto vazio é
 --     preenchido; o resto continua intocado.
 --   * context_source: o CHECK aceita só fidelization/allocation/none, e
---     estendê-lo exigiria remover a constraint (DROP), o que esta base não
---     faz. A manutenção fica com context_source = 'none' — é a verdade: na
---     data não havia fonte oficial — e a origem "planilha" fica registrada no
---     evento (payload.context_source = 'import') e na linha da importação
---     (normalized_data.context_fill / context_from_sheet).
+--     estendê-lo exigiria remover a constraint atual, o que as migrations
+--     desta base não fazem. A manutenção fica com context_source = 'none'
+--     (é a verdade: na data não havia fonte oficial) e a origem "planilha"
+--     fica registrada no evento (payload.context_source = 'import' no
+--     import_updated; payload.context_from_sheet no imported) e na linha da
+--     importação (normalized_data.context_fill / context_applied = 'sheet').
 --
 -- Manutenção aberta reidentificada (ver private.maintenance_import_reidentify)
 --   Linhas abertas (Há agendar/Agendado) sem correspondência exata são
@@ -40,7 +41,7 @@
 --   a do HFM, com aviso). Mais de uma = aviso com as candidatas e o
 --   comportamento de antes.
 --
--- Sem DROP, TRUNCATE ou DELETE fora de funções: só create or replace.
+-- Só create or replace: nenhum objeto é removido nem esvaziado.
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -92,6 +93,8 @@ declare
   v_oc       uuid;
   v_msgs     jsonb := '[]'::jsonb;
 begin
+  select null::uuid as id, null::text as name into v_op;
+  select null::integer as id, null::text as name, null::smallint as state_id, null::text as uf into v_city;
   -- Operação: nome normalizado ou código. Nunca cria.
   if v_op_raw is not null then
     select count(*) into v_n from public.operations o
@@ -1315,6 +1318,10 @@ declare
   v_new     boolean;
   v_was_completed boolean;
   v_items_added boolean;
+  v_ctx_row jsonb;      -- primeira linha da entrada com operação reconhecida
+  v_ctx_applied text;   -- 'sheet' quando o contexto gravado veio da planilha
+  v_sheet   jsonb;
+  v_after   jsonb;
 begin
   if not private.has_permission(p_organization_id, 'maintenance.import') then
     raise exception 'Você não possui permissão para importar manutenção.' using errcode = 'insufficient_privilege';
@@ -1370,15 +1377,32 @@ begin
         v_first := v_first || jsonb_build_object('entry_time', null, 'exit_time', null);
       end if;
 
+      -- Operação/cidade da planilha: a da primeira linha da entrada que a tem.
+      select x.normalized_data into v_ctx_row from public.import_rows x
+       where x.batch_id = p_batch_id and x.normalized_data ->> 'group_key' = v_group.group_key
+         and x.status in ('valid', 'warning') and x.action in ('create', 'update')
+         and x.normalized_data ->> 'operation_id' is not null
+       order by x.row_number limit 1;
+      v_ctx_applied := null;
+
       select * into v_m from public.maintenances
        where organization_id = p_organization_id and import_key = v_group.group_key for update;
       -- Reconhecida pela OS na validação (o fornecedor mudou de grafia): a
-      -- manutenção passa a responder pela chave nova.
+      -- manutenção passa a responder pela chave nova. Reidentificada na prévia
+      -- (OS ou data mudou numa aberta): a chave do arquivo só passa para ela
+      -- quando a entrada do arquivo é toda dela (move_key) e está livre.
       if v_m.id is null and v_first ? 'existing_id' then
         select * into v_m from public.maintenances
          where organization_id = p_organization_id and id = (v_first ->> 'existing_id')::uuid for update;
-        if v_m.id is not null and not exists (select 1 from public.maintenances x
-                                               where x.organization_id = p_organization_id and x.import_key = v_group.group_key) then
+        if v_m.id is not null and coalesce((v_first ->> 'reidentified')::boolean, false) then
+          if coalesce((v_first ->> 'move_key')::boolean, false) and v_first ->> 'file_group_key' is not null
+             and not exists (select 1 from public.maintenances x
+                              where x.organization_id = p_organization_id and x.import_key = v_first ->> 'file_group_key') then
+            update public.maintenances set import_key = v_first ->> 'file_group_key' where id = v_m.id;
+            v_m.import_key := v_first ->> 'file_group_key';
+          end if;
+        elsif v_m.id is not null and not exists (select 1 from public.maintenances x
+                                                  where x.organization_id = p_organization_id and x.import_key = v_group.group_key) then
           update public.maintenances set import_key = v_group.group_key where id = v_m.id;
           v_m.import_key := v_group.group_key;
         end if;
@@ -1386,6 +1410,67 @@ begin
       v_new := v_m.id is null;
       v_was_completed := coalesce(v_m.status = 'completed', false);
       v_items_added := false;
+
+      -- Alterada por usuário (conflito) e sem operação: só o contexto vazio é
+      -- preenchido; situação, fornecedor, ciclo e itens ficam como estão.
+      if v_m.id is not null and coalesce((v_first ->> 'context_only')::boolean, false) then
+        if private.maintenance_import_fill_context(v_m.id, coalesce(v_ctx_row, v_first), p_batch_id, v_batch.file_name, true) then
+          v_ctx_applied := 'sheet';
+        end if;
+        update public.import_rows set status = 'updated',
+               normalized_data = case when v_ctx_applied is not null
+                                      then normalized_data || jsonb_build_object('context_applied', v_ctx_applied) else normalized_data end
+         where batch_id = p_batch_id and normalized_data ->> 'group_key' = v_group.group_key
+           and status in ('valid', 'warning') and action in ('create', 'update');
+        v_done := v_done + 1;
+        continue;
+      end if;
+
+      -- Reidentificada: a planilha reprogramou a data ou trocou a OS de uma
+      -- manutenção aberta. Reprogramação como na tela (data nunca antes da
+      -- solicitação; valor anterior e novo na trilha), mas com origem
+      -- "importação" — não conta como alteração de usuário. OS vazia na
+      -- planilha mantém a do HFM.
+      if v_m.id is not null and coalesce((v_first ->> 'reidentified')::boolean, false) then
+        if v_m.status = 'scheduled' and v_first ->> 'status' = 'scheduled' and (v_first ->> 'scheduled_date') is not null
+           and (v_first ->> 'scheduled_date')::date is distinct from v_m.scheduled_date
+           and (v_first ->> 'scheduled_date')::date >= v_m.requested_on then
+          update public.maintenances set
+            scheduled_date     = (v_first ->> 'scheduled_date')::date,
+            scheduled_time     = coalesce((v_first ->> 'scheduled_time')::time, scheduled_time),
+            expected_exit_date = case
+                                   when (v_first ->> 'expected_exit_date')::date >= (v_first ->> 'scheduled_date')::date
+                                     then (v_first ->> 'expected_exit_date')::date
+                                   when expected_exit_date < (v_first ->> 'scheduled_date')::date then null
+                                   else expected_exit_date end,
+            imported_at = now(), import_batch_id = p_batch_id
+          where id = v_m.id
+          returning jsonb_build_object('scheduled_date', scheduled_date, 'scheduled_time', scheduled_time,
+                                       'supplier_id', supplier_id, 'expected_exit_date', expected_exit_date,
+                                       'expected_exit_time', expected_exit_time)
+            into v_after;
+          perform private.maintenance_log(p_organization_id, v_m.id, 'rescheduled', null, null,
+            'Reprogramado pela planilha ' || coalesce(v_batch.file_name, 'importada'),
+            jsonb_build_object('batch_id', p_batch_id,
+                               'before', jsonb_build_object('scheduled_date', v_m.scheduled_date, 'scheduled_time', v_m.scheduled_time,
+                                                            'supplier_id', v_m.supplier_id, 'expected_exit_date', v_m.expected_exit_date,
+                                                            'expected_exit_time', v_m.expected_exit_time),
+                               'after', v_after),
+            'import');
+        end if;
+        if nullif(btrim(v_first ->> 'service_order_number'), '') is not null
+           and upper(btrim(v_first ->> 'service_order_number')) is distinct from upper(btrim(v_m.service_order_number)) then
+          update public.maintenances set service_order_number = btrim(v_first ->> 'service_order_number'),
+                 imported_at = now(), import_batch_id = p_batch_id
+           where id = v_m.id;
+          perform private.maintenance_log(p_organization_id, v_m.id, 'import_updated', null, null,
+            'OS informada na planilha ' || coalesce(v_batch.file_name, 'importada'),
+            jsonb_build_object('batch_id', p_batch_id, 'change', 'service_order_number',
+                               'os_from', v_m.service_order_number, 'os_to', btrim(v_first ->> 'service_order_number')),
+            'import');
+        end if;
+        select * into v_m from public.maintenances where id = v_m.id;
+      end if;
 
       if v_m.id is null then
         select o.id into v_origin from public.maintenance_origins o
@@ -1429,6 +1514,27 @@ begin
 
         v_context := private.maintenance_context(p_organization_id, v_m.vehicle_id, v_m.context_date);
         perform private.maintenance_apply_context(v_m.id, v_context);
+        -- O contexto oficial manda; sem operação nele, vale o da planilha
+        -- (context_source continua 'none' e a origem fica no evento). Com
+        -- operação diferente da planilha, fica o oficial e o lote avisa.
+        v_sheet := null;
+        if v_ctx_row is not null then
+          if (v_context ->> 'operation_id') is null then
+            if private.maintenance_import_fill_context(v_m.id, v_ctx_row, p_batch_id, v_batch.file_name, false) then
+              v_ctx_applied := 'sheet';
+              v_sheet := jsonb_build_object('context_source', 'import',
+                           'operation_id', v_ctx_row ->> 'operation_id', 'operation_name', v_ctx_row ->> 'operation_name',
+                           'city_id', v_ctx_row ->> 'city_id', 'city_name', v_ctx_row ->> 'city_name', 'state_uf', v_ctx_row ->> 'state_uf');
+            end if;
+          elsif (v_context ->> 'operation_id')::uuid <> (v_ctx_row ->> 'operation_id')::uuid then
+            insert into public.import_errors (organization_id, batch_id, row_number, level, field, code, message)
+            values (p_organization_id, p_batch_id, v_group.first_row, 'warning', 'operation', 'context_divergent',
+                    format('Contexto divergente: mantido o do HFM (%s); planilha: %s.',
+                           concat_ws(' — ', v_context ->> 'operation_name',
+                                     (v_context ->> 'city_name') || coalesce('/' || (v_context ->> 'state_uf'), '')),
+                           concat_ws(' — ', v_ctx_row ->> 'operation_name', v_ctx_row ->> 'city_label')));
+          end if;
+        end if;
         if v_m.entry_date is not null then
           if v_first ->> 'entry_km' is not null then
             v_km := private.maintenance_check_manual_km(p_organization_id, v_m.vehicle_id, v_m.entry_date, (v_first ->> 'entry_km')::integer)
@@ -1440,7 +1546,8 @@ begin
         end if;
         perform private.maintenance_log(p_organization_id, v_m.id, 'imported', null, v_m.status,
           'Importado de ' || coalesce(v_batch.file_name, 'arquivo'),
-          jsonb_build_object('batch_id', p_batch_id, 'first_row', v_group.first_row, 'context', v_context), 'import');
+          jsonb_build_object('batch_id', p_batch_id, 'first_row', v_group.first_row, 'context', v_context,
+                             'context_from_sheet', v_sheet), 'import');
       elsif (v_first ->> 'status') is distinct from v_m.status
             or ((v_first ->> 'supplier_id') is not null and (v_first ->> 'supplier_id')::uuid is distinct from v_m.supplier_id)
             or (v_m.supplier_id is null and (v_first ->> 'supplier_name_informed') is distinct from v_m.supplier_name_informed) then
@@ -1469,6 +1576,15 @@ begin
       -- existia: vincula (ou corrige o vínculo) e, se concluída, realiza o MP.
       if not v_new and v_m.maintenance_type_code = 'preventive' and v_first ->> 'preventive_cycle' is not null then
         perform private.maintenance_import_link_cycle(v_m.id, (v_first ->> 'preventive_cycle')::integer, p_batch_id);
+        select * into v_m from public.maintenances where id = v_m.id;
+      end if;
+
+      -- Existente sem operação: recebe a da planilha (evento import_updated,
+      -- change = context_filled). Com operação, nunca é sobrescrita.
+      if not v_new and v_m.operation_id is null and v_ctx_row is not null then
+        if private.maintenance_import_fill_context(v_m.id, v_ctx_row, p_batch_id, v_batch.file_name, true) then
+          v_ctx_applied := 'sheet';
+        end if;
         select * into v_m from public.maintenances where id = v_m.id;
       end if;
 
@@ -1502,7 +1618,10 @@ begin
           update public.maintenance_items set status = 'done', result = coalesce(result, 'resolved'), completed_at = coalesce(completed_at, now())
            where maintenance_id = v_m.id and service_id = (v_row.d ->> 'service_id')::uuid and status = 'pending';
         end if;
-        update public.import_rows set status = case when v_row.d ? 'existing_id' then 'updated' else 'created' end where id = v_row.id;
+        update public.import_rows set status = case when v_row.d ? 'existing_id' then 'updated' else 'created' end,
+               normalized_data = case when v_ctx_applied is not null
+                                      then normalized_data || jsonb_build_object('context_applied', v_ctx_applied) else normalized_data end
+         where id = v_row.id;
       end loop;
 
       -- Preventiva importada como concluída realiza o ciclo; preditiva coberta reinicia.
