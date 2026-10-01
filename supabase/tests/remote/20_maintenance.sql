@@ -421,8 +421,15 @@ begin
     -- Liderança abaixo.
     perform set_config('hfm.access_change', 'on', true);
     update public.platform_admins set revoked_at = null where user_id = v_user and revoked_at = now();
-    delete from public.membership_operation_scopes where membership_id = v_mem;
-    insert into public.membership_operation_scopes (organization_id, membership_id, operation_id) values (v_org, v_mem, v_a.operation_id);
+    -- Sem DELETE (o conector de produção exige confirmação para comandos
+    -- destrutivos): a filiação de teste não pode ter outro escopo; o escopo
+    -- de teste entra uma vez e é desfeito pelo ROLLBACK_TESTES do final.
+    if exists (select 1 from public.membership_operation_scopes
+                where membership_id = v_mem and operation_id <> v_a.operation_id) then
+      raise exception 'Pré-condição: a filiação de teste já tem escopo de outra operação.';
+    end if;
+    insert into public.membership_operation_scopes (organization_id, membership_id, operation_id) values (v_org, v_mem, v_a.operation_id)
+      on conflict (membership_id, operation_id) do nothing;
     update public.platform_admins set revoked_at = now() where user_id = v_user and revoked_at is null;
     update public.membership_roles set role_id = (select ro.id from public.roles ro where ro.code = 'gestor_frota'
       and (ro.organization_id = v_org or ro.organization_id is null) and ro.deleted_at is null order by ro.organization_id nulls last limit 1)
@@ -488,8 +495,15 @@ begin
     perform set_config('hfm.access_change', 'on', true);
     update public.membership_roles set role_id = v_admin_role where membership_id = v_mem;
     update public.platform_admins set revoked_at = null where user_id = v_user and revoked_at = now();
-    delete from public.membership_operation_scopes where membership_id = v_mem;
-    insert into public.membership_operation_scopes (organization_id, membership_id, operation_id) values (v_org, v_mem, v_a.operation_id);
+    -- Sem DELETE (o conector de produção exige confirmação para comandos
+    -- destrutivos): a filiação de teste não pode ter outro escopo; o escopo
+    -- de teste entra uma vez e é desfeito pelo ROLLBACK_TESTES do final.
+    if exists (select 1 from public.membership_operation_scopes
+                where membership_id = v_mem and operation_id <> v_a.operation_id) then
+      raise exception 'Pré-condição: a filiação de teste já tem escopo de outra operação.';
+    end if;
+    insert into public.membership_operation_scopes (organization_id, membership_id, operation_id) values (v_org, v_mem, v_a.operation_id)
+      on conflict (membership_id, operation_id) do nothing;
     update public.platform_admins set revoked_at = now() where user_id = v_user and revoked_at is null;
     update public.membership_roles set role_id = (select ro.id from public.roles ro where ro.code = 'lideranca_operacoes'
       and (ro.organization_id = v_org or ro.organization_id is null) and ro.deleted_at is null order by ro.organization_id nulls last limit 1)

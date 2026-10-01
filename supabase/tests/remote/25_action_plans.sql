@@ -120,7 +120,7 @@ begin
   v_a := (v_ids ->> 0)::uuid; v_b := (v_ids ->> 1)::uuid; v_c := (v_ids ->> 2)::uuid; v_d := (v_ids ->> 3)::uuid;
   -- Serviços reais do catálogo, corretivos e aplicáveis aos tipos dos veículos
   -- escolhidos: s1 e s2 do mesmo cluster, s3 de outro.
-  create temporary table s25_services on commit drop as
+  create temporary table s25_services as
     select s.id, s.cluster_id, s.name from public.maintenance_services s
      where s.organization_id = v_org and s.deleted_at is null and s.status = 'active'
        and (s.maintenance_type_codes is null or cardinality(s.maintenance_type_codes) = 0 or 'corrective' = any (s.maintenance_type_codes))
@@ -516,8 +516,15 @@ begin
     -- o plano de outra operação (sem escopo) é recusado.
     perform set_config('hfm.access_change', 'on', true);
     update public.platform_admins set revoked_at = null where user_id = v_user and revoked_at = now();
-    delete from public.membership_operation_scopes where membership_id = v_mem;
-    insert into public.membership_operation_scopes (organization_id, membership_id, operation_id) values (v_org, v_mem, v_op);
+    -- Sem DELETE (o conector de produção exige confirmação para comandos
+    -- destrutivos): a filiação de teste não pode ter outro escopo; o escopo
+    -- de teste entra uma vez e é desfeito pelo ROLLBACK_TESTES do final.
+    if exists (select 1 from public.membership_operation_scopes
+                where membership_id = v_mem and operation_id <> v_op) then
+      raise exception 'Pré-condição: a filiação de teste já tem escopo de outra operação.';
+    end if;
+    insert into public.membership_operation_scopes (organization_id, membership_id, operation_id) values (v_org, v_mem, v_op)
+      on conflict (membership_id, operation_id) do nothing;
     update public.platform_admins set revoked_at = now() where user_id = v_user and revoked_at is null;
     update public.membership_roles set role_id = (select ro.id from public.roles ro where ro.code = 'gestor_frota'
       and (ro.organization_id = v_org or ro.organization_id is null) and ro.deleted_at is null order by ro.organization_id nulls last limit 1)
