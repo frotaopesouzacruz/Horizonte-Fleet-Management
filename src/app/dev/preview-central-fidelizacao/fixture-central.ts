@@ -245,6 +245,7 @@ const EMPTY_MOVEMENT = {
   reason: null,
   source: "manual",
   origin: "user",
+  replicationMode: null,
   isInferred: false,
   notes: null,
   actorName: null,
@@ -349,7 +350,7 @@ export const MOVEMENT_ROWS: MovementRow[] = [
   movement(AT.br4, {
     id: "mv-10", movementType: "vehicle_allocation", subject: "vehicle", effectiveDate: "2026-09-01",
     newVehicleId: "veh-116", newVehicleLabel: "VA116", newPlate: "RTE5E55",
-    reason: "Replicação da competência 08/2026", source: "replication", origin: "replication",
+    reason: "Replicação da competência 08/2026", source: "replication", origin: "replication", replicationMode: "manual",
     actorName: GABRIEL, correlationKey: "tx:80700", recordedAt: "2026-08-29T18:00:00Z",
   }),
   movement(AT.br6, {

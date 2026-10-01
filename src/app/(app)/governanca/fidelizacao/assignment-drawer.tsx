@@ -24,6 +24,7 @@ import {
 } from "@/lib/governance/actions";
 import type { FidelizationRow } from "@/lib/governance/queries";
 import { monthEnd, monthStart, type Competence } from "@/lib/governance/competence";
+import { fidelizationOriginLabel } from "@/lib/governance/fidelization-competence";
 
 function formatDate(value: string | null): string {
   if (!value) return "—";
@@ -622,9 +623,7 @@ export function AssignmentDrawer({
                               ? "Substituição"
                               : row.source === "inversion"
                                 ? "Inversão"
-                                : row.source === "replication"
-                                  ? "Replicação"
-                                  : "Importação"}
+                                : fidelizationOriginLabel(row.source, row.createdBy)}
                           </Badge>
                         ) : null}
                       </span>

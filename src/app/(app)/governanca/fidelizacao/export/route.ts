@@ -5,6 +5,7 @@ import { spreadsheetResponse } from "@/lib/admin/spreadsheet";
 import { listBrPlannerRows, type BrPlannerFilters, type BrPlannerRow } from "@/lib/governance/br-planner";
 import { getBrDirectory } from "@/lib/governance/brs";
 import { listFidelizationHistory } from "@/lib/governance/queries";
+import { fidelizationOriginLabel } from "@/lib/governance/fidelization-competence";
 import { parseCompetence, formatCompetence, monthEnd, monthStart } from "@/lib/governance/competence";
 import { listMovements, MOVEMENT_TYPES, type MovementRow } from "@/lib/governance/fidelization-central";
 import { ALLOCATION_TEMPLATE_HEADERS, BR_TEMPLATE_HEADERS } from "@/lib/governance/import-columns";
@@ -57,10 +58,14 @@ const MOVEMENT_ORIGIN: Record<string, string> = {
 const ASSIGNMENT_STATUS: Record<string, string> = {
   planned: "Planejado", confirmed: "Confirmado", executed: "Executado", cancelled: "Cancelado",
 };
-const SOURCE: Record<string, string> = {
-  manual: "Manual", import: "Importação", substitution: "Substituição", inversion: "Inversão",
-  replication: "Replicação",
-};
+/**
+ * A origem por extenso (Importação histórica, Replicação automática,
+ * Replicação manual, Alteração manual) — a mesma da tela — com o tipo da
+ * alteração quando há um.
+ */
+const CHANGE: Record<string, string> = { substitution: "Substituição", inversion: "Inversão" };
+const originOf = (source: string, createdBy: string | null) =>
+  CHANGE[source] ? `${fidelizationOriginLabel(source, createdBy)} — ${CHANGE[source]}` : fidelizationOriginLabel(source, createdBy);
 const LEADER_SCOPE: Record<string, string> = { br: "Exceção do BR", city: "Cidade", operation: "Operação" };
 
 const FLEET_BASE_HEADERS = [
@@ -173,7 +178,7 @@ export async function GET(request: NextRequest) {
               formatDate(day), r.operationName, r.stateUf, r.cityName, r.brCode, r.leaderName ?? "",
               r.fleetCode ?? "", r.licensePlate ?? "", r.vehicleTypeName ?? "",
               r.vehicleRole === "support" ? "Apoio" : "Titular", ASSIGNMENT_STATUS[r.status] ?? r.status,
-              SOURCE[r.source] ?? r.source,
+              originOf(r.source, r.createdBy),
             ]);
           }
         }
@@ -188,7 +193,7 @@ export async function GET(request: NextRequest) {
             r.vehicleRole === "support" ? "Apoio" : "Titular",
             formatDate(r.startDate), r.endDate ? formatDate(r.endDate) : "em aberto",
             clip ? formatDate(clip.from) : "", clip ? formatDate(clip.to) : "", clip ? clip.days : 0,
-            ASSIGNMENT_STATUS[r.status] ?? r.status, SOURCE[r.source] ?? r.source, r.isSubstitution ? "Sim" : "Não",
+            ASSIGNMENT_STATUS[r.status] ?? r.status, originOf(r.source, r.createdBy), r.isSubstitution ? "Sim" : "Não",
             r.reason ?? "", r.endReason ?? "",
           ];
         });
@@ -298,7 +303,11 @@ export async function GET(request: NextRequest) {
       m.previousDriverName ?? "", m.newDriverName ?? "",
       m.driverRole === "primary" ? "Principal" : m.driverRole === "secondary" ? "Secundário" : "",
       formatDate(m.periodStart), m.periodEnd ? formatDate(m.periodEnd) : m.periodStart ? "em diante" : "",
-      m.reason ?? "", MOVEMENT_ORIGIN[m.origin] ?? m.origin, m.isInferred ? "Sim" : "Não",
+      m.reason ?? "",
+      m.origin === "replication" && m.replicationMode
+        ? m.replicationMode === "auto" ? "Replicação automática" : "Replicação manual"
+        : MOVEMENT_ORIGIN[m.origin] ?? m.origin,
+      m.isInferred ? "Sim" : "Não",
       m.actorName ?? "", m.recordedAt ? new Date(m.recordedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "",
     ]);
     const suffix = dateFrom || dateTo ? `${dateFrom ?? "inicio"}-a-${dateTo ?? "hoje"}` : label;
@@ -316,7 +325,7 @@ export async function GET(request: NextRequest) {
       [r.vehicleMakeName, r.vehicleModelName].filter(Boolean).join(" "),
       r.vehicleRole === "support" ? "Apoio" : "Titular",
       formatDate(r.startDate), r.endDate ? formatDate(r.endDate) : "em aberto",
-      ASSIGNMENT_STATUS[r.status] ?? r.status, SOURCE[r.source] ?? r.source,
+      ASSIGNMENT_STATUS[r.status] ?? r.status, originOf(r.source, r.createdBy),
       r.reason ?? "", r.endReason ?? "",
     ]);
     name = `fidelizacao-historico-${label}.${format}`;

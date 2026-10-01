@@ -50,6 +50,8 @@ export interface FleetBaseRow {
   endDate: string | null;
   status: string;
   source: string;
+  /** Quem gravou; nulo = rotina do sistema (replicação automática). */
+  createdBy: string | null;
   isSubstitution: boolean;
   reason: string | null;
   endReason: string | null;
@@ -134,6 +136,7 @@ export async function listFleetBase(organizationId: string, filters: PlannerExpo
       endDate: (row.end_date as string) ?? null,
       status: (row.status as string) ?? "",
       source: (row.source as string) ?? "",
+      createdBy: (row.created_by as string) ?? null,
       isSubstitution: Boolean(row.replaces_assignment_id),
       reason: (row.reason as string) ?? null,
       endReason: (row.end_reason as string) ?? null,

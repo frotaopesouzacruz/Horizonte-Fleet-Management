@@ -1,15 +1,22 @@
 import type { Metadata } from "next";
 import { requireOrganization } from "@/lib/auth/session";
 import {
+  getFidelizationCompetenceSummary,
+  getFidelizationHistoryEvolution,
+  getFidelizationHistoryRows,
   getFidelizationIndicators,
   getGovernanceOptions,
   getOperationalHierarchy,
   listDriverPlans,
   listFidelizationHistory,
   listOperationBrs,
+  type FidelizationCompetenceSummary,
+  type FidelizationHistoryEvolution,
+  type FidelizationHistoryRows,
   type FidelizationIndicators,
   type HierarchyOperation,
 } from "@/lib/governance/queries";
+import { isHistoricalCompetence } from "@/lib/governance/fidelization-competence";
 import { listLeadershipOptions } from "@/lib/governance/br-planner";
 import { getFidelizationStability, type FidelizationStability } from "@/lib/governance/brs";
 import {
@@ -97,6 +104,8 @@ export default async function FidelizationPage({
 
   const orgId = organization.organizationId;
   const has = (code: string) => session.isPlatformAdmin || session.permissions.includes(code);
+  /** 2024 e 2025: histórico consolidado, somente consulta (a área de frotas o mostra). */
+  const historical = isHistoricalCompetence(competence);
   const canImport = has("fidelization.import");
   const canAudit = has("fidelization.audit");
 
@@ -113,6 +122,9 @@ export default async function FidelizationPage({
     vehicleTypes,
     movements,
     importHistory,
+    competenceSummary,
+    historyRows,
+    historyEvolution,
   ] = await Promise.all([
     listOperationBrs(orgId, {
       operationId: filters.operationId,
@@ -157,6 +169,17 @@ export default async function FidelizationPage({
     canImport || canAudit
       ? listFidelizationImportHistory(orgId, 20).catch(() => [] as FidelizationImportBatch[])
       : Promise.resolve([] as FidelizationImportBatch[]),
+    // A competência em tela: situação, origem, contagens e última atualização.
+    getFidelizationCompetenceSummary(orgId, competence).catch((error: unknown) => {
+      console.error("getFidelizationCompetenceSummary", error);
+      return null as FidelizationCompetenceSummary | null;
+    }),
+    historical
+      ? getFidelizationHistoryRows(orgId, competence).catch(() => null as FidelizationHistoryRows | null)
+      : Promise.resolve(null as FidelizationHistoryRows | null),
+    historical
+      ? getFidelizationHistoryEvolution(orgId, competence.year).catch(() => null as FidelizationHistoryEvolution | null)
+      : Promise.resolve(null as FidelizationHistoryEvolution | null),
   ]);
 
   return (
@@ -185,6 +208,9 @@ export default async function FidelizationPage({
       canAudit={canAudit}
       canExport={has("fidelization.export")}
       canManageHistorical={has("fidelization.manage_historical_data")}
+      competenceSummary={competenceSummary}
+      historyRows={historyRows}
+      historyEvolution={historyEvolution}
     />
   );
 }

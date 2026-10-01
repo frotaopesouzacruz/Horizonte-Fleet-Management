@@ -38,6 +38,7 @@ const HISTORY: FidelizationRow[] = [
     replacesAssignmentId: null,
     isCurrent: true,
     updatedAt: null,
+    createdBy: "user-1",
   },
 ];
 

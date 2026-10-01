@@ -267,6 +267,8 @@ export interface MovementRow {
   source: string | null;
   /** user, import, replication, system, reconstructed */
   origin: string;
+  /** Na replicação: `auto` (rotina do dia 1º) ou `manual` (tela), do contexto do evento. */
+  replicationMode: "auto" | "manual" | null;
   /** Troca observada sem substituição registrada. */
   isInferred: boolean;
   /** Eventos da mesma transação (uma inversão, uma replicação) compartilham a chave. */
@@ -327,6 +329,8 @@ export function mapMovementsPage(raw: unknown): MovementsPage {
         reason: str(m.reason),
         source: str(m.source),
         origin: String(m.origin ?? "user"),
+        replicationMode:
+          details.replication === "auto" || details.replication === "manual" ? details.replication : null,
         isInferred: Boolean(m.is_inferred),
         correlationKey: String(m.correlation_key ?? ""),
         notes: str(details.notes),

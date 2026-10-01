@@ -332,8 +332,10 @@ function Group({
   return (
     <details
       className={cn(
-        "group/hist rounded-md border border-border",
-        level === 1 ? "bg-surface" : "bg-surface-raised",
+        "rounded-md border border-border",
+        // Um nome de grupo por nível: a seta de um grupo fechado não gira
+        // porque o grupo de fora está aberto.
+        level === 1 ? "group/op bg-surface" : "group/br bg-surface-raised",
       )}
       open={defaultOpen}
     >
@@ -347,7 +349,13 @@ function Group({
           <span className={cn("truncate font-semibold text-fg", level === 1 ? "text-body" : "text-body-sm")}>{title}</span>
           <span className="truncate text-caption text-fg-muted">{meta}</span>
         </span>
-        <ChevronDown aria-hidden className="size-4 shrink-0 text-fg-muted transition-transform group-open/hist:rotate-180" />
+        <ChevronDown
+          aria-hidden
+          className={cn(
+            "size-4 shrink-0 text-fg-muted transition-transform",
+            level === 1 ? "group-open/op:rotate-180" : "group-open/br:rotate-180",
+          )}
+        />
       </summary>
       <div className="border-t border-border-subtle p-2 sm:p-3">{children}</div>
     </details>
@@ -416,13 +424,13 @@ function Evolution({
           </span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[20rem] text-body-sm" data-testid="fidelization-history-evolution">
+          <table className="w-full text-body-sm" data-testid="fidelization-history-evolution">
             <thead>
               <tr className="text-left text-caption text-fg-muted">
                 <th scope="col" className="py-1.5 pr-2 font-medium">Mês</th>
-                <th scope="col" className="px-2 py-1.5 font-medium">Placas</th>
-                <th scope="col" className="px-2 py-1.5 text-right font-medium">BRs</th>
-                <th scope="col" className="px-2 py-1.5 text-right font-medium">Locais</th>
+                <th scope="col" className="px-1 py-1.5 font-medium sm:px-2">Placas</th>
+                <th scope="col" className="px-1 py-1.5 text-right font-medium sm:px-2">BRs</th>
+                <th scope="col" className="px-1 py-1.5 text-right font-medium sm:px-2">Locais</th>
                 <th scope="col" className="py-1.5 pl-2 text-right font-medium">Mudanças</th>
               </tr>
             </thead>
@@ -444,11 +452,11 @@ function Evolution({
                         <span className={cn(current ? "text-fg" : "text-fg-secondary")}>{m.label.split("/")[0]}</span>
                       )}
                     </th>
-                    <td className="px-2 py-1.5">
+                    <td className="px-1 py-1.5 sm:px-2">
                       {m.loaded ? (
                         <span className="flex items-center gap-2">
                           <span className="w-8 shrink-0 text-right tabular-nums text-fg">{number.format(m.plates)}</span>
-                          <span aria-hidden className="h-1.5 w-full max-w-28 rounded-full bg-neutral-soft">
+                          <span aria-hidden className="hidden h-1.5 w-full max-w-28 rounded-full bg-neutral-soft sm:block">
                             <span
                               className="block h-1.5 rounded-full bg-chart-1"
                               style={{ width: `${Math.round((100 * m.plates) / max)}%` }}
@@ -459,8 +467,8 @@ function Evolution({
                         <span className="text-fg-muted">—</span>
                       )}
                     </td>
-                    <td className="px-2 py-1.5 text-right tabular-nums">{m.loaded && m.brs > 0 ? number.format(m.brs) : "—"}</td>
-                    <td className="px-2 py-1.5 text-right tabular-nums">{m.loaded ? number.format(m.locais) : "—"}</td>
+                    <td className="px-1 py-1.5 text-right tabular-nums sm:px-2">{m.loaded && m.brs > 0 ? number.format(m.brs) : "—"}</td>
+                    <td className="px-1 py-1.5 text-right tabular-nums sm:px-2">{m.loaded ? number.format(m.locais) : "—"}</td>
                     <td className="py-1.5 pl-2 text-right tabular-nums">
                       {m.loaded ? (
                         m.changes > 0 ? <Badge variant="info" size="sm">{number.format(m.changes)}</Badge> : "0"

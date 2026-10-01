@@ -29,6 +29,13 @@ import type {
   FidelizationImportBatch, MovementsPage, PlannerMatrix,
 } from "@/lib/governance/fidelization-central";
 import { formatCompetence, monthEnd, monthStart, type Competence } from "@/lib/governance/competence";
+import {
+  fidelizationOriginLabel,
+  isHistoricalCompetence,
+  type FidelizationCompetenceSummary,
+  type FidelizationHistoryEvolution,
+  type FidelizationHistoryRows,
+} from "@/lib/governance/fidelization-competence";
 import { AssignmentDrawer } from "./assignment-drawer";
 import { InvertDialog } from "./invert-dialog";
 import { HierarchyPanel } from "./hierarchy-panel";
@@ -41,6 +48,8 @@ import { DriversPlanner } from "./drivers-planner";
 import { MovementsPanel, type MovementsPanelFilters } from "./movements-panel";
 import { ImportPanel } from "./import-panel";
 import { ExportBaseDialog } from "./export-base-dialog";
+import { CompetenceStrip } from "./competence-strip";
+import { HistoryConsolidated } from "./history-consolidated";
 
 const number = new Intl.NumberFormat("pt-BR");
 
@@ -50,13 +59,14 @@ function formatDate(value: string | null): string {
   return d ? `${d}/${m}/${y}` : value;
 }
 
-/** A origem de cada vínculo, com nome — a replicação (§37) não é uma substituição. */
-const SOURCE_LABEL: Record<string, string> = {
-  manual: "Manual",
-  import: "Importação",
+/**
+ * O tipo da alteração manual, quando há um — a origem por extenso vem de
+ * `fidelizationOriginLabel` (Importação histórica, Replicação automática,
+ * Replicação manual, Alteração manual).
+ */
+const CHANGE_LABEL: Record<string, string> = {
   substitution: "Substituição",
   inversion: "Inversão",
-  replication: "Replicação",
 };
 
 /** Os filtros que o módulo BRs entende e que a pessoa não deve ter de refazer lá. */
@@ -117,6 +127,14 @@ export interface FidelizationViewProps {
   canAudit: boolean;
   canExport: boolean;
   canManageHistorical: boolean;
+  /**
+   * A competência em tela: situação, origem, placas, BRs, locais e última
+   * atualização. `null` quando a leitura falhou (a faixa avisa e a página segue).
+   */
+  competenceSummary?: FidelizationCompetenceSummary | null;
+  /** Competência histórica (2024/2025): o histórico consolidado, só consulta. */
+  historyRows?: FidelizationHistoryRows | null;
+  historyEvolution?: FidelizationHistoryEvolution | null;
 }
 
 /**
@@ -156,6 +174,9 @@ export function FidelizationView({
   canAudit,
   canExport,
   canManageHistorical,
+  competenceSummary = null,
+  historyRows = null,
+  historyEvolution = null,
 }: FidelizationViewProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -206,13 +227,19 @@ export function FidelizationView({
    * leva a `aba` junto e a pessoa continua onde estava (§5).
    */
   const showImport = canImport || canAudit;
+  /**
+   * Competência histórica (2024/2025): a área de frotas mostra o histórico
+   * consolidado, só consulta, e é ela que abre quando a URL não diz a área.
+   */
+  const historical = (competenceSummary?.kind ?? (isHistoricalCompetence(competence) ? "historical" : "operational")) === "historical";
+  const defaultTab: TabValue = historical ? "frotas" : "visao-geral";
   const requestedTab = params.get("aba");
   const tab: TabValue =
-    isTab(requestedTab) && (requestedTab !== "importacao" || showImport) ? requestedTab : "visao-geral";
+    isTab(requestedTab) && (requestedTab !== "importacao" || showImport) ? requestedTab : defaultTab;
   const selectTab = (value: string) => {
     if (!isTab(value)) return;
     const next = new URLSearchParams(params.toString());
-    if (value === "visao-geral") next.delete("aba");
+    if (value === defaultTab) next.delete("aba");
     else next.set("aba", value);
     const query = next.toString();
     window.history.replaceState(null, "", query ? `${pathname}?${query}` : pathname);
@@ -381,12 +408,15 @@ export function FidelizationView({
       />
 
       <PageContent className="flex flex-col gap-5">
+        {/* A competência em tela, sem ambiguidade: vale para todas as áreas. */}
+        <CompetenceStrip summary={competenceSummary} fallbackLabel={competenceLabel} />
+
         {/* §5: a ordem das abas é a ordem da leitura — primeiro o panorama,
             depois os planners, o que já aconteceu e a entrada de arquivos. */}
         <Tabs value={tab} onValueChange={selectTab}>
           <TabsList aria-label="Áreas da Central de Fidelização">
             <TabsTrigger value="visao-geral">Visão geral</TabsTrigger>
-            <TabsTrigger value="frotas">Planner de frotas</TabsTrigger>
+            <TabsTrigger value="frotas">{historical ? "Histórico consolidado" : "Planner de frotas"}</TabsTrigger>
             <TabsTrigger value="motoristas">Planner de motoristas</TabsTrigger>
             <TabsTrigger value="historico">Histórico de mobilizações</TabsTrigger>
             {showImport ? <TabsTrigger value="importacao">Importação</TabsTrigger> : null}
@@ -410,7 +440,14 @@ export function FidelizationView({
 
           {/* ------------------------------------------------ planner de frotas */}
           <TabsContent value="frotas" className="flex flex-col gap-4">
-            {matrix ? (
+            {historical ? (
+              <HistoryConsolidated
+                competence={competence}
+                rows={historyRows}
+                evolution={historyEvolution}
+                onSelectMonth={(v) => navigate({ ano: String(v.year), mes: String(v.month) })}
+              />
+            ) : matrix ? (
               <FleetPlanner
                 matrix={matrix}
                 competence={competence}
@@ -538,8 +575,10 @@ export function FidelizationView({
         open={replicateOpen}
         onOpenChange={setReplicateOpen}
         competence={competence}
+        currentCompetence={competenceSummary?.currentCompetence ?? null}
         operations={operations}
         canChangeDriver={canChangeDriver}
+        canManageHistorical={canManageHistorical}
       />
 
       {/* A linha é a chave: trocar de motorista remonta o diálogo com o
@@ -631,7 +670,7 @@ function AssignmentsSection({
                   <TableHead style={{ width: 180 }}>Posição</TableHead>
                   <TableHead style={{ width: 190 }}>Veículo</TableHead>
                   <TableHead style={{ width: 180 }}>Período</TableHead>
-                  <TableHead style={{ width: 120 }}>Origem</TableHead>
+                  <TableHead style={{ width: 160 }}>Origem</TableHead>
                   <TableHead style={{ width: 120 }}>Situação</TableHead>
                   <TableHead>Motivo</TableHead>
                 </TableRow>
@@ -668,7 +707,10 @@ function AssignmentsSection({
                         {formatDate(row.startDate)} — {row.endDate ? formatDate(row.endDate) : "em aberto"}
                       </TableCell>
                       <TableCell className="text-body-sm text-fg-secondary">
-                        {SOURCE_LABEL[row.source] ?? row.source}
+                        {fidelizationOriginLabel(row.source, row.createdBy)}
+                        {CHANGE_LABEL[row.source] ? (
+                          <span className="block text-caption text-fg-muted">{CHANGE_LABEL[row.source]}</span>
+                        ) : null}
                       </TableCell>
                       <TableCell>
                         <StatusBadge

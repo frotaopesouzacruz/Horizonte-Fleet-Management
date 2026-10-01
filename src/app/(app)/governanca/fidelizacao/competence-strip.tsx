@@ -104,9 +104,13 @@ export function CompetenceStrip({ summary, fallbackLabel }: CompetenceStripProps
           </div>
         </div>
 
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4 lg:shrink-0">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4 lg:shrink-0 xl:w-[38rem]">
           <Fact label="Placas fidelizadas" value={summary ? number.format(summary.counts.plates) : "—"} />
-          <Fact label="BRs" value={summary ? number.format(summary.counts.brs) : "—"} />
+          {/* 2024 não tem BR: "—", não zero. */}
+          <Fact
+            label="BRs"
+            value={summary && !(historical && summary.counts.brs === 0) ? number.format(summary.counts.brs) : "—"}
+          />
           <Fact label="Locais de operação" value={summary ? number.format(summary.counts.locais) : "—"} />
           <Fact
             label="Última atualização"

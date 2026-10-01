@@ -70,6 +70,14 @@ export const MOVEMENT_ORIGIN_LABEL: Record<string, string> = {
   reconstructed: "Reconstruído",
 };
 
+/** A replicação diz se foi a rotina automática do dia 1º ou alguém pela tela. */
+function movementOriginLabel(row: MovementRow): string {
+  if (row.origin === "replication" && row.replicationMode) {
+    return row.replicationMode === "auto" ? "Replicação automática" : "Replicação manual";
+  }
+  return MOVEMENT_ORIGIN_LABEL[row.origin] ?? row.origin;
+}
+
 const ROLE_LABEL: Record<string, string> = { primary: "Principal", secondary: "Secundário" };
 
 /**
@@ -809,7 +817,7 @@ function Reason({ row }: { row: MovementRow }) {
 function Origin({ row, withRecordedAt = false }: { row: MovementRow; withRecordedAt?: boolean }) {
   return (
     <span className="flex min-w-0 flex-col">
-      <span className="text-fg-secondary">{MOVEMENT_ORIGIN_LABEL[row.origin] ?? row.origin}</span>
+      <span className="text-fg-secondary">{movementOriginLabel(row)}</span>
       <span className={cn("text-caption", row.actorName ? "text-fg" : "text-fg-muted")}>
         <span className="sr-only">Responsável: </span>
         {row.actorName ?? "—"}

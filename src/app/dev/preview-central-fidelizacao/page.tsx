@@ -13,12 +13,16 @@ import {
   movementsPageFor,
 } from "./fixture-central";
 import { PLANNER_LEADERS, PLANNER_VEHICLE_TYPES } from "./fixture-planner";
+import { historyEvolutionFor, historyRowsFor, summaryFor } from "./fixture-competencia";
+import { isHistoricalCompetence } from "@/lib/governance/fidelization-competence";
 
 /**
  * A Central de Fidelização inteira (Etapa 15) — a mesma `FidelizationView` da
  * rota real — com dados fixos de Setembro/2026. As prévias `planner` e `areas`
  * exercitam cada área isolada; esta confere o que só existe junto: as cinco
  * abas, a aba guardada na URL e a competência preservada ao trocar de área.
+ * A faixa da competência e, em 2024/2025, o histórico consolidado vêm de
+ * `fixture-competencia.ts` (Outubro/2026 é o "mês corrente" da fixture).
  *
  * Mesmo portão das outras prévias: ausente de um build de produção normal. As
  * ações de gravação continuam as reais e, sem sessão, não gravam nada.
@@ -132,6 +136,9 @@ export default async function PreviewCentralPage({ searchParams }: { searchParam
           canAudit
           canExport
           canManageHistorical={first(params, "sem_historico") !== "1"}
+          competenceSummary={summaryFor(competence)}
+          historyRows={isHistoricalCompetence(competence) ? historyRowsFor(competence) : null}
+          historyEvolution={isHistoricalCompetence(competence) ? historyEvolutionFor(competence.year) : null}
         />
       </Suspense>
     </AppShell>
