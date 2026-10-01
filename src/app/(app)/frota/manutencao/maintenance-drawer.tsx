@@ -95,6 +95,7 @@ import {
   supplierDisplayName,
 } from "./lifecycle-dialogs";
 import type { MaintenancePerms } from "./shared";
+import { MaintenanceActionPlans } from "@/components/action-plans/maintenance-action-plans";
 
 /**
  * Gaveta de detalhe da manutenção.
@@ -352,6 +353,7 @@ function DrawerInner({
           onRemove={(item) => setDialog({ kind: "removeItem", item })}
         />
         <FindingsSection detail={detail} canUnlink={can.unlink} onUnlink={(finding) => setDialog({ kind: "unlink", finding })} />
+        <MaintenanceActionPlans maintenanceId={detail.id} />
         {detail.recurrence.length > 0 ? <RecurrenceSection detail={detail} onOpenMaintenance={onOpenMaintenance} /> : null}
         <TrailSection detail={detail} catalog={catalog} fullAudit={perms.viewAudit} />
       </DrawerBody>

@@ -1495,6 +1495,91 @@ end;
 $$;
 
 -- -----------------------------------------------------------------------------
+-- 13b. Exportação dos apontamentos (paginada no servidor; sem teto)
+-- -----------------------------------------------------------------------------
+create or replace function public.action_plan_export_items(
+  p_organization_id uuid, p_filters jsonb default '{}'::jsonb, p_limit integer default 1000, p_offset integer default 0)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_limit  integer := least(greatest(coalesce(p_limit, 1000), 1), 5000);
+  v_offset integer := greatest(coalesce(p_offset, 0), 0);
+begin
+  perform private.action_plan_assert_view(p_organization_id, 'action_plans.export');
+  return (
+    with p as materialized (select * from private.action_plan_filtered(p_organization_id, p_filters))
+    select jsonb_build_object(
+      'total', (select count(*) from public.action_plan_items i join p on p.id = i.plan_id),
+      'rows', coalesce((
+        select jsonb_agg(x.r order by x.d desc, x.o desc)
+          from (
+            select jsonb_build_object(
+                     'plan_code', p.code, 'plan_status', p.status, 'priority', p.priority, 'title', p.title,
+                     'detail_label', p.detail_label, 'cluster_name', p.cluster_name, 'action_key', p.action_key,
+                     'license_plate', i.license_plate_snapshot, 'fleet_code', p.fleet_code_snapshot,
+                     'operational_date', i.operational_date, 'checklist_type', i.checklist_type,
+                     'question', i.question_text_snapshot, 'answer', i.answer, 'option_label', i.option_label,
+                     'detail_text', i.detail_text, 'note', i.note,
+                     'employee_name', (select e.full_name from public.employees e where e.id = i.employee_id),
+                     'employee_code', (select e.employee_code from public.employees e where e.id = i.employee_id),
+                     'operation_name', (select o.name from public.operations o where o.id = i.operation_id),
+                     'city_name', (select c.name from public.cities c where c.id = i.city_id),
+                     'br_code', (select b.code from public.operation_brs b where b.id = i.operation_br_id),
+                     'leader_name', (select e.full_name from public.employees e where e.id = i.leader_employee_id),
+                     'item_status', i.status, 'resolved_at', i.resolved_at,
+                     'resolution', (select r.resolution_type from public.action_plan_item_resolutions r where r.item_id = i.id
+                                     order by r.resolved_at desc limit 1),
+                     'resolution_reason', (select r.reason from public.action_plan_item_resolutions r where r.item_id = i.id
+                                            order by r.resolved_at desc limit 1),
+                     'maintenances', (select string_agg(m.code || ' (' || m.status || ')', ', ' order by m.created_at)
+                                        from public.maintenance_finding_links f join public.maintenances m on m.id = f.maintenance_id
+                                       where f.checklist_answer_id = i.checklist_answer_id)) as r,
+                   i.operational_date as d, i.occurred_at as o
+              from public.action_plan_items i join p on p.id = i.plan_id
+             order by i.operational_date desc, i.occurred_at desc, i.id
+             limit v_limit offset v_offset) x), '[]'::jsonb)));
+end;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- 13c. Planos de ação de uma manutenção (o outro lado do vínculo, na gaveta
+--      oficial da Manutenção)
+-- -----------------------------------------------------------------------------
+create or replace function public.action_plan_for_maintenance(p_maintenance_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_m public.maintenances;
+begin
+  select * into v_m from public.maintenances where id = p_maintenance_id;
+  if not found then
+    raise exception 'Manutenção não encontrada.' using errcode = 'no_data_found';
+  end if;
+  if auth.uid() is null or not private.has_permission(v_m.organization_id, 'maintenance.view')
+     or not private.maintenance_in_scope(v_m.organization_id, v_m.operation_id, v_m.vehicle_id) then
+    raise exception 'Você não possui permissão para esta consulta.' using errcode = 'insufficient_privilege';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object(
+             'plan_id', p.id, 'code', p.code, 'title', p.title, 'detail_label', p.detail_label, 'status', p.status,
+             'priority', p.priority, 'origin', l.origin, 'resolutive', l.resolutive, 'open_items', p.open_items,
+             'occurrences', p.occurrences,
+             'can_view', private.has_permission(p.organization_id, 'action_plans.view') and private.action_plan_in_scope(p))
+           order by l.linked_at), '[]'::jsonb)
+      from public.action_plan_maintenance_links l join public.action_plans p on p.id = l.plan_id
+     where l.maintenance_id = p_maintenance_id and l.status = 'active');
+end;
+$$;
+
+-- -----------------------------------------------------------------------------
 -- 14. Permissões de execução
 -- -----------------------------------------------------------------------------
 revoke execute on function
@@ -1526,7 +1611,9 @@ begin
     'public.action_plan_checklist_history(uuid, jsonb, integer, integer)',
     'public.action_plan_execution_trace(uuid)',
     'public.action_plan_catalog(uuid)',
-    'public.action_plan_followup_import(uuid, jsonb, boolean)']
+    'public.action_plan_followup_import(uuid, jsonb, boolean)',
+    'public.action_plan_export_items(uuid, jsonb, integer, integer)',
+    'public.action_plan_for_maintenance(uuid)']
   loop
     execute format('revoke execute on function %s from public, anon', f);
     execute format('grant execute on function %s to authenticated', f);

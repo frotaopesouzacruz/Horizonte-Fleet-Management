@@ -191,8 +191,10 @@ function WizardBody({
   );
   const presetOrigin = catalog.origins.find((o) => o.code === initial.originCode && o.isActive) ?? null;
   const [originId, setOriginId] = React.useState(presetOrigin?.id ?? "");
-  const [priority, setPriority] = React.useState<Criticality>("medium");
-  const [description, setDescription] = React.useState("");
+  const [priority, setPriority] = React.useState<Criticality>(
+    initial.priority === "low" || initial.priority === "high" || initial.priority === "critical" ? initial.priority : "medium",
+  );
+  const [description, setDescription] = React.useState(initial.description ?? "");
   const [serviceIds, setServiceIds] = React.useState<string[]>(initial.serviceIds ?? []);
   const [preventiveCycleId, setPreventiveCycleId] = React.useState("");
   const [findingIds, setFindingIds] = React.useState<string[]>(initial.checklistAnswerIds ?? []);
@@ -550,6 +552,8 @@ function WizardBody({
       preventiveCycleId: isPreventive ? preventiveCycleId : null,
       checklistAnswerIds: findingIds,
       duplicateJustification: justification.length >= 10 ? justification : null,
+      actionPlanId: initial.actionPlanId ?? null,
+      actionPlanItemIds: initial.actionPlanItemIds,
     };
   };
 
@@ -603,6 +607,7 @@ function WizardBody({
         <DialogTitle>Nova manutenção</DialogTitle>
         <DialogDescription>
           Passo {step} de 5 · {current.label}. {current.hint}
+          {initial.actionPlanCode ? ` Origem: Plano de Ação ${initial.actionPlanCode} — Checklist.` : ""}
         </DialogDescription>
       </DialogHeader>
       <Stepper step={step} onGoTo={(s) => goTo(s)} disabled={working} />

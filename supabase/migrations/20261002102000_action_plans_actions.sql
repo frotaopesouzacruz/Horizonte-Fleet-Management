@@ -586,6 +586,14 @@ begin
   if p_payload ? 'item_ids' and jsonb_typeof(p_payload -> 'item_ids') = 'array' and jsonb_array_length(p_payload -> 'item_ids') > 0 then
     select array_agg(x::uuid) into v_ids from jsonb_array_elements_text(p_payload -> 'item_ids') x;
   end if;
+  -- O assistente pode desmarcar apontamentos: vale a interseção com as
+  -- respostas enviadas (checklist_answer_ids), quando vierem.
+  if v_ids is null and jsonb_typeof(p_payload -> 'checklist_answer_ids') = 'array'
+     and jsonb_array_length(p_payload -> 'checklist_answer_ids') > 0 then
+    select array_agg(i.id) into v_ids from public.action_plan_items i
+     where i.plan_id = p_plan_id
+       and i.checklist_answer_id in (select x::uuid from jsonb_array_elements_text(p_payload -> 'checklist_answer_ids') x);
+  end if;
   select coalesce(jsonb_agg(distinct i.checklist_answer_id), '[]'::jsonb) into v_answers
     from public.action_plan_items i
    where i.plan_id = p_plan_id and i.status in ('pending', 'in_maintenance', 'needs_action')
@@ -622,7 +630,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_p   record;
+  v_p   public.action_plans;
   v_c   jsonb;
   v_n   integer := 0;
   v_chk integer := 0;

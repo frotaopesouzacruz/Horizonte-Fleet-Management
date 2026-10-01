@@ -473,6 +473,11 @@ begin
     reset role;
     ok := ok and (j ->> 'ok')::int = 1 and (j ->> 'errors')::int = 1
           and (select status from public.action_plans where id = p5) = 'new';
+    -- conciliação sob demanda e correção automática segura (sobre os planos da suíte)
+    k := public.action_plan_run_reconciliation(v_org);
+    j := public.action_plan_quality_fix(v_org);
+    ok := ok and (k ->> 'checked')::int >= 1 and (j ->> 'plans_refreshed')::int >= 5;
+    txt := txt || format('conciliação sob demanda=%s; correção segura=%s; ', k, j);
     r := r || format('%s (+) leituras e follow-up (prévia): %s%s', case when ok then 'PASS' else 'FAIL' end, txt, chr(10));
   exception when others then reset role; r := r || 'FAIL (+) leituras ' || sqlerrm || chr(10);
   end;

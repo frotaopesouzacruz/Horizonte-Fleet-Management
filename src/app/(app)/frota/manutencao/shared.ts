@@ -147,4 +147,10 @@ export interface WizardPreset {
   originCode?: string;
   checklistAnswerIds?: string[];
   serviceIds?: string[];
+  /** Abertura a partir de um Plano de Ação (Gestão de Checklist): grava pelo plano. */
+  actionPlanId?: string;
+  actionPlanCode?: string;
+  actionPlanItemIds?: string[];
+  description?: string;
+  priority?: string;
 }

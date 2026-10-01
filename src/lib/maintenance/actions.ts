@@ -201,15 +201,16 @@ export interface CreateMaintenanceInput {
   checklistAnswerIds?: string[];
   duplicateJustification?: string | null;
   notes?: string | null;
+  /** Abertura pelo Plano de Ação: a rotina do plano chama a da Manutenção e vincula. */
+  actionPlanId?: string | null;
+  actionPlanItemIds?: string[];
 }
 
 export async function createMaintenance(
   input: CreateMaintenanceInput,
 ): Promise<Result<{ id: string; code: string; status: string }>> {
   const organizationId = await orgId("maintenance.create");
-  return call("maintenance.create", "maintenance_create", {
-    p_organization_id: organizationId,
-    p_payload: clean({
+  const payload = clean({
       vehicle_id: input.vehicleId,
       maintenance_type_code: input.maintenanceTypeCode,
       origin_id: input.originId ?? undefined,
@@ -233,7 +234,21 @@ export async function createMaintenance(
       checklist_answer_ids: input.checklistAnswerIds?.length ? input.checklistAnswerIds : undefined,
       duplicate_justification: input.duplicateJustification ?? undefined,
       notes: input.notes ?? undefined,
-    }),
+  });
+  if (input.actionPlanId) {
+    // Gestão de Checklist › Planos de Ação: mesma manutenção oficial, origem
+    // "Plano de ação", apontamentos do plano e o vínculo plano × manutenção.
+    const result = await call<{ id: string; code: string; status: string }>("action_plans.open_maintenance",
+      "action_plan_open_maintenance", {
+        p_plan_id: input.actionPlanId,
+        p_payload: { ...payload, ...(input.actionPlanItemIds?.length ? { item_ids: input.actionPlanItemIds } : {}) },
+      }, "Não foi possível abrir a manutenção pelo plano.");
+    if (result.ok) revalidatePath("/checklist/planos-acao");
+    return result;
+  }
+  return call("maintenance.create", "maintenance_create", {
+    p_organization_id: organizationId,
+    p_payload: payload,
   }, "Não foi possível abrir a manutenção.");
 }
 
