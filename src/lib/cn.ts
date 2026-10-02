@@ -26,6 +26,15 @@ const FONT_SIZES = [
   // a classe e os rótulos de grupo da Sidebar renderizavam em 16px — não nos
   // 11px do token. Todo nome da escala precisa estar nesta lista.
   "overline",
+  // UI 2.0: papéis de página, KPI e tabela (mesma regra — todo `--text-*`).
+  "page-title",
+  "section-title",
+  "card-title",
+  "kpi",
+  "kpi-lg",
+  "kpi-sm",
+  "table-head",
+  "meta",
 ] as const;
 
 const twMerge = extendTailwindMerge({

@@ -28,7 +28,7 @@ export function KmInsights({
   return (
     <section aria-labelledby={headingId} className="flex min-w-0 flex-col gap-3" data-testid={testId}>
       <SectionHeader
-        id={headingId}
+        headingId={headingId}
         headingLevel={3}
         icon={<Lightbulb />}
         title="Leituras do período"

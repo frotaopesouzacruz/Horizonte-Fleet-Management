@@ -25,6 +25,8 @@ export interface SegmentedControlProps<T extends string> {
   options: readonly SegmentedOption<T>[];
   "aria-label": string;
   disabled?: boolean;
+  /** Permite quebrar em mais de uma linha (rótulos longos no celular). */
+  wrap?: boolean;
   className?: string;
   "data-testid"?: string;
 }
@@ -34,6 +36,7 @@ export function SegmentedControl<T extends string>({
   onValueChange,
   options,
   disabled,
+  wrap = false,
   className,
   ...rest
 }: SegmentedControlProps<T>) {
@@ -50,6 +53,7 @@ export function SegmentedControl<T extends string>({
       data-testid={rest["data-testid"]}
       className={cn(
         "inline-flex w-fit max-w-full items-center gap-0.5 rounded-md border border-border-subtle bg-surface-interactive p-0.5",
+        wrap && "flex-wrap",
         className,
       )}
     >

@@ -13,10 +13,12 @@ export interface SectionHeaderProps extends Omit<React.HTMLAttributes<HTMLDivEle
   /** Ícone lucide antes do título. */
   icon?: React.ReactNode;
   headingLevel?: 2 | 3;
+  /** `id` do título, para `aria-labelledby` da seção. */
+  headingId?: string;
 }
 
 export function SectionHeader({
-  title, description, actions, icon, headingLevel = 2, className, ...props
+  title, description, actions, icon, headingLevel = 2, headingId, className, ...props
 }: SectionHeaderProps) {
   const Heading = `h${headingLevel}` as const;
   return (
@@ -28,7 +30,7 @@ export function SectionHeader({
           </span>
         ) : null}
         <div className="min-w-0">
-          <Heading className="text-section-title font-semibold text-fg">{title}</Heading>
+          <Heading id={headingId} className="text-section-title font-semibold text-fg">{title}</Heading>
           {description ? <p className="mt-0.5 text-body-sm text-fg-muted">{description}</p> : null}
         </div>
       </div>
