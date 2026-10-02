@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // The dev badge sits bottom-left by default — exactly where the collapsed
+  // sidebar keeps "Expandir menu". Bottom-right keeps both reachable.
+  devIndicators: { position: "bottom-right" },
   // The project documents its own conventions in docs/; no generated agent files.
   agentRules: false,
   experimental: {

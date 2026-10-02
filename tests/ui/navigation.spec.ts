@@ -28,11 +28,21 @@ const WIDTHS = [1920, 1600, 1440, 1366, 1280, 1024, 768, 390];
 const groupButtons = (page: Page) =>
   page.getByRole("navigation", { name: "Navegação principal" }).getByRole("button");
 
+/**
+ * O `data-sidebar` é escrito por um script inline antes da hidratação; medir ou
+ * passar o mouse nesse instante encontra HTML sem React. O símbolo da marca só
+ * entra depois de montar, então ele é o sinal de que a página já responde.
+ */
+async function hydrated(page: Page) {
+  await expect(page.locator("aside img").first()).toBeVisible();
+}
+
 async function openCollapsed(page: Page) {
   await page.goto(NAV);
   await page.evaluate((key) => window.localStorage.setItem(key, "1"), SIDEBAR_KEY);
   await page.reload();
   await expect.poll(() => page.evaluate(() => document.documentElement.dataset.sidebar)).toBe("collapsed");
+  await hydrated(page);
 }
 
 test.describe("sidebar", () => {
@@ -156,11 +166,13 @@ test.describe("sidebar", () => {
       [SIDEBAR_KEY, GROUPS_KEY] as const,
     );
     await page.reload();
+    await hydrated(page);
 
     await page.getByRole("button", { name: "Recolher menu" }).click();
     await expect.poll(() => page.evaluate(() => document.documentElement.dataset.sidebar)).toBe("collapsed");
     await page.reload();
     expect(await page.evaluate(() => document.documentElement.dataset.sidebar)).toBe("collapsed");
+    await hydrated(page);
 
     await page.getByRole("button", { name: "Expandir menu" }).click();
     await expect.poll(() => page.evaluate(() => document.documentElement.dataset.sidebar)).toBe("expanded");

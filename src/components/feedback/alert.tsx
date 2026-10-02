@@ -109,8 +109,11 @@ export const AlertTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttri
   },
 );
 
-export const AlertDescription = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
+// A `div`, not a `p`: descriptions carry lists (impedimentos, avisos) and a
+// list inside a paragraph is invalid HTML — the browser splits it and React
+// logs a hydration error.
+export const AlertDescription = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   function AlertDescription({ className, ...props }, ref) {
-    return <p ref={ref} className={cn("text-body-sm", className)} {...props} />;
+    return <div ref={ref} className={cn("text-body-sm", className)} {...props} />;
   },
 );

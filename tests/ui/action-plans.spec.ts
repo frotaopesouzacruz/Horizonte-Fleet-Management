@@ -68,6 +68,9 @@ test.describe("planos de ação", () => {
     await expect(page.locator('[role="tab"][data-testid^="action-plans-tab-"]')).toHaveText(TABS.map(([, label]) => label));
     const nav = page.getByRole("navigation", { name: "Navegação principal" });
     await expect(nav.getByRole("link", { name: "Planos de ação" })).toHaveAttribute("href", "/checklist/planos-acao");
+    // Fora do ramo (a prévia não é /checklist/planos-acao) o subitem fica atrás
+    // do controle de expandir; dentro dele a Sidebar o abre sozinha.
+    await nav.getByRole("button", { name: "Expandir Planos de ação" }).click();
     await expect(nav.getByRole("link", { name: "Meus apontamentos" })).toHaveAttribute(
       "href",
       "/checklist/planos-acao/meus-apontamentos",

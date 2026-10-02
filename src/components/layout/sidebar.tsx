@@ -137,8 +137,9 @@ function SidebarItem({
 function SidebarBranch({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
   const pathname = usePathname();
   const children = item.children ?? [];
-  const inBranch = children.some((child) => isActivePath(pathname, child.href));
-  // Dentro de uma subtela o ramo fica aberto; fora dele, vale a escolha da pessoa.
+  // Dentro do ramo — na tela do item ou numa subtela — ele fica aberto, para
+  // que as subtelas se descubram; fora dele, vale a escolha da pessoa.
+  const inBranch = pathname === item.href || pathname.startsWith(item.href + "/");
   const [manual, setManual] = React.useState(false);
   const open = inBranch || manual;
   const setOpen = (fn: (v: boolean) => boolean) => setManual(fn(open));

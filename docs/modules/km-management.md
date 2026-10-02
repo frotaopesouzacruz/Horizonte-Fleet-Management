@@ -224,6 +224,33 @@ views, rotation view, export; Segurança — view and dashboard.
 
 All use the same routines and filters as the screen.
 
+## Front-end (`src/app/(app)/frota/km`)
+
+The route is a server component: it resolves the caller's `km.*` permissions,
+reads the URL (`aba`, the ID filters, `modo`, `sub`, `dia`, `veiculo`), loads
+only the active tab's data through the routines above and hands typed
+`{ data, ctx }` to the tab's panel. Nothing is recomputed in the browser;
+`kmRpc` (`src/lib/km/rpc.ts`) camelizes the payloads and `byCode()` reads the
+status catalog by code.
+
+| Path | Role |
+|---|---|
+| `page.tsx`, `km-view.tsx`, `shared.ts` | Route `/frota/km`, tab registry with its permission, `KmPanelContext` / `KmViewData` contracts, PageHeader and the global tab list. |
+| `km-filters.tsx` | Global filter bar (competência, operação, UF, cidade, tipo, placa, …) — values are IDs, the plate search is the only text. |
+| `panels/overview-panel.tsx` + `overview/*` | Visão geral: KPIs, KM por dia, status and freshness distributions, vehicle rank, insights (`components/km-insights.tsx`). |
+| `panels/analysis-panel.tsx` + `analysis/*` | Análise gerencial: by operation, by location (Operação → Estado → Cidade → BR), dispersion with bands and "Ponto para análise", quadrants, projections. |
+| `panels/planner-panel.tsx` + `planner/*` | Planner mês/dia: heat grid (`model.ts`), legend, summary, compact/detailed mode, export of the Controle Mensal. |
+| `panels/daily-panel.tsx` + `daily/*` | Visão diária: day picker, ranking, vehicles without reading, inconsistencies. |
+| `panels/history-panel.tsx` + `history/*` | Histórico por frota: vehicle picker, cards, charts, month tables. |
+| `panels/rotation-panel.tsx` + `rotation/*` | Plano de rodízio: suggestions, analysis drawer (A ⇄ B), add-to-plan dialog, plans table, plan detail and items, status dialogs, Fidelização preview and apply. |
+| `panels/quality-panel.tsx` + `quality/*` | Qualidade de dados: score gauge, indicators, fleet health, issues table, `components/correction-dialog.tsx`, parameters. |
+| `panels/import-panel.tsx` + `import/*` | Importação: source card (only the official sheet), pipeline steps, open batches, preview summary, findings, outcome. |
+| `panels/batches-panel.tsx` + `batches/*` | Lotes: table and batch detail. |
+| `panels/reports-panel.tsx` + `reports/*` | Relatórios: report cards → `export/{base,controle-mensal,gerencial,qualidade,rodizio}/route.ts` (XLSX via `relatorio/xlsx-kit.ts`, each download logged by `relatorio/export-log.ts` → `log_km_export`) and the printable `relatorio/page.tsx` (`report-document.tsx`, `print-button.tsx`). |
+
+Fixture preview for design and UI tests: `/dev/preview-km` (`kmFixtureStore`);
+Playwright: `tests/ui/km.spec.ts`.
+
 ## Migrations
 
 | File | Content |
