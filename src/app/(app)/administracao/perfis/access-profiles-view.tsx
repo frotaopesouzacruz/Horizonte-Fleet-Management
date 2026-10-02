@@ -26,6 +26,7 @@ import type {
 } from "@/lib/admin/access-profiles";
 import { setProfilePermissions, restoreProfileDefaults, loadEffectiveAccess } from "@/lib/admin/access-actions";
 import { PageContent, PageHeader } from "@/components/layout/page-header";
+import { SectionHeader } from "@/components/layout/section-header";
 import { Badge } from "@/components/ui/badge";
 import { Button, IconButton } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -41,7 +42,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { FormField } from "@/components/ui/form-field";
-import { FilterBar, FilterGroup } from "@/components/ui/filter-bar";
+import { FilterBar } from "@/components/ui/filter-bar";
 import { SearchField } from "@/components/ui/search-field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
@@ -117,6 +118,17 @@ function formatDateTime(value: string): string {
   });
 }
 
+/** Data na primeira linha, hora na segunda: a coluna fica estreita sem cortar nada. */
+function DateTimeLines({ value }: { value: string }) {
+  const [date, time] = formatDateTime(value).split(", ");
+  return (
+    <span className="block whitespace-nowrap" title={formatDateTime(value)}>
+      <span className="block">{date}</span>
+      {time ? <span className="block text-fg-muted">{time}</span> : null}
+    </span>
+  );
+}
+
 export interface AccessProfilesViewProps {
   profiles: AccessProfile[];
   matrix: PermissionRow[];
@@ -155,6 +167,7 @@ export function AccessProfilesView({
   const [auditKind, setAuditKind] = React.useState("all");
   const [auditProfile, setAuditProfile] = React.useState("all");
   const [auditQuery, setAuditQuery] = React.useState("");
+  const auditFilterId = React.useId();
   // Captured once: "últimos 30 dias" must not drift while the page is open, and
   // reading the clock inside a memo would make the filter impure.
   const [renderedAt] = React.useState(() => Date.now());
@@ -296,123 +309,126 @@ export function AccessProfilesView({
 
           {/* ------------------------------------------------------- perfis */}
           <TabsContent value="perfis" className="pt-4">
-            <Card>
-              <CardContent className="p-0">
-                <TableContainer className="rounded-none border-0">
-                  {/* Fixed layout with a floor width: the descriptions are long
-                      enough that an auto table would push Ações off the edge
-                      instead of scrolling. */}
-                  <Table layout="fixed" style={{ minWidth: 1340 }}>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead style={{ width: 420 }}>Perfil</TableHead>
-                        <TableHead style={{ width: 150 }}>Código técnico</TableHead>
-                        <TableHead numeric style={{ width: 120 }}>Permissões</TableHead>
-                        <TableHead numeric style={{ width: 100 }}>Contas</TableHead>
-                        <TableHead style={{ width: 160 }}>Matriz</TableHead>
-                        <TableHead style={{ width: 110 }}>Situação</TableHead>
-                        <TableHead style={{ width: 150 }}>Última alteração</TableHead>
-                        <TableHead style={{ width: 150 }}>Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {profiles.map((profile) => {
-                        const drifted =
-                          profile.addedPermissions.length > 0 || profile.removedPermissions.length > 0;
-                        return (
-                          <TableRow key={profile.roleId} className="h-(--table-row-height)">
-                            <TableCell>
-                              <span className="block font-medium text-fg">{profile.name}</span>
-                              <span className="block truncate text-caption text-fg-muted" title={profile.description}>
-                                {profile.description}
-                              </span>
-                            </TableCell>
-                            <TableCell className="font-mono text-caption text-fg-secondary">{profile.code}</TableCell>
-                            <TableCell numeric>{numberFormat.format(profile.permissionCount)}</TableCell>
-                            <TableCell numeric>
-                              {profile.memberCount === 0 ? (
-                                <span className="text-fg-muted">—</span>
-                              ) : (
-                                numberFormat.format(profile.memberCount)
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {profile.isAdministrator ? (
-                                <Badge variant="primary" appearance="soft">
-                                  Catálogo completo
-                                </Badge>
-                              ) : drifted ? (
-                                <Badge variant="warning" appearance="soft" dot>
-                                  {profile.addedPermissions.length > 0
-                                    ? `+${profile.addedPermissions.length}`
-                                    : null}
-                                  {profile.addedPermissions.length > 0 && profile.removedPermissions.length > 0
-                                    ? " / "
-                                    : null}
-                                  {profile.removedPermissions.length > 0
-                                    ? `−${profile.removedPermissions.length}`
-                                    : null}
-                                </Badge>
-                              ) : (
-                                <Badge variant="neutral" appearance="soft">
-                                  Padrão oficial
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {/* An official profile is always in use: it exists
-                                  for the organization whether anybody holds it
-                                  or not. "Ativo" here means the role is live,
-                                  not that somebody is wearing it. */}
-                              <Badge variant="success" appearance="soft" dot>
-                                Ativo
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-caption tabular-nums text-fg-secondary">
-                              {profile.lastChangedAt ? formatDateTime(profile.lastChangedAt) : "—"}
-                            </TableCell>
-                            <TableCell>
-                              <span className="flex items-center gap-0.5">
+            <TableContainer>
+              {/* Fixed layout with a floor width: the descriptions are long
+                  enough that an auto table would push Ações off the edge
+                  instead of scrolling. Two-line cells (perfil + código técnico
+                  / descrição; data / hora) keep it inside 1366 without a
+                  sideways scroll. */}
+              <Table layout="fixed" style={{ minWidth: 936 }}>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Perfil · código técnico</TableHead>
+                    <TableHead numeric style={{ width: 108 }}>Permissões</TableHead>
+                    <TableHead numeric style={{ width: 76 }}>Contas</TableHead>
+                    <TableHead style={{ width: 156 }}>Matriz</TableHead>
+                    <TableHead style={{ width: 96 }}>Situação</TableHead>
+                    <TableHead style={{ width: 112 }}>
+                      <abbr title="Última alteração" className="no-underline">
+                        Alteração
+                      </abbr>
+                    </TableHead>
+                    <TableHead style={{ width: 124 }}>Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {profiles.map((profile) => {
+                    const drifted =
+                      profile.addedPermissions.length > 0 || profile.removedPermissions.length > 0;
+                    return (
+                      <TableRow key={profile.roleId} className="h-(--table-row-height)">
+                        <TableCell>
+                          <span className="flex min-w-0 items-baseline gap-2">
+                            <span className="truncate font-medium text-fg">{profile.name}</span>
+                            <span className="shrink-0 font-mono text-caption text-fg-secondary">{profile.code}</span>
+                          </span>
+                          <span className="block truncate text-caption text-fg-muted" title={profile.description}>
+                            {profile.description}
+                          </span>
+                        </TableCell>
+                        <TableCell numeric>{numberFormat.format(profile.permissionCount)}</TableCell>
+                        <TableCell numeric>
+                          {profile.memberCount === 0 ? (
+                            <span className="text-fg-muted">—</span>
+                          ) : (
+                            numberFormat.format(profile.memberCount)
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {profile.isAdministrator ? (
+                            <Badge variant="primary" appearance="soft">
+                              Catálogo completo
+                            </Badge>
+                          ) : drifted ? (
+                            <Badge variant="warning" appearance="soft" dot>
+                              {profile.addedPermissions.length > 0
+                                ? `+${profile.addedPermissions.length}`
+                                : null}
+                              {profile.addedPermissions.length > 0 && profile.removedPermissions.length > 0
+                                ? " / "
+                                : null}
+                              {profile.removedPermissions.length > 0
+                                ? `−${profile.removedPermissions.length}`
+                                : null}
+                            </Badge>
+                          ) : (
+                            <Badge variant="neutral" appearance="soft">
+                              Padrão oficial
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {/* An official profile is always in use: it exists
+                              for the organization whether anybody holds it
+                              or not. "Ativo" here means the role is live,
+                              not that somebody is wearing it. */}
+                          <Badge variant="success" appearance="soft" dot>
+                            Ativo
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-caption tabular-nums text-fg-secondary">
+                          {profile.lastChangedAt ? <DateTimeLines value={profile.lastChangedAt} /> : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <span className="flex items-center gap-0.5">
+                            <IconButton
+                              label={`Simular o perfil ${profile.name}`}
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setSimulating(profile)}
+                            >
+                              <Eye aria-hidden />
+                            </IconButton>
+                            {canManage && !profile.isAdministrator ? (
+                              <>
                                 <IconButton
-                                  label={`Simular o perfil ${profile.name}`}
+                                  label={`Editar a matriz de ${profile.name}`}
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => setSimulating(profile)}
+                                  disabled={pending}
+                                  onClick={() => setEditing(profile)}
                                 >
-                                  <Eye aria-hidden />
+                                  <Pencil aria-hidden />
                                 </IconButton>
-                                {canManage && !profile.isAdministrator ? (
-                                  <>
-                                    <IconButton
-                                      label={`Editar a matriz de ${profile.name}`}
-                                      variant="ghost"
-                                      size="sm"
-                                      disabled={pending}
-                                      onClick={() => setEditing(profile)}
-                                    >
-                                      <Pencil aria-hidden />
-                                    </IconButton>
-                                    <IconButton
-                                      label={`Restaurar o padrão de ${profile.name}`}
-                                      variant="ghost"
-                                      size="sm"
-                                      disabled={pending || !drifted}
-                                      onClick={() => setRestoring(profile)}
-                                    >
-                                      <RotateCcw aria-hidden />
-                                    </IconButton>
-                                  </>
-                                ) : null}
-                              </span>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
+                                <IconButton
+                                  label={`Restaurar o padrão de ${profile.name}`}
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={pending || !drifted}
+                                  onClick={() => setRestoring(profile)}
+                                >
+                                  <RotateCcw aria-hidden />
+                                </IconButton>
+                              </>
+                            ) : null}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
 
             <p className="mt-3 text-caption text-fg-muted">
               O perfil {administrator?.name ?? "Administrador"} possui todas as permissões por definição e não pode ser
@@ -423,90 +439,88 @@ export function AccessProfilesView({
 
           {/* ------------------------------------------------------- matriz */}
           <TabsContent value="matriz" className="pt-4">
-            <Card>
-              <CardContent className="p-0">
-                <TableContainer stickyHeader maxHeight="calc(100dvh - 24rem)" className="rounded-none border-0">
-                  <Table layout="fixed" style={{ minWidth: 300 + profiles.length * 112 }}>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead style={{ width: 300, zIndex: 21 }} className="sticky left-0 bg-surface-secondary">
-                          Permissão
-                        </TableHead>
-                        {profiles.map((profile) => (
-                          <TableHead
-                            key={profile.roleId}
-                            style={{ width: 112 }}
-                            // The default header never wraps, which is right for
-                            // a one-word column and wrong for "Liderança de
-                            // Operações": here the name wraps rather than
-                            // becoming "Liderança de Ope…".
-                            className="text-center align-bottom leading-tight whitespace-normal"
-                          >
-                            {profile.name}
-                          </TableHead>
-                        ))}
+            <TableContainer stickyHeader maxHeight="calc(100dvh - 24rem)">
+              {/* 260 + 108 por perfil: os sete perfis oficiais cabem a 1366
+                  sem rolagem lateral; mais perfis rolam dentro do cartão. */}
+              <Table layout="fixed" style={{ minWidth: 260 + profiles.length * 108 }}>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead style={{ width: 260, zIndex: 21 }} className="sticky left-0 bg-surface-secondary">
+                      Permissão
+                    </TableHead>
+                    {profiles.map((profile) => (
+                      <TableHead
+                        key={profile.roleId}
+                        style={{ width: 108 }}
+                        // The default header never wraps, which is right for
+                        // a one-word column and wrong for "Liderança de
+                        // Operações": here the name wraps rather than
+                        // becoming "Liderança de Ope…".
+                        className="px-2 text-center align-bottom leading-tight whitespace-normal"
+                      >
+                        {profile.name}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {modules.map(([module, rows]) => (
+                    <React.Fragment key={module}>
+                      <TableRow className="bg-surface-secondary">
+                        <TableCell
+                          colSpan={profiles.length + 1}
+                          className="text-caption font-semibold tracking-wide text-fg-secondary uppercase"
+                        >
+                          {moduleLabel(module)}
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {modules.map(([module, rows]) => (
-                        <React.Fragment key={module}>
-                          <TableRow className="bg-surface-secondary">
-                            <TableCell
-                              colSpan={profiles.length + 1}
-                              className="text-caption font-semibold tracking-wide text-fg-secondary uppercase"
-                            >
-                              {moduleLabel(module)}
-                            </TableCell>
-                          </TableRow>
-                          {rows.map((row) => (
-                            <TableRow key={row.code} className="h-(--table-row-height)">
-                              <TableCell className="sticky left-0 bg-inherit" style={{ zIndex: 1 }}>
-                                <span className="block truncate font-medium text-fg" title={row.description ?? row.name}>
-                                  {row.name}
-                                </span>
-                                <span className="block font-mono text-caption text-fg-muted">{row.code}</span>
-                              </TableCell>
-                              {profiles.map((profile) => {
-                                const granted = row.grantedCodes.includes(profile.code);
-                                const isDefault = row.defaultCodes.includes(profile.code);
-                                return (
-                                  <TableCell key={profile.roleId} className="text-center">
-                                    {granted ? (
-                                      <span
-                                        className={cn(
-                                          "inline-flex items-center justify-center",
-                                          isDefault ? "text-success" : "text-warning",
-                                        )}
-                                        title={isDefault ? "Concedida (padrão oficial)" : "Concedida fora do padrão"}
-                                      >
-                                        <Check className="size-4" aria-hidden />
-                                        <span className="sr-only">
-                                          {isDefault ? "Concedida" : "Concedida fora do padrão"}
-                                        </span>
-                                      </span>
-                                    ) : (
-                                      <span
-                                        className={cn(isDefault ? "text-danger" : "text-fg-muted")}
-                                        title={isDefault ? "Removida do padrão oficial" : "Não concedida"}
-                                      >
-                                        <Minus className="size-4" aria-hidden />
-                                        <span className="sr-only">
-                                          {isDefault ? "Removida do padrão" : "Não concedida"}
-                                        </span>
-                                      </span>
+                      {rows.map((row) => (
+                        <TableRow key={row.code} className="h-(--table-row-height)">
+                          <TableCell className="sticky left-0 bg-inherit" style={{ zIndex: 1 }}>
+                            <span className="block truncate font-medium text-fg" title={row.description ?? row.name}>
+                              {row.name}
+                            </span>
+                            <span className="block font-mono text-caption text-fg-muted">{row.code}</span>
+                          </TableCell>
+                          {profiles.map((profile) => {
+                            const granted = row.grantedCodes.includes(profile.code);
+                            const isDefault = row.defaultCodes.includes(profile.code);
+                            return (
+                              <TableCell key={profile.roleId} className="px-2 text-center">
+                                {granted ? (
+                                  <span
+                                    className={cn(
+                                      "inline-flex items-center justify-center",
+                                      isDefault ? "text-success" : "text-warning",
                                     )}
-                                  </TableCell>
-                                );
-                              })}
-                            </TableRow>
-                          ))}
-                        </React.Fragment>
+                                    title={isDefault ? "Concedida (padrão oficial)" : "Concedida fora do padrão"}
+                                  >
+                                    <Check className="size-4" aria-hidden />
+                                    <span className="sr-only">
+                                      {isDefault ? "Concedida" : "Concedida fora do padrão"}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span
+                                    className={cn("inline-flex items-center justify-center", isDefault ? "text-danger" : "text-fg-muted")}
+                                    title={isDefault ? "Removida do padrão oficial" : "Não concedida"}
+                                  >
+                                    <Minus className="size-4" aria-hidden />
+                                    <span className="sr-only">
+                                      {isDefault ? "Removida do padrão" : "Não concedida"}
+                                    </span>
+                                  </span>
+                                )}
+                              </TableCell>
+                            );
+                          })}
+                        </TableRow>
                       ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
+                    </React.Fragment>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
 
             <p className="mt-3 text-caption text-fg-muted">
               Verde: concedida conforme o padrão oficial. Amarelo: concedida além do padrão. Vermelho: prevista no
@@ -522,12 +536,11 @@ export function AccessProfilesView({
           {/* ---------------------------------------------------- auditoria */}
           <TabsContent value="auditoria" className="flex flex-col gap-5 pt-4">
             <section className="flex flex-col gap-3">
-              <div>
-                <h2 className="text-h3 font-semibold text-fg">Pontos de atenção</h2>
-                <p className="text-body-sm text-fg-secondary">
-                  O sistema aponta e não corrige: cada linha é uma decisão de alguém, não uma correção automática.
-                </p>
-              </div>
+              <SectionHeader
+                icon={<AlertTriangle />}
+                title="Pontos de atenção"
+                description="O sistema aponta e não corrige: cada linha é uma decisão de alguém, não uma correção automática."
+              />
 
               {inconsistencies.length === 0 ? (
                 <Alert variant="success">
@@ -538,160 +551,164 @@ export function AccessProfilesView({
                   </AlertDescription>
                 </Alert>
               ) : (
-                <Card>
-                  <CardContent className="p-0">
-                    <TableContainer className="rounded-none border-0">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead style={{ width: 110 }}>Severidade</TableHead>
-                            <TableHead style={{ width: 260 }}>Referência</TableHead>
-                            <TableHead>Situação</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {inconsistencies.map((item, index) => (
-                            <TableRow key={`${item.kind}-${item.subjectId ?? index}`} className="h-(--table-row-height)">
-                              <TableCell>
-                                <Badge variant={SEVERITY[item.severity].variant} appearance="soft" dot>
-                                  {SEVERITY[item.severity].label}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <span className="block truncate font-medium text-fg" title={item.subject}>
-                                  {item.subject}
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-body-sm text-fg-secondary">{item.detail}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </CardContent>
-                </Card>
+                <TableContainer>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead style={{ width: 110 }}>Severidade</TableHead>
+                        <TableHead style={{ width: 260 }}>Referência</TableHead>
+                        <TableHead>Situação</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {inconsistencies.map((item, index) => (
+                        <TableRow key={`${item.kind}-${item.subjectId ?? index}`} className="h-(--table-row-height)">
+                          <TableCell>
+                            <Badge variant={SEVERITY[item.severity].variant} appearance="soft" dot>
+                              {SEVERITY[item.severity].label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <span className="block truncate font-medium text-fg" title={item.subject}>
+                              {item.subject}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-body-sm text-fg-secondary">{item.detail}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               )}
             </section>
 
             <section className="flex flex-col gap-3">
-              <div>
-                <h2 className="text-h3 font-semibold text-fg">Histórico de alterações</h2>
-                <p className="text-body-sm text-fg-secondary">
-                  Toda alteração de perfil e de matriz é registrada com o estado anterior, o novo e o motivo informado.
-                  O registro não pode ser editado nem apagado.
-                </p>
-              </div>
+              <SectionHeader
+                icon={<History />}
+                title="Histórico de alterações"
+                description="Toda alteração de perfil e de matriz é registrada com o estado anterior, o novo e o motivo informado. O registro não pode ser editado nem apagado."
+              />
 
               {/* Filtros sobre as últimas {changes.length} alterações carregadas.
                   O filtro é local por escolha: uma janela pequena e honesta vale
                   mais que um filtro que parece varrer todo o histórico e não
                   varre. */}
-              <FilterBar className="py-0" label="Filtros da auditoria">
-                <FilterGroup label="Período">
-                  <Select value={auditPeriod} onValueChange={setAuditPeriod}>
-                    <SelectTrigger size="sm" className="w-40">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todo o período</SelectItem>
-                      <SelectItem value="7">Últimos 7 dias</SelectItem>
-                      <SelectItem value="30">Últimos 30 dias</SelectItem>
-                      <SelectItem value="90">Últimos 90 dias</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </FilterGroup>
+              {/* Mesmo cartão de ferramentas da barra de filtros das telas (UI 2.0). */}
+              <div className="rounded-xl border border-border bg-surface-toolbar px-2.5 py-1 shadow-card sm:px-3">
+                <FilterBar className="items-end gap-2.5" label="Filtros da auditoria">
+                  <div className="flex min-w-0 flex-[1_1_9rem] flex-col gap-1">
+                    <label htmlFor={`${auditFilterId}-periodo`} className="text-caption text-fg-muted">
+                      Período
+                    </label>
+                    <Select value={auditPeriod} onValueChange={setAuditPeriod}>
+                      <SelectTrigger id={`${auditFilterId}-periodo`} size="sm" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todo o período</SelectItem>
+                        <SelectItem value="7">Últimos 7 dias</SelectItem>
+                        <SelectItem value="30">Últimos 30 dias</SelectItem>
+                        <SelectItem value="90">Últimos 90 dias</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <FilterGroup label="Tipo">
-                  <Select value={auditKind} onValueChange={setAuditKind}>
-                    <SelectTrigger size="sm" className="w-48">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os eventos</SelectItem>
-                      <SelectItem value="membership">Perfil de uma conta</SelectItem>
-                      <SelectItem value="matrix">Matriz de um perfil</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </FilterGroup>
+                  <div className="flex min-w-0 flex-[1_1_11rem] flex-col gap-1">
+                    <label htmlFor={`${auditFilterId}-tipo`} className="text-caption text-fg-muted">
+                      Tipo
+                    </label>
+                    <Select value={auditKind} onValueChange={setAuditKind}>
+                      <SelectTrigger id={`${auditFilterId}-tipo`} size="sm" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os eventos</SelectItem>
+                        <SelectItem value="membership">Perfil de uma conta</SelectItem>
+                        <SelectItem value="matrix">Matriz de um perfil</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <FilterGroup label="Perfil">
-                  <Select value={auditProfile} onValueChange={setAuditProfile}>
-                    <SelectTrigger size="sm" className="w-52">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os perfis</SelectItem>
-                      {profiles.map((profile) => (
-                        <SelectItem key={profile.roleId} value={profile.code}>
-                          {profile.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FilterGroup>
+                  <div className="flex min-w-0 flex-[1_1_11rem] flex-col gap-1">
+                    <label htmlFor={`${auditFilterId}-perfil`} className="text-caption text-fg-muted">
+                      Perfil
+                    </label>
+                    <Select value={auditProfile} onValueChange={setAuditProfile}>
+                      <SelectTrigger id={`${auditFilterId}-perfil`} size="sm" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os perfis</SelectItem>
+                        {profiles.map((profile) => (
+                          <SelectItem key={profile.roleId} value={profile.code}>
+                            {profile.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <SearchField
-                  value={auditQuery}
-                  onChange={(event) => setAuditQuery(event.target.value)}
-                  onClear={() => setAuditQuery("")}
-                  size="sm"
-                  placeholder="Buscar por pessoa ou motivo"
-                  aria-label="Buscar no histórico de alterações"
-                  wrapperClassName="w-full sm:w-72"
-                />
-              </FilterBar>
+                  <div className="flex min-w-0 flex-[2_1_15rem] flex-col gap-1">
+                    <span className="text-caption text-fg-muted">Buscar</span>
+                    <SearchField
+                      value={auditQuery}
+                      onChange={(event) => setAuditQuery(event.target.value)}
+                      onClear={() => setAuditQuery("")}
+                      size="sm"
+                      placeholder="Pessoa ou motivo"
+                      aria-label="Buscar no histórico de alterações"
+                    />
+                  </div>
+                </FilterBar>
+              </div>
 
-              <Card>
-                <CardContent className="p-0">
-                  <TableContainer className="rounded-none border-0">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead style={{ width: 150 }}>Quando</TableHead>
-                          <TableHead style={{ width: 200 }}>Quem alterou</TableHead>
-                          <TableHead style={{ width: 240 }}>De → para</TableHead>
-                          <TableHead>Motivo</TableHead>
+              <TableContainer>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead style={{ width: 150 }}>Quando</TableHead>
+                      <TableHead style={{ width: 200 }}>Quem alterou</TableHead>
+                      <TableHead style={{ width: 240 }}>De → para</TableHead>
+                      <TableHead>Motivo</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {visibleChanges.length === 0 ? (
+                      <TableEmpty
+                        colSpan={4}
+                        icon={<History />}
+                        message={
+                          changes.length === 0
+                            ? "Nenhuma alteração registrada."
+                            : "Nenhuma alteração corresponde aos filtros."
+                        }
+                      />
+                    ) : (
+                      visibleChanges.map((change) => (
+                        <TableRow key={change.id} className="h-(--table-row-height)">
+                          <TableCell className="text-caption tabular-nums text-fg-secondary">
+                            {formatDateTime(change.createdAt)}
+                          </TableCell>
+                          <TableCell>
+                            <span className="block truncate text-body-sm text-fg">
+                              {change.actorName ?? "Sistema"}
+                            </span>
+                            {change.targetName ? (
+                              <span className="block truncate text-caption text-fg-muted">
+                                sobre {change.targetName}
+                              </span>
+                            ) : null}
+                          </TableCell>
+                          <TableCell className="font-mono text-caption text-fg-secondary">
+                            {change.previousCodes.join(", ") || "—"} → {change.newCodes.join(", ") || "—"}
+                          </TableCell>
+                          <TableCell className="text-body-sm text-fg-secondary">{change.reason}</TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {visibleChanges.length === 0 ? (
-                          <TableEmpty
-                            colSpan={4}
-                            icon={<History />}
-                            message={
-                              changes.length === 0
-                                ? "Nenhuma alteração registrada."
-                                : "Nenhuma alteração corresponde aos filtros."
-                            }
-                          />
-                        ) : (
-                          visibleChanges.map((change) => (
-                            <TableRow key={change.id} className="h-(--table-row-height)">
-                              <TableCell className="text-caption tabular-nums text-fg-secondary">
-                                {formatDateTime(change.createdAt)}
-                              </TableCell>
-                              <TableCell>
-                                <span className="block truncate text-body-sm text-fg">
-                                  {change.actorName ?? "Sistema"}
-                                </span>
-                                {change.targetName ? (
-                                  <span className="block truncate text-caption text-fg-muted">
-                                    sobre {change.targetName}
-                                  </span>
-                                ) : null}
-                              </TableCell>
-                              <TableCell className="font-mono text-caption text-fg-secondary">
-                                {change.previousCodes.join(", ") || "—"} → {change.newCodes.join(", ") || "—"}
-                              </TableCell>
-                              <TableCell className="text-body-sm text-fg-secondary">{change.reason}</TableCell>
-                            </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </CardContent>
-              </Card>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
             </section>
           </TabsContent>
         </Tabs>

@@ -22,12 +22,19 @@ const numberFormat = new Intl.NumberFormat("pt-BR");
 /**
  * The five cards, laid out.
  *
- * One row from 1280px up, where 220px per card is still enough for the longest
- * label without shrinking a single font. Below that, three and two — with the
- * label height reserved for two lines everywhere, so the five numbers stay on
- * one baseline whichever row they land in.
+ * One row from 1280px up; below that, three and two — with the label height
+ * reserved for two lines everywhere, so the five numbers stay on one baseline
+ * whichever row they land in.
  */
 const GRID = "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5";
+
+/**
+ * Every card measures itself (`@container`, content box). Under 10rem of
+ * content — five in a row at 1280 with the menu open — "COLABORADORES" no
+ * longer fits beside the icon chip, so the chip (decoration) yields instead of
+ * the label being cut. From 1366 up the chip is back.
+ */
+const CARD = "@container min-h-28 justify-start @max-[10rem]:[&>header>span]:hidden";
 
 /**
  * Five cards, one baseline.
@@ -39,7 +46,7 @@ const GRID = "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-
  * read as one instrument instead of five.
  */
 function kpiLabel(text: string) {
-  return <span className="block min-h-11 leading-snug">{text}</span>;
+  return <span className="block leading-snug sm:min-h-11">{text}</span>;
 }
 
 /**
@@ -76,9 +83,9 @@ export function OverviewCards({ summary, operationId }: OverviewCardsProps) {
       .join(" · ") || undefined;
 
   return (
-<div className={GRID}>
+    <div className={GRID}>
       <KpiCard
-        className="min-h-28 justify-start"
+        className={CARD}
         label={kpiLabel("Total de colaboradores")}
         value={summary.total}
         period={
@@ -92,7 +99,7 @@ export function OverviewCards({ summary, operationId }: OverviewCardsProps) {
       <OperationHeadcountCard summary={summary} selected={selected} />
 
       <KpiCard
-        className="min-h-28 justify-start"
+        className={CARD}
         status="success"
         label={kpiLabel("Ativos")}
         value={summary.active}
@@ -104,7 +111,7 @@ export function OverviewCards({ summary, operationId }: OverviewCardsProps) {
           e desligados não são inativos: aparecem ao lado para que a soma
           feche com o total sem que se invente uma regra. */}
       <KpiCard
-        className="min-h-28 justify-start"
+        className={CARD}
         label={kpiLabel("Inativos")}
         value={summary.inactive}
         period={otherSituations ?? shareOf(summary.inactive, summary.total)}
@@ -112,7 +119,7 @@ export function OverviewCards({ summary, operationId }: OverviewCardsProps) {
       />
 
       <KpiCard
-        className="min-h-28 justify-start"
+        className={CARD}
         label={kpiLabel("Vinculados à liderança")}
         value={summary.withLeader}
         period={
@@ -133,7 +140,7 @@ export function OverviewSkeleton() {
       {Array.from({ length: 5 }, (_, index) => (
         <KpiCard
           key={index}
-          className="min-h-28 justify-start"
+          className={CARD}
           loading
           loadingLabel="Carregando indicadores…"
           label=""
@@ -191,7 +198,7 @@ function OperationHeadcountCard({
   if (selected) {
     return (
       <KpiCard
-        className="min-h-28 justify-start"
+        className={CARD}
         label={kpiLabel(selected.operationName)}
         value={selected.count}
         unit={selected.count === 1 ? "colaborador" : "colaboradores"}
@@ -206,10 +213,17 @@ function OperationHeadcountCard({
   const remaining = ranked.length - top.length;
 
   return (
-    <section className={cn(kpiCardVariants(), "min-h-28 justify-start gap-2")}>
+    <section className={cn(kpiCardVariants(), CARD, "gap-2")}>
+      {/* Same header as its four neighbours (KpiCard): overline label with two
+          lines reserved, icon in a soft chip. */}
       <header className="flex items-start justify-between gap-2">
-        <h3 className="min-w-0 text-body-sm font-medium text-fg-secondary">Colaboradores por operação</h3>
-        <span className="shrink-0 text-fg-muted [&_svg]:size-[18px] [&_svg]:shrink-0" aria-hidden>
+        <h3 className="min-w-0 text-balance text-caption font-semibold tracking-wide text-fg-muted uppercase">
+          {kpiLabel("Colaboradores por operação")}
+        </h3>
+        <span
+          className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface-interactive text-fg-secondary ring-1 ring-black/[0.03] ring-inset dark:ring-white/[0.06] [&_svg]:size-[18px] [&_svg]:shrink-0"
+          aria-hidden
+        >
           <Building2 />
         </span>
       </header>

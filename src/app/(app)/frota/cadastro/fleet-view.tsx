@@ -19,10 +19,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { usePersistedSet } from "@/lib/use-persisted-set";
-import { PageHeader } from "@/components/layout/page-header";
+import { PageContent, PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { SearchField } from "@/components/ui/search-field";
-import { FilterBar, FilterGroup, FilterChip, FilterBarClear } from "@/components/ui/filter-bar";
+import { FilterBar, FilterChip, FilterBarClear } from "@/components/ui/filter-bar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -101,6 +101,8 @@ type VehicleRow = VehiclePage["rows"][number];
 interface FleetColumn {
   key: string;
   label: string;
+  /** Short header (with `<abbr title>`) where the full label would cost a column's width. */
+  header?: React.ReactNode;
   /** Floor width in px, chosen so the header reads in full — never an ellipsis
    *  on a column's own name. When the sum exceeds the viewport the container
    *  scrolls sideways instead of shrinking the type (§47). */
@@ -109,10 +111,32 @@ interface FleetColumn {
   numeric?: boolean;
   /** Secondary field: available in the Colunas menu, off by default (§46). */
   optional?: boolean;
+  /**
+   * Prioridade de coluna (UI 2.0): numa tabela mais estreita que `foldBelow`
+   * a coluna vira a segunda linha da célula de `foldInto`, em vez de empurrar
+   * a tabela para a rolagem lateral. A partir dessa largura volta a ser uma
+   * coluna própria, ordenável como sempre.
+   */
+  foldInto?: string;
+  foldBelow?: keyof typeof FOLD;
+  /** How the value reads as that second line. Defaults to `render`. */
+  renderFolded?: (row: VehicleRow) => React.ReactNode;
   render: (row: VehicleRow) => React.ReactNode;
 }
 
 const COLUMN_STORAGE_KEY = "hfm.frota.columns";
+
+/**
+ * Larguras do contêiner (container query) a partir das quais as colunas
+ * dobradas voltam a ser colunas. `wide`: cabem todas as colunas padrão (1366
+ * com o menu recolhido, 1536+); `mid`: cabe tudo menos Cidade/UF (1366); abaixo
+ * disso (1280, 1024) a Titularidade também dobra. As classes ficam escritas por
+ * extenso para o Tailwind gerá-las.
+ */
+const FOLD = {
+  wide: { column: "hidden @min-[73rem]:table-cell", line: "@min-[73rem]:hidden" },
+  mid: { column: "hidden @min-[63.5rem]:table-cell", line: "@min-[63.5rem]:hidden" },
+} as const;
 
 /* -------------------------------------------------------------------------- */
 
@@ -222,7 +246,7 @@ export function FleetView({
       {
         key: "fleet_code",
         label: "Frota",
-        width: 116,
+        width: 96,
         sort: "fleet_code",
         // Alphanumeric and left-aligned on purpose: "000123" is a code, not a
         // number, and right-aligning it would invite reading it as one (§7).
@@ -231,37 +255,46 @@ export function FleetView({
       {
         key: "license_plate",
         label: "Placa",
-        width: 120,
+        width: 98,
         sort: "license_plate",
         render: (row) => (
-          <span className="font-medium tracking-wide text-fg">{formatPlate(row.license_plate)}</span>
+          <span className="font-medium tracking-wide whitespace-nowrap text-fg">{formatPlate(row.license_plate)}</span>
         ),
       },
       {
         key: "vehicle_type_name",
         label: "Tipo",
-        width: 140,
+        width: 106,
         sort: "vehicle_type_name",
         render: (row) => <Cell value={row.vehicle_type_name} />,
       },
       {
         key: "model",
         label: "Marca / Modelo",
-        width: 200,
+        width: 165,
         sort: "vehicle_make_name",
-        render: (row) => (
-          <Cell
-            value={
-              [row.vehicle_make_name, row.vehicle_model_name].filter(Boolean).join(" ") || null
-            }
-          />
-        ),
+        // Duas linhas (marca / modelo) em vez de uma frase cortada: "Mercedes-Benz
+        // Sprinter 417 CDI" não cabe numa linha, e a marca é o que ordena.
+        render: (row) => {
+          const make = row.vehicle_make_name?.trim();
+          const model = row.vehicle_model_name?.trim();
+          if (!make || !model) return <Cell value={make || model || null} />;
+          return (
+            <>
+              <Cell value={make} />
+              <Cell value={model} className="text-caption text-fg-muted" />
+            </>
+          );
+        },
       },
       {
         key: "ownership_type",
         label: "Titularidade",
-        width: 130,
+        width: 143,
         sort: "ownership_type",
+        foldInto: "vehicle_type_name",
+        foldBelow: "mid",
+        renderFolded: (row) => OWNERSHIP_LABELS[row.ownership_type ?? ""] ?? null,
         render: (row) => (
           <Badge variant="neutral">{OWNERSHIP_LABELS[row.ownership_type ?? ""] ?? "—"}</Badge>
         ),
@@ -269,7 +302,7 @@ export function FleetView({
       {
         key: "operation_name",
         label: "Operação",
-        width: 180,
+        width: 150,
         sort: "operation_name",
         render: (row) =>
           row.operation_name ? (
@@ -278,7 +311,7 @@ export function FleetView({
             // Not allocated today, but already scheduled. Saying so is what
             // stops the same transfer being arranged twice.
             <span
-              className="block truncate text-fg-muted"
+              className="line-clamp-2 block text-fg-muted"
               title={`A partir de ${formatDate(row.scheduled_from)}: ${row.scheduled_operation_name}`}
             >
               A partir de {formatDate(row.scheduled_from)}
@@ -290,8 +323,10 @@ export function FleetView({
       {
         key: "city_name",
         label: "Cidade / UF",
-        width: 170,
+        width: 142,
         sort: "city_name",
+        foldInto: "operation_name",
+        foldBelow: "wide",
         render: (row) =>
           row.city_name ? (
             <Cell value={`${row.city_name}${row.state_uf ? ` / ${row.state_uf}` : ""}`} />
@@ -302,7 +337,7 @@ export function FleetView({
       {
         key: "status",
         label: "Situação",
-        width: 116,
+        width: 120,
         sort: "status",
         render: (row) => (
           <StatusBadge status={STATUS_TONE[(row.status ?? "active") as keyof typeof STATUS_TONE] ?? "neutral"}>
@@ -313,7 +348,12 @@ export function FleetView({
       {
         key: "current_odometer_km",
         label: "KM atual",
-        width: 118,
+        header: (
+          <abbr title="KM atual" className="no-underline">
+            KM
+          </abbr>
+        ),
+        width: 90,
         sort: "current_odometer_km",
         numeric: true,
         render: (row) =>
@@ -401,9 +441,21 @@ export function FleetView({
 
   const overviewLabelId = React.useId();
   const visibleColumns = columns.filter((column) => !hidden.includes(column.key));
-  // 56px for the actions column. The table refuses to render narrower than the
-  // sum of its columns, which is what turns a squeeze into a scrollbar.
-  const tableMinWidth = visibleColumns.reduce((sum, column) => sum + column.width, 56);
+  const visibleKeys = new Set(visibleColumns.map((column) => column.key));
+  /** A column folds only while its host is on screen; otherwise it stays a column. */
+  const isFolded = (column: FleetColumn) => Boolean(column.foldInto && visibleKeys.has(column.foldInto));
+  const foldedInto = (key: string) => visibleColumns.filter((column) => column.foldInto === key && isFolded(column));
+  // 48px for the actions column. The table refuses to render narrower than the
+  // sum of its columns, which is what turns a squeeze into a scrollbar — with
+  // the folded columns counted only where they are columns.
+  const tableMinWidth = {
+    "--fleet-table-min": `${visibleColumns.reduce((sum, column) => sum + (isFolded(column) ? 0 : column.width), 48)}px`,
+    "--fleet-table-min-mid": `${visibleColumns.reduce(
+      (sum, column) => sum + (isFolded(column) && column.foldBelow === "wide" ? 0 : column.width),
+      48,
+    )}px`,
+    "--fleet-table-min-wide": `${visibleColumns.reduce((sum, column) => sum + column.width, 48)}px`,
+  } as React.CSSProperties;
 
   const sortDirection = (key: VehicleSortKey) =>
     filters.sort === key ? (filters.dir === "desc" ? "desc" : "asc") : undefined;
@@ -607,185 +659,200 @@ export function FleetView({
             ) : null}
           </>
         }
+        filters={
+          <>
+            <FilterBar className="items-end gap-x-3 gap-y-2.5" label="Filtros de veículos">
+              {/* Os campos crescem juntos e só quebram linha quando não cabem; as
+                  ações ficam à direita da primeira linha. Quem chega nesta tela
+                  chega procurando um veículo, então a busca abre a barra e é o
+                  campo que mais cresce. */}
+              <div className="flex min-w-0 flex-1 basis-[36rem] flex-wrap items-end gap-2.5">
+                <div className="flex min-w-0 flex-[2_1_16.25rem] flex-col gap-1">
+                  <span className="text-caption text-fg-muted">Buscar</span>
+                  <SearchField
+                    size="sm"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    onClear={() => setSearch("")}
+                    placeholder="Frota, placa, marca ou modelo"
+                    aria-label="Buscar veículos"
+                  />
+                </div>
+                <FilterSelect
+                  label="Situação"
+                  className="flex-[1_1_5.5rem]"
+                  value={filters.status}
+                  onChange={(value) => apply({ status: value })}
+                  options={Object.entries(VEHICLE_STATUS_LABELS).map(([id, label]) => ({ id, label }))}
+                />
+                <FilterSelect
+                  label="Titularidade"
+                  className="flex-[1_1_6.75rem]"
+                  value={filters.ownership}
+                  onChange={(value) => apply({ ownership: value })}
+                  options={Object.entries(OWNERSHIP_LABELS).map(([id, label]) => ({ id, label }))}
+                />
+                <FilterSelect
+                  label="Tipo"
+                  className="flex-[1_1_5.5rem]"
+                  value={filters.type}
+                  onChange={(value) => apply({ type: value, subcategory: undefined })}
+                  options={options.types}
+                />
+                {/* Operação é o eixo dos três filtros geográficos: trocá-la invalida
+                    o estado e a cidade escolhidos, então os dois são limpos junto. */}
+                <FilterSelect
+                  label="Operação"
+                  className="flex-[1.2_1_7.5rem]"
+                  value={filters.operation}
+                  onChange={(value) => apply({ operation: value, state: undefined, city: undefined })}
+                  options={options.operations}
+                />
+              </div>
+
+              <div className="flex shrink-0 flex-wrap items-end gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="secondary" size="sm" leadingIcon={<SlidersHorizontal />}>
+                      Mais filtros
+                      {advancedCount > 0 ? (
+                        <Badge variant="primary" size="sm" className="tabular-nums">
+                          {advancedCount}
+                        </Badge>
+                      ) : null}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-80">
+                    <div className="flex flex-col gap-3">
+                      <p className="text-h4 font-semibold text-fg">Filtros adicionais</p>
+                      <StackedFilter
+                        label="Subcategoria"
+                        value={filters.subcategory}
+                        onChange={(value) => apply({ subcategory: value })}
+                        options={subcategoryOptions}
+                      />
+                      <StackedFilter
+                        label="Estado"
+                        value={filters.state}
+                        onChange={(value) => apply({ state: value, city: undefined })}
+                        options={geography.states.map((state) => ({
+                          id: String(state.stateId),
+                          label: `${state.name} (${state.uf})`,
+                        }))}
+                        emptyHint={
+                          filters.operation
+                            ? "Esta operação não possui estados na cobertura."
+                            : "Escolha uma operação para filtrar por estado."
+                        }
+                      />
+                      <StackedFilter
+                        label="Cidade"
+                        value={filters.city}
+                        onChange={(value) => apply({ city: value })}
+                        options={geography.cities.map((city) => ({ id: String(city.cityId), label: city.name }))}
+                        emptyHint={
+                          filters.state
+                            ? "Nenhuma cidade coberta neste estado."
+                            : "Escolha um estado para filtrar por cidade."
+                        }
+                      />
+                      <StackedFilter
+                        label="Filial"
+                        value={filters.unit}
+                        onChange={(value) => apply({ unit: value })}
+                        options={options.units}
+                      />
+                      {can("vehicles.archive") ? (
+                        <label className="flex items-center gap-2 border-t border-border-subtle pt-3 text-body-sm text-fg-secondary">
+                          <Checkbox
+                            checked={Boolean(filters.archived)}
+                            onCheckedChange={(checked) => apply({ archived: checked ? "1" : undefined })}
+                          />
+                          Exibir cadastros arquivados
+                        </label>
+                      ) : null}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                {/* Moldar a tabela não é filtrá-la, mas o controle mora aqui, no
+                    fim da barra, em vez de abrir uma linha só para ele. */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="secondary" size="sm" leadingIcon={<Columns3 />} className="hidden lg:inline-flex">
+                      Colunas
+                      <span className="tabular-nums text-fg-secondary">
+                        {visibleColumns.length}/{columns.length}
+                      </span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-56">
+                    <DropdownMenuLabel>Colunas visíveis</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {columns.map((column) => {
+                      const shown = !hidden.includes(column.key);
+                      return (
+                        <DropdownMenuItem
+                          key={column.key}
+                          onSelect={(event) => {
+                            event.preventDefault();
+                            toggleColumn(column.key);
+                          }}
+                          // Frota is the row's identity and its keyboard handle.
+                          disabled={column.key === "fleet_code"}
+                        >
+                          <Checkbox checked={shown} aria-hidden tabIndex={-1} className="pointer-events-none" />
+                          {column.label}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </FilterBar>
+
+            {/* Os chips pertencem aos filtros: ficam no mesmo cartão, logo abaixo. */}
+            {activeFilters.length > 0 ? (
+              <div
+                role="group"
+                aria-label="Filtros aplicados"
+                className="flex flex-wrap items-center gap-1.5 border-t border-border-subtle pt-2 pb-1.5"
+              >
+                {activeFilters.map((filter) => (
+                  <FilterChip
+                    key={filter.key}
+                    label={filter.label}
+                    value={filter.value}
+                    onRemove={() => apply({ [filter.key]: undefined })}
+                  />
+                ))}
+                <FilterBarClear
+                  onClear={() =>
+                    startTransition(() => {
+                      setSearch("");
+                      router.push(pathname, { scroll: false });
+                    })
+                  }
+                />
+              </div>
+            ) : null}
+          </>
+        }
       />
 
-      <div className="flex min-h-0 flex-1 flex-col px-4 pb-6 sm:px-6">
-        {/* Cabeçalho → busca: 24px. Quem chega nesta tela chega procurando um
-            veículo, então a busca abre o conteúdo, numa largura em que o texto
-            de ajuda cabe inteiro — o campo cresce para caber a frase. */}
-        <div className="flex flex-wrap items-center gap-2 pt-6">
-          <SearchField
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            onClear={() => setSearch("")}
-            placeholder="Buscar por frota, placa, marca ou modelo"
-            aria-label="Buscar veículos"
-            // The width belongs on the wrapper: the component's own is `w-full`.
-            wrapperClassName="w-full sm:w-110"
-          />
-
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="secondary" size="sm" leadingIcon={<Columns3 />} className="hidden lg:inline-flex">
-                  Colunas
-                  <span className="tabular-nums text-fg-secondary">
-                    {visibleColumns.length}/{columns.length}
-                  </span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-56">
-                <DropdownMenuLabel>Colunas visíveis</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {columns.map((column) => {
-                  const shown = !hidden.includes(column.key);
-                  return (
-                    <DropdownMenuItem
-                      key={column.key}
-                      onSelect={(event) => {
-                        event.preventDefault();
-                        toggleColumn(column.key);
-                      }}
-                      // Frota is the row's identity and its keyboard handle.
-                      disabled={column.key === "fleet_code"}
-                    >
-                      <Checkbox checked={shown} aria-hidden tabIndex={-1} className="pointer-events-none" />
-                      {column.label}
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-
-        {/* Busca → filtros: 10px. */}
-        <FilterBar className="mt-2.5 py-0" label="Filtros de veículos">
-          <FilterSelect
-            label="Situação"
-            value={filters.status}
-            onChange={(value) => apply({ status: value })}
-            options={Object.entries(VEHICLE_STATUS_LABELS).map(([id, label]) => ({ id, label }))}
-          />
-          <FilterSelect
-            label="Titularidade"
-            value={filters.ownership}
-            onChange={(value) => apply({ ownership: value })}
-            options={Object.entries(OWNERSHIP_LABELS).map(([id, label]) => ({ id, label }))}
-          />
-          <FilterSelect
-            label="Tipo"
-            value={filters.type}
-            onChange={(value) => apply({ type: value, subcategory: undefined })}
-            options={options.types}
-          />
-          {/* Operação é o eixo dos três filtros geográficos: trocá-la invalida
-              o estado e a cidade escolhidos, então os dois são limpos junto. */}
-          <FilterSelect
-            label="Operação"
-            value={filters.operation}
-            onChange={(value) => apply({ operation: value, state: undefined, city: undefined })}
-            options={options.operations}
-          />
-
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="secondary" size="sm" leadingIcon={<SlidersHorizontal />}>
-                Mais filtros
-                {advancedCount > 0 ? (
-                  <Badge variant="primary" size="sm" className="tabular-nums">
-                    {advancedCount}
-                  </Badge>
-                ) : null}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-80">
-              <div className="flex flex-col gap-3">
-                <p className="text-h4 font-semibold text-fg">Filtros adicionais</p>
-                <StackedFilter
-                  label="Subcategoria"
-                  value={filters.subcategory}
-                  onChange={(value) => apply({ subcategory: value })}
-                  options={subcategoryOptions}
-                />
-                <StackedFilter
-                  label="Estado"
-                  value={filters.state}
-                  onChange={(value) => apply({ state: value, city: undefined })}
-                  options={geography.states.map((state) => ({
-                    id: String(state.stateId),
-                    label: `${state.name} (${state.uf})`,
-                  }))}
-                  emptyHint={
-                    filters.operation
-                      ? "Esta operação não possui estados na cobertura."
-                      : "Escolha uma operação para filtrar por estado."
-                  }
-                />
-                <StackedFilter
-                  label="Cidade"
-                  value={filters.city}
-                  onChange={(value) => apply({ city: value })}
-                  options={geography.cities.map((city) => ({ id: String(city.cityId), label: city.name }))}
-                  emptyHint={
-                    filters.state
-                      ? "Nenhuma cidade coberta neste estado."
-                      : "Escolha um estado para filtrar por cidade."
-                  }
-                />
-                <StackedFilter
-                  label="Filial"
-                  value={filters.unit}
-                  onChange={(value) => apply({ unit: value })}
-                  options={options.units}
-                />
-                {can("vehicles.archive") ? (
-                  <label className="flex items-center gap-2 border-t border-border-subtle pt-3 text-body-sm text-fg-secondary">
-                    <Checkbox
-                      checked={Boolean(filters.archived)}
-                      onCheckedChange={(checked) => apply({ archived: checked ? "1" : undefined })}
-                    />
-                    Exibir cadastros arquivados
-                  </label>
-                ) : null}
-              </div>
-            </PopoverContent>
-          </Popover>
-        </FilterBar>
-
-        {activeFilters.length > 0 ? (
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {activeFilters.map((filter) => (
-              <FilterChip
-                key={filter.key}
-                label={filter.label}
-                value={filter.value}
-                onRemove={() => apply({ [filter.key]: undefined })}
-              />
-            ))}
-            <FilterBarClear
-              onClear={() =>
-                startTransition(() => {
-                  setSearch("");
-                  router.push(pathname, { scroll: false });
-                })
-              }
-            />
-          </div>
-        ) : null}
-
-        {/* Filtros → indicadores: 24px. Os cartões seguem os filtros
-            estruturais e ignoram a busca: recontar a frota a cada tecla faria
-            os números piscarem sem informar nada. */}
-        <section className="mt-6 flex flex-col gap-3" aria-labelledby={overviewLabelId}>
+      <PageContent className="flex min-h-0 flex-1 flex-col gap-5">
+        {/* Os cartões seguem os filtros estruturais e ignoram a busca: recontar
+            a frota a cada tecla faria os números piscarem sem informar nada. */}
+        <section className="flex flex-col gap-3" aria-labelledby={overviewLabelId}>
           <h2 id={overviewLabelId} className="text-body-sm font-semibold text-fg-secondary">
             Visão geral
           </h2>
-          {overview}
+          {/* Sozinho num bloco: o nó vem pronto do servidor e, como filho único,
+              o React o reconcilia sem lhe pedir chave de lista. */}
+          <div>{overview}</div>
         </section>
 
-        {/* Indicadores → tabela: 24px. */}
-        <div className="mt-6 flex min-h-0 flex-1 flex-col gap-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-4">
           {isEmpty ? (
             <EmptyState
               icon={<Truck />}
@@ -814,8 +881,14 @@ export function FleetView({
             />
           ) : (
             <>
-              <TableContainer stickyHeader maxHeight="calc(100dvh - 24rem)" className="hidden lg:block">
-                <Table layout="fixed" style={{ minWidth: tableMinWidth }}>
+              {/* `@container`: a tabela mede a própria largura (com o menu
+                  aberto ou recolhido) para decidir quais colunas dobram. */}
+              <TableContainer stickyHeader maxHeight="calc(100dvh - 24rem)" className="@container hidden lg:block">
+                <Table
+                  layout="fixed"
+                  style={tableMinWidth}
+                  className="min-w-(--fleet-table-min) @min-[63.5rem]:min-w-(--fleet-table-min-mid) @min-[73rem]:min-w-(--fleet-table-min-wide)"
+                >
                   <TableHeader>
                     <TableRow>
                       {visibleColumns.map((column, index) => (
@@ -826,16 +899,19 @@ export function FleetView({
                             left: index === 0 ? 0 : undefined,
                             zIndex: index === 0 ? 21 : undefined,
                           }}
-                          className={cn(index === 0 && "sticky border-r border-border bg-surface-secondary")}
+                          className={cn(
+                            index === 0 && "sticky border-r border-border bg-surface-secondary",
+                            isFolded(column) && FOLD[column.foldBelow ?? "wide"].column,
+                          )}
                           numeric={column.numeric}
                           sortable={Boolean(column.sort)}
                           sortDirection={column.sort ? sortDirection(column.sort) : undefined}
                           onSort={column.sort ? onSort(column.sort) : undefined}
                         >
-                          {column.label}
+                          {column.header ?? column.label}
                         </TableHead>
                       ))}
-                      <TableHead style={{ width: 56 }}>
+                      <TableHead style={{ width: 48 }} className="px-2">
                         <span className="sr-only">Ações</span>
                       </TableHead>
                     </TableRow>
@@ -858,12 +934,27 @@ export function FleetView({
                               key={column.key}
                               numeric={column.numeric}
                               style={{ left: index === 0 ? 0 : undefined, zIndex: index === 0 ? 1 : undefined }}
-                              className={cn(index === 0 && "sticky border-r border-border bg-inherit")}
+                              className={cn(
+                                index === 0 && "sticky border-r border-border bg-inherit",
+                                isFolded(column) && FOLD[column.foldBelow ?? "wide"].column,
+                              )}
                             >
                               {column.render(row)}
+                              {/* Duas linhas antes da rolagem lateral: a coluna
+                                  dobrada aparece aqui, em tom secundário. */}
+                              {foldedInto(column.key).map((folded) =>
+                                folded.key === "city_name" && !row.city_name ? null : (
+                                  <span
+                                    key={folded.key}
+                                    className={cn("block truncate text-caption text-fg-muted", FOLD[folded.foldBelow ?? "wide"].line)}
+                                  >
+                                    {(folded.renderFolded ?? folded.render)(row)}
+                                  </span>
+                                ),
+                              )}
                             </TableCell>
                           ))}
-                          <TableCell onClick={(event) => event.stopPropagation()}>
+                          <TableCell className="px-2" onClick={(event) => event.stopPropagation()}>
                             <RowActions row={row} />
                           </TableCell>
                         </TableRow>
@@ -938,7 +1029,7 @@ export function FleetView({
             </>
           )}
         </div>
-      </div>
+      </PageContent>
 
       <VehicleDetailDrawer
         vehicleId={detailId}
@@ -971,24 +1062,34 @@ export function FleetView({
 
 /* -------------------------------------------------------------------------- */
 
+/**
+ * A filter of the toolbar: label above the control (UI 2.0), the control as
+ * wide as its field. The field's flex basis comes from the caller, so the four
+ * of them grow together and only wrap when they no longer fit.
+ */
 function FilterSelect({
   label,
   value,
   onChange,
   options,
+  className,
 }: {
   label: string;
   value?: string;
   onChange: (value: string | undefined) => void;
   options: { id: string; label: string }[];
+  className?: string;
 }) {
   const id = React.useId();
   if (!options.length) return null;
 
   return (
-    <FilterGroup label={label} htmlFor={id}>
+    <div className={cn("flex min-w-0 flex-col gap-1", className)}>
+      <label htmlFor={id} className="text-caption text-fg-muted">
+        {label}
+      </label>
       <Select value={value ?? "__all"} onValueChange={(next) => onChange(next === "__all" ? undefined : next)}>
-        <SelectTrigger id={id} size="sm" className="w-40">
+        <SelectTrigger id={id} size="sm" className="w-full">
           <SelectValue placeholder="Todos" />
         </SelectTrigger>
         <SelectContent>
@@ -1000,7 +1101,7 @@ function FilterSelect({
           ))}
         </SelectContent>
       </Select>
-    </FilterGroup>
+    </div>
   );
 }
 

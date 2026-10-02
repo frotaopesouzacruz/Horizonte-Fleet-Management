@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowUpRight, Boxes, Database, LayoutGrid, ShieldCheck } from "lucide-react";
-import { Panel } from "@/components/ui/card";
+import { Card, Panel } from "@/components/ui/card";
 import { navigation } from "@/components/layout/navigation";
 
 /**
@@ -39,13 +39,14 @@ export function DashboardPlaceholder() {
     <div className="flex flex-col gap-5">
       <section className="grid gap-4 md:grid-cols-3">
         {foundations.map(({ icon: Icon, title, description }) => (
-          <div key={title} className="rounded-md border border-border bg-surface p-4">
-            <span className="flex size-8 items-center justify-center rounded-sm bg-surface-secondary text-fg-muted">
-              <Icon className="size-4" aria-hidden />
+          // Cartão padrão (nível 1) com o ícone no mesmo chip dos KPIs.
+          <Card key={title} className="p-4">
+            <span className="flex size-9 items-center justify-center rounded-lg bg-surface-interactive text-fg-secondary">
+              <Icon className="size-[18px]" aria-hidden />
             </span>
-            <h2 className="mt-3 text-h4 font-semibold text-fg">{title}</h2>
+            <h2 className="mt-3 text-card-title font-semibold text-fg">{title}</h2>
             <p className="mt-1 text-body-sm text-fg-secondary">{description}</p>
-          </div>
+          </Card>
         ))}
       </section>
 

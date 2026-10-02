@@ -19,8 +19,16 @@ const numberFormat = new Intl.NumberFormat("pt-BR");
 
 const GRID = "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5";
 
+/**
+ * Cada cartão mede a si mesmo (`@container`, área de conteúdo): com menos de
+ * 10rem (cinco lado a lado a 1280 com o menu aberto), "SUBCATEGORIAS" não cabe
+ * ao lado do ícone, e o ícone (decoração) cede em vez de o rótulo ser cortado.
+ * A partir de 1366 o ícone volta.
+ */
+const CARD = "@container min-h-28 justify-start @max-[10rem]:[&>header>span]:hidden";
+
 function kpiLabel(text: string) {
-  return <span className="block min-h-11 leading-snug">{text}</span>;
+  return <span className="block leading-snug sm:min-h-11">{text}</span>;
 }
 
 function shareOf(value: number, total: number): string | undefined {
@@ -32,14 +40,14 @@ export function OverviewCards({ summary }: { summary: EquipmentTypeSummary }) {
   return (
     <div className={GRID}>
       <KpiCard
-        className="min-h-28 justify-start"
+        className={CARD}
         label={kpiLabel("Total de tipos")}
         value={summary.total}
         period="Catálogo base e tipos da organização"
         icon={<Shapes aria-hidden />}
       />
       <KpiCard
-        className="min-h-28 justify-start"
+        className={CARD}
         status="success"
         label={kpiLabel("Tipos ativos")}
         value={summary.active}
@@ -49,20 +57,20 @@ export function OverviewCards({ summary }: { summary: EquipmentTypeSummary }) {
       {/* Inativo aqui é o tipo, não o veículo: um tipo inativo continua
           classificando os veículos que já classificava (§10). */}
       <KpiCard
-        className="min-h-28 justify-start"
+        className={CARD}
         label={kpiLabel("Tipos inativos")}
         value={summary.inactive}
         period={summary.inactive > 0 ? "Fora de novos cadastros" : "Nenhum tipo inativo"}
         icon={<XCircle aria-hidden />}
       />
       <KpiCard
-        className="min-h-28 justify-start"
+        className={CARD}
         label={kpiLabel("Subcategorias ativas")}
         value={summary.subcategoriesActive}
         icon={<Layers aria-hidden />}
       />
       <KpiCard
-        className="min-h-28 justify-start"
+        className={CARD}
         label={kpiLabel("Veículos vinculados")}
         value={summary.vehiclesLinked}
         period={
@@ -82,7 +90,7 @@ export function OverviewSkeleton() {
       {Array.from({ length: 5 }, (_, index) => (
         <KpiCard
           key={index}
-          className="min-h-28 justify-start"
+          className={CARD}
           loading
           loadingLabel="Carregando indicadores…"
           label=""

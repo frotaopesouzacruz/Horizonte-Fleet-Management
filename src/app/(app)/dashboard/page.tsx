@@ -16,6 +16,7 @@ export default async function DashboardPage() {
   return (
     <>
       <PageHeader
+        eyebrow="Visão geral"
         title="Dashboard"
         description="Visão geral da operação. Os indicadores são conectados quando os módulos operacionais entrarem."
       />

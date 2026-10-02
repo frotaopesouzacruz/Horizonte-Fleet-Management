@@ -17,10 +17,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { usePersistedSet } from "@/lib/use-persisted-set";
-import { PageHeader } from "@/components/layout/page-header";
+import { PageContent, PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { SearchField } from "@/components/ui/search-field";
-import { FilterBar, FilterGroup, FilterChip, FilterBarClear } from "@/components/ui/filter-bar";
+import { FilterBar, FilterChip, FilterBarClear } from "@/components/ui/filter-bar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -97,21 +97,34 @@ interface UserColumn {
    * container scrolls instead of the text disappearing.
    */
   width: number;
+  /** The one column without a fixed width: it absorbs what the others leave, down to `width`. */
+  fluid?: boolean;
   sort?: SortKey;
   numeric?: boolean;
   /** Secondary field: available in the Colunas menu, off by default. */
   optional?: boolean;
+  /**
+   * Duas linhas antes da rolagem lateral (UI 2.0): enquanto a coluna `foldInto`
+   * estiver na tela, esta vira a segunda linha da célula dela, em tom
+   * secundário. Só colunas sem ordenação dobram — nada deixa de ser ordenável.
+   */
+  foldInto?: string;
+  /** How the value reads as that second line. Defaults to `render`. */
+  renderFolded?: (row: DirectoryRow) => React.ReactNode;
   render: (row: DirectoryRow) => React.ReactNode;
 }
 
 const COLUMN_STORAGE_KEY = "hfm.usuarios.columns";
 
 /** One line, clipped with an ellipsis, with the full value on hover. */
-function Cell({ value, className }: { value?: string | null; className?: string }) {
+function Cell({ value, className, lines = 1 }: { value?: string | null; className?: string; lines?: 1 | 2 }) {
   const text = value?.trim();
   if (!text) return <span className="text-fg-muted">—</span>;
   return (
-    <span title={text} className={cn("block truncate", className)}>
+    <span
+      title={text}
+      className={cn(lines === 2 ? "line-clamp-2 whitespace-normal break-words" : "block truncate", className)}
+    >
       {text}
     </span>
   );
@@ -241,7 +254,8 @@ export function UsersView({
       {
         key: "full_name",
         label: "Nome",
-        width: 280,
+        fluid: true,
+        width: 160,
         sort: "full_name",
         render: (row) => (
           <>
@@ -269,7 +283,7 @@ export function UsersView({
       {
         key: "employee_code",
         label: "Matrícula",
-        width: 116,
+        width: 126,
         sort: "employee_code",
         numeric: true,
         render: (row) => <span className="tabular-nums">{row.employee_code}</span>,
@@ -290,14 +304,16 @@ export function UsersView({
       {
         key: "job_position_name",
         label: "Cargo",
-        width: 200,
+        width: 170,
         sort: "job_position_name",
-        render: (row) => <Cell value={row.job_position_name} />,
+        // Até duas linhas antes da reticência: "Coordenadora de Operações" se lê
+        // inteiro, e a linha já tem duas alturas pelo nome e pela operação.
+        render: (row) => <Cell value={row.job_position_name} lines={2} />,
       },
       {
         key: "operation_name",
         label: "Operação",
-        width: 180,
+        width: 156,
         sort: "operation_name",
         render: (row) => <Cell value={row.operation_name} />,
       },
@@ -305,12 +321,13 @@ export function UsersView({
         key: "work_location_name",
         label: "Localidade",
         width: 160,
+        foldInto: "operation_name",
         render: (row) => <Cell value={row.work_location_name} />,
       },
       {
         key: "access_status",
         label: "Acesso HFM",
-        width: 144,
+        width: 160,
         sort: "access_status",
         render: (row) => (
           <StatusBadge status={ACCESS_TONE[(row.access_status ?? "none") as keyof typeof ACCESS_TONE] ?? "neutral"}>
@@ -322,6 +339,17 @@ export function UsersView({
         key: "access_role_names",
         label: "Perfil de acesso",
         width: 190,
+        foldInto: "access_status",
+        renderFolded: (row) =>
+          row.access_role_names?.length ? (
+            <span
+              className="block truncate"
+              title={`Perfil de acesso: ${row.access_role_names.join(", ")}`}
+            >
+              {row.access_role_names[0]}
+              {row.access_role_names.length > 1 ? ` +${row.access_role_names.length - 1}` : null}
+            </span>
+          ) : null,
         render: (row) =>
           row.access_role_names?.length ? (
             <span className="flex flex-nowrap items-center gap-1 overflow-hidden">
@@ -387,9 +415,14 @@ export function UsersView({
   const overviewLabelId = React.useId();
 
   const visibleColumns = columns.filter((column) => !hidden.includes(column.key));
+  const visibleKeys = new Set(visibleColumns.map((column) => column.key));
+  // A column folds only while its host is on screen; hiding the host brings it
+  // back as a column of its own.
+  const tableColumns = visibleColumns.filter((column) => !column.foldInto || !visibleKeys.has(column.foldInto));
+  const foldedInto = (key: string) => visibleColumns.filter((column) => column.foldInto === key);
   // 44px for the selection column. The table refuses to render narrower than
   // the sum, which is what turns an unreadable squeeze into a scrollbar.
-  const tableMinWidth = visibleColumns.reduce((sum, column) => sum + column.width, 44);
+  const tableMinWidth = tableColumns.reduce((sum, column) => sum + column.width, 44);
 
 
   async function runBulk(action: "suspend" | "reactivate" | "archive") {
@@ -504,204 +537,203 @@ export function UsersView({
             ) : null}
           </>
         }
+        filters={
+          <>
+            <FilterBar className="items-end gap-x-3 gap-y-2.5" label="Filtros de colaboradores">
+              {/* Os campos crescem juntos e só quebram linha quando não cabem; as
+                  ações ficam à direita da primeira linha. Quem chega nesta tela
+                  quase sempre chega procurando uma pessoa, então a busca abre a
+                  barra e é o campo que mais cresce. */}
+              <div className="flex min-w-0 flex-1 basis-[36rem] flex-wrap items-end gap-2.5">
+                <div className="flex min-w-0 flex-[2_1_15rem] flex-col gap-1">
+                  <span className="text-caption text-fg-muted">Buscar</span>
+                  <SearchField
+                    size="sm"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    onClear={() => setSearch("")}
+                    placeholder="Nome, matrícula ou e-mail"
+                    aria-label="Buscar colaboradores"
+                  />
+                </div>
+                {/* Four filters carry almost every real query; the other four live
+                    behind "Mais filtros". */}
+                <FilterSelect
+                  label="Situação"
+                  className="flex-[1_1_5.5rem]"
+                  value={filters.status}
+                  onChange={(value) => apply({ status: value })}
+                  options={Object.entries(EMPLOYMENT_STATUS_LABELS).map(([id, label]) => ({ id, label }))}
+                />
+                <FilterSelect
+                  label="Operação"
+                  className="flex-[1.2_1_7.5rem]"
+                  value={filters.operation}
+                  onChange={(value) => apply({ operation: value })}
+                  options={options.operations}
+                />
+                {/* "Perfil" on its own is ambiguous: this is the organizational
+                    profile that comes from the corporate base, and the HFM access
+                    profile is a different thing entirely. */}
+                <FilterSelect
+                  label="Perfil organizacional"
+                  className="flex-[1.2_1_8.5rem]"
+                  value={filters.profile}
+                  onChange={(value) => apply({ profile: value })}
+                  options={options.profiles}
+                />
+                <FilterSelect
+                  label="Acesso"
+                  className="flex-[1_1_5.5rem]"
+                  value={filters.access}
+                  onChange={(value) => apply({ access: value })}
+                  options={Object.entries(ACCESS_STATUS_LABELS)
+                    .filter(([id]) => id !== "removed")
+                    .map(([id, label]) => ({ id, label }))}
+                />
+              </div>
+
+              <div className="flex shrink-0 flex-wrap items-end gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="secondary" size="sm" leadingIcon={<SlidersHorizontal />}>
+                      Mais filtros
+                      {advancedCount > 0 ? (
+                        <Badge variant="primary" size="sm" className="tabular-nums">
+                          {advancedCount}
+                        </Badge>
+                      ) : null}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-80">
+                    <div className="flex flex-col gap-3">
+                      <p className="text-h4 font-semibold text-fg">Filtros adicionais</p>
+                      <StackedFilter
+                        label="Área"
+                        value={filters.area}
+                        onChange={(value) => apply({ area: value })}
+                        options={options.areas}
+                      />
+                      <StackedFilter
+                        label="Localidade"
+                        value={filters.location}
+                        onChange={(value) => apply({ location: value })}
+                        options={options.locations}
+                      />
+                      <StackedFilter
+                        label="Filial"
+                        value={filters.unit}
+                        onChange={(value) => apply({ unit: value })}
+                        options={options.units}
+                      />
+                      <StackedFilter
+                        label="Líder"
+                        value={filters.manager}
+                        onChange={(value) => apply({ manager: value })}
+                        options={options.managers}
+                      />
+                      {can("users.archive") ? (
+                        <label className="flex items-center gap-2 border-t border-border-subtle pt-3 text-body-sm text-fg-secondary">
+                          <Checkbox
+                            checked={Boolean(filters.archived)}
+                            onCheckedChange={(checked) => apply({ archived: checked ? "1" : undefined })}
+                          />
+                          Exibir cadastros inativos
+                        </label>
+                      ) : null}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                {/* Shaping the table is not filtering it, but the control sits at
+                    the end of the bar instead of opening a line of its own. */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="secondary" size="sm" leadingIcon={<Columns3 />} className="hidden lg:inline-flex">
+                      Colunas
+                      <span className="tabular-nums text-fg-secondary">
+                        {visibleColumns.length}/{columns.length}
+                      </span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-56">
+                    <DropdownMenuLabel>Colunas visíveis</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {columns.map((column) => {
+                      const shown = !hidden.includes(column.key);
+                      return (
+                        <DropdownMenuItem
+                          key={column.key}
+                          // The menu is a set of toggles, so it stays open while
+                          // the table is being shaped.
+                          onSelect={(event) => {
+                            event.preventDefault();
+                            toggleColumn(column.key);
+                          }}
+                          // "Nome" is the row's identity and its keyboard handle;
+                          // a table of anonymous rows is not a view anyone wants.
+                          disabled={column.key === "full_name"}
+                        >
+                          <Checkbox checked={shown} aria-hidden tabIndex={-1} className="pointer-events-none" />
+                          {column.label}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </FilterBar>
+
+            {/* Os chips pertencem aos filtros: ficam no mesmo cartão, logo abaixo. */}
+            {activeFilters.length > 0 ? (
+              <div
+                role="group"
+                aria-label="Filtros aplicados"
+                className="flex flex-wrap items-center gap-1.5 border-t border-border-subtle pt-2 pb-1.5"
+              >
+                {activeFilters.map((filter) => (
+                  <FilterChip
+                    key={filter.key}
+                    label={filter.label}
+                    value={filter.value}
+                    onRemove={() => apply({ [filter.key]: undefined })}
+                  />
+                ))}
+                <FilterBarClear
+                  onClear={() =>
+                    startTransition(() => {
+                      setSearch("");
+                      router.push(pathname, { scroll: false });
+                    })
+                  }
+                />
+              </div>
+            ) : null}
+          </>
+        }
       />
 
-      <div className="flex min-h-0 flex-1 flex-col px-4 pb-6 sm:px-6">
-      {/* Cabeçalho → busca: 24px. Quem chega nesta tela quase sempre chega
-          procurando uma pessoa, então a busca abre o conteúdo sozinha, numa
-          largura em que o próprio texto de ajuda cabe inteiro — o campo cresce
-          para caber a frase, a frase nunca encolhe para caber no campo. */}
-      <div className="flex flex-wrap items-center gap-2 pt-6">
-        <SearchField
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          onClear={() => setSearch("")}
-          placeholder="Buscar por nome, matrícula ou e-mail"
-          aria-label="Buscar colaboradores"
-          // The width belongs on the wrapper: the component's own is `w-full`,
-          // and a class on the input alone leaves the field claiming the whole
-          // row. 400px is chosen so the placeholder fits without shrinking.
-          wrapperClassName="w-full sm:w-100"
-        />
-
-        {/* Shaping the table is not filtering it, and the control was spilling
-            onto a line of its own anyway. It sits at the far end of the search
-            row, where the row had space to spare. */}
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="secondary" size="sm" leadingIcon={<Columns3 />} className="hidden lg:inline-flex">
-                    Colunas
-                    <span className="tabular-nums text-fg-secondary">
-                      {visibleColumns.length}/{columns.length}
-                    </span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-56">
-                  <DropdownMenuLabel>Colunas visíveis</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {columns.map((column) => {
-                    const shown = !hidden.includes(column.key);
-                    return (
-                      <DropdownMenuItem
-                        key={column.key}
-                        // The menu is a set of toggles, so it stays open while
-                        // the table is being shaped.
-                        onSelect={(event) => {
-                          event.preventDefault();
-                          toggleColumn(column.key);
-                        }}
-                        // "Nome" is the row's identity and its keyboard handle;
-                        // a table of anonymous rows is not a view anyone wants.
-                        disabled={column.key === "full_name"}
-                      >
-                        <Checkbox checked={shown} aria-hidden tabIndex={-1} className="pointer-events-none" />
-                        {column.label}
-                      </DropdownMenuItem>
-                    );
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
-        </div>
-      </div>
-
-      {/* Busca → filtros: 10px. Os filtros continuam os mesmos, validados pelo
-          Product Owner; o que muda é que deixam de disputar a mesma linha. */}
-      <FilterBar
-        className="mt-2.5 py-0"
-        label="Filtros de colaboradores"
-      >
-          {/* Four filters carry almost every real query. The remaining four
-              used to sit on the same line and squeezed all eight into
-              unreadable stubs. */}
-          <FilterSelect
-            label="Situação"
-            value={filters.status}
-            onChange={(value) => apply({ status: value })}
-            options={Object.entries(EMPLOYMENT_STATUS_LABELS).map(([id, label]) => ({ id, label }))}
-          />
-          <FilterSelect
-            label="Operação"
-            value={filters.operation}
-            onChange={(value) => apply({ operation: value })}
-            options={options.operations}
-          />
-          {/* "Perfil" on its own is now ambiguous: this is the organizational
-              profile that comes from the corporate base, and the HFM access
-              profile is a different thing entirely. Same filter, same field,
-              same behaviour — only the label stops conflating the two. */}
-          <FilterSelect
-            label="Perfil organizacional"
-            value={filters.profile}
-            onChange={(value) => apply({ profile: value })}
-            options={options.profiles}
-          />
-          <FilterSelect
-            label="Acesso"
-            value={filters.access}
-            onChange={(value) => apply({ access: value })}
-            options={Object.entries(ACCESS_STATUS_LABELS)
-              .filter(([id]) => id !== "removed")
-              .map(([id, label]) => ({ id, label }))}
-          />
-
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="secondary" size="sm" leadingIcon={<SlidersHorizontal />}>
-                Mais filtros
-                {advancedCount > 0 ? (
-                  <Badge variant="primary" size="sm" className="tabular-nums">
-                    {advancedCount}
-                  </Badge>
-                ) : null}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-80">
-              <div className="flex flex-col gap-3">
-                <p className="text-h4 font-semibold text-fg">Filtros adicionais</p>
-                <StackedFilter
-                  label="Área"
-                  value={filters.area}
-                  onChange={(value) => apply({ area: value })}
-                  options={options.areas}
-                />
-                <StackedFilter
-                  label="Localidade"
-                  value={filters.location}
-                  onChange={(value) => apply({ location: value })}
-                  options={options.locations}
-                />
-                <StackedFilter
-                  label="Filial"
-                  value={filters.unit}
-                  onChange={(value) => apply({ unit: value })}
-                  options={options.units}
-                />
-                <StackedFilter
-                  label="Líder"
-                  value={filters.manager}
-                  onChange={(value) => apply({ manager: value })}
-                  options={options.managers}
-                />
-                {can("users.archive") ? (
-                  <label className="flex items-center gap-2 border-t border-border-subtle pt-3 text-body-sm text-fg-secondary">
-                    <Checkbox
-                      checked={Boolean(filters.archived)}
-                      onCheckedChange={(checked) => apply({ archived: checked ? "1" : undefined })}
-                    />
-                    Exibir cadastros inativos
-                  </label>
-                ) : null}
-              </div>
-            </PopoverContent>
-          </Popover>
-      </FilterBar>
-
-        {/* Os chips pertencem aos filtros, não aos indicadores: ficam
-            imediatamente abaixo deles, onde foram criados. */}
-        {activeFilters.length > 0 ? (
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {activeFilters.map((filter) => (
-              <FilterChip
-                key={filter.key}
-                label={filter.label}
-                value={filter.value}
-                onRemove={() => apply({ [filter.key]: undefined })}
-              />
-            ))}
-            <FilterBarClear
-              onClear={() =>
-                startTransition(() => {
-                  setSearch("");
-                  router.push(pathname, { scroll: false });
-                })
-              }
-            />
-          </div>
-        ) : null}
-
-        {/* Filtros → indicadores: 24px.
-
-            A mudança de assunto é deliberada: a tela respondia "quem tem acesso
+      <PageContent className="flex min-h-0 flex-1 flex-col gap-5">
+        {/* A mudança de assunto é deliberada: a tela respondia "quem tem acesso
             ao HFM" e passa a responder "quantas pessoas existem, onde estão,
             quantas estão ativas e quantas têm liderança definida". O estado do
             acesso continua no filtro, na coluna e no detalhe de cada pessoa —
-            e como segunda linha do primeiro cartão. Só deixou de ser a primeira
-            pergunta da página.
+            e como segunda linha do primeiro cartão.
 
             Os cartões seguem os filtros estruturais e ignoram a busca: recontar
             a organização a cada tecla digitada faria os números piscarem sem
             informar nada. */}
-        <section className="mt-6 flex flex-col gap-3" aria-labelledby={overviewLabelId}>
+        <section className="flex flex-col gap-3" aria-labelledby={overviewLabelId}>
           <h2 id={overviewLabelId} className="text-body-sm font-semibold text-fg-secondary">
             Visão geral
           </h2>
-
-          {overview}
+          {/* Sozinho num bloco: o nó vem pronto do servidor e, como filho único,
+              o React o reconcilia sem lhe pedir chave de lista. */}
+          <div>{overview}</div>
         </section>
 
         {selected.size > 0 ? (
-          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface-secondary px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface-secondary px-3 py-2">
             <span className="text-body-sm font-medium text-fg">{selected.size} selecionado(s)</span>
             <span aria-hidden className="h-4 w-px bg-border" />
             {can("users.bulk_manage") && can("users.manage_access") ? (
@@ -725,8 +757,7 @@ export function UsersView({
           </div>
         ) : null}
 
-        {/* Indicadores → tabela: 24px. */}
-        <div className="mt-6 flex min-h-0 flex-1 flex-col gap-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-4">
           {isEmpty ? (
             <EmptyState
               icon={<UsersIcon />}
@@ -769,11 +800,11 @@ export function UsersView({
                           aria-label="Selecionar todos os registros desta página"
                         />
                       </TableHead>
-                      {visibleColumns.map((column, index) => (
+                      {tableColumns.map((column, index) => (
                         <TableHead
                           key={column.key}
                           style={{
-                            width: column.width,
+                            width: column.fluid ? undefined : column.width,
                             left: index === 0 ? 44 : undefined,
                             zIndex: index === 0 ? 21 : undefined,
                           }}
@@ -791,7 +822,7 @@ export function UsersView({
                   <TableBody>
                     {page.rows.length === 0 ? (
                       <TableEmpty
-                        colSpan={visibleColumns.length + 1}
+                        colSpan={tableColumns.length + 1}
                         message="Nenhum colaborador encontrado com os filtros aplicados."
                       />
                     ) : (
@@ -816,14 +847,25 @@ export function UsersView({
                               aria-label={`Selecionar ${row.full_name}`}
                             />
                           </TableCell>
-                          {visibleColumns.map((column, index) => (
+                          {tableColumns.map((column, index) => (
                             <TableCell
                               key={column.key}
                               numeric={column.numeric}
                               style={{ left: index === 0 ? 44 : undefined, zIndex: index === 0 ? 1 : undefined }}
                               className={cn(index === 0 && "sticky border-r border-border bg-inherit")}
                             >
-                              {column.render(row)}
+                              {foldedInto(column.key).length ? (
+                                <span className="flex min-w-0 flex-col items-start gap-0.5">
+                                  {column.render(row)}
+                                  {foldedInto(column.key).map((folded) => (
+                                    <span key={folded.key} className="block w-full min-w-0 text-caption text-fg-muted">
+                                      {(folded.renderFolded ?? folded.render)(row)}
+                                    </span>
+                                  ))}
+                                </span>
+                              ) : (
+                                column.render(row)
+                              )}
                             </TableCell>
                           ))}
                         </TableRow>
@@ -878,7 +920,7 @@ export function UsersView({
             </>
           )}
         </div>
-      </div>
+      </PageContent>
 
       <EmployeeDetailDrawer
         employeeId={detailId}
@@ -926,10 +968,15 @@ function FilterSelect({
   const id = React.useId();
   if (!options.length) return null;
 
+  // Label above the control (UI 2.0); the field's flex basis comes from the
+  // caller, so the filters grow together and only wrap when they do not fit.
   return (
-    <FilterGroup label={label} htmlFor={id} className={className}>
+    <div className={cn("flex min-w-0 flex-col gap-1", className)}>
+      <label htmlFor={id} className="text-caption text-fg-muted">
+        {label}
+      </label>
       <Select value={value ?? "__all"} onValueChange={(next) => onChange(next === "__all" ? undefined : next)}>
-        <SelectTrigger id={id} size="sm" className="w-40">
+        <SelectTrigger id={id} size="sm" className="w-full">
           <SelectValue placeholder="Todos" />
         </SelectTrigger>
         <SelectContent>
@@ -941,14 +988,13 @@ function FilterSelect({
           ))}
         </SelectContent>
       </Select>
-    </FilterGroup>
+    </div>
   );
 }
 
 /**
- * A filter in the advanced popover: label above the control, full width. The
- * inline variant used in the toolbar puts the label beside a 160px select,
- * which is exactly the shape that stopped fitting once there were eight of them.
+ * A filter in the advanced popover: label above the control, full width — the
+ * same shape as the toolbar's, one per line.
  */
 function StackedFilter({
   label,

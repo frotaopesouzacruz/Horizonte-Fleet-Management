@@ -10,7 +10,6 @@ import { setOperationStatus } from "@/lib/organization/actions";
 import { PageContent, PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button, IconButton } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { FilterBar } from "@/components/ui/filter-bar";
@@ -152,115 +151,116 @@ export function OperationsView({
       />
 
       <PageContent className="flex flex-col gap-5">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-          <KpiCard label="Operações" value={number.format(operations.length)} icon={<Network />} />
-          <KpiCard label="Colaboradores" value={number.format(employees)} icon={<Users />} />
-          <KpiCard label="Municípios cobertos" value={number.format(cities)} icon={<MapPin />} />
+        {/* Três indicadores numa linha desde o tablet: nunca dois e um órfão. */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <KpiCard size="compact" label="Operações" value={number.format(operations.length)} icon={<Network />} />
+          <KpiCard size="compact" label="Colaboradores" value={number.format(employees)} icon={<Users />} />
+          <KpiCard size="compact" label="Municípios cobertos" value={number.format(cities)} icon={<MapPin />} />
         </div>
 
-        <Card>
-          <CardContent className="p-0">
-            <TableContainer className="rounded-none border-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead style={{ width: 110 }}>Código</TableHead>
-                    <TableHead style={{ width: 260 }}>Operação</TableHead>
-                    <TableHead numeric style={{ width: 100 }}>Estados</TableHead>
-                    <TableHead numeric style={{ width: 120 }}>Municípios</TableHead>
-                    <TableHead numeric style={{ width: 130 }}>Colaboradores</TableHead>
-                    <TableHead numeric style={{ width: 120 }}>Com acesso</TableHead>
-                    <TableHead style={{ width: 110 }}>Situação</TableHead>
-                    <TableHead style={{ width: 150 }}>Atualizada em</TableHead>
-                    <TableHead style={{ width: 96 }}>Ações</TableHead>
+        {/* Larguras fixas que somam o que cabe a 1366: o código não quebra em
+            duas linhas, os títulos não cortam e "Ações" não sai pela direita.
+            Mais estreita que isso, a tabela rola dentro do próprio contêiner. */}
+        <TableContainer>
+          <Table layout="fixed" style={{ minWidth: 936 }}>
+            <TableHeader>
+              <TableRow>
+                <TableHead style={{ width: 96 }}>Código</TableHead>
+                <TableHead>Operação</TableHead>
+                <TableHead numeric style={{ width: 84 }}>Estados</TableHead>
+                <TableHead numeric style={{ width: 104 }}>Municípios</TableHead>
+                <TableHead numeric style={{ width: 128 }}>Colaboradores</TableHead>
+                <TableHead numeric style={{ width: 110 }}>Com acesso</TableHead>
+                <TableHead style={{ width: 96 }}>Situação</TableHead>
+                <TableHead style={{ width: 128 }}>Atualizada em</TableHead>
+                <TableHead style={{ width: 84 }} className="px-2">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {operations.length === 0 ? (
+                <TableEmpty
+                  colSpan={9}
+                  icon={<Network />}
+                  message="Nenhuma operação cadastrada."
+                />
+              ) : (
+                operations.map((operation) => (
+                  <TableRow key={operation.id} className="h-(--table-row-height)">
+                    <TableCell className="font-mono text-caption whitespace-nowrap text-fg-secondary">
+                      {operation.code ?? "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        href={`/organizacao/operacoes/${operation.id}`}
+                        title={operation.name}
+                        className="block truncate rounded-xs font-medium text-fg hfm-focus-ring hover:text-primary hover:underline"
+                      >
+                        {operation.name}
+                      </Link>
+                      {operation.description ? (
+                        <span className="block truncate text-caption text-fg-muted" title={operation.description}>
+                          {operation.description}
+                        </span>
+                      ) : null}
+                    </TableCell>
+                    <TableCell numeric>{number.format(operation.stateCount)}</TableCell>
+                    <TableCell numeric>{number.format(operation.cityCount)}</TableCell>
+                    <TableCell numeric>{number.format(operation.employeeCount)}</TableCell>
+                    <TableCell numeric>
+                      {operation.accessCount === 0 ? (
+                        <span className="text-fg-muted">—</span>
+                      ) : (
+                        number.format(operation.accessCount)
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={operation.status === "active" ? "success" : "neutral"}
+                        appearance="soft"
+                        dot
+                      >
+                        {operation.status === "active" ? "Ativa" : "Inativa"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-caption text-fg-secondary">
+                      {formatDate(operation.updatedAt)}
+                    </TableCell>
+                    <TableCell className="px-2">
+                      <span className="flex items-center gap-0.5">
+                        {canUpdate ? (
+                          <IconButton
+                            label={`Editar ${operation.name}`}
+                            variant="ghost"
+                            size="sm"
+                            disabled={pending}
+                            onClick={() => openEdit(operation)}
+                          >
+                            <Pencil aria-hidden />
+                          </IconButton>
+                        ) : null}
+                        {canDeactivate ? (
+                          <IconButton
+                            label={
+                              operation.status === "active"
+                                ? `Inativar ${operation.name}`
+                                : `Reativar ${operation.name}`
+                            }
+                            variant="ghost"
+                            size="sm"
+                            disabled={pending}
+                            onClick={() => void toggleStatus(operation)}
+                          >
+                            <Power aria-hidden />
+                          </IconButton>
+                        ) : null}
+                      </span>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {operations.length === 0 ? (
-                    <TableEmpty
-                      colSpan={9}
-                      icon={<Network />}
-                      message="Nenhuma operação cadastrada."
-                    />
-                  ) : (
-                    operations.map((operation) => (
-                      <TableRow key={operation.id} className="h-(--table-row-height)">
-                        <TableCell className="font-mono text-caption text-fg-secondary">
-                          {operation.code ?? "—"}
-                        </TableCell>
-                        <TableCell>
-                          <Link
-                            href={`/organizacao/operacoes/${operation.id}`}
-                            className="rounded-xs font-medium text-fg hfm-focus-ring hover:text-primary hover:underline"
-                          >
-                            {operation.name}
-                          </Link>
-                          {operation.description ? (
-                            <span className="block truncate text-caption text-fg-muted" title={operation.description}>
-                              {operation.description}
-                            </span>
-                          ) : null}
-                        </TableCell>
-                        <TableCell numeric>{number.format(operation.stateCount)}</TableCell>
-                        <TableCell numeric>{number.format(operation.cityCount)}</TableCell>
-                        <TableCell numeric>{number.format(operation.employeeCount)}</TableCell>
-                        <TableCell numeric>
-                          {operation.accessCount === 0 ? (
-                            <span className="text-fg-muted">—</span>
-                          ) : (
-                            number.format(operation.accessCount)
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={operation.status === "active" ? "success" : "neutral"}
-                            appearance="soft"
-                            dot
-                          >
-                            {operation.status === "active" ? "Ativa" : "Inativa"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-caption text-fg-secondary">
-                          {formatDate(operation.updatedAt)}
-                        </TableCell>
-                        <TableCell>
-                          <span className="flex items-center gap-0.5">
-                            {canUpdate ? (
-                              <IconButton
-                                label={`Editar ${operation.name}`}
-                                variant="ghost"
-                                size="sm"
-                                disabled={pending}
-                                onClick={() => openEdit(operation)}
-                              >
-                                <Pencil aria-hidden />
-                              </IconButton>
-                            ) : null}
-                            {canDeactivate ? (
-                              <IconButton
-                                label={
-                                  operation.status === "active"
-                                    ? `Inativar ${operation.name}`
-                                    : `Reativar ${operation.name}`
-                                }
-                                variant="ghost"
-                                size="sm"
-                                disabled={pending}
-                                onClick={() => void toggleStatus(operation)}
-                              >
-                                <Power aria-hidden />
-                              </IconButton>
-                            ) : null}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </CardContent>
-        </Card>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
       </PageContent>
 
       <OperationFormDrawer

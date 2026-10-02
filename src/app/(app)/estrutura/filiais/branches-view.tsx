@@ -2,10 +2,9 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Building2, Download, MapPin, Network, Pencil, Plus, Power, Truck, Upload, Users, X } from "lucide-react";
+import { Building2, CheckCircle2, Download, MapPin, Network, Pencil, Plus, Power, Truck, Upload, Users, X, XCircle } from "lucide-react";
 import { PageContent, PageHeader } from "@/components/layout/page-header";
 import { Button, IconButton } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { FilterBar } from "@/components/ui/filter-bar";
 import { SearchField } from "@/components/ui/search-field";
@@ -28,6 +27,16 @@ import { BranchExportDialog } from "./branch-export-dialog";
 import type { BranchCostCenterLoaders } from "./branch-cost-centers-tab";
 
 const number = new Intl.NumberFormat("pt-BR");
+/** Um número do resumo, ou "—" quando o resumo não veio: ausência não é zero. */
+const count = (value: number | null | undefined) => (value == null ? "—" : number.format(value));
+
+/**
+ * Prioridade de coluna (UI 2.0): num contêiner mais estreito que 71rem a data
+ * de atualização vira a segunda linha da Situação, em vez de empurrar a tabela
+ * para a rolagem lateral; a partir dessa largura volta a ser uma coluna.
+ */
+const UPDATED_COLUMN = "hidden @min-[71rem]:table-cell";
+const UPDATED_LINE = "@min-[71rem]:hidden";
 
 function formatDateTime(value: string | null): string {
   if (!value) return "—";
@@ -159,6 +168,15 @@ export function BranchesView({
 
   const linksOf = (branchId: string) => links.filter((l) => l.organizationUnitId === branchId);
 
+  // Piso da tabela: soma das colunas fixas + 116 para a Filial, que absorve o
+  // resto da largura; a data entra na soma só onde é coluna. Mais estreita que
+  // isso (abaixo de 1280), rola dentro do cartão.
+  const tableFloor = (canExport ? 40 : 0) + 156 + 116 + 140 + 104 + 128 + 72 + 96 + 84;
+  const tableMinWidth = {
+    "--branch-table-min": `${tableFloor}px`,
+    "--branch-table-min-wide": `${tableFloor + 128}px`,
+  } as React.CSSProperties;
+
   const openNew = () => {
     setEditing(undefined);
     setFormKey((k) => k + 1);
@@ -248,12 +266,15 @@ export function BranchesView({
           ) : undefined
         }
         filters={
-          <FilterBar className="flex-wrap items-end gap-3">
-            <div className="flex min-w-[18rem] flex-1 flex-col gap-1">
+          // Os campos crescem juntos e só quebram linha quando não cabem (UI 2.0):
+          // a busca é o campo que mais cresce; os seletores têm base própria.
+          <FilterBar className="flex-wrap items-end gap-x-2.5 gap-y-2.5" label="Filtros de filiais">
+            <div className="flex min-w-0 flex-[3_1_18rem] flex-col gap-1">
               <span className="text-caption text-fg-muted">Buscar</span>
               <SearchField
+                size="sm"
                 value={search}
-                placeholder="Código interno, nome da filial, razão social ou CNPJ"
+                placeholder="Código, nome, razão social ou CNPJ"
                 aria-label="Buscar filial"
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -262,14 +283,14 @@ export function BranchesView({
               />
             </div>
 
-            <div className="flex flex-col gap-1">
+            <div className="flex min-w-0 flex-[1_1_6rem] flex-col gap-1">
               <span className="text-caption text-fg-muted">Situação</span>
               <NativeSelect
                 fieldSize="sm"
                 aria-label="Filtrar por situação"
                 value={filters.status ?? ""}
                 onChange={(e) => navigate({ situacao: e.target.value || null })}
-                className="min-w-[8rem]"
+                className="w-full"
               >
                 <option value="">Todas</option>
                 <option value="active">Ativas</option>
@@ -277,14 +298,14 @@ export function BranchesView({
               </NativeSelect>
             </div>
 
-            <div className="flex flex-col gap-1">
+            <div className="flex min-w-0 flex-[1.4_1_8rem] flex-col gap-1">
               <span className="text-caption text-fg-muted">Operação</span>
               <NativeSelect
                 fieldSize="sm"
                 aria-label="Filtrar por operação vinculada"
                 value={filters.operationId ?? ""}
                 onChange={(e) => navigate({ operacao: e.target.value || null })}
-                className="min-w-[12rem]"
+                className="w-full"
               >
                 <option value="">Todas</option>
                 {operations.map((o) => (
@@ -293,14 +314,14 @@ export function BranchesView({
               </NativeSelect>
             </div>
 
-            <div className="flex flex-col gap-1">
+            <div className="flex min-w-0 flex-[1_1_6.5rem] flex-col gap-1">
               <span className="text-caption text-fg-muted">Estado da filial</span>
               <NativeSelect
                 fieldSize="sm"
                 aria-label="Filtrar pelo estado do endereço da filial"
                 value={filters.stateId ?? ""}
                 onChange={(e) => navigate({ uf: e.target.value || null, cidade: null })}
-                className="min-w-[7rem]"
+                className="w-full"
               >
                 <option value="">Todos</option>
                 {statesWithBranches.map((s) => (
@@ -309,14 +330,14 @@ export function BranchesView({
               </NativeSelect>
             </div>
 
-            <div className="flex flex-col gap-1">
+            <div className="flex min-w-0 flex-[1.4_1_8rem] flex-col gap-1">
               <span className="text-caption text-fg-muted">Cidade da filial</span>
               <NativeSelect
                 fieldSize="sm"
                 aria-label="Filtrar pela cidade do endereço da filial"
                 value={filters.cityId ?? ""}
                 onChange={(e) => navigate({ cidade: e.target.value || null })}
-                className="min-w-[11rem]"
+                className="w-full"
               >
                 <option value="">Todas</option>
                 {citiesOfState.map((c) => (
@@ -325,14 +346,14 @@ export function BranchesView({
               </NativeSelect>
             </div>
 
-            <div className="flex flex-col gap-1">
+            <div className="flex min-w-0 flex-[1_1_7rem] flex-col gap-1">
               <span className="text-caption text-fg-muted">Frota</span>
               <NativeSelect
                 fieldSize="sm"
                 aria-label="Filtrar por presença de veículos"
                 value={filters.withVehicles ?? ""}
                 onChange={(e) => navigate({ frota: e.target.value || null })}
-                className="min-w-[9rem]"
+                className="w-full"
               >
                 <option value="">Todas</option>
                 <option value="yes">Com veículos</option>
@@ -344,17 +365,22 @@ export function BranchesView({
       />
 
       <PageContent className="flex flex-col gap-5">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <KpiCard label="Filiais" value={number.format(summary?.totalBranches ?? rows.length)} icon={<Building2 />} />
-          <KpiCard label="Ativas" value={number.format(summary?.activeBranches ?? 0)} />
+        {/* Seis indicadores: três e três a 1366 (seis lado a lado cortavam
+            "Colaboradores" contra o ícone), uma linha só a partir de 1536.
+            Sem o resumo, "—": um indicador que não carregou não é zero. */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+          <KpiCard size="compact" label="Filiais" value={number.format(summary?.totalBranches ?? rows.length)} icon={<Building2 />} />
+          <KpiCard size="compact" label="Ativas" value={count(summary?.activeBranches)} icon={<CheckCircle2 />} />
           <KpiCard
+            size="compact"
             label="Inativas"
-            value={number.format(summary?.inactiveBranches ?? 0)}
+            value={count(summary?.inactiveBranches)}
             status={(summary?.inactiveBranches ?? 0) > 0 ? "warning" : undefined}
+            icon={<XCircle />}
           />
-          <KpiCard label="Operações vinculadas" value={number.format(summary?.linkedOperations ?? 0)} icon={<Network />} />
-          <KpiCard label="Colaboradores" value={number.format(summary?.linkedEmployees ?? 0)} icon={<Users />} />
-          <KpiCard label="Veículos" value={number.format(summary?.linkedVehicles ?? 0)} icon={<Truck />} />
+          <KpiCard size="compact" label="Operações vinculadas" value={count(summary?.linkedOperations)} icon={<Network />} />
+          <KpiCard size="compact" label="Colaboradores" value={count(summary?.linkedEmployees)} icon={<Users />} />
+          <KpiCard size="compact" label="Veículos" value={count(summary?.linkedVehicles)} icon={<Truck />} />
         </div>
 
         {canExport && selectedRows.length > 0 ? (
@@ -374,144 +400,147 @@ export function BranchesView({
           </div>
         ) : null}
 
-        <Card>
-          <CardContent className="p-0">
-            <TableContainer className="rounded-none border-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {canExport ? (
-                      <TableHead style={{ width: 32 }} className="pr-0">
-                        <Checkbox
-                          aria-label="Selecionar todas as filiais da lista"
-                          checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                          disabled={rows.length === 0}
-                          onCheckedChange={(v) => toggleAll(v === true)}
-                        />
-                      </TableHead>
-                    ) : null}
-                    <TableHead style={{ width: 110 }}>Código</TableHead>
-                    <TableHead style={{ width: 220 }}>Filial</TableHead>
-                    <TableHead style={{ width: 170 }}>CNPJ</TableHead>
-                    <TableHead style={{ width: 240 }}>Localização</TableHead>
-                    <TableHead numeric style={{ width: 110 }}>Operações</TableHead>
-                    <TableHead numeric style={{ width: 130 }}>Colaboradores</TableHead>
-                    <TableHead numeric style={{ width: 100 }}>Frotas</TableHead>
-                    <TableHead style={{ width: 110 }}>Situação</TableHead>
-                    <TableHead style={{ width: 130 }}>Atualizada em</TableHead>
-                    <TableHead style={{ width: 96 }}>Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.length === 0 ? (
-                    <TableEmpty
-                      colSpan={canExport ? 11 : 10}
-                      icon={<Building2 />}
-                      message={
-                        filters.q
-                          ? "Nenhuma filial encontrada para esta busca."
-                          : "Nenhuma filial cadastrada."
-                      }
+        {/* `@container`: a tabela mede a própria largura para decidir se a data
+            de atualização é coluna ou segunda linha. Código e CNPJ dividem uma
+            célula de duas linhas; nenhum título corta. */}
+        <TableContainer className="@container">
+          <Table layout="fixed" style={tableMinWidth} className="min-w-(--branch-table-min) @min-[71rem]:min-w-(--branch-table-min-wide)">
+            <TableHeader>
+              <TableRow>
+                {canExport ? (
+                  <TableHead style={{ width: 40 }} className="pr-0">
+                    <Checkbox
+                      aria-label="Selecionar todas as filiais da lista"
+                      checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                      disabled={rows.length === 0}
+                      onCheckedChange={(v) => toggleAll(v === true)}
                     />
-                  ) : (
-                    rows.map((branch) => (
-                      <TableRow
-                        key={branch.id}
-                        className="h-(--table-row-height)"
-                        data-state={selected.has(branch.id) ? "selected" : undefined}
+                  </TableHead>
+                ) : null}
+                <TableHead style={{ width: 156 }}>Código · CNPJ</TableHead>
+                <TableHead>Filial</TableHead>
+                <TableHead style={{ width: 140 }}>Localização</TableHead>
+                <TableHead numeric style={{ width: 104 }}>Operações</TableHead>
+                <TableHead numeric style={{ width: 128 }}>Colaboradores</TableHead>
+                <TableHead numeric style={{ width: 72 }}>Frotas</TableHead>
+                <TableHead style={{ width: 96 }}>Situação</TableHead>
+                <TableHead style={{ width: 128 }} className={UPDATED_COLUMN}>Atualizada em</TableHead>
+                <TableHead style={{ width: 84 }} className="px-2">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.length === 0 ? (
+                <TableEmpty
+                  colSpan={canExport ? 10 : 9}
+                  icon={<Building2 />}
+                  message={
+                    filters.q
+                      ? "Nenhuma filial encontrada para esta busca."
+                      : "Nenhuma filial cadastrada."
+                  }
+                />
+              ) : (
+                rows.map((branch) => (
+                  <TableRow
+                    key={branch.id}
+                    className="h-(--table-row-height)"
+                    data-state={selected.has(branch.id) ? "selected" : undefined}
+                  >
+                    {canExport ? (
+                      <TableCell className="pr-0">
+                        <Checkbox
+                          aria-label={`Selecionar ${branch.name}`}
+                          checked={selected.has(branch.id)}
+                          onCheckedChange={(v) => toggleRow(branch.id, v === true)}
+                        />
+                      </TableCell>
+                    ) : null}
+                    <TableCell className="font-mono text-caption whitespace-nowrap text-fg-secondary">
+                      <span className="block text-fg">{branch.code ?? "—"}</span>
+                      <span className="block">{formatCnpj(branch.documentNumber)}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="block truncate font-medium text-fg">{branch.name}</span>
+                      {branch.legalName ? (
+                        <span className="block truncate text-caption text-fg-muted" title={branch.legalName}>
+                          {branch.legalName}
+                        </span>
+                      ) : null}
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className="block truncate text-body-sm"
+                        title={formatAddress({
+                          street: branch.street,
+                          streetNumber: branch.streetNumber,
+                          district: branch.district,
+                          cityName: branch.cityName,
+                          stateUf: branch.stateUf,
+                        })}
                       >
-                        {canExport ? (
-                          <TableCell className="pr-0">
-                            <Checkbox
-                              aria-label={`Selecionar ${branch.name}`}
-                              checked={selected.has(branch.id)}
-                              onCheckedChange={(v) => toggleRow(branch.id, v === true)}
-                            />
-                          </TableCell>
-                        ) : null}
-                        <TableCell className="font-mono text-caption text-fg-secondary">
-                          {branch.code ?? "—"}
-                        </TableCell>
-                        <TableCell>
-                          <span className="block truncate font-medium text-fg">{branch.name}</span>
-                          {branch.legalName ? (
-                            <span className="block truncate text-caption text-fg-muted" title={branch.legalName}>
-                              {branch.legalName}
-                            </span>
-                          ) : null}
-                        </TableCell>
-                        <TableCell className="font-mono text-caption text-fg-secondary">
-                          {formatCnpj(branch.documentNumber)}
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className="block truncate text-body-sm"
-                            title={formatAddress({
-                              street: branch.street,
-                              streetNumber: branch.streetNumber,
-                              district: branch.district,
-                              cityName: branch.cityName,
-                              stateUf: branch.stateUf,
-                            })}
+                        {branch.cityName ? `${branch.cityName}/${branch.stateUf}` : "Endereço não informado"}
+                      </span>
+                      {branch.street ? (
+                        <span className="block truncate text-caption text-fg-muted">
+                          {[branch.street, branch.streetNumber].filter(Boolean).join(", ")}
+                        </span>
+                      ) : null}
+                    </TableCell>
+                    <TableCell numeric>
+                      {branch.operationCount === 0 ? (
+                        <Badge variant="neutral" appearance="soft" size="sm">Sem vínculo</Badge>
+                      ) : (
+                        number.format(branch.operationCount)
+                      )}
+                    </TableCell>
+                    <TableCell numeric>{number.format(branch.employeeCount)}</TableCell>
+                    <TableCell numeric>{number.format(branch.vehicleCount)}</TableCell>
+                    <TableCell>
+                      <StatusBadge status={branch.status === "active" ? "success" : "neutral"}>
+                        {branch.status === "active" ? "Ativa" : "Inativa"}
+                      </StatusBadge>
+                      <span
+                        className={`mt-0.5 block text-caption whitespace-nowrap text-fg-muted ${UPDATED_LINE}`}
+                        title={`Atualizada em ${formatDateTime(branch.updatedAt)}`}
+                      >
+                        <span className="sr-only">Atualizada em </span>
+                        {formatDateTime(branch.updatedAt)}
+                      </span>
+                    </TableCell>
+                    <TableCell className={`text-body-sm text-fg-secondary ${UPDATED_COLUMN}`}>
+                      {formatDateTime(branch.updatedAt)}
+                    </TableCell>
+                    <TableCell className="px-2">
+                      <div className="flex gap-1">
+                        {canUpdate ? (
+                          <IconButton
+                            label={`Editar ${branch.name}`}
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEdit(branch)}
                           >
-                            {branch.cityName ? `${branch.cityName}/${branch.stateUf}` : "Endereço não informado"}
-                          </span>
-                          {branch.street ? (
-                            <span className="block truncate text-caption text-fg-muted">
-                              {[branch.street, branch.streetNumber].filter(Boolean).join(", ")}
-                            </span>
-                          ) : null}
-                        </TableCell>
-                        <TableCell numeric>
-                          {branch.operationCount === 0 ? (
-                            <Badge variant="neutral" appearance="soft" size="sm">Sem vínculo</Badge>
-                          ) : (
-                            number.format(branch.operationCount)
-                          )}
-                        </TableCell>
-                        <TableCell numeric>{number.format(branch.employeeCount)}</TableCell>
-                        <TableCell numeric>{number.format(branch.vehicleCount)}</TableCell>
-                        <TableCell>
-                          <StatusBadge status={branch.status === "active" ? "success" : "neutral"}>
-                            {branch.status === "active" ? "Ativa" : "Inativa"}
-                          </StatusBadge>
-                        </TableCell>
-                        <TableCell className="text-body-sm text-fg-secondary">
-                          {formatDateTime(branch.updatedAt)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            {canUpdate ? (
-                              <IconButton
-                                label={`Editar ${branch.name}`}
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openEdit(branch)}
-                              >
-                                <Pencil />
-                              </IconButton>
-                            ) : null}
-                            {canDeactivate ? (
-                              <IconButton
-                                label={branch.status === "active" ? `Inativar ${branch.name}` : `Reativar ${branch.name}`}
-                                variant="ghost"
-                                size="sm"
-                                disabled={pending}
-                                onClick={() => toggleStatus(branch)}
-                              >
-                                <Power />
-                              </IconButton>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </CardContent>
-        </Card>
+                            <Pencil />
+                          </IconButton>
+                        ) : null}
+                        {canDeactivate ? (
+                          <IconButton
+                            label={branch.status === "active" ? `Inativar ${branch.name}` : `Reativar ${branch.name}`}
+                            variant="ghost"
+                            size="sm"
+                            disabled={pending}
+                            onClick={() => toggleStatus(branch)}
+                          >
+                            <Power />
+                          </IconButton>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
 
         <p className="flex items-start gap-2 text-caption text-fg-muted">
           <MapPin aria-hidden className="mt-0.5 size-3.5 shrink-0" />

@@ -32,8 +32,16 @@ const currencyFormat = new Intl.NumberFormat("pt-BR", {
  */
 const GRID = "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6";
 
+/**
+ * Every card measures itself (`@container`, content box). Under 7.5rem of
+ * content — six in a row at 1280 with the menu open — "ALUGADOS" would run into
+ * the icon chip, so the chip (decoration) yields instead of the label. From
+ * 1366 up the chip is back.
+ */
+const CARD = "@container min-h-28 justify-start @max-[7.5rem]:[&>header>span]:hidden";
+
 function kpiLabel(text: string) {
-  return <span className="block min-h-11 leading-snug">{text}</span>;
+  return <span className="block leading-snug sm:min-h-11">{text}</span>;
 }
 
 /** "62% do total", or nothing. A percentage of zero vehicles is not 0%. */
@@ -67,7 +75,7 @@ export function OverviewCards({ summary, operationId }: FleetOverviewProps) {
   return (
     <div className={GRID}>
       <KpiCard
-        className="min-h-28 justify-start"
+        className={CARD}
         label={kpiLabel(selected ? `Veículos · ${selected.operationName}` : "Total de veículos")}
         value={selected ? selected.count : summary.total}
         period={assetLine}
@@ -75,7 +83,7 @@ export function OverviewCards({ summary, operationId }: FleetOverviewProps) {
       />
 
       <KpiCard
-        className="min-h-28 justify-start"
+        className={CARD}
         status="success"
         label={kpiLabel("Ativos")}
         value={summary.active}
@@ -87,7 +95,7 @@ export function OverviewCards({ summary, operationId }: FleetOverviewProps) {
           cadastro pode estar em manutenção, e essa é outra informação, de
           outro módulo (§16). */}
       <KpiCard
-        className="min-h-28 justify-start"
+        className={CARD}
         label={kpiLabel("Inativos")}
         value={summary.inactive}
         period={shareOf(summary.inactive, summary.total)}
@@ -95,7 +103,7 @@ export function OverviewCards({ summary, operationId }: FleetOverviewProps) {
       />
 
       <KpiCard
-        className="min-h-28 justify-start"
+        className={CARD}
         label={kpiLabel("Próprios")}
         value={summary.owned}
         period={shareOf(summary.owned, summary.total)}
@@ -103,7 +111,7 @@ export function OverviewCards({ summary, operationId }: FleetOverviewProps) {
       />
 
       <KpiCard
-        className="min-h-28 justify-start"
+        className={CARD}
         label={kpiLabel("Alugados")}
         value={summary.rented}
         period={shareOf(summary.rented, summary.total)}
@@ -114,7 +122,7 @@ export function OverviewCards({ summary, operationId }: FleetOverviewProps) {
           transferência já está programada não está sem alocação: está a
           caminho de uma, e aparece na segunda linha em vez de sumir. */}
       <KpiCard
-        className="min-h-28 justify-start"
+        className={CARD}
         status={summary.unassigned > 0 ? "warning" : "neutral"}
         label={kpiLabel("Sem alocação")}
         value={summary.unassigned}
@@ -136,7 +144,7 @@ export function OverviewSkeleton() {
       {Array.from({ length: 6 }, (_, index) => (
         <KpiCard
           key={index}
-          className="min-h-28 justify-start"
+          className={CARD}
           loading
           loadingLabel="Carregando indicadores…"
           label=""

@@ -7,6 +7,7 @@ import { ArrowLeft, Landmark, MapPin, Pencil, Users } from "lucide-react";
 import type { CoverageState, OperationDetail } from "@/lib/organization/operations";
 import { saveOperation, type CoverageInput } from "@/lib/organization/actions";
 import { PageContent, PageHeader } from "@/components/layout/page-header";
+import { SectionHeader } from "@/components/layout/section-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -170,10 +171,11 @@ export function OperationDetailView({
       />
 
       <PageContent className="flex flex-col gap-5">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-          <KpiCard label="Estados" value={number.format(coverage.length)} icon={<Landmark />} />
-          <KpiCard label="Municípios" value={number.format(totalCities)} icon={<MapPin />} />
-          <KpiCard label="Colaboradores alocados" value={number.format(totalPeople)} icon={<Users />} />
+        {/* Três indicadores numa linha desde o tablet: nunca dois e um órfão. */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <KpiCard size="compact" label="Estados" value={number.format(coverage.length)} icon={<Landmark />} />
+          <KpiCard size="compact" label="Municípios" value={number.format(totalCities)} icon={<MapPin />} />
+          <KpiCard size="compact" label="Colaboradores alocados" value={number.format(totalPeople)} icon={<Users />} />
         </div>
 
         {/* Refinamento da Etapa 12 (§8–§14): a operação decide quais aplicativos
@@ -198,19 +200,18 @@ export function OperationDetailView({
           </Card>
         ) : null}
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-h4 font-semibold text-fg">Abrangência</h2>
-            <p className="text-body-sm text-fg-secondary">
-              Os estados onde a operação atua e, dentro de cada um, os municípios.
-            </p>
-          </div>
-          {canManageGeography && !editingCoverage ? (
-            <Button variant="secondary" leadingIcon={<MapPin />} onClick={startEditing}>
-              {coverage.length === 0 ? "Definir abrangência" : "Editar abrangência"}
-            </Button>
-          ) : null}
-        </div>
+        <SectionHeader
+          icon={<MapPin />}
+          title="Abrangência"
+          description="Os estados onde a operação atua e, dentro de cada um, os municípios."
+          actions={
+            canManageGeography && !editingCoverage ? (
+              <Button variant="secondary" leadingIcon={<MapPin />} onClick={startEditing}>
+                {coverage.length === 0 ? "Definir abrangência" : "Editar abrangência"}
+              </Button>
+            ) : undefined
+          }
+        />
 
         {editingCoverage ? (
           <Card>
@@ -255,7 +256,7 @@ export function OperationDetailView({
           />
         ) : (
           coverage.map((state) => (
-            <Card key={state.stateId}>
+            <Card key={state.stateId} className="overflow-hidden">
               <CardHeader>
                 <CardTitle className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-body-sm text-fg-muted">{state.uf}</span>
@@ -273,14 +274,17 @@ export function OperationDetailView({
                     Nenhum município selecionado neste estado.
                   </p>
                 ) : (
-                  <TableContainer className="rounded-none border-0 border-t">
-                    <Table>
+                  <TableContainer className="rounded-none border-0 border-t shadow-none">
+                    {/* Larguras fixas a partir do tablet: as colunas de todos os
+                        estados ficam alinhadas umas sob as outras, cartão a
+                        cartão. No celular, a tabela se ajusta ao conteúdo. */}
+                    <Table className="sm:table-fixed">
                       <TableHeader>
                         <TableRow>
                           <TableHead>Município</TableHead>
-                          <TableHead numeric>Código IBGE</TableHead>
-                          <TableHead numeric>DDD</TableHead>
-                          <TableHead numeric>Colaboradores</TableHead>
+                          <TableHead numeric className="sm:w-35">Código IBGE</TableHead>
+                          <TableHead numeric className="sm:w-24">DDD</TableHead>
+                          <TableHead numeric className="sm:w-35">Colaboradores</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>

@@ -4,6 +4,8 @@ import { Panel } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getDirectoryStats } from "@/lib/admin/queries";
 
+const numberFormat = new Intl.NumberFormat("pt-BR");
+
 /**
  * Entry point to the one module that exists.
  *
@@ -39,12 +41,12 @@ export async function UsersEntry({ organizationId }: { organizationId: string })
       <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {figures.map(({ icon: Icon, label, value }) => (
           <div key={label} className="flex items-center gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-sm bg-surface-secondary text-fg-muted">
-              <Icon className="size-4" aria-hidden />
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface-interactive text-fg-secondary">
+              <Icon className="size-[18px]" aria-hidden />
             </span>
             <div className="min-w-0">
-              <dt className="truncate text-caption text-fg-secondary">{label}</dt>
-              <dd className="text-h3 font-semibold tabular-nums text-fg">{value}</dd>
+              <dt className="text-caption text-fg-secondary">{label}</dt>
+              <dd className="text-kpi-sm font-semibold tabular-nums text-fg">{numberFormat.format(value)}</dd>
             </div>
           </div>
         ))}
