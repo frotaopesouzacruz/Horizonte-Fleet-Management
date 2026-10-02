@@ -152,7 +152,7 @@ begin
     v_status := 'km_divergence';
   end if;
   if v_valid > p_settings.high_mileage_km then
-    if v_status is null then v_status := 'high_mileage'; else v_alerts := v_alerts || 'high_mileage'; end if;
+    if v_status is null then v_status := 'high_mileage'; else v_alerts := array_append(v_alerts, 'high_mileage'); end if;
   end if;
   if v_status is null then
     v_status := case when v_valid <= p_settings.no_movement_tolerance_km then 'no_movement' else 'validated' end;
