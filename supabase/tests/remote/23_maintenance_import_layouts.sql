@@ -112,31 +112,35 @@ begin
   end;
 
   -- ------------------------------------------------------------------- L4 --
+  -- CNPJs fictícios do teste (os reais já estão no cadastro de fornecedores).
   begin
+    if exists (select 1 from public.maintenance_suppliers where organization_id = v_org and document_number like '23023023%') then
+      raise exception 'FIXTURE: CNPJ 23.023.023/* já existe no cadastro';
+    end if;
     j := public.stage_maintenance_import(v_org, jsonb_build_object('phase', 'all', 'kind', 'suppliers', 'file_name', '07_Fornecedores.xlsx',
            'rows', jsonb_build_array(
-             jsonb_build_object('row_number', 2, 'external_code', '239031', 'name', 'Suite23 Mecanica Cristo Rei Ltda', 'document_number', '71.299.614/0001-64',
+             jsonb_build_object('row_number', 2, 'external_code', '239031', 'name', 'Suite23 Mecanica Cristo Rei Ltda', 'document_number', '23.023.023/0001-01',
                                 'category', 'Mecanica', 'service_type', 'Revisões Preventivas e Corretivas', 'payment_terms', '15 Dias', 'financial_validation', 'OK'),
              jsonb_build_object('row_number', 3, 'name', 'Suite23 Fast Tire', 'document_number', 'Borracharia', 'category', 'Concertos e Montagem de Pneus'),
-             jsonb_build_object('row_number', 4, 'name', 'Suite23 GP Pneus - Eldorado Contagem', 'document_number', '46.378.127/0024-36', 'payment_terms', '-'),
-             jsonb_build_object('row_number', 5, 'name', 'Suite23 GP Pneus Contagem', 'document_number', '46.378.127/0024-36'),
-             jsonb_build_object('row_number', 6, 'name', 'Suite23 Minas Maquinas Sa - Nova Lima Mg', 'document_number', '17.161.241/0014-30'),
-             jsonb_build_object('row_number', 7, 'name', 'Suite23 Fabio Alves Prates', 'document_number', '58.595.014/0001-85'),
-             jsonb_build_object('row_number', 8, 'name', 'Suite23 Referência Centro Automotivo', 'document_number', '57.466.320/0001-59'),
-             jsonb_build_object('row_number', 9, 'name', 'Suite23 Referencia Centro Automotivo', 'document_number', '57.466.320/0001-59'))));
+             jsonb_build_object('row_number', 4, 'name', 'Suite23 GP Pneus - Eldorado Contagem', 'document_number', '23.023.023/0002-02', 'payment_terms', '-'),
+             jsonb_build_object('row_number', 5, 'name', 'Suite23 GP Pneus Contagem', 'document_number', '23.023.023/0002-02'),
+             jsonb_build_object('row_number', 6, 'name', 'Suite23 Minas Maquinas Sa - Nova Lima Mg', 'document_number', '23.023.023/0003-03'),
+             jsonb_build_object('row_number', 7, 'name', 'Suite23 Fabio Alves Prates', 'document_number', '23.023.023/0004-04'),
+             jsonb_build_object('row_number', 8, 'name', 'Suite23 Referência Centro Automotivo', 'document_number', '23.023.023/0005-05'),
+             jsonb_build_object('row_number', 9, 'name', 'Suite23 Referencia Centro Automotivo', 'document_number', '23.023.023/0005-05'))));
     ok := (j -> 'categories' ->> 'invalid_document')::int = 1 and (j -> 'categories' ->> 'duplicate_document')::int >= 1
           and (j -> 'categories' ->> 'duplicate_in_file')::int = 1 and (j ->> 'error_rows')::int = 1;
     k := public.process_maintenance_import(v_org, (j ->> 'batch_id')::uuid, null);
     ok := ok and (k ->> 'created_rows')::int = 7
           and (select external_code = '239031' and category = 'Mecanica' and payment_terms = '15 Dias' and financial_validation = 'OK'
-                      and document_number = '71299614000164'
+                      and document_number = '23023023000101'
                  from public.maintenance_suppliers where organization_id = v_org and name = 'Suite23 Mecanica Cristo Rei Ltda' and deleted_at is null)
           and (select document_number is null from public.maintenance_suppliers where organization_id = v_org and name = 'Suite23 Fast Tire' and deleted_at is null)
-          and (select payment_terms is null and document_number = '46378127002436' from public.maintenance_suppliers where organization_id = v_org and name = 'Suite23 GP Pneus - Eldorado Contagem' and deleted_at is null)
+          and (select payment_terms is null and document_number = '23023023000202' from public.maintenance_suppliers where organization_id = v_org and name = 'Suite23 GP Pneus - Eldorado Contagem' and deleted_at is null)
           and (select document_number is null from public.maintenance_suppliers where organization_id = v_org and name = 'Suite23 GP Pneus Contagem' and deleted_at is null);
     -- Um arquivo novo com outro nome e o mesmo CNPJ não renomeia o existente.
     j := public.stage_maintenance_import(v_org, jsonb_build_object('phase', 'all', 'kind', 'suppliers', 'file_name', '07b.xlsx',
-           'rows', jsonb_build_array(jsonb_build_object('row_number', 2, 'name', 'Suite23 Cristo Rei Filial', 'document_number', '71.299.614/0001-64'))));
+           'rows', jsonb_build_array(jsonb_build_object('row_number', 2, 'name', 'Suite23 Cristo Rei Filial', 'document_number', '23.023.023/0001-01'))));
     k := public.process_maintenance_import(v_org, (j ->> 'batch_id')::uuid, null);
     ok := ok and exists (select 1 from public.maintenance_suppliers where organization_id = v_org and name = 'Suite23 Mecanica Cristo Rei Ltda' and deleted_at is null)
           and (select document_number is null from public.maintenance_suppliers where organization_id = v_org and name = 'Suite23 Cristo Rei Filial' and deleted_at is null);

@@ -3,14 +3,19 @@
 --
 -- Migration 20261001110000_maintenance_import_preventive_cycle. Suíte contra o
 -- banco COM DADOS; tudo é desfeito no fim (`raise exception 'ROLLBACK_TESTES …'`).
--- Os cadastros usados aqui têm prefixo "Suite24" e somem com o rollback.
+-- Os cadastros usados aqui têm prefixo "Suite24" e somem com o rollback. O
+-- veículo do teste é criado aqui: a conciliação do ciclo preventivo
+-- (20261002107000) considera o histórico de preventivas do veículo, e um
+-- veículo real já tem o seu.
 --
 --   P1  Base importada sem a coluna "Ciclo Preventivo": entra sem vínculo
 --   P2  A mesma planilha com MP1/MP2: a validação vê a mudança (atualizar, não
 --       "sem mudança"), a gravação vincula e realiza os ciclos
 --   P3  Reimportar igual: sem mudança, nada gravado
---   P4  MPs trocados entre duas manutenções: cada ciclo fica realizado pela
---       manutenção que o arquivo aponta — nenhum fica aberto por engano
+--   P4  MPs trocados entre duas manutenções ("MP2" aos 10.050 km, "MP1" aos
+--       20.100 km): o MP informado fica registrado, mas o ciclo segue a
+--       sequência e o KM de entrada (20261002108000) — MP1 por m1, MP2 por m2,
+--       nenhum aberto por engano
 --   P5  Fornecedor reescrito na planilha, mesma OS: a manutenção é atualizada
 --       (reconhecida pela OS), não duplicada
 --   P6  MP além da regra do veículo: a linha entra com aviso e sem vínculo
@@ -23,12 +28,19 @@ do $t$
 declare
   v_org uuid; v_today date; v_veh record; j jsonb; k jsonb; v_rows jsonb; ok boolean;
   m1 uuid; m2 uuid; c1 record; c2 record; n int; n_before int;
+  v_type uuid; v_sub uuid; v_make uuid; v_model uuid;
   r text := '';
 begin
   select id into v_org from public.organizations where deleted_at is null and status = 'active' order by created_at limit 1;
   v_today := private.maintenance_today(v_org);
+  insert into public.vehicle_types (organization_id, code, name) values (v_org, 'suite24_tipo', 'Suite24 Tipo') returning id into v_type;
+  insert into public.vehicle_subcategories (organization_id, vehicle_type_id, name) values (v_org, v_type, 'Suite24 Sub') returning id into v_sub;
+  insert into public.vehicle_makes (organization_id, name) values (v_org, 'Suite24 Marca') returning id into v_make;
+  insert into public.vehicle_models (organization_id, vehicle_make_id, name) values (v_org, v_make, 'Suite24 Modelo') returning id into v_model;
+  insert into public.vehicles (organization_id, vehicle_type_id, vehicle_subcategory_id, vehicle_model_id, fleet_code, license_plate, status)
+  values (v_org, v_type, v_sub, v_model, 'SUITE24-A', 'SUITE24A', 'active');
   select v.id, v.license_plate, v.vehicle_type_id, v.vehicle_subcategory_id into v_veh from public.vehicles v
-   where v.organization_id = v_org and v.status = 'active' and v.deleted_at is null order by v.fleet_code limit 1;
+   where v.organization_id = v_org and v.license_plate = 'SUITE24A';
 
   -- Catálogo e uma regra preventiva só para o veículo do teste (modelo exato
   -- vence qualquer regra da organização): 10.000 km, 4 ciclos.
@@ -110,10 +122,16 @@ begin
       from public.maintenances m join public.maintenance_preventive_cycles c on c.id = m.preventive_cycle_id where m.id = m1;
     select c.cycle_number, c.completed_maintenance_id into c2
       from public.maintenances m join public.maintenance_preventive_cycles c on c.id = m.preventive_cycle_id where m.id = m2;
-    ok := c1.cycle_number = 2 and c1.completed_maintenance_id = m1 and c2.cycle_number = 1 and c2.completed_maintenance_id = m2
+    ok := c1.cycle_number = 1 and c1.completed_maintenance_id = m1 and c2.cycle_number = 2 and c2.completed_maintenance_id = m2
+          and (select preventive_cycle_declared from public.maintenances where id = m1) = 2
+          and (select preventive_cycle_declared from public.maintenances where id = m2) = 1
+          and exists (select 1 from public.maintenance_events e where e.maintenance_id = m1 and e.event_type = 'preventive_updated'
+                       and e.reason like '%informado na importação: MP2; o vínculo continua no MP1%')
           and not exists (select 1 from public.maintenance_preventive_cycles c
-                           where c.vehicle_id = v_veh.id and c.cycle_number in (1, 2) and c.completed_on is null);
-    r := r || format('%s P4 MPs trocados: m1→MP%s (realizado por %s), m2→MP%s (realizado por %s), nenhum MP1/MP2 aberto%s',
+                           where c.vehicle_id = v_veh.id and c.cycle_number in (1, 2) and c.completed_on is null)
+          and not exists (select 1 from public.maintenance_preventive_cycles c
+                           where c.vehicle_id = v_veh.id and c.cycle_number > 2 and c.completed_on is not null);
+    r := r || format('%s P4 MPs trocados (informados MP2/MP1): m1→MP%s (realizado por %s), m2→MP%s (realizado por %s), nenhum MP1/MP2 aberto%s',
          case when ok then 'PASS' else 'FAIL' end,
          c1.cycle_number, case when c1.completed_maintenance_id = m1 then 'm1' else 'outra' end,
          c2.cycle_number, case when c2.completed_maintenance_id = m2 then 'm2' else 'outra' end, chr(10));

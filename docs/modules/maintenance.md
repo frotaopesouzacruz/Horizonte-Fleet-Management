@@ -93,14 +93,14 @@ The daily routine (`hfm_maintenance_daily`, pg_cron, 06:15) reprocesses pending,
   - beyond that → Crítica;
   - Realizada once completed. Adherence is early, on time or late.
 - **Generating from a cycle** is idempotent: `created = false` returns the one that already exists. Completing it marks the cycle; reopening undoes that.
-- **Declared × effective cycle** (migration `20261002107000`):
+- **Declared × effective cycle** (migrations `20261002107000` and `20261002108000`):
   - `maintenances.preventive_cycle_declared` is the MP *informed* (spreadsheet "Ciclo Preventivo" column or chosen on screen).
   - `preventive_cycle_id` is the *effective* cycle, set per vehicle by `private.maintenance_preventive_reconcile_vehicle`. Completed preventives are taken in visit order:
-    - a declared MP above the last one done is kept;
+    - a declared MP above the last one done is kept, unless the entry KM is more than half an interval *before* that MP's milestone (e.g. "MP2" at 19,800 km on a 20k rule). Then the cycle comes from the KM, as below. A late revision (after the milestone) still keeps the declared MP;
     - a repeated or lower MP (e.g. "MP1" at 60,126 km after MP1 and MP2) becomes the not-yet-done cycle whose milestone is closest to the entry KM (MP3);
     - a second preventive in the same visit (same date and KM ±100) is linked to the first one's cycle and does not complete another;
     - an open preventive whose MP is already done moves to the next pending cycle.
-  - Each change is logged as a `preventive_updated` event with declared, from, to and reason.
+  - Each change is logged as a `preventive_updated` event with declared, from, to and reason (`km_inferred`, `km_early`, `same_visit`, `next_pending` or `declared`). On import there is one event per change: the reconciliation event when the link changes, or "Ciclo preventivo informado na importação: MPx; o vínculo continua no MPy" when only the declared MP changes.
   - The cycle is completed by the first completed preventive linked to it. Cycles left without one reopen; manual completions are never touched.
 - **When it runs:**
   - at the end of every maintenance import batch (trigger on `import_batches`). This also records the declared MP of new rows, corrects an entry KM that came from the import when the sheet changes it (never on a record a user touched; event `km_changed`), and adds `cycle_reconciled` warnings to the batch;

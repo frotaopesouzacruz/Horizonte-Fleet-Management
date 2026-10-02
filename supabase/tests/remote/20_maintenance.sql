@@ -377,6 +377,11 @@ begin
       case when coalesce(ok, false) and (k ->> 'total')::int >= 1 then 'PASS' else 'FAIL' end, ok, k ->> 'total', chr(10));
 
     k := public.maintenance_detail(r3);
+    -- O painel com os filtros do T102 (fornecedor) não vê r3, que não tem
+    -- fornecedor; e a lista traz as 30 maiores reincidências: filtrado pelo
+    -- veículo A, o par r1/r3 tem de aparecer.
+    j := public.maintenance_dashboard(v_org, jsonb_build_object('date_from', v_today - 30, 'date_to', v_today,
+                                                                'vehicle_ids', jsonb_build_array(v_a.id)));
     select exists (select 1 from jsonb_array_elements(j -> 'recurrence') x where (x ->> 'vehicle_id')::uuid = v_a.id) into ok;
     j := public.vehicle_maintenance_history(v_a.id);
     r := r || format('%s T103 reincidência (mesmo veículo + cluster em %s dias): no detalhe=%s; no painel=%s; no histórico do veículo=%s%s',

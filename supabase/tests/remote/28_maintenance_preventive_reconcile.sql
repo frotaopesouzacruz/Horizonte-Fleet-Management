@@ -22,6 +22,9 @@
 --       km_changed) e o KM do ciclo; registro alterado por usuário não muda
 --   P7  Conciliação pela rotina: simulação sem mudanças depois de conciliado;
 --       veículo sem preventiva não muda nada
+--   P8  MP informado à frente do KM (20261002108000): "MP2" aos 19.800 km como
+--       primeira preventiva → realiza o MP1; o MP2 continua pendente; trilha e
+--       aviso do lote dizem por quê
 -- =============================================================================
 select set_config('request.jwt.claims',
   json_build_object('sub', (select m.user_id from public.organization_memberships m
@@ -31,7 +34,7 @@ do $t$
 declare
   v_org uuid; v_uid uuid; v_today date;
   x_tpl record; v_make uuid; v_model1 uuid; v_model2 uuid;
-  va uuid; vb uuid; vc uuid; vd uuid;
+  va uuid; vb uuid; vc uuid; vd uuid; ve uuid; v_batch1 uuid;
   j jsonb; k jsonb; ok boolean; txt text;
   v_rows jsonb; v_rows2 jsonb;
   n int; n2 int; n_ev int;
@@ -56,11 +59,13 @@ begin
   values (v_org, x_tpl.vehicle_type_id, x_tpl.vehicle_subcategory_id, v_model1, 'SUITE28-A', 'SUITE28A', 'active'),
          (v_org, x_tpl.vehicle_type_id, x_tpl.vehicle_subcategory_id, v_model1, 'SUITE28-B', 'SUITE28B', 'active'),
          (v_org, x_tpl.vehicle_type_id, x_tpl.vehicle_subcategory_id, v_model1, 'SUITE28-C', 'SUITE28C', 'active'),
-         (v_org, x_tpl.vehicle_type_id, x_tpl.vehicle_subcategory_id, v_model2, 'SUITE28-D', 'SUITE28D', 'active');
+         (v_org, x_tpl.vehicle_type_id, x_tpl.vehicle_subcategory_id, v_model2, 'SUITE28-D', 'SUITE28D', 'active'),
+         (v_org, x_tpl.vehicle_type_id, x_tpl.vehicle_subcategory_id, v_model1, 'SUITE28-E', 'SUITE28E', 'active');
   select id into va from public.vehicles where organization_id = v_org and license_plate = 'SUITE28A';
   select id into vb from public.vehicles where organization_id = v_org and license_plate = 'SUITE28B';
   select id into vc from public.vehicles where organization_id = v_org and license_plate = 'SUITE28C';
   select id into vd from public.vehicles where organization_id = v_org and license_plate = 'SUITE28D';
+  select id into ve from public.vehicles where organization_id = v_org and license_plate = 'SUITE28E';
 
   -- Catálogo do teste e a regra do modelo 1 (MP a cada 20 mil km).
   j := public.stage_maintenance_import(v_org, jsonb_build_object('phase', 'all', 'kind', 'clusters', 'file_name', 's28.xlsx',
@@ -97,7 +102,8 @@ begin
       (15, 'SUITE28D', 'MP1', 'S28-D1', 'Concluído', '2024-09-09', 20548,  null),
       (16, 'SUITE28D', 'MP2', 'S28-D2', 'Concluído', '2025-02-03', 40168,  null),
       (17, 'SUITE28D', 'MP3', 'S28-D3', 'Concluído', '2025-07-23', 61147,  null),
-      (18, 'SUITE28D', 'MP4', null,     'Agendado',  null,         null,   to_char(v_today + 3, 'YYYY-MM-DD'))
+      (18, 'SUITE28D', 'MP4', null,     'Agendado',  null,         null,   to_char(v_today + 3, 'YYYY-MM-DD')),
+      (19, 'SUITE28E', 'MP2', 'S28-E1', 'Concluído', '2025-03-10', 19800,  null)
     ) as q(rn, plate, mp, os, st, d, km, sched);
   v_rows := (select jsonb_agg(jsonb_strip_nulls(x)) from jsonb_array_elements(v_rows) x);
 
@@ -105,6 +111,7 @@ begin
   j := public.stage_maintenance_import(v_org, jsonb_build_object('phase', 'all', 'kind', 'records', 'file_name', 's28_manutencoes.xlsx', 'rows', v_rows));
   k := public.process_maintenance_import(v_org, (j ->> 'batch_id')::uuid, null);
   perform set_config('role', 'postgres', true);
+  v_batch1 := (j ->> 'batch_id')::uuid;
 
   -- ------------------------------------------------------------------- P1 --
   begin
@@ -231,6 +238,24 @@ begin
     r := r || format('%s P7 rotina: simulação A muda %s; conciliação B muda %s (reabertos %s, realizados %s)%s',
          case when ok then 'PASS' else 'FAIL' end, j ->> 'changed', k ->> 'changed', k ->> 'cycles_reopened', k ->> 'cycles_completed', chr(10));
   exception when others then perform set_config('role', 'postgres', true); r := r || 'FAIL P7 ' || sqlerrm || chr(10);
+  end;
+
+  -- ------------------------------------------------------------------- P8 --
+  begin
+    select m.id into m_a2 from public.maintenances m where m.vehicle_id = ve;
+    ok := (select c.cycle_number from public.maintenances m join public.maintenance_preventive_cycles c on c.id = m.preventive_cycle_id where m.id = m_a2) = 1
+          and (select preventive_cycle_declared from public.maintenances where id = m_a2) = 2
+          and (select c.completed_maintenance_id from public.maintenance_preventive_cycles c where c.vehicle_id = ve and c.cycle_number = 1) = m_a2
+          and (select c.completed_on from public.maintenance_preventive_cycles c where c.vehicle_id = ve and c.cycle_number = 2) is null
+          and exists (select 1 from public.maintenance_events e where e.maintenance_id = m_a2 and e.payload ->> 'reason' = 'km_early'
+                       and e.reason like '%MP2 (marco de 40.000 km), mas a entrada foi aos 19.800 km%MP1.')
+          and exists (select 1 from public.import_errors e where e.batch_id = v_batch1 and e.code = 'cycle_reconciled' and e.row_number = 19
+                       and e.message like '%entrada bem antes do marco%');
+    select string_agg('MP' || c.cycle_number || case when c.completed_on is not null then '✓' else '' end, ' ' order by c.cycle_number) into txt
+      from public.maintenance_preventive_cycles c where c.vehicle_id = ve and c.cycle_number <= 3;
+    r := r || format('%s P8 MP2 aos 19.800 km (marco 40.000): %s; informado MP%s%s', case when ok then 'PASS' else 'FAIL' end, txt,
+         (select preventive_cycle_declared from public.maintenances where id = m_a2), chr(10));
+  exception when others then r := r || 'FAIL P8 ' || sqlerrm || chr(10);
   end;
 
   raise notice '%', r;
