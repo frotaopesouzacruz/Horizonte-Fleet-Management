@@ -2,17 +2,19 @@
 
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeftRight, CalendarDays, ChevronDown, CopyCheck, Download, Upload } from "lucide-react";
+import { ArrowLeftRight, CalendarDays, ChevronDown, CopyCheck, Download, Network, Upload } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PageContent, PageHeader } from "@/components/layout/page-header";
+import { SectionHeader } from "@/components/layout/section-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FilterBar } from "@/components/ui/filter-bar";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Alert, AlertDescription, AlertTitle } from "@/components/feedback/alert";
 import {
   Table, TableBody, TableCell, TableContainer, TableEmpty, TableHead, TableHeader, TableRow,
@@ -345,8 +347,10 @@ export function FidelizationView({
           </>
         }
         filters={
-          <FilterBar className="flex-wrap items-end gap-3">
-            <div className="flex flex-col gap-1">
+          /* Uma linha cheia (UI 2.0): competência de largura fixa, os demais
+             campos crescem juntos e só quebram quando não cabem. */
+          <FilterBar className="flex-wrap items-end gap-x-3 gap-y-2.5">
+            <div className="flex shrink-0 flex-col gap-1">
               <span className="text-caption text-fg-muted">Competência</span>
               <CompetencePicker
                 value={competence}
@@ -355,14 +359,14 @@ export function FidelizationView({
               />
             </div>
 
-            <div className="flex flex-col gap-1">
+            <div className="flex min-w-0 flex-[1.4_1_17.5rem] flex-col gap-1">
               <span className="text-caption text-fg-muted">Operação</span>
               <NativeSelect
                 fieldSize="sm"
                 aria-label="Filtrar por operação"
                 value={filters.operationId ?? ""}
                 onChange={(e) => navigate({ operacao: e.target.value || null, uf: null, cidade: null })}
-                className="min-w-[12rem]"
+                className="w-full"
               >
                 <option value="">Todas as operações</option>
                 {operations.map((o) => (
@@ -371,14 +375,14 @@ export function FidelizationView({
               </NativeSelect>
             </div>
 
-            <div className="flex flex-col gap-1">
+            <div className="flex min-w-0 flex-[0.6_1_6rem] flex-col gap-1">
               <span className="text-caption text-fg-muted">Estado</span>
               <NativeSelect
                 fieldSize="sm"
                 aria-label="Filtrar por estado"
                 value={filters.stateId ?? ""}
                 onChange={(e) => navigate({ uf: e.target.value || null, cidade: null })}
-                className="min-w-[7rem]"
+                className="w-full"
               >
                 <option value="">Todos</option>
                 {statesOfOperation.map((s) => (
@@ -387,7 +391,7 @@ export function FidelizationView({
               </NativeSelect>
             </div>
 
-            <div className="flex flex-col gap-1">
+            <div className="flex min-w-0 flex-[1.2_1_10rem] flex-col gap-1">
               <span className="text-caption text-fg-muted">Cidade</span>
               <NativeSelect
                 fieldSize="sm"
@@ -395,7 +399,7 @@ export function FidelizationView({
                 value={filters.cityId ?? ""}
                 disabled={!filters.stateId}
                 onChange={(e) => navigate({ cidade: e.target.value || null })}
-                className="min-w-[11rem]"
+                className="w-full"
               >
                 <option value="">{filters.stateId ? "Todas" : "Escolha o estado"}</option>
                 {citiesOfState.map((c) => (
@@ -430,10 +434,8 @@ export function FidelizationView({
               substitutionsAndInversions={(indicators?.substitutions ?? 0) + (indicators?.inversions ?? 0)}
             />
 
-            <section aria-labelledby="hierarquia-operacional" className="flex flex-col gap-3">
-              <h2 id="hierarquia-operacional" className="text-h4 font-semibold text-fg">
-                Hierarquia operacional
-              </h2>
+            <section aria-label="Hierarquia operacional" className="flex flex-col gap-3">
+              <SectionHeader icon={<Network />} title="Hierarquia operacional" />
               <HierarchyPanel operations={hierarchy} />
             </section>
           </TabsContent>
@@ -641,26 +643,35 @@ function AssignmentsSection({
           </span>
         </summary>
         <CardContent className="flex flex-col gap-0 border-t border-border p-0">
+          {/* Modo de exibição da mesma lista: SegmentedControl (UI 2.0). */}
           <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
-            <Button
-              variant={onlyMobilisations ? "ghost" : "secondary"}
-              size="sm"
-              onClick={() => onOnlyMobilisationsChange(false)}
-              aria-pressed={!onlyMobilisations}
-            >
-              Todos os vínculos
-              <Badge variant="neutral">{number.format(history.length)}</Badge>
-            </Button>
-            <Button
-              variant={onlyMobilisations ? "secondary" : "ghost"}
-              size="sm"
-              leadingIcon={<ArrowLeftRight />}
-              onClick={() => onOnlyMobilisationsChange(true)}
-              aria-pressed={onlyMobilisations}
-            >
-              Só substituições e inversões
-              <Badge variant="neutral">{number.format(mobilisations.length)}</Badge>
-            </Button>
+            <SegmentedControl
+              aria-label="Vínculos exibidos"
+              className="flex-wrap"
+              value={onlyMobilisations ? "mobilizacoes" : "todos"}
+              onValueChange={(value) => onOnlyMobilisationsChange(value === "mobilizacoes")}
+              options={[
+                {
+                  value: "todos",
+                  label: (
+                    <>
+                      Todos os vínculos
+                      <Badge variant="neutral" size="sm">{number.format(history.length)}</Badge>
+                    </>
+                  ),
+                },
+                {
+                  value: "mobilizacoes",
+                  icon: <ArrowLeftRight aria-hidden />,
+                  label: (
+                    <>
+                      Só substituições e inversões
+                      <Badge variant="neutral" size="sm">{number.format(mobilisations.length)}</Badge>
+                    </>
+                  ),
+                },
+              ]}
+            />
           </div>
 
           <TableContainer className="rounded-none border-0">
@@ -689,13 +700,13 @@ function AssignmentsSection({
                 ) : (
                   visibleHistory.map((row) => (
                     <TableRow key={row.id} className="h-(--table-row-height)">
-                      <TableCell className="truncate">
+                      <TableCell className="break-words">
                         BR {row.brCode}
                         <span className="block text-caption text-fg-muted">
                           {row.cityName}/{row.stateUf} · {row.operationName}
                         </span>
                       </TableCell>
-                      <TableCell className="truncate">
+                      <TableCell className="break-words">
                         {row.fleetCode ?? row.licensePlate ?? "—"}
                         {row.vehicleModelName ? (
                           <span className="block text-caption text-fg-muted">

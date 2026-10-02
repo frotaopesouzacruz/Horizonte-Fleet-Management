@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CopyCheck, Gauge, Layers, ListTree, MapPin, Plus, Users } from "lucide-react";
 import { PageContent, PageHeader } from "@/components/layout/page-header";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { KpiCard } from "@/components/ui/kpi-card";
@@ -286,7 +287,7 @@ export function LeadershipView({
             <>
               {canExport ? <LeadershipExportMenu query={exportQuery} rowCount={rows.length} /> : null}
               {canManage && canAssign ? (
-                <Button variant="ghost" leadingIcon={<Plus />} onClick={openNew}>
+                <Button variant="secondary" leadingIcon={<Plus />} onClick={openNew}>
                   Vínculo por período
                 </Button>
               ) : null}
@@ -299,20 +300,22 @@ export function LeadershipView({
           ) : undefined
         }
         filters={
-          <FilterBar className="flex-wrap items-end gap-3">
-            <div className="flex flex-col gap-1">
+          /* Uma linha cheia a 1366 (UI 2.0): a competência tem largura fixa e os
+             demais campos crescem juntos, só quebrando quando não cabem. */
+          <FilterBar className="flex-wrap items-end gap-x-3 gap-y-2.5">
+            <div className="flex shrink-0 flex-col gap-1">
               <span className="text-caption text-fg-muted">Competência</span>
               <CompetencePicker value={competence} onChange={setCompetence} disabled={pending} />
             </div>
 
-            <div className="flex flex-col gap-1">
+            <div className="flex min-w-0 flex-[1.2_1_10rem] flex-col gap-1">
               <span className="text-caption text-fg-muted">Tipo de operação</span>
               <NativeSelect
                 fieldSize="sm"
                 aria-label="Filtrar por operação"
                 value={filters.operationId ?? ""}
                 onChange={(e) => navigate({ operacao: e.target.value || null, uf: null, cidade: null })}
-                className="min-w-[12rem]"
+                className="w-full"
               >
                 <option value="">Todas as operações</option>
                 {operations.map((o) => (
@@ -321,14 +324,14 @@ export function LeadershipView({
               </NativeSelect>
             </div>
 
-            <div className="flex flex-col gap-1">
+            <div className="flex min-w-0 flex-[0.6_1_5.75rem] flex-col gap-1">
               <span className="text-caption text-fg-muted">Estado</span>
               <NativeSelect
                 fieldSize="sm"
                 aria-label="Filtrar por estado"
                 value={filters.stateId ?? ""}
                 onChange={(e) => navigate({ uf: e.target.value || null, cidade: null })}
-                className="min-w-[7rem]"
+                className="w-full"
               >
                 <option value="">Todos</option>
                 {statesOfOperation.map((s) => (
@@ -337,7 +340,7 @@ export function LeadershipView({
               </NativeSelect>
             </div>
 
-            <div className="flex flex-col gap-1">
+            <div className="flex min-w-0 flex-[1_1_8rem] flex-col gap-1">
               <span className="text-caption text-fg-muted">Cidade</span>
               <NativeSelect
                 fieldSize="sm"
@@ -345,7 +348,7 @@ export function LeadershipView({
                 value={filters.cityId ?? ""}
                 disabled={citiesOfFilter.length === 0}
                 onChange={(e) => navigate({ cidade: e.target.value || null })}
-                className="min-w-[11rem]"
+                className="w-full"
               >
                 <option value="">Todas</option>
                 {citiesOfFilter.map((c) => (
@@ -356,14 +359,14 @@ export function LeadershipView({
               </NativeSelect>
             </div>
 
-            <div className="flex flex-col gap-1">
+            <div className="flex min-w-0 flex-[1.3_1_9.5rem] flex-col gap-1">
               <span className="text-caption text-fg-muted">Liderança</span>
               <NativeSelect
                 fieldSize="sm"
                 aria-label="Filtrar por liderança"
                 value={filters.employeeId ?? ""}
                 onChange={(e) => navigate({ lideranca: e.target.value || null })}
-                className="min-w-[12rem] max-w-[18rem]"
+                className="w-full"
               >
                 <option value="">Todas as lideranças</option>
                 {leaders.map((l) => (
@@ -404,8 +407,8 @@ export function LeadershipView({
           />
           <KpiCard
             label="Sob responsabilidade"
-            value={number.format(indicators?.brsUnderLeadership ?? 0)}
-            unit="BRs"
+            value={indicators ? number.format(indicators.brsUnderLeadership) : "—"}
+            unit={indicators ? "BRs" : undefined}
             period={
               indicators
                 ? `${number.format(indicators.vehiclesLinked)} veículos · ${number.format(indicators.driversLinked)} motoristas`
@@ -446,24 +449,33 @@ export function LeadershipView({
 
           {/* -------------------------------------------------- por liderança */}
           <TabsContent value="liderancas" className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Agrupar por">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-caption text-fg-muted">Agrupar por</span>
-              <Button
-                variant={groupBy === "leader" ? "secondary" : "ghost"}
-                size="sm"
-                aria-pressed={groupBy === "leader"}
-                onClick={() => setGroupBy("leader")}
+              {/* Trilho segmentado (mesma linguagem do SegmentedControl), com
+                  botões de alternância: o modo de exibição não troca de painel. */}
+              <div
+                role="group"
+                aria-label="Agrupar por"
+                className="inline-flex w-fit max-w-full items-center gap-0.5 rounded-md border border-border-subtle bg-surface-interactive p-0.5"
               >
-                Liderança
-              </Button>
-              <Button
-                variant={groupBy === "operation" ? "secondary" : "ghost"}
-                size="sm"
-                aria-pressed={groupBy === "operation"}
-                onClick={() => setGroupBy("operation")}
-              >
-                Tipo de operação
-              </Button>
+                {([
+                  ["leader", "Liderança"],
+                  ["operation", "Tipo de operação"],
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={groupBy === value}
+                    onClick={() => setGroupBy(value)}
+                    className={cn(
+                      "inline-flex h-7 items-center rounded-sm px-2.5 text-body-sm font-medium whitespace-nowrap text-fg-secondary hfm-transition hfm-focus-ring hover:text-fg",
+                      groupBy === value && "bg-surface-raised font-semibold text-fg shadow-selected",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <span className="ml-auto text-caption text-fg-muted">{formatCompetence(competence)}</span>
             </div>
 
@@ -497,7 +509,7 @@ export function LeadershipView({
                                 {row.operationName}
                               </Badge>
                               <span className="min-w-0 flex-1">
-                                <span className="block truncate text-fg">{placeLabel(row)}</span>
+                                <span className="block break-words text-fg">{placeLabel(row)}</span>
                                 {part || !row.isPrimary ? (
                                   <span className="block text-caption text-fg-muted">
                                     {[part, row.isPrimary ? null : "substituto/apoio"].filter(Boolean).join(" · ")}
@@ -518,7 +530,7 @@ export function LeadershipView({
                   <section
                     key={op.id}
                     aria-label={op.name}
-                    className="overflow-hidden rounded-md border border-border bg-surface"
+                    className="overflow-hidden rounded-lg border border-border bg-surface-raised shadow-card"
                   >
                     <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
                       <h3 className="text-body font-semibold text-fg">{op.name}</h3>
@@ -526,7 +538,7 @@ export function LeadershipView({
                         {op.leaders.length === 1 ? "1 liderança" : `${op.leaders.length} lideranças`}
                       </Badge>
                     </header>
-                    <ul className="divide-y divide-border">
+                    <ul className="divide-y divide-border-subtle">
                       {op.leaders.map((leader) => (
                         <li
                           key={leader.employeeId}

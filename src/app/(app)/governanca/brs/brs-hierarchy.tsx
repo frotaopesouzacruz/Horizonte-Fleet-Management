@@ -52,9 +52,13 @@ const COLUMNS: { key: string; label: string; sort?: BrSort }[] = [
 
 const SORTABLE = COLUMNS.filter((c): c is { key: string; label: string; sort: BrSort } => Boolean(c.sort));
 
-/** Mesma grade no cabeçalho e nas linhas; abaixo de `xl` a linha vira cartão. */
+/**
+ * Mesma grade no cabeçalho e nas linhas; abaixo de `xl` a linha vira cartão.
+ * A 1366 o veículo ("SNO1J56 · FR-0142") cabe numa linha; nomes longos vão a
+ * duas linhas em vez de cortar (UI 2.0: duas linhas antes de truncar).
+ */
 const ROW_GRID =
-  "xl:grid xl:grid-cols-[minmax(0,0.95fr)_5.5rem_minmax(0,1.25fr)_minmax(0,1.1fr)_minmax(0,1.05fr)_10.5rem_8.5rem] xl:items-center xl:gap-3";
+  "xl:grid xl:grid-cols-[minmax(0,0.9fr)_5.5rem_minmax(0,1.2fr)_minmax(0,1.3fr)_minmax(0,1.1fr)_9.75rem_8.5rem] xl:items-center xl:gap-3";
 
 /** Operação e local ordenam por nome — a ordem do servidor vale dentro do local. */
 const OPERATION_OR_CITY: BrSort[] = ["operation", "city"];
@@ -160,7 +164,7 @@ function LeaderCell({ row }: { row: BrDirectoryRow }) {
   if (!row.leaderName) return <span className="text-body-sm text-fg-muted">Sem liderança definida</span>;
   return (
     <span className="block min-w-0">
-      <span className="block truncate text-body-sm text-fg" title={row.leaderName}>
+      <span className="line-clamp-2 break-words text-body-sm text-fg" title={row.leaderName}>
         {row.leaderName}
       </span>
       {row.leaderScope ? (
@@ -188,18 +192,22 @@ function VehicleCell({ row }: { row: BrDirectoryRow }) {
     <span className="flex min-w-0 items-start gap-1.5">
       <Truck aria-hidden className="mt-0.5 size-3.5 shrink-0 text-fg-muted" />
       <span className="min-w-0">
-        <span className="block truncate text-body-sm">
+        <span className="block break-words text-body-sm">
           <span className="font-medium text-fg">{row.licensePlate ?? row.fleetCode}</span>
+          {/* A frota quebra inteira ("· FR-0142") quando a coluna estreita. */}
           {fleet ? (
-            <span className="text-caption text-fg-muted" title={`Frota ${fleet}`}>
-              {" · "}
-              <span className="sr-only">frota </span>
-              {fleet}
-            </span>
+            <>
+              {" "}
+              <span className="whitespace-nowrap text-caption text-fg-muted" title={`Frota ${fleet}`}>
+                {"· "}
+                <span className="sr-only">frota </span>
+                {fleet}
+              </span>
+            </>
           ) : null}
         </span>
         {row.assignmentStart ? (
-          <span className="block truncate text-caption text-fg-muted" title="Início da alocação">
+          <span className="block text-caption text-fg-muted" title="Início da alocação">
             <span className="sr-only">Início da alocação: </span>
             <span aria-hidden>desde </span>
             {formatDate(row.assignmentStart)}
@@ -213,7 +221,7 @@ function VehicleCell({ row }: { row: BrDirectoryRow }) {
 function DriverCell({ row }: { row: BrDirectoryRow }) {
   if (!row.driverName) return <span className="text-body-sm text-fg-muted">Sem motorista</span>;
   return (
-    <span className="block truncate text-body-sm text-fg" title={row.driverName}>
+    <span className="line-clamp-2 break-words text-body-sm text-fg" title={row.driverName}>
       {row.driverName}
     </span>
   );
@@ -295,7 +303,8 @@ function SortHeader({
         active ? "text-fg" : "text-fg-secondary",
       )}
     >
-      <span className="truncate">{label}</span>
+      {/* Título de coluna nunca trunca: se faltar espaço, vai a duas linhas. */}
+      <span>{label}</span>
       <Icon aria-hidden className={cn("size-3.5 shrink-0", active ? "text-primary" : "text-fg-muted")} />
     </button>
   );
@@ -428,7 +437,7 @@ export function BrsHierarchy({ rows, sort, dir, onSort, ...handlers }: BrsHierar
                 {/* Cabeçalho de colunas, uma vez por operação, só na grade larga. */}
                 <div
                   className={cn(
-                    "hidden border-b border-border bg-surface-secondary py-2 pr-4 pl-10 text-caption font-semibold",
+                    "hidden border-b border-border bg-surface-secondary py-2 pr-4 pl-10 text-table-head font-semibold",
                     ROW_GRID,
                   )}
                 >
@@ -521,7 +530,7 @@ function BrRow({ row, handlers }: { row: BrDirectoryRow; handlers: BrRowHandlers
       <div className="flex min-w-0 items-start justify-between gap-2 xl:block">
         <div className="min-w-0">
           <span className="sr-only">Código </span>
-          <span className="block truncate text-body-sm font-semibold text-fg" title={row.code}>
+          <span className="line-clamp-2 break-words text-body-sm font-semibold text-fg" title={row.code}>
             {row.code}
           </span>
           {row.description ? (

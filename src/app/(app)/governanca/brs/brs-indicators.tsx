@@ -53,6 +53,8 @@ export interface BrsIndicatorsProps {
 export function BrsIndicators({ indicators, competence, fallbackTotal, anchorDate }: BrsIndicatorsProps) {
   const withoutVehicle = indicators?.withoutVehicle ?? 0;
   const withoutLeader = indicators?.withoutLeader ?? 0;
+  /** Indicadores que não vieram são "—", nunca 0 (ausência não é zero). */
+  const count = (value: number | undefined) => (value === undefined ? "—" : number.format(value));
 
   const byOperation: BreakdownItem[] = (indicators?.byOperation ?? []).map((e) => ({
     key: e.operationId, label: e.operationName, total: e.total,
@@ -66,42 +68,43 @@ export function BrsIndicators({ indicators, competence, fallbackTotal, anchorDat
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+      {/* Seis KPIs em 3 × 2 (UI 2.0): seis colunas a 1366 espremiam os rótulos. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <KpiCard
           label="Posições cadastradas"
           value={number.format(indicators?.total ?? fallbackTotal)}
-          period={`${number.format(indicators?.active ?? 0)} ativas · ${number.format(indicators?.inactive ?? 0)} inativas`}
+          period={indicators ? `${number.format(indicators.active)} ativas · ${number.format(indicators.inactive)} inativas` : undefined}
           icon={<MapPin />}
         />
         <KpiCard
           label="Com veículo"
-          value={number.format(indicators?.withVehicle ?? 0)}
+          value={count(indicators?.withVehicle)}
           period={formatCompetence(competence)}
           icon={<Truck />}
         />
         <KpiCard
           label="Sem veículo"
-          value={number.format(withoutVehicle)}
+          value={count(indicators?.withoutVehicle)}
           status={withoutVehicle > 0 ? "warning" : undefined}
           period={formatCompetence(competence)}
           icon={<CircleSlash />}
         />
         <KpiCard
           label="Com motorista"
-          value={number.format(indicators?.withDriver ?? 0)}
-          period={`${number.format(indicators?.withoutDriver ?? 0)} sem motorista`}
+          value={count(indicators?.withDriver)}
+          period={indicators ? `${number.format(indicators.withoutDriver)} sem motorista` : undefined}
           icon={<UserRound />}
         />
         <KpiCard
           label="Com liderança"
-          value={number.format(indicators?.withLeader ?? 0)}
+          value={count(indicators?.withLeader)}
           status={withoutLeader > 0 ? "warning" : undefined}
-          period={`${number.format(withoutLeader)} sem liderança`}
+          period={indicators ? `${number.format(withoutLeader)} sem liderança` : undefined}
           icon={<UserCog />}
         />
         <KpiCard
           label="Com substituição no período"
-          value={number.format(indicators?.withVehicleSwapInPeriod ?? 0)}
+          value={count(indicators?.withVehicleSwapInPeriod)}
           period={formatCompetence(competence)}
           icon={<ArrowLeftRight />}
         />

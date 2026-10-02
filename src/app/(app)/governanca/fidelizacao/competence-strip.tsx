@@ -104,7 +104,8 @@ export function CompetenceStrip({ summary, fallbackLabel }: CompetenceStripProps
           </div>
         </div>
 
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4 lg:shrink-0 xl:w-[38rem]">
+        {/* A última coluna (data e hora) é mais larga: "30/09/2026 16:42" numa linha só. */}
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-[repeat(3,minmax(0,1fr))_minmax(9.5rem,1.3fr)] lg:shrink-0 xl:w-[38rem]">
           <Fact label="Placas fidelizadas" value={summary ? number.format(summary.counts.plates) : "—"} />
           {/* 2024 não tem BR: "—", não zero. */}
           <Fact

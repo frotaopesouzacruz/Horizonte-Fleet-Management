@@ -214,7 +214,7 @@ export function CityPlanner({
             <section
               key={operation.id}
               aria-labelledby={`op-${operation.id}`}
-              className="overflow-hidden rounded-md border border-border bg-surface"
+              className="overflow-hidden rounded-lg border border-border bg-surface-raised shadow-card"
             >
               <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
                 <h3 id={`op-${operation.id}`} className="text-body font-semibold text-fg">
@@ -233,7 +233,7 @@ export function CityPlanner({
                 </span>
               </header>
 
-              <ul className="divide-y divide-border">
+              <ul className="divide-y divide-border-subtle">
                 {operation.cities.map((city) => {
                   const current = leaderAt(city, day);
                   const others = city.leaders.filter((l) => l.id !== current?.id);
@@ -249,7 +249,7 @@ export function CityPlanner({
                       <div className="flex min-w-[10rem] flex-1 items-start gap-2 pt-1.5 sm:max-w-[16rem]">
                         <MapPin aria-hidden className="mt-0.5 size-4 shrink-0 text-fg-muted" />
                         <div className="min-w-0">
-                          <p className="truncate font-medium text-fg">{city.cityName}</p>
+                          <p className="break-words text-body font-medium text-fg">{city.cityName}</p>
                           <p className="text-caption text-fg-muted">{city.uf}</p>
                         </div>
                       </div>

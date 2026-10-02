@@ -109,7 +109,9 @@ export function StabilityDashboard({
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {/* Três razões: 3 colunas a partir de lg; em 2 colunas a terceira
+              ocupa a linha inteira em vez de ficar órfã. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <KpiCard
               label="Estabilidade da frota"
               value={formatPct(stability.fleetStabilityPct)}
@@ -129,6 +131,7 @@ export function StabilityDashboard({
               icon={<UserRound />}
             />
             <KpiCard
+              className="sm:col-span-2 lg:col-span-1"
               label="Cobertura de lideranças"
               value={formatPct(stability.leadershipCoveragePct)}
               status={stabilityStatus(stability.leadershipCoveragePct)}
@@ -184,7 +187,8 @@ export function StabilityDashboard({
               description="As mesmas contas, abertas por operação, por local, por liderança vigente na data-âncora, por estado e por tipo de equipamento."
             />
             <CardContent>
-              <Tabs defaultValue="operacao">
+              {/* Alternância de recorte dentro do cartão: abas segmentadas (UI 2.0). */}
+              <Tabs defaultValue="operacao" appearance="segmented">
                 <TabsList>
                   <TabsTrigger value="operacao">Por operação</TabsTrigger>
                   <TabsTrigger value="local">Por local</TabsTrigger>
@@ -249,9 +253,9 @@ function BreakdownTable({ rows, firstColumn }: { rows: StabilityBreakdownRow[]; 
             rows.map((row) => (
               <TableRow key={row.key}>
                 <TableCell>
-                  <span className="block truncate font-medium text-fg">{row.label}</span>
+                  <span className="block break-words font-medium text-fg">{row.label}</span>
                   {row.sublabel ? (
-                    <span className="block truncate text-caption text-fg-muted">{row.sublabel}</span>
+                    <span className="block break-words text-caption text-fg-muted">{row.sublabel}</span>
                   ) : null}
                 </TableCell>
                 <TableCell numeric>{number.format(row.brs)}</TableCell>

@@ -5,6 +5,7 @@ import { ChevronRight, MapPin, Network, Truck, UserRound } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/feedback/empty-state";
 import type { HierarchyOperation } from "@/lib/governance/queries";
 
 const number = new Intl.NumberFormat("pt-BR");
@@ -23,11 +24,12 @@ export function HierarchyPanel({ operations }: { operations: HierarchyOperation[
 
   if (operations.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-10 text-center text-body-sm text-fg-muted">
-          Nenhuma posição operacional cadastrada no seu escopo.
-        </CardContent>
-      </Card>
+      <EmptyState
+        variant="panel"
+        size="sm"
+        icon={<Network />}
+        title="Nenhuma posição operacional cadastrada no seu escopo"
+      />
     );
   }
 
@@ -43,7 +45,7 @@ export function HierarchyPanel({ operations }: { operations: HierarchyOperation[
                 type="button"
                 onClick={() => toggle(opKey)}
                 aria-expanded={opOpen}
-                className="flex w-full items-center gap-2 px-4 py-3 text-left hfm-focus-ring hover:bg-surface-secondary"
+                className="flex w-full items-center gap-2 px-4 py-3 text-left hfm-transition hfm-focus-ring hover:bg-hover-overlay"
               >
                 <ChevronRight
                   aria-hidden
@@ -91,7 +93,7 @@ export function HierarchyPanel({ operations }: { operations: HierarchyOperation[
                               type="button"
                               onClick={() => toggle(cityKey)}
                               aria-expanded={cityOpen}
-                              className="flex w-full items-center gap-2 px-4 py-2 pl-8 text-left hfm-focus-ring hover:bg-surface-secondary"
+                              className="flex w-full items-center gap-2 px-4 py-2 pl-8 text-left hfm-transition hfm-focus-ring hover:bg-hover-overlay"
                             >
                               <ChevronRight
                                 aria-hidden

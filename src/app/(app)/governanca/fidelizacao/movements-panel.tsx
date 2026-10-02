@@ -218,105 +218,107 @@ export function MovementsPanel({
           description="Cada troca de veículo ou motorista numa BR é um evento imutável, com a liderança vigente na data, a origem e quem registrou. Correções entram como novos eventos — nenhum é editado."
         />
         <CardContent className="flex flex-col gap-3">
-          <div
-            className={cn(
-              "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3",
-              withLeaders ? "lg:grid-cols-4 2xl:grid-cols-7" : "2xl:grid-cols-6",
-            )}
-          >
-            <FilterField id="mov-de" label="De">
-              <DateInput
-                id="mov-de"
-                size="sm"
-                value={filters.dateFrom ?? ""}
-                max={filters.dateTo || undefined}
-                disabled={pending}
-                onChange={(e) => setFilter({ mov_de: e.target.value || null })}
-              />
-            </FilterField>
-            <FilterField id="mov-ate" label="Até">
-              <DateInput
-                id="mov-ate"
-                size="sm"
-                value={filters.dateTo ?? ""}
-                min={filters.dateFrom || undefined}
-                disabled={pending}
-                onChange={(e) => setFilter({ mov_ate: e.target.value || null })}
-              />
-            </FilterField>
-            <FilterField id="mov-tipo" label="Tipo de movimentação">
-              <NativeSelect
-                id="mov-tipo"
-                fieldSize="sm"
-                value={activeType}
-                disabled={pending}
-                onChange={(e) => setFilter({ mov_tipo: e.target.value || null })}
-              >
-                <option value="">Todos os tipos</option>
-                {TYPE_GROUPS.map((group) => (
-                  <optgroup key={group.subject} label={group.label}>
-                    {TYPE_ORDER.filter((t) => MOVEMENT_TYPE_META[t].subject === group.subject).map((t) => (
-                      <option key={t} value={t}>
-                        {MOVEMENT_TYPE_META[t].label}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </NativeSelect>
-            </FilterField>
-            <FilterField id="mov-assunto" label="Assunto">
-              <NativeSelect
-                id="mov-assunto"
-                fieldSize="sm"
-                value={filters.subject ?? ""}
-                disabled={pending}
-                onChange={(e) => setFilter({ mov_assunto: e.target.value || null })}
-              >
-                <option value="">Veículo e motorista</option>
-                <option value="vehicle">Veículo</option>
-                <option value="driver">Motorista</option>
-              </NativeSelect>
-            </FilterField>
-            <FilterField id="mov-veiculo" label="Placa ou frota">
-              <CommitSearch
-                key={`veiculo-${filters.vehicle ?? ""}`}
-                id="mov-veiculo"
-                label="Placa ou frota"
-                placeholder="Ex.: FR-0142 ou SNO1J56"
-                value={filters.vehicle ?? ""}
-                disabled={pending}
-                onCommit={(v) => setFilter({ mov_veiculo: v })}
-              />
-            </FilterField>
-            <FilterField id="mov-motorista" label="Motorista">
-              <CommitSearch
-                key={`motorista-${filters.driver ?? ""}`}
-                id="mov-motorista"
-                label="Motorista"
-                placeholder="Nome ou matrícula"
-                value={filters.driver ?? ""}
-                disabled={pending}
-                onCommit={(v) => setFilter({ mov_motorista: v })}
-              />
-            </FilterField>
-            {withLeaders ? (
-              <FilterField id="mov-lideranca" label="Liderança na data">
-                <NativeSelect
-                  id="mov-lideranca"
-                  fieldSize="sm"
-                  value={leaderEmployeeId ?? ""}
+          {/* Duas linhas cheias (UI 2.0): quando e o quê na primeira; placa,
+              motorista e liderança na segunda. Os campos crescem juntos e só
+              quebram quando não cabem. */}
+          <div className="flex flex-col gap-y-2.5">
+            <div className="flex flex-wrap items-end gap-x-3 gap-y-2.5">
+              <FilterField id="mov-de" label="De" className="flex-[1_1_8.5rem]">
+                <DateInput
+                  id="mov-de"
+                  size="sm"
+                  value={filters.dateFrom ?? ""}
+                  max={filters.dateTo || undefined}
                   disabled={pending}
-                  onChange={(e) => setFilter({ lideranca: e.target.value || null })}
+                  onChange={(e) => setFilter({ mov_de: e.target.value || null })}
+                />
+              </FilterField>
+              <FilterField id="mov-ate" label="Até" className="flex-[1_1_8.5rem]">
+                <DateInput
+                  id="mov-ate"
+                  size="sm"
+                  value={filters.dateTo ?? ""}
+                  min={filters.dateFrom || undefined}
+                  disabled={pending}
+                  onChange={(e) => setFilter({ mov_ate: e.target.value || null })}
+                />
+              </FilterField>
+              <FilterField id="mov-tipo" label="Tipo de movimentação" className="flex-[1.4_1_11rem]">
+                <NativeSelect
+                  id="mov-tipo"
+                  fieldSize="sm"
+                  value={activeType}
+                  disabled={pending}
+                  onChange={(e) => setFilter({ mov_tipo: e.target.value || null })}
                 >
-                  <option value="">Todas as lideranças</option>
-                  {leaders?.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.name}
-                    </option>
+                  <option value="">Todos os tipos</option>
+                  {TYPE_GROUPS.map((group) => (
+                    <optgroup key={group.subject} label={group.label}>
+                      {TYPE_ORDER.filter((t) => MOVEMENT_TYPE_META[t].subject === group.subject).map((t) => (
+                        <option key={t} value={t}>
+                          {MOVEMENT_TYPE_META[t].label}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </NativeSelect>
               </FilterField>
-            ) : null}
+              <FilterField id="mov-assunto" label="Assunto" className="flex-[1.2_1_9rem]">
+                <NativeSelect
+                  id="mov-assunto"
+                  fieldSize="sm"
+                  value={filters.subject ?? ""}
+                  disabled={pending}
+                  onChange={(e) => setFilter({ mov_assunto: e.target.value || null })}
+                >
+                  <option value="">Veículo e motorista</option>
+                  <option value="vehicle">Veículo</option>
+                  <option value="driver">Motorista</option>
+                </NativeSelect>
+              </FilterField>
+            </div>
+            <div className="flex flex-wrap items-end gap-x-3 gap-y-2.5">
+              <FilterField id="mov-veiculo" label="Placa ou frota" className="flex-[1_1_10rem]">
+                <CommitSearch
+                  key={`veiculo-${filters.vehicle ?? ""}`}
+                  id="mov-veiculo"
+                  label="Placa ou frota"
+                  placeholder="Ex.: FR-0142 ou SNO1J56"
+                  value={filters.vehicle ?? ""}
+                  disabled={pending}
+                  onCommit={(v) => setFilter({ mov_veiculo: v })}
+                />
+              </FilterField>
+              <FilterField id="mov-motorista" label="Motorista" className="flex-[1_1_10rem]">
+                <CommitSearch
+                  key={`motorista-${filters.driver ?? ""}`}
+                  id="mov-motorista"
+                  label="Motorista"
+                  placeholder="Nome ou matrícula"
+                  value={filters.driver ?? ""}
+                  disabled={pending}
+                  onCommit={(v) => setFilter({ mov_motorista: v })}
+                />
+              </FilterField>
+              {withLeaders ? (
+                <FilterField id="mov-lideranca" label="Liderança na data" className="flex-[1.2_1_11rem]">
+                  <NativeSelect
+                    id="mov-lideranca"
+                    fieldSize="sm"
+                    value={leaderEmployeeId ?? ""}
+                    disabled={pending}
+                    onChange={(e) => setFilter({ lideranca: e.target.value || null })}
+                  >
+                    <option value="">Todas as lideranças</option>
+                    {leaders?.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </FilterField>
+              ) : null}
+            </div>
           </div>
 
           <div className="flex flex-wrap items-start justify-between gap-2">
@@ -398,9 +400,11 @@ export function MovementsPanel({
 
 /* ---------------------------------------------------------------- filtros */
 
-function FilterField({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
+function FilterField({
+  id, label, className, children,
+}: { id: string; label: string; className?: string; children: React.ReactNode }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1">
+    <div className={cn("flex min-w-0 flex-col gap-1", className)}>
       <label htmlFor={id} className="text-caption text-fg-muted">
         {label}
       </label>
@@ -573,22 +577,22 @@ function MovementsResults({
                     {mark ? <LinkStripe mark={mark} /> : null}
                     {formatDate(row.effectiveDate)}
                   </TableCell>
-                  <TableCell className="min-w-[9rem] py-2.5 align-top">
+                  <TableCell className="min-w-[9.75rem] py-2.5 align-top">
                     <Position row={row} withLeader />
                   </TableCell>
-                  <TableCell className="min-w-[9rem] py-2.5 align-top">
+                  <TableCell className="w-[9.5rem] min-w-[9.5rem] py-2.5 align-top">
                     <TypeCell row={row} mark={mark} wrap />
                   </TableCell>
-                  <TableCell className="py-2.5 align-top">
+                  <TableCell className="min-w-[10rem] py-2.5 align-top">
                     <VehicleChange row={row} />
                   </TableCell>
                   <TableCell className="min-w-[8rem] py-2.5 align-top">
                     <DriverChange row={row} />
                   </TableCell>
-                  <TableCell className="min-w-[9rem] py-2.5 align-top">
+                  <TableCell className="min-w-[8rem] py-2.5 align-top">
                     <Reason row={row} />
                   </TableCell>
-                  <TableCell className="py-2.5 align-top">
+                  <TableCell className="min-w-[9rem] py-2.5 align-top">
                     <Origin row={row} withRecordedAt />
                   </TableCell>
                 </TableRow>
@@ -606,7 +610,7 @@ function MovementsResults({
             <li
               key={row.id}
               data-correlation={mark ? row.correlationKey : undefined}
-              className="relative overflow-hidden rounded-md border border-border bg-surface p-3 pl-4"
+              className="relative overflow-hidden rounded-lg border border-border bg-surface-raised p-3 pl-4 shadow-card"
             >
               {mark ? <LinkStripe mark={mark} /> : null}
               <div className="flex flex-wrap items-start justify-between gap-2">

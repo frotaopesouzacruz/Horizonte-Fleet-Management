@@ -162,8 +162,8 @@ export function ImportPanel({ history, canImport, brsModuleHref, onOpenImport }:
                       return (
                         <React.Fragment key={batch.id}>
                           <TableRow className={cn("h-auto", hasErrors && "border-b-0")}>
-                            <TableCell className="py-2.5 align-top">
-                              <span className="block font-medium break-all text-fg">
+                            <TableCell className="min-w-[12rem] py-2.5 align-top">
+                              <span className="block font-medium break-words text-fg">
                                 {batch.fileName || "Arquivo sem nome"}
                               </span>
                               <span className="mt-1 flex">
@@ -217,10 +217,10 @@ export function ImportPanel({ history, canImport, brsModuleHref, onOpenImport }:
                   const status = statusOf(batch.status);
                   const hasErrors = batch.errors.length > 0 || Boolean(batch.errorMessage);
                   return (
-                    <li key={batch.id} className="rounded-md border border-border bg-surface p-3">
+                    <li key={batch.id} className="rounded-lg border border-border bg-surface-raised p-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="break-all font-medium text-fg">{batch.fileName || "Arquivo sem nome"}</p>
+                          <p className="break-words font-medium text-fg">{batch.fileName || "Arquivo sem nome"}</p>
                           <p className="text-caption text-fg-muted">
                             {formatDateTime(batch.createdAt)} · {batch.createdByName ?? "—"}
                           </p>

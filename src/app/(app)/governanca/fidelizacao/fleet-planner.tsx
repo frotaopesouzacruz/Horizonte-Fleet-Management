@@ -47,6 +47,9 @@ const STATUS_STYLE: Record<PlannerSegment["status"], { bar: string; text: string
 
 const WEEKDAY_NAMES = ["", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo"];
 
+/** Rótulo de filtro da barra (UI 2.0): `text-caption` acima do controle. */
+const FILTER_LABEL = "text-caption font-normal text-fg-muted";
+
 const OPEN_END = "9999-12-31";
 const number = new Intl.NumberFormat("pt-BR");
 
@@ -294,12 +297,15 @@ export function FleetPlanner({
   return (
     <div className="flex min-w-0 flex-col gap-4">
       {/* ------------------------------------------------------------ filtros */}
+      {/* Cartão de ferramentas (UI 2.0). Cinco campos e a ação numa grade sem
+          órfãos: 3 + 3 a 1366 (a ação ocupa a última célula, à direita), seis
+          lado a lado a partir de 2xl; os campos ocupam a célula inteira. */}
       <div
         role="search"
         aria-label="Filtros do planner de frotas"
-        className="flex flex-wrap items-end gap-x-3 gap-y-3"
+        className="grid grid-cols-1 items-end gap-x-3 gap-y-2.5 rounded-xl border border-border bg-surface-toolbar px-3 py-3 shadow-card sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-[repeat(5,minmax(0,1fr))_auto]"
       >
-        <FormField label="Busca BR/descrição" className="w-full sm:w-60">
+        <FormField label="Busca BR/descrição" className="gap-1" labelClassName={FILTER_LABEL}>
           <SearchField
             size="sm"
             value={q}
@@ -315,7 +321,7 @@ export function FleetPlanner({
           />
         </FormField>
 
-        <FormField label="Liderança" className="w-full sm:w-56">
+        <FormField label="Liderança" className="gap-1" labelClassName={FILTER_LABEL}>
           <NativeSelect
             fieldSize="sm"
             value={filters.leaderEmployeeId ?? ""}
@@ -328,7 +334,7 @@ export function FleetPlanner({
           </NativeSelect>
         </FormField>
 
-        <FormField label="Placa ou frota" className="w-full sm:w-44">
+        <FormField label="Placa ou frota" className="gap-1" labelClassName={FILTER_LABEL}>
           <SearchField
             size="sm"
             value={vehicleText}
@@ -345,7 +351,7 @@ export function FleetPlanner({
           />
         </FormField>
 
-        <FormField label="Tipo de equipamento" className="w-full sm:w-48">
+        <FormField label="Tipo de equipamento" className="gap-1" labelClassName={FILTER_LABEL}>
           <NativeSelect
             fieldSize="sm"
             value={filters.vehicleTypeId ?? ""}
@@ -358,7 +364,7 @@ export function FleetPlanner({
           </NativeSelect>
         </FormField>
 
-        <FormField label="Situação da alocação" className="w-full sm:w-56">
+        <FormField label="Situação da alocação" className="gap-1" labelClassName={FILTER_LABEL}>
           <NativeSelect
             fieldSize="sm"
             value={filters.situation ?? ""}
@@ -371,15 +377,17 @@ export function FleetPlanner({
           </NativeSelect>
         </FormField>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          leadingIcon={<FilterX />}
-          disabled={!hasFilters && !q && !vehicleText}
-          onClick={clearFilters}
-        >
-          Limpar filtros
-        </Button>
+        <div className="flex items-end justify-end gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            leadingIcon={<FilterX />}
+            disabled={!hasFilters && !q && !vehicleText}
+            onClick={clearFilters}
+          >
+            Limpar filtros
+          </Button>
+        </div>
       </div>
 
       {/* ------------------------------------------------- resumo e legenda */}
@@ -599,7 +607,7 @@ function PlannerLegend() {
   return (
     <ul
       aria-label="Legenda do grid"
-      className="hidden flex-wrap items-center gap-x-4 gap-y-1.5 text-caption text-fg-secondary md:flex"
+      className="hidden flex-wrap items-center gap-x-3 gap-y-1.5 text-caption text-fg-secondary md:flex"
     >
       {(["planned", "confirmed", "executed"] as const).map((key) => (
         <li key={key} className="flex items-center gap-1.5">

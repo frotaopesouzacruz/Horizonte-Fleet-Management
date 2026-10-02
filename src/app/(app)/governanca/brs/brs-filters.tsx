@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { cn } from "@/lib/cn";
 import { FilterBar } from "@/components/ui/filter-bar";
 import { SearchField } from "@/components/ui/search-field";
 import { CompetencePicker } from "@/components/governance/competence-picker";
@@ -20,9 +21,14 @@ export interface BrsFiltersProps {
   onNavigate: (patch: Record<string, string | null>) => void;
 }
 
-function Labeled({ label, children }: { label: string; children: React.ReactNode }) {
+/**
+ * Campo rotulado da barra (UI 2.0): rótulo `text-caption` acima e controle
+ * `w-full`; a base e o crescimento vêm de `className`, para os campos de uma
+ * linha crescerem juntos e só quebrarem quando não cabem.
+ */
+function Labeled({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className={cn("flex min-w-0 flex-col gap-1", className)}>
       <span className="text-caption text-fg-muted">{label}</span>
       {children}
     </div>
@@ -34,8 +40,11 @@ function Labeled({ label, children }: { label: string; children: React.ReactNode
  * → cidade encadeado pela cobertura, e os filtros de ocupação. Todos vivem na
  * URL — o componente só traduz o controle para o par que a página entende.
  *
- * A competência fica sozinha na primeira linha — ela muda o que "atual" quer
- * dizer em todas as colunas —, e os demais filtros se alinham logo abaixo.
+ * Duas linhas cheias (UI 2.0): na primeira, a competência — que muda o que
+ * "atual" quer dizer em todas as colunas — com o recorte de ocupação resolvido
+ * nela (situação, veículo, motorista, substituição); na segunda, a busca e o
+ * recorte de lugar e pessoa, alinhados logo abaixo da competência. A
+ * competência tem largura fixa; os demais campos crescem juntos.
  */
 export function BrsFilters({
   competence, filters, operations, coverage, leaders, pending, onNavigate,
@@ -65,19 +74,75 @@ export function BrsFilters({
   }, [coverage, filters.stateId, filters.operationId]);
 
   return (
-    <FilterBar label="Filtros das posições operacionais" className="flex-col flex-nowrap items-stretch gap-3">
-      <div className="flex flex-wrap items-end gap-3">
-        <Labeled label="Competência">
+    <FilterBar label="Filtros das posições operacionais" className="flex-col flex-nowrap items-stretch gap-y-2.5">
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-2.5">
+        <Labeled label="Competência" className="shrink-0">
           <CompetencePicker
             value={competence}
             onChange={(v) => onNavigate({ ano: String(v.year), mes: String(v.month) })}
             disabled={pending}
           />
         </Labeled>
+
+        <Labeled label="Situação" className="flex-[0.8_1_7rem]">
+          <NativeSelect
+            fieldSize="sm"
+            aria-label="Filtrar por situação da BR"
+            value={filters.status ?? ""}
+            onChange={(e) => onNavigate({ situacao: e.target.value || null })}
+            className="w-full"
+          >
+            <option value="">Todas</option>
+            <option value="active">Ativas</option>
+            <option value="inactive">Inativas</option>
+          </NativeSelect>
+        </Labeled>
+
+        <Labeled label="Veículo" className="flex-[1_1_8.5rem]">
+          <NativeSelect
+            fieldSize="sm"
+            aria-label="Filtrar por ocupação de veículo"
+            value={filters.vehicle ?? ""}
+            onChange={(e) => onNavigate({ veiculo: e.target.value || null })}
+            className="w-full"
+          >
+            <option value="">Com e sem</option>
+            <option value="with">Com veículo</option>
+            <option value="without">Sem veículo</option>
+          </NativeSelect>
+        </Labeled>
+
+        <Labeled label="Motorista" className="flex-[1_1_8.5rem]">
+          <NativeSelect
+            fieldSize="sm"
+            aria-label="Filtrar por motorista vinculado"
+            value={filters.driver ?? ""}
+            onChange={(e) => onNavigate({ motorista: e.target.value || null })}
+            className="w-full"
+          >
+            <option value="">Com e sem</option>
+            <option value="with">Com motorista</option>
+            <option value="without">Sem motorista</option>
+          </NativeSelect>
+        </Labeled>
+
+        <Labeled label="Substituição no período" className="flex-[1.2_1_10rem]">
+          <NativeSelect
+            fieldSize="sm"
+            aria-label="Filtrar por substituição de veículo no período"
+            value={filters.swapped ?? ""}
+            onChange={(e) => onNavigate({ substituicao: e.target.value || null })}
+            className="w-full"
+          >
+            <option value="">Com e sem</option>
+            <option value="with">Com substituição</option>
+            <option value="without">Sem substituição</option>
+          </NativeSelect>
+        </Labeled>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <Labeled label="Busca">
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-2.5">
+        <Labeled label="Busca" className="flex-[1.3_1_13.5rem]">
           {/* Busca no Enter, não a cada tecla: cada navegação é uma consulta ao
               servidor, e "BR0024901" viraria nove consultas descartadas. */}
           <SearchField
@@ -92,17 +157,16 @@ export function BrsFilters({
             }}
             onClear={() => onNavigate({ q: null })}
             size="sm"
-            className="w-full sm:w-56"
           />
         </Labeled>
 
-        <Labeled label="Operação">
+        <Labeled label="Operação" className="flex-[1.2_1_11rem]">
           <NativeSelect
             fieldSize="sm"
             aria-label="Filtrar por operação"
             value={filters.operationId ?? ""}
             onChange={(e) => onNavigate({ operacao: e.target.value || null, uf: null, cidade: null })}
-            className="min-w-[12rem]"
+            className="w-full"
           >
             <option value="">Todas as operações</option>
             {operations.map((o) => (
@@ -111,13 +175,13 @@ export function BrsFilters({
           </NativeSelect>
         </Labeled>
 
-        <Labeled label="Estado">
+        <Labeled label="Estado" className="flex-[0.6_1_6rem]">
           <NativeSelect
             fieldSize="sm"
             aria-label="Filtrar por estado"
             value={filters.stateId ?? ""}
             onChange={(e) => onNavigate({ uf: e.target.value || null, cidade: null })}
-            className="min-w-[7rem]"
+            className="w-full"
           >
             <option value="">Todos</option>
             {statesOfOperation.map((s) => (
@@ -126,14 +190,14 @@ export function BrsFilters({
           </NativeSelect>
         </Labeled>
 
-        <Labeled label="Cidade">
+        <Labeled label="Cidade" className="flex-[1_1_11rem]">
           <NativeSelect
             fieldSize="sm"
             aria-label="Filtrar por cidade"
             value={filters.cityId ?? ""}
             disabled={!filters.stateId}
             onChange={(e) => onNavigate({ cidade: e.target.value || null })}
-            className="min-w-[11rem]"
+            className="w-full"
           >
             <option value="">{filters.stateId ? "Todas" : "Escolha o estado"}</option>
             {citiesOfState.map((c) => (
@@ -142,70 +206,18 @@ export function BrsFilters({
           </NativeSelect>
         </Labeled>
 
-        <Labeled label="Liderança">
+        <Labeled label="Liderança" className="flex-[1.2_1_11rem]">
           <NativeSelect
             fieldSize="sm"
             aria-label="Filtrar por liderança"
             value={filters.leaderEmployeeId ?? ""}
             onChange={(e) => onNavigate({ lideranca: e.target.value || null })}
-            className="min-w-[12rem]"
+            className="w-full"
           >
             <option value="">Todas</option>
             {leaders.map((l) => (
               <option key={l.id} value={l.id}>{l.name}</option>
             ))}
-          </NativeSelect>
-        </Labeled>
-
-        <Labeled label="Situação">
-          <NativeSelect
-            fieldSize="sm"
-            aria-label="Filtrar por situação da BR"
-            value={filters.status ?? ""}
-            onChange={(e) => onNavigate({ situacao: e.target.value || null })}
-          >
-            <option value="">Todas</option>
-            <option value="active">Ativas</option>
-            <option value="inactive">Inativas</option>
-          </NativeSelect>
-        </Labeled>
-
-        <Labeled label="Veículo">
-          <NativeSelect
-            fieldSize="sm"
-            aria-label="Filtrar por ocupação de veículo"
-            value={filters.vehicle ?? ""}
-            onChange={(e) => onNavigate({ veiculo: e.target.value || null })}
-          >
-            <option value="">Com e sem</option>
-            <option value="with">Com veículo</option>
-            <option value="without">Sem veículo</option>
-          </NativeSelect>
-        </Labeled>
-
-        <Labeled label="Motorista">
-          <NativeSelect
-            fieldSize="sm"
-            aria-label="Filtrar por motorista vinculado"
-            value={filters.driver ?? ""}
-            onChange={(e) => onNavigate({ motorista: e.target.value || null })}
-          >
-            <option value="">Com e sem</option>
-            <option value="with">Com motorista</option>
-            <option value="without">Sem motorista</option>
-          </NativeSelect>
-        </Labeled>
-
-        <Labeled label="Substituição no período">
-          <NativeSelect
-            fieldSize="sm"
-            aria-label="Filtrar por substituição de veículo no período"
-            value={filters.swapped ?? ""}
-            onChange={(e) => onNavigate({ substituicao: e.target.value || null })}
-          >
-            <option value="">Com e sem</option>
-            <option value="with">Com substituição</option>
-            <option value="without">Sem substituição</option>
           </NativeSelect>
         </Labeled>
       </div>
