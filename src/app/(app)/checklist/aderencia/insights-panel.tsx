@@ -5,7 +5,7 @@ import {
   ArrowDownRight, ArrowUpRight, CalendarClock, Info, Lightbulb, MapPin, Target, TriangleAlert, Trophy, type LucideIcon,
 } from "lucide-react";
 import { SectionHeader } from "@/components/layout/section-header";
-import { cn } from "@/lib/cn";
+import { InsightCard } from "@/components/feedback/insight-card";
 import type { AdherenceGroup, AdherenceInsights } from "@/lib/adherence/queries";
 import { formatInt, formatPct } from "./status";
 import { pctTone } from "./consolidated-panel";
@@ -18,19 +18,6 @@ interface Insight {
   icon: LucideIcon;
   text: string;
 }
-
-const TONE_ICON_CLASS: Record<Tone, string> = {
-  info: "bg-info-soft text-info-soft-fg",
-  warning: "bg-warning-soft text-warning-soft-fg",
-  success: "bg-success-soft text-success-soft-fg",
-};
-
-/** Linha de acento à esquerda do cartão de leitura: o tom sem pintar o texto. */
-const TONE_ACCENT: Record<Tone, string> = {
-  info: "before:bg-info",
-  warning: "before:bg-warning",
-  success: "before:bg-success",
-};
 
 const pts = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const signedPts = (v: number) => `${v > 0 ? "+" : ""}${pts.format(v)} pontos`;
@@ -181,19 +168,10 @@ export function InsightsPanel({ insights }: InsightsPanelProps) {
           {sorted.map((item) => {
             const Icon = item.icon;
             return (
-              <li
-                key={item.key}
-                data-tone={item.tone}
-                className={cn(
-                  "relative flex items-start gap-3 overflow-hidden rounded-lg border border-border bg-surface-raised p-3.5 pl-4 shadow-card",
-                  "before:absolute before:inset-y-0 before:left-0 before:w-0.5",
-                  TONE_ACCENT[item.tone],
-                )}
-              >
-                <span className={cn("inline-flex size-7 shrink-0 items-center justify-center rounded-md", TONE_ICON_CLASS[item.tone])}>
-                  <Icon className="size-4" aria-hidden />
-                </span>
-                <p className="text-body-sm text-fg">{item.text}</p>
+              <li key={item.key} data-tone={item.tone} className="flex">
+                <InsightCard compact tone={item.tone} icon={<Icon aria-hidden />} className="flex-1">
+                  {item.text}
+                </InsightCard>
               </li>
             );
           })}

@@ -96,7 +96,7 @@ export function MaintenanceFilterBar({
   };
 
   return (
-    <FilterBar className="items-end gap-3">
+    <FilterBar className="items-end gap-x-3 gap-y-2.5">
       {showPeriod ? (
         <div className="flex flex-col gap-1">
           <span className="text-caption text-fg-muted">Período (referência)</span>
@@ -122,14 +122,14 @@ export function MaintenanceFilterBar({
         </div>
       ) : null}
 
-      <Field label="Operação">
+      <Field label="Operação" className="flex-[1.2_1_9rem]">
         <NativeSelect
           fieldSize="sm"
           aria-label="Filtrar por operação"
           value={filters.operation ?? ""}
           disabled={pending}
           onChange={(e) => set("operation", e.target.value || null, { [P.state]: null, [P.city]: null })}
-          className="min-w-[11rem]"
+          className="w-full"
         >
           <option value="">Todas</option>
           {options.operations.map((o) => (
@@ -138,14 +138,14 @@ export function MaintenanceFilterBar({
         </NativeSelect>
       </Field>
 
-      <Field label="UF">
+      <Field label="UF" className="flex-[0_0_5.75rem]">
         <NativeSelect
           fieldSize="sm"
           aria-label="Filtrar por estado"
           value={filters.state ?? ""}
           disabled={pending}
           onChange={(e) => set("state", e.target.value || null, { [P.city]: null })}
-          className="min-w-[5.5rem]"
+          className="w-full"
         >
           <option value="">Todas</option>
           {states.map((s) => (
@@ -154,14 +154,14 @@ export function MaintenanceFilterBar({
         </NativeSelect>
       </Field>
 
-      <Field label="Cidade">
+      <Field label="Cidade" className="flex-[1_1_8rem]">
         <NativeSelect
           fieldSize="sm"
           aria-label="Filtrar por cidade"
           value={filters.city ?? ""}
           disabled={pending || !filters.state}
           onChange={(e) => set("city", e.target.value || null)}
-          className="min-w-[10rem]"
+          className="w-full"
         >
           <option value="">{filters.state ? "Todas" : "Escolha a UF"}</option>
           {cities.map((c) => (
@@ -170,14 +170,14 @@ export function MaintenanceFilterBar({
         </NativeSelect>
       </Field>
 
-      <Field label="Tipo">
+      <Field label="Tipo" className="flex-[1_1_8rem]">
         <NativeSelect
           fieldSize="sm"
           aria-label="Filtrar por tipo de manutenção"
           value={filters.type ?? ""}
           disabled={pending}
           onChange={(e) => set("type", e.target.value || null)}
-          className="min-w-[8.5rem]"
+          className="w-full"
         >
           <option value="">Todos</option>
           {catalog.types.map((t) => (
@@ -187,14 +187,14 @@ export function MaintenanceFilterBar({
       </Field>
 
       {showStatus ? (
-        <Field label="Situação">
+        <Field label="Situação" className="flex-[1_1_8rem]">
           <NativeSelect
             fieldSize="sm"
             aria-label="Filtrar por situação"
             value={filters.status ?? ""}
             disabled={pending}
             onChange={(e) => set("status", e.target.value || null)}
-            className="min-w-[9rem]"
+            className="w-full"
           >
             <option value="">Todas</option>
             {Object.entries(STATUS_LABEL).map(([code, label]) => (
@@ -204,7 +204,7 @@ export function MaintenanceFilterBar({
         </Field>
       ) : null}
 
-      <Field label="Veículo, código ou OS" className="min-w-[12rem] flex-1 sm:max-w-[16rem]">
+      <Field label="Veículo, código ou OS" className="flex-[1.4_1_11rem]">
         <SearchField
           size="sm"
           aria-label="Buscar por placa, frota, código da manutenção ou OS"

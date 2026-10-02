@@ -278,20 +278,23 @@ export const KpiCard = React.forwardRef<HTMLElement, KpiCardProps>(function KpiC
       </header>
 
       <div className="flex min-w-0 items-end justify-between gap-3">
-        <p className="flex min-w-0 items-baseline gap-1.5">
+        {/* O número nunca encolhe; a sparkline cede espaço (e é cortada) antes dele. */}
+        <p className="flex shrink-0 items-baseline gap-1.5">
           <span className={cn("font-semibold text-fg tabular-nums", valueSize)}>
             {typeof value === "number" ? valueNumberFormat.format(value) : value}
           </span>
           {unit != null ? <span className="text-body-sm font-medium text-fg-muted">{unit}</span> : null}
         </p>
         {sparkline && sparkline.filter((v) => v != null).length > 1 ? (
-          <Sparkline
-            values={sparkline}
-            domain={sparklineDomain}
-            target={sparklineTarget}
-            color={SPARK_COLOR[resolvedStatus]}
-            className="mb-1"
-          />
+          <div className="flex min-w-0 flex-1 justify-end overflow-hidden">
+            <Sparkline
+              values={sparkline}
+              domain={sparklineDomain}
+              target={sparklineTarget}
+              color={SPARK_COLOR[resolvedStatus]}
+              className="mb-1 shrink-0"
+            />
+          </div>
         ) : null}
       </div>
 

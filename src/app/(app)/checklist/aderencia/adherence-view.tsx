@@ -250,8 +250,8 @@ export function AdherenceView({
           ) : undefined
         }
         filters={
-          <FilterBar className="flex-wrap items-end gap-3">
-            <div className="flex flex-col gap-1">
+          <FilterBar className="flex-wrap items-end gap-x-3 gap-y-2.5">
+            <div className="flex shrink-0 flex-col gap-1">
               <span className="text-caption text-fg-muted">Competência</span>
               <CompetencePicker
                 value={competence}
@@ -259,14 +259,14 @@ export function AdherenceView({
                 disabled={pending}
               />
             </div>
-            <div className="flex flex-col gap-1">
+            <div className="flex min-w-0 flex-[1.2_1_11rem] flex-col gap-1">
               <span className="text-caption text-fg-muted">Operação</span>
               <NativeSelect
                 fieldSize="sm"
                 aria-label="Filtrar por operação"
                 value={filters.operationId ?? ""}
                 onChange={(e) => navigate({ operacao: e.target.value || null, uf: null, cidade: null, br: null, pagina: null })}
-                className="min-w-[12rem]"
+                className="w-full"
               >
                 <option value="">Todas as operações</option>
                 {operations.map((o) => (
@@ -274,14 +274,14 @@ export function AdherenceView({
                 ))}
               </NativeSelect>
             </div>
-            <div className="flex flex-col gap-1">
+            <div className="flex min-w-0 flex-[0.5_1_5.5rem] flex-col gap-1">
               <span className="text-caption text-fg-muted">Estado</span>
               <NativeSelect
                 fieldSize="sm"
                 aria-label="Filtrar por estado"
                 value={filters.stateId ?? ""}
                 onChange={(e) => navigate({ uf: e.target.value || null, cidade: null, pagina: null })}
-                className="min-w-[6.5rem]"
+                className="w-full"
               >
                 <option value="">Todos</option>
                 {statesOfOperation.map((s) => (
@@ -289,7 +289,7 @@ export function AdherenceView({
                 ))}
               </NativeSelect>
             </div>
-            <div className="flex flex-col gap-1">
+            <div className="flex min-w-0 flex-[1_1_9rem] flex-col gap-1">
               <span className="text-caption text-fg-muted">Cidade</span>
               <NativeSelect
                 fieldSize="sm"
@@ -297,7 +297,7 @@ export function AdherenceView({
                 value={filters.cityId ?? ""}
                 disabled={!filters.stateId}
                 onChange={(e) => navigate({ cidade: e.target.value || null, pagina: null })}
-                className="min-w-[10rem]"
+                className="w-full"
               >
                 <option value="">{filters.stateId ? "Todas" : "Escolha o estado"}</option>
                 {citiesOfState.map((c) => (
@@ -305,83 +305,7 @@ export function AdherenceView({
                 ))}
               </NativeSelect>
             </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-caption text-fg-muted">Filial</span>
-              <NativeSelect
-                fieldSize="sm"
-                aria-label="Filtrar por filial"
-                value={filters.branchId ?? ""}
-                onChange={(e) => navigate({ filial: e.target.value || null, pagina: null })}
-                className="min-w-[10rem]"
-              >
-                <option value="">Todas</option>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </NativeSelect>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-caption text-fg-muted">Liderança</span>
-              <NativeSelect
-                fieldSize="sm"
-                aria-label="Filtrar por liderança"
-                value={filters.leaderEmployeeId ?? ""}
-                onChange={(e) => navigate({ lideranca: e.target.value || null, pagina: null })}
-                className="min-w-[11rem]"
-              >
-                <option value="">Todas</option>
-                {leaders.map((l) => (
-                  <option key={l.id} value={l.id}>{l.name}</option>
-                ))}
-              </NativeSelect>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-caption text-fg-muted">Tipo</span>
-              <NativeSelect
-                fieldSize="sm"
-                aria-label="Filtrar por tipo de equipamento"
-                value={filters.vehicleTypeId ?? ""}
-                onChange={(e) => navigate({ tipo: e.target.value || null, pagina: null })}
-                className="min-w-[9rem]"
-              >
-                <option value="">Todos</option>
-                {vehicleTypes.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </NativeSelect>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-caption text-fg-muted">Status</span>
-              <NativeSelect
-                fieldSize="sm"
-                aria-label="Filtrar por status"
-                value={filters.status ?? ""}
-                onChange={(e) => navigate({ situacao: e.target.value || null, pagina: null })}
-                className="min-w-[10rem]"
-              >
-                <option value="">Todos</option>
-                {options.statuses.map((s) => (
-                  <option key={s.code} value={s.code}>{s.label}</option>
-                ))}
-              </NativeSelect>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-caption text-fg-muted">Justificativa</span>
-              <NativeSelect
-                fieldSize="sm"
-                aria-label="Filtrar por situação da justificativa"
-                value={filters.justification ?? ""}
-                onChange={(e) => navigate({ justificativa: e.target.value || null, pagina: null })}
-                className="min-w-[10rem]"
-              >
-                <option value="">Todas</option>
-                <option value="pending">Pendente</option>
-                <option value="approved">Aprovada</option>
-                <option value="rejected">Rejeitada</option>
-                <option value="none">Sem justificativa</option>
-              </NativeSelect>
-            </div>
-            <div className="flex min-w-[12rem] flex-col gap-1">
+            <div className="flex min-w-0 flex-[1.2_1_11rem] flex-col gap-1">
               <span className="text-caption text-fg-muted">Frota ou placa</span>
               <SearchField
                 key={filters.q ?? ""}
@@ -396,6 +320,82 @@ export function AdherenceView({
                 }}
                 onClear={() => navigate({ q: null, pagina: null })}
               />
+            </div>
+            <div className="flex min-w-0 flex-[1_1_9rem] flex-col gap-1">
+              <span className="text-caption text-fg-muted">Filial</span>
+              <NativeSelect
+                fieldSize="sm"
+                aria-label="Filtrar por filial"
+                value={filters.branchId ?? ""}
+                onChange={(e) => navigate({ filial: e.target.value || null, pagina: null })}
+                className="w-full"
+              >
+                <option value="">Todas</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </NativeSelect>
+            </div>
+            <div className="flex min-w-0 flex-[1_1_9rem] flex-col gap-1">
+              <span className="text-caption text-fg-muted">Liderança</span>
+              <NativeSelect
+                fieldSize="sm"
+                aria-label="Filtrar por liderança"
+                value={filters.leaderEmployeeId ?? ""}
+                onChange={(e) => navigate({ lideranca: e.target.value || null, pagina: null })}
+                className="w-full"
+              >
+                <option value="">Todas</option>
+                {leaders.map((l) => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
+              </NativeSelect>
+            </div>
+            <div className="flex min-w-0 flex-[1_1_9rem] flex-col gap-1">
+              <span className="text-caption text-fg-muted">Tipo</span>
+              <NativeSelect
+                fieldSize="sm"
+                aria-label="Filtrar por tipo de equipamento"
+                value={filters.vehicleTypeId ?? ""}
+                onChange={(e) => navigate({ tipo: e.target.value || null, pagina: null })}
+                className="w-full"
+              >
+                <option value="">Todos</option>
+                {vehicleTypes.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </NativeSelect>
+            </div>
+            <div className="flex min-w-0 flex-[1_1_9rem] flex-col gap-1">
+              <span className="text-caption text-fg-muted">Status</span>
+              <NativeSelect
+                fieldSize="sm"
+                aria-label="Filtrar por status"
+                value={filters.status ?? ""}
+                onChange={(e) => navigate({ situacao: e.target.value || null, pagina: null })}
+                className="w-full"
+              >
+                <option value="">Todos</option>
+                {options.statuses.map((s) => (
+                  <option key={s.code} value={s.code}>{s.label}</option>
+                ))}
+              </NativeSelect>
+            </div>
+            <div className="flex min-w-0 flex-[1_1_9rem] flex-col gap-1">
+              <span className="text-caption text-fg-muted">Justificativa</span>
+              <NativeSelect
+                fieldSize="sm"
+                aria-label="Filtrar por situação da justificativa"
+                value={filters.justification ?? ""}
+                onChange={(e) => navigate({ justificativa: e.target.value || null, pagina: null })}
+                className="w-full"
+              >
+                <option value="">Todas</option>
+                <option value="pending">Pendente</option>
+                <option value="approved">Aprovada</option>
+                <option value="rejected">Rejeitada</option>
+                <option value="none">Sem justificativa</option>
+              </NativeSelect>
             </div>
             {activeFilters.length > 0 ? (
               <div className="flex w-full flex-wrap items-center gap-2 border-t border-border-subtle pt-2" aria-label="Filtros ativos">
