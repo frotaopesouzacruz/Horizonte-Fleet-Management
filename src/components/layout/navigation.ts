@@ -12,6 +12,7 @@ import {
   MapPin,
   MessageSquareText,
   Network,
+  Route,
   ShieldAlert,
   ShieldCheck,
   Shapes,
@@ -206,6 +207,14 @@ export const navigation: NavGroup[] = [
         href: "/frota/manutencao",
         icon: Wrench,
         permission: "maintenance.view",
+      },
+      {
+        // Gestão de KM Rodado: rodagem diária, planner, análise, qualidade e
+        // plano de rodízio. O KM importado é o hodômetro oficial da Manutenção.
+        label: "Gestão de KM Rodado",
+        href: "/frota/km",
+        icon: Route,
+        permission: "km.view",
       },
     ],
   },
