@@ -339,3 +339,17 @@ export const KM_ROTATION_SCOPE: Record<string, string> = {
   same_cohort_same_operation: "Mesma coorte e mesma operação",
   same_cohort_global: "Mesma coorte técnica (todas as operações)",
 };
+
+// ---------------------------------------------------------------------------
+// Atenção: kmRpc camelCaseia TODAS as chaves, inclusive as de mapas indexados
+// por código (by_status.no_reading → byStatus.noReading; freshness.d2_3 →
+// freshness.d23; quadrants.high_km_high_use → quadrants.highKmHighUse). Os
+// valores (ex.: status: "no_reading") não mudam. Para ler um mapa pelo código
+// do catálogo, use `byCode`.
+// ---------------------------------------------------------------------------
+export const camelCode = (code: string) => code.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+
+export function byCode<T>(map: Record<string, T> | null | undefined, code: string): T | undefined {
+  if (!map) return undefined;
+  return map[code] ?? map[camelCode(code)];
+}
