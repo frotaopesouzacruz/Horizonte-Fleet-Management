@@ -90,7 +90,8 @@ export function TrendChart({
       onActivate={onSelect ? (i) => onSelect(points[i], i) : undefined}
       className={className}
       render={(width) => {
-        const left = 44;
+        // Margem do eixo pelo rótulo mais largo ("85.000" não perde o primeiro dígito).
+        const left = Math.max(36, Math.round(Math.max(...ticks.map((t) => approxTextWidth(fmtAxis(t), 11))) + 14));
         const right = target != null ? Math.max(16, Math.min(84, approxTextWidth(tLabel, 11) + 14)) : 16;
         const top = 20;
         const bottom = 28;
@@ -224,7 +225,7 @@ export function TrendChart({
                         />
                         {p.current || (isActive && !p.tooltip) ? (
                           <text
-                            x={c.x}
+                            x={Math.min(Math.max(c.x, left), width - (approxTextWidth(format(p.value as number), 11) * 1.08) / 2 - 2)}
                             y={c.y - 11}
                             textAnchor="middle"
                             fontSize="11"

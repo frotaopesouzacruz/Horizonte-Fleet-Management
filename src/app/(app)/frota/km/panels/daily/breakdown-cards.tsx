@@ -11,12 +11,21 @@ import { fmtInt, fmtKm1, fmtPct, kmStatusLabel, kmStatusTone } from "@/lib/km/ty
 import type { KmPanelContext } from "../../shared";
 import { shareOf, statusToneOf, VehicleRef } from "../overview/km-ui";
 
+/** Rótulo curto do eixo ("Até 50 km" → "≤ 50"); o tooltip mantém o nome completo. */
+function shortBand(label: string): string {
+  return label
+    .replace(/^Sem movimento$/i, "Sem mov.")
+    .replace(/^Até\s+/i, "≤ ")
+    .replace(/\s*km ou mais$/i, "+")
+    .replace(/\s*km$/i, "");
+}
+
 /** Quantos veículos em cada faixa de KM do dia (só quem tem KM validado). */
 export function BandsCard({ bands, hasKm }: { bands: KmDailyBand[]; hasKm: boolean }) {
   const total = bands.reduce((acc, b) => acc + b.vehicles, 0);
   const items: ColumnDatum[] = bands.map((b) => ({
     key: b.band,
-    label: b.label,
+    label: shortBand(b.label),
     value: b.vehicles,
     color: b.band === "b0" ? "var(--chart-neutral)" : "var(--chart-brand-primary)",
     tooltip: {
@@ -31,7 +40,7 @@ export function BandsCard({ bands, hasKm }: { bands: KmDailyBand[]; hasKm: boole
   return (
     <ChartCard
       title="Distribuição por faixa de KM"
-      description="Veículos com KM validado no dia, por faixa. Sem leitura fica fora; Sem movimento tem faixa própria."
+      description="Veículos com KM validado no dia, por faixa de KM. Sem leitura fica fora; Sem movimento tem faixa própria."
       empty={!hasKm || bands.length === 0 ? "Nenhum veículo com KM validado neste dia." : undefined}
       data-testid="km-diaria-bands"
     >
@@ -110,24 +119,28 @@ export function WithoutReadingCard({ rows, ctx }: { rows: KmDailyMissing[]; ctx:
           <caption className="sr-only">Frotas sem leitura no dia</caption>
           <TableHeader>
             <TableRow>
-              <TableHead>Veículo</TableHead>
-              <TableHead>Tipo · modelo</TableHead>
-              <TableHead>Local</TableHead>
-              <TableHead>BR</TableHead>
+              <TableHead>Veículo · tipo e modelo</TableHead>
+              <TableHead>Local · BR</TableHead>
               <TableHead>Situação</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {missing.map((r) => (
               <TableRow key={r.vehicleId} data-testid="km-diaria-without-reading-row">
-                <TableCell className="whitespace-nowrap">
-                  <VehicleRef ctx={ctx} vehicleId={r.vehicleId} fleetCode={r.fleetCode} plate={r.plate} />
+                <TableCell>
+                  <div className="flex min-w-0 max-w-56 flex-col">
+                    <span className="whitespace-nowrap">
+                      <VehicleRef ctx={ctx} vehicleId={r.vehicleId} fleetCode={r.fleetCode} plate={r.plate} />
+                    </span>
+                    <span className="truncate text-caption text-fg-muted">{[r.type, r.model].filter(Boolean).join(" · ") || "—"}</span>
+                  </div>
                 </TableCell>
-                <TableCell className="max-w-48 truncate text-fg-secondary">
-                  {[r.type, r.model].filter(Boolean).join(" · ") || "—"}
+                <TableCell>
+                  <div className="flex min-w-0 max-w-48 flex-col">
+                    <span className="truncate">{r.local ?? "—"}</span>
+                    <span className="truncate text-caption text-fg-muted">{r.br ? `BR ${r.br}` : "Sem BR"}</span>
+                  </div>
                 </TableCell>
-                <TableCell className="max-w-40 truncate">{r.local ?? "—"}</TableCell>
-                <TableCell className="whitespace-nowrap">{r.br ?? "—"}</TableCell>
                 <TableCell className="whitespace-nowrap">
                   <StatusBadge size="sm" status={statusToneOf(kmStatusTone(r.status))}>
                     {kmStatusLabel(r.status)}

@@ -29,7 +29,7 @@ export function KmBatchTable({
         <TableHeader>
           <TableRow>
             <TableHead style={{ width: 230 }}>Arquivo</TableHead>
-            <TableHead style={{ width: 150 }}>Aba</TableHead>
+            <TableHead style={{ width: 176 }}>Aba</TableHead>
             <TableHead style={{ width: 120 }}>Situação</TableHead>
             <TableHead style={{ width: 190 }}>Período</TableHead>
             <TableHead style={{ width: 80 }} numeric>

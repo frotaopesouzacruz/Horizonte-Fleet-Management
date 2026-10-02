@@ -126,7 +126,7 @@ export function DailyPanel({ data, ctx }: { data: KmDailyData | null; ctx: KmPan
           )
         }
       >
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <KmKpi
             testId="km-diaria-kpi-km"
             label="KM do dia"

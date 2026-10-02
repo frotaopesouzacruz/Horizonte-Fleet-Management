@@ -129,7 +129,7 @@ export function HistoryKpis({ kpis }: { kpis: KmHistoryKpis }) {
       </div>
       <MetricStrip
         ariaLabel="Indicadores do período"
-        className="md:grid-cols-4 xl:grid-cols-6"
+        className="md:grid-cols-4 xl:grid-cols-5"
         items={[
           { key: "median", label: "Mediana diária", value: fmtKm1(kpis.medianDaily) },
           { key: "max", label: "Máximo diário", value: fmtKm1(kpis.maxDaily) },

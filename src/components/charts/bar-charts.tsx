@@ -74,7 +74,8 @@ export function ColumnChart({
       onActivate={onSelect ? (i) => onSelect(items[i], i) : undefined}
       className={className}
       render={(width) => {
-        const left = 44;
+        // Margem do eixo pelo rótulo mais largo ("85.000" não perde o primeiro dígito).
+        const left = Math.max(36, Math.round(Math.max(...ticks.map((t) => approxTextWidth(fmtAxis(t), 11))) + 14));
         const right = target != null ? Math.max(16, Math.min(84, approxTextWidth(tLabel) + 14)) : 12;
         const top = 22;
         const bottom = 28;
@@ -136,6 +137,10 @@ export function ColumnChart({
               const segs = item.segments?.filter((s) => s.value > 0) ?? [];
               let acc = 0;
               const valueText = item.future ? "—" : item.value == null ? emptyLabel : format(item.value);
+              // Rótulo de valor contido no gráfico: na primeira/última coluna ele
+              // encosta na borda em vez de ser cortado ("2.137 km" no dia 30).
+              const half = (approxTextWidth(valueText, 11) * 1.08) / 2 + 2;
+              const vx = Math.min(Math.max(cx, half), width - half);
               return (
                 <g key={item.key}>
                   {item.future ? (
@@ -161,7 +166,7 @@ export function ColumnChart({
                   ) : null}
                   {(showValues && labelEvery === 1) || active === i || item.current ? (
                     <text
-                      x={cx}
+                      x={vx}
                       y={(hasValue ? barTop : top + height) - 7}
                       textAnchor="middle"
                       fontSize="11"
@@ -257,7 +262,13 @@ export function HBarChart({
         const top = 6;
         const bottom = target != null ? 22 : 6;
         const lw = Math.min(labelWidth, Math.max(96, Math.round(width * 0.3)));
-        const valueW = 96;
+        // A coluna de valor cresce com o texto mais longo (valor + detalhe), para
+        // nunca cortar "160.945 km · 64 veíc."; o rótulo e a barra cedem espaço.
+        const valueChars = Math.max(
+          6,
+          ...items.map((i) => (i.value != null ? format(i.value).length : 8) + (i.detail ? i.detail.length + 1 : 0)),
+        );
+        const valueW = Math.min(Math.round(width * 0.42), Math.max(64, Math.round(valueChars * 6.9) + 14));
         const plotW = Math.max(80, width - lw - valueW);
         const totalH = top + rowH * Math.max(items.length, 1) + bottom;
         const x = (v: number) => lw + (Math.max(0, Math.min(max, v)) / max) * plotW;

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Gauge } from "lucide-react";
+import { GaugeChart } from "@/components/charts";
 import type { KmQualityComponents } from "@/lib/km/quality";
 import { fmt1, fmtInt, fmtPct } from "@/lib/km/types";
 
@@ -60,13 +61,15 @@ export function QualityScoreCard({
           <Gauge className="size-4 text-fg-muted" aria-hidden />
           Qualidade dos dados (DQ)
         </h3>
-        <p className="flex items-baseline gap-1">
-          <span className="text-kpi font-semibold text-fg tabular-nums" data-testid="km-qualidade-score-valor">
-            {fmt1(score ?? null)}
-          </span>
-          <span className="text-body-sm text-fg-muted">de 100</span>
-        </p>
-        <Bar value={score ?? null} />
+        <GaugeChart
+          value={score ?? null}
+          format={(v) => fmt1(v)}
+          label="de 100"
+          size={176}
+          ariaLabel="Score de qualidade dos dados"
+          className="self-center"
+          data-testid="km-qualidade-score-valor"
+        />
         <p className="text-caption text-fg-muted">
           Score = 50 × cobertura + 30 × consistência + 20 × atualização (cada componente de 0 a 1). Calculado sobre o período e
           os filtros da tela.

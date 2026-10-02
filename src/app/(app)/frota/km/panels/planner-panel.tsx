@@ -10,6 +10,7 @@ import { SectionHeader } from "@/components/layout/section-header";
 import { Button } from "@/components/ui/button";
 import { MetricStrip } from "@/components/ui/kpi-card";
 import { SearchField } from "@/components/ui/search-field";
+import { SegmentedControl, ToggleChip } from "@/components/ui/segmented-control";
 import { SwitchField } from "@/components/ui/switch";
 import { NativeSelect } from "@/components/governance/selects";
 import type { KmPlannerData } from "@/lib/km/planner";
@@ -231,7 +232,7 @@ function PlannerContent({ data, ctx }: { data: KmPlannerData; ctx: KmPanelContex
       />
 
       <section aria-label="Grade do planner" className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-end gap-3" data-testid="km-planner-toolbar">
+        <div className="flex flex-wrap items-center gap-2.5" data-testid="km-planner-toolbar">
           <SearchField
             size="sm"
             value={search}
@@ -241,57 +242,48 @@ function PlannerContent({ data, ctx }: { data: KmPlannerData; ctx: KmPanelContex
             wrapperClassName="w-full sm:w-60"
             data-testid="km-planner-search"
           />
-          <label className="flex flex-col gap-1 text-caption text-fg-muted">
-            Ordenar
-            <NativeSelect
-              fieldSize="sm"
-              value={sort}
-              onChange={(e) => setParams({ [PLANNER_PARAM.sort]: e.target.value === "local" ? null : e.target.value })}
-              className="min-w-[12rem]"
-              data-testid="km-planner-sort"
-            >
-              {(Object.keys(PLANNER_SORT_LABEL) as PlannerSort[]).map((s) => (
-                <option key={s} value={s}>
-                  {PLANNER_SORT_LABEL[s]}
-                </option>
-              ))}
-            </NativeSelect>
-          </label>
-
-          <div role="group" aria-label="Modo de exibição" className="flex items-center gap-1" data-testid="km-planner-mode">
-            {(
-              [
-                ["compacto", "Compacto", "Só o KM do dia"],
-                ["detalhado", "Detalhado", "Hodômetro inicial, final e KM por dia"],
-              ] as const
-            ).map(([value, label, hint]) => (
-              <Button
-                key={value}
-                size="sm"
-                variant={mode === value ? "secondary" : "ghost"}
-                aria-pressed={mode === value}
-                title={hint}
-                onClick={() => setParams({ [PLANNER_PARAM.mode]: value === "compacto" ? null : value })}
-                leadingIcon={value === "compacto" ? <Rows3 aria-hidden /> : <TableProperties aria-hidden />}
-                data-testid={`km-planner-mode-${value}`}
-              >
-                {label}
-              </Button>
+          <NativeSelect
+            fieldSize="sm"
+            aria-label="Ordenar o planner"
+            value={sort}
+            onChange={(e) => setParams({ [PLANNER_PARAM.sort]: e.target.value === "local" ? null : e.target.value })}
+            className="min-w-[12rem]"
+            data-testid="km-planner-sort"
+          >
+            {(Object.keys(PLANNER_SORT_LABEL) as PlannerSort[]).map((s) => (
+              <option key={s} value={s}>
+                Ordenar: {PLANNER_SORT_LABEL[s]}
+              </option>
             ))}
-          </div>
+          </NativeSelect>
 
-          <div role="group" aria-label="Colunas opcionais" className="flex items-center gap-1">
+          <SegmentedControl
+            aria-label="Modo de exibição"
+            data-testid="km-planner-mode"
+            value={mode}
+            onValueChange={(value) => setParams({ [PLANNER_PARAM.mode]: value === "compacto" ? null : value })}
+            options={[
+              { value: "compacto", label: "Compacto", title: "Só o KM do dia", icon: <Rows3 aria-hidden />, "data-testid": "km-planner-mode-compacto" },
+              {
+                value: "detalhado",
+                label: "Detalhado",
+                title: "Hodômetro inicial, final e KM por dia",
+                icon: <TableProperties aria-hidden />,
+                "data-testid": "km-planner-mode-detalhado",
+              },
+            ]}
+          />
+
+          <div role="group" aria-label="Colunas opcionais" className="flex items-center gap-1.5">
             {(["operacao", "lideranca"] as const).map((col) => (
-              <Button
+              <ToggleChip
                 key={col}
-                size="sm"
-                variant={extras.includes(col) ? "secondary" : "ghost"}
-                aria-pressed={extras.includes(col)}
-                onClick={() => toggleExtra(col)}
+                pressed={extras.includes(col)}
+                onPressedChange={() => toggleExtra(col)}
                 data-testid={`km-planner-col-${col}`}
               >
                 {PLANNER_EXTRA_LABEL[col]}
-              </Button>
+              </ToggleChip>
             ))}
           </div>
 

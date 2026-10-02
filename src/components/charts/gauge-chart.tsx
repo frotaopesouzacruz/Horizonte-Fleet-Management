@@ -34,6 +34,7 @@ export interface GaugeChartProps {
   size?: number;
   ariaLabel: string;
   className?: string;
+  "data-testid"?: string;
 }
 
 const pct = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -47,6 +48,7 @@ export function GaugeChart({
   size = 168,
   ariaLabel,
   className,
+  "data-testid": testId,
 }: GaugeChartProps) {
   const uid = React.useId().replace(/:/g, "");
   const stroke = Math.max(10, Math.round(size * 0.075));
@@ -72,7 +74,7 @@ export function GaugeChart({
   const height = Math.round(size * 0.84);
 
   return (
-    <figure className={cn("relative inline-flex flex-col items-center", className)} style={{ width: size }}>
+    <figure className={cn("relative inline-flex flex-col items-center", className)} style={{ width: size }} data-testid={testId}>
       <svg
         width={size}
         height={height}

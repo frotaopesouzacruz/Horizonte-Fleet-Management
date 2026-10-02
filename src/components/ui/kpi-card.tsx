@@ -299,7 +299,7 @@ export const KpiCard = React.forwardRef<HTMLElement, KpiCardProps>(function KpiC
         <footer className="flex flex-wrap items-center gap-x-2 gap-y-1">
           {trend ? <TrendIndicator trend={trend} size={size === "compact" ? "sm" : "md"} /> : null}
           {trend?.comparison != null ? <span className="text-caption text-fg-muted">{trend.comparison}</span> : null}
-          {period != null ? <span className="min-w-0 truncate text-caption text-fg-muted">{period}</span> : null}
+          {period != null ? <span className="min-w-0 line-clamp-2 text-caption text-fg-muted">{period}</span> : null}
           {target != null ? (
             <span className="inline-flex items-center gap-1 text-caption text-fg-muted">
               <span aria-hidden className="inline-block h-0 w-3 border-t-2 border-dashed border-chart-target" />
@@ -326,21 +326,22 @@ export interface MetricStripItem {
  * É o segundo nível da leitura: compõe o indicador sem competir com ele.
  */
 export function MetricStrip({ items, ariaLabel, className }: { items: MetricStripItem[]; ariaLabel?: string; className?: string }) {
+  // Divisórias como sombras internas (topo e esquerda) e a grade deslocada 1px:
+  // a última linha incompleta fica na cor do cartão, sem "buracos" cinza.
   return (
-    <dl
-      aria-label={ariaLabel}
-      className={cn(
-        "grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border-subtle shadow-card md:grid-cols-4",
-        className,
-      )}
-    >
-      {items.map((item) => (
-        <div key={item.key} className="flex min-w-0 flex-col gap-0.5 bg-surface-raised px-4 py-3">
-          <dt className="truncate text-caption text-fg-muted">{item.label}</dt>
-          <dd className="text-h3 font-semibold text-fg tabular-nums">{item.value}</dd>
-          {item.hint != null ? <dd className="truncate text-caption text-fg-muted">{item.hint}</dd> : null}
-        </div>
-      ))}
+    <dl aria-label={ariaLabel} className="overflow-hidden rounded-lg border border-border bg-surface-raised shadow-card">
+      <div className={cn("-mt-px -ml-px grid grid-cols-2 md:grid-cols-4", className)}>
+        {items.map((item) => (
+          <div
+            key={item.key}
+            className="flex min-w-0 flex-col gap-0.5 px-4 py-3 shadow-[inset_1px_0_0_var(--border-subtle),inset_0_1px_0_var(--border-subtle)]"
+          >
+            <dt className="line-clamp-2 text-caption text-fg-muted">{item.label}</dt>
+            <dd className="text-h3 font-semibold text-fg tabular-nums">{item.value}</dd>
+            {item.hint != null ? <dd className="line-clamp-2 text-caption text-fg-muted">{item.hint}</dd> : null}
+          </div>
+        ))}
+      </div>
     </dl>
   );
 }

@@ -1,10 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { CircleCheck, Info, OctagonAlert, TriangleAlert } from "lucide-react";
-import { cn } from "@/lib/cn";
 import { ChartCard, HBarChart, SrTable, type HBarDatum } from "@/components/charts";
-import type { KmInsight, KmOverviewData } from "@/lib/km/overview";
+import type { KmOverviewData } from "@/lib/km/overview";
 import { byCode, camelCode, fmtInt, fmtKm, fmtPct, KM_STATUS, type KmReadingStatus } from "@/lib/km/types";
 import { chartColorOf, shareOf } from "./km-ui";
 
@@ -102,47 +100,6 @@ export function StatusCard({ data }: { data: KmOverviewData }) {
         columns={["Situação", "Veículo × dia", "Participação"]}
         rows={rows.map((r) => ({ key: r.code, cells: [r.label, fmtInt(r.n), fmtPct(shareOf(r.n, total))] }))}
       />
-    </ChartCard>
-  );
-}
-
-const INSIGHT_ICON = { success: CircleCheck, warning: TriangleAlert, danger: OctagonAlert, info: Info, neutral: Info } as const;
-const INSIGHT_TONE = {
-  success: "text-success",
-  warning: "text-warning",
-  danger: "text-danger",
-  info: "text-info",
-  neutral: "text-fg-muted",
-} as const;
-const INSIGHT_SR = { success: "Ok", warning: "Atenção", danger: "Crítico", info: "Informativo", neutral: "Informativo" } as const;
-
-/** Leituras determinísticas da rotina (só fatos calculados). */
-export function InsightsCard({ insights }: { insights: KmInsight[] }) {
-  return (
-    <ChartCard
-      title="Leituras do período"
-      description="Fatos calculados pela rotina sobre os mesmos números desta tela."
-      empty={insights.length === 0 ? "Nada a destacar no recorte." : undefined}
-      data-testid="km-visao-geral-insights"
-    >
-      <ul className="flex flex-col gap-2">
-        {insights.map((ins, i) => {
-          const tone = (ins.tone in INSIGHT_ICON ? ins.tone : "neutral") as keyof typeof INSIGHT_ICON;
-          const Icon = INSIGHT_ICON[tone];
-          return (
-            <li
-              key={i}
-              className="flex items-start gap-2.5 rounded-md border border-border-subtle bg-surface px-3 py-2 text-body-sm text-fg-secondary"
-              data-testid="km-visao-geral-insight"
-              data-tone={tone}
-            >
-              <Icon className={cn("mt-0.5 size-4 shrink-0", INSIGHT_TONE[tone])} aria-hidden />
-              <span className="sr-only">{INSIGHT_SR[tone]}: </span>
-              <span className="min-w-0">{ins.text}</span>
-            </li>
-          );
-        })}
-      </ul>
     </ChartCard>
   );
 }

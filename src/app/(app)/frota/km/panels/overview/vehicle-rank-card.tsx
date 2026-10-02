@@ -29,22 +29,27 @@ export function VehicleRankCard({
           <TableHeader>
             <TableRow>
               <TableHead numeric className="w-10">#</TableHead>
-              <TableHead>Veículo</TableHead>
-              <TableHead>Tipo · modelo</TableHead>
-              <TableHead numeric>KM no período</TableHead>
+              <TableHead>Veículo · tipo e modelo</TableHead>
+              <TableHead numeric>
+                <abbr title="KM validado no período" className="no-underline">KM</abbr>
+              </TableHead>
               <TableHead numeric>Média/dia</TableHead>
-              <TableHead numeric>Dias c/ leitura</TableHead>
+              <TableHead numeric>
+                <abbr title="Dias com leitura no período" className="no-underline">Dias</abbr>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((v, i) => (
               <TableRow key={v.vehicleId} data-testid={`${testId}-row`}>
                 <TableCell numeric className="text-fg-muted">{i + 1}</TableCell>
-                <TableCell className="whitespace-nowrap">
-                  <VehicleRef ctx={ctx} vehicleId={v.vehicleId} fleetCode={v.fleetCode} plate={v.plate} />
-                </TableCell>
-                <TableCell className="max-w-56 truncate text-fg-secondary" title={[v.type, v.model].filter(Boolean).join(" · ")}>
-                  {[v.type, v.model].filter(Boolean).join(" · ") || "—"}
+                <TableCell>
+                  <div className="flex min-w-0 flex-col">
+                    <span className="whitespace-nowrap">
+                      <VehicleRef ctx={ctx} vehicleId={v.vehicleId} fleetCode={v.fleetCode} plate={v.plate} />
+                    </span>
+                    <span className="text-caption text-fg-muted">{[v.type, v.model].filter(Boolean).join(" · ") || "—"}</span>
+                  </div>
                 </TableCell>
                 <TableCell numeric className="whitespace-nowrap font-semibold">{fmtKm(v.km)}</TableCell>
                 <TableCell numeric className="whitespace-nowrap">{fmtKm1(v.avgDaily)}</TableCell>

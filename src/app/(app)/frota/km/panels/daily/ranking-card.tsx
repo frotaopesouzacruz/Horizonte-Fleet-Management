@@ -19,6 +19,16 @@ const SIZES = [
 ] as const;
 
 /** Botões de escolha única, com a aparência das abas segmentadas. */
+/** Célula de duas linhas: o dado principal e o contexto abaixo, sem colunas extras. */
+function TwoLine({ main, sub }: { main: React.ReactNode; sub: React.ReactNode }) {
+  return (
+    <div className="flex min-w-0 max-w-56 flex-col">
+      <span className="truncate whitespace-nowrap">{main}</span>
+      <span className="truncate text-caption text-fg-muted">{sub}</span>
+    </div>
+  );
+}
+
 export function Segmented({
   label, value, options, onChange, testId,
 }: {
@@ -100,12 +110,9 @@ export function RankingCard({ rows, ctx }: { rows: KmDailyRankRow[]; ctx: KmPane
           <TableHeader>
             <TableRow>
               <TableHead numeric className="w-10">#</TableHead>
-              <TableHead>Veículo</TableHead>
-              <TableHead>Tipo · modelo</TableHead>
-              <TableHead>Operação</TableHead>
-              <TableHead>Local</TableHead>
-              <TableHead>BR</TableHead>
-              <TableHead>Liderança</TableHead>
+              <TableHead>Veículo · tipo e modelo</TableHead>
+              <TableHead>Operação · liderança</TableHead>
+              <TableHead>Local · BR</TableHead>
               <TableHead numeric>Hod. inicial</TableHead>
               <TableHead numeric>Hod. final</TableHead>
               <TableHead numeric>KM</TableHead>
@@ -116,16 +123,18 @@ export function RankingCard({ rows, ctx }: { rows: KmDailyRankRow[]; ctx: KmPane
             {shown.map((r, i) => (
               <TableRow key={r.vehicleId} data-testid="km-diaria-ranking-row">
                 <TableCell numeric className="text-fg-muted">{i + 1}</TableCell>
-                <TableCell className="whitespace-nowrap">
-                  <VehicleRef ctx={ctx} vehicleId={r.vehicleId} fleetCode={r.fleetCode} plate={r.plate} />
+                <TableCell>
+                  <TwoLine
+                    main={<VehicleRef ctx={ctx} vehicleId={r.vehicleId} fleetCode={r.fleetCode} plate={r.plate} />}
+                    sub={[r.type, r.model].filter(Boolean).join(" · ") || "—"}
+                  />
                 </TableCell>
-                <TableCell className="max-w-48 truncate text-fg-secondary" title={[r.type, r.model].filter(Boolean).join(" · ")}>
-                  {[r.type, r.model].filter(Boolean).join(" · ") || "—"}
+                <TableCell>
+                  <TwoLine main={r.operation ?? "—"} sub={r.leader ? `Liderança: ${r.leader}` : "Sem liderança"} />
                 </TableCell>
-                <TableCell className="max-w-40 truncate">{r.operation ?? "—"}</TableCell>
-                <TableCell className="max-w-40 truncate">{r.local ?? "—"}</TableCell>
-                <TableCell className="whitespace-nowrap">{r.br ?? "—"}</TableCell>
-                <TableCell className="max-w-40 truncate">{r.leader ?? "—"}</TableCell>
+                <TableCell>
+                  <TwoLine main={r.local ?? "—"} sub={r.br ? `BR ${r.br}` : "Sem BR"} />
+                </TableCell>
                 <TableCell numeric className="whitespace-nowrap">{fmt2(r.odometerStart)}</TableCell>
                 <TableCell numeric className="whitespace-nowrap">{fmt2(r.odometerEnd)}</TableCell>
                 <TableCell numeric className="whitespace-nowrap font-semibold">{fmtKm1(r.km)}</TableCell>

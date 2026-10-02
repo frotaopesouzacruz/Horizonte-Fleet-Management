@@ -47,7 +47,7 @@ export function MonthlyTable({ monthly }: { monthly: KmHistoryMonth[] }) {
             monthly.map((m) => (
               <TableRow key={m.month}>
                 <TableCell>
-                  <span className="capitalize">{monthFull(m.month)}</span>
+                  <span className="inline-block first-letter:uppercase">{monthFull(m.month)}</span>
                 </TableCell>
                 <TableCell numeric className="font-medium">{m.readingDays > 0 ? fmtKm1(m.km) : "—"}</TableCell>
                 <TableCell numeric>{fmtInt(m.readingDays)}</TableCell>

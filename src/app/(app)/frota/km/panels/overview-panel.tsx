@@ -10,7 +10,8 @@ import { ErrorState } from "@/components/feedback/error-state";
 import type { KmOverviewData } from "@/lib/km/overview";
 import { competenceLabel, fmt1, fmtInt, fmtKm, fmtKm1, fmtPct, formatDate } from "@/lib/km/types";
 import type { KmPanelContext } from "../shared";
-import { InsightsCard, KmShareCard, StatusCard } from "./overview/distributions";
+import { KmShareCard, StatusCard } from "./overview/distributions";
+import { KmInsights } from "../components/km-insights";
 import { FreshnessCard } from "./overview/freshness-card";
 import { KmByDayChart } from "./overview/km-by-day-chart";
 import { dateLong, formatStamp, KmKpi, plural, Section, shareOf, useKmLink } from "./overview/km-ui";
@@ -116,7 +117,7 @@ export function OverviewPanel({ data, ctx }: { data: KmOverviewData | null; ctx:
           </>
         }
       >
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <KmKpi
             testId="km-visao-geral-kpi-km-total"
             label="KM total do período"
@@ -286,7 +287,9 @@ export function OverviewPanel({ data, ctx }: { data: KmOverviewData | null; ctx:
             empty={hasKm ? undefined : "Sem KM validado no período."}
             testId="km-visao-geral-by-type"
           />
-          <StatusCard data={data} />
+          <div className="min-w-0 lg:col-span-2 2xl:col-span-1">
+            <StatusCard data={data} />
+          </div>
         </div>
       </Section>
 
@@ -314,7 +317,13 @@ export function OverviewPanel({ data, ctx }: { data: KmOverviewData | null; ctx:
         />
       </div>
 
-      <InsightsCard insights={data.insights} />
+      <KmInsights
+        items={data.insights}
+        description="Fatos calculados pela rotina sobre os mesmos números desta tela."
+        empty="Nada a destacar no recorte."
+        testId="km-visao-geral-insights"
+        itemTestId="km-visao-geral-insight"
+      />
 
       <p className="text-caption text-fg-muted" data-testid="km-visao-geral-footnote">
         Frotas no recorte: {fmtInt(k.vehicles)} ({fmtInt(k.activeVehicles)} ativas). KM por veículo no período: média{" "}

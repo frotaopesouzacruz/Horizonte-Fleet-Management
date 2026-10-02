@@ -130,206 +130,212 @@ export function KmFilterBar({
 
   return (
     <>
-    <FilterBar className="items-end gap-3" label="Filtros da Gestão de KM">
-      {showPeriod ? (
-        <Field label="Competência">
+    <FilterBar className="items-end gap-x-3 gap-y-2.5" label="Filtros da Gestão de KM">
+      {/* Os campos crescem juntos e só quebram linha quando não cabem; as ações
+          ficam à direita da primeira linha (sem botão órfão numa linha própria). */}
+      <div className="flex min-w-0 flex-1 basis-[36rem] flex-wrap items-end gap-2.5">
+        {showPeriod ? (
+          <Field label="Competência" className="flex-[0_0_10.5rem]">
+            <NativeSelect
+              fieldSize="sm"
+              aria-label="Competência"
+              value={customPeriod ? "" : competence}
+              disabled={pending}
+              onChange={(e) => set("competence", e.target.value || null, { [P.from]: null, [P.to]: null })}
+              className="w-full"
+              data-testid="km-filter-competence"
+            >
+              {customPeriod ? <option value="">Período personalizado</option> : null}
+              {!months.includes(competence) && competence ? <option value={competence}>{competenceLabel(competence)}</option> : null}
+              {months.map((m) => (
+                <option key={m} value={m}>{competenceLabel(m)}</option>
+              ))}
+            </NativeSelect>
+          </Field>
+        ) : null}
+
+        <Field label="Operação" className="flex-[1.2_1_8.5rem]">
           <NativeSelect
             fieldSize="sm"
-            aria-label="Competência"
-            value={customPeriod ? "" : competence}
+            aria-label="Filtrar por operação"
+            value={filters.operation ?? ""}
             disabled={pending}
-            onChange={(e) => set("competence", e.target.value || null, { [P.from]: null, [P.to]: null })}
-            className="min-w-[11rem]"
-            data-testid="km-filter-competence"
+            onChange={(e) => set("operation", e.target.value || null, { [P.state]: null, [P.city]: null, [P.br]: null })}
+            className="w-full"
           >
-            {customPeriod ? <option value="">Período personalizado</option> : null}
-            {!months.includes(competence) && competence ? <option value={competence}>{competenceLabel(competence)}</option> : null}
-            {months.map((m) => (
-              <option key={m} value={m}>{competenceLabel(m)}</option>
+            <option value="">Todas</option>
+            {options.operations.map((o) => (
+              <option key={o.id} value={o.id}>{o.name}</option>
             ))}
           </NativeSelect>
         </Field>
-      ) : null}
 
-      <Field label="Operação">
-        <NativeSelect
-          fieldSize="sm"
-          aria-label="Filtrar por operação"
-          value={filters.operation ?? ""}
-          disabled={pending}
-          onChange={(e) => set("operation", e.target.value || null, { [P.state]: null, [P.city]: null, [P.br]: null })}
-          className="min-w-[11rem]"
-        >
-          <option value="">Todas</option>
-          {options.operations.map((o) => (
-            <option key={o.id} value={o.id}>{o.name}</option>
-          ))}
-        </NativeSelect>
-      </Field>
+        <Field label="UF" className="flex-[0_0_5.75rem]">
+          <NativeSelect
+            fieldSize="sm"
+            aria-label="Filtrar por estado"
+            value={filters.state ?? ""}
+            disabled={pending}
+            onChange={(e) => set("state", e.target.value || null, { [P.city]: null, [P.br]: null })}
+            className="w-full"
+          >
+            <option value="">Todas</option>
+            {states.map((s) => (
+              <option key={s.id} value={s.id}>{s.uf}</option>
+            ))}
+          </NativeSelect>
+        </Field>
 
-      <Field label="UF">
-        <NativeSelect
-          fieldSize="sm"
-          aria-label="Filtrar por estado"
-          value={filters.state ?? ""}
-          disabled={pending}
-          onChange={(e) => set("state", e.target.value || null, { [P.city]: null, [P.br]: null })}
-          className="min-w-[5.5rem]"
-        >
-          <option value="">Todas</option>
-          {states.map((s) => (
-            <option key={s.id} value={s.id}>{s.uf}</option>
-          ))}
-        </NativeSelect>
-      </Field>
+        <Field label="Cidade" className="flex-[1_1_7.5rem]">
+          <NativeSelect
+            fieldSize="sm"
+            aria-label="Filtrar por cidade"
+            value={filters.city ?? ""}
+            disabled={pending || !filters.state}
+            onChange={(e) => set("city", e.target.value || null, { [P.br]: null })}
+            className="w-full"
+          >
+            <option value="">{filters.state ? "Todas" : "Escolha a UF"}</option>
+            {cities.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </NativeSelect>
+        </Field>
 
-      <Field label="Cidade">
-        <NativeSelect
-          fieldSize="sm"
-          aria-label="Filtrar por cidade"
-          value={filters.city ?? ""}
-          disabled={pending || !filters.state}
-          onChange={(e) => set("city", e.target.value || null, { [P.br]: null })}
-          className="min-w-[10rem]"
-        >
-          <option value="">{filters.state ? "Todas" : "Escolha a UF"}</option>
-          {cities.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </NativeSelect>
-      </Field>
+        <Field label="Tipo de equipamento" className="flex-[1_1_8rem]">
+          <NativeSelect
+            fieldSize="sm"
+            aria-label="Filtrar por tipo de equipamento"
+            value={filters.vehicleType ?? ""}
+            disabled={pending}
+            onChange={(e) => set("vehicleType", e.target.value || null, { [P.subcategory]: null })}
+            className="w-full"
+          >
+            <option value="">Todos</option>
+            {options.vehicleTypes.map((t) => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </NativeSelect>
+        </Field>
 
-      <Field label="Tipo de equipamento">
-        <NativeSelect
-          fieldSize="sm"
-          aria-label="Filtrar por tipo de equipamento"
-          value={filters.vehicleType ?? ""}
-          disabled={pending}
-          onChange={(e) => set("vehicleType", e.target.value || null, { [P.subcategory]: null })}
-          className="min-w-[10rem]"
-        >
-          <option value="">Todos</option>
-          {options.vehicleTypes.map((t) => (
-            <option key={t.id} value={t.id}>{t.name}</option>
-          ))}
-        </NativeSelect>
-      </Field>
+        <Field label="Placa ou frota" className="flex-[1.3_1_9rem]">
+          <SearchField
+            size="sm"
+            aria-label="Buscar por placa ou código da frota"
+            defaultValue={filters.q ?? ""}
+            placeholder="Ex.: SNT8I36"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") set("q", (e.target as HTMLInputElement).value.trim() || null);
+            }}
+            onClear={() => set("q", null)}
+          />
+        </Field>
+      </div>
 
-      <Field label="Placa ou frota" className="min-w-[11rem] flex-1 sm:max-w-[14rem]">
-        <SearchField
-          size="sm"
-          aria-label="Buscar por placa ou código da frota"
-          defaultValue={filters.q ?? ""}
-          placeholder="SNT8I36, VA174…"
-          onKeyDown={(e) => {
-            if (e.key === "Enter") set("q", (e.target as HTMLInputElement).value.trim() || null);
-          }}
-          onClear={() => set("q", null)}
-        />
-      </Field>
-
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="secondary" size="sm" leadingIcon={<SlidersHorizontal />} disabled={pending} data-testid="km-more-filters">
-            Mais filtros
-            {moreCount ? (
-              <Badge variant="accent" size="sm" appearance="solid" className="ml-1">
-                {moreCount}
-              </Badge>
-            ) : null}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="end" className="w-[min(92vw,36rem)]">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {showPeriod ? (
-              <div className="flex flex-col gap-1 sm:col-span-2">
-                <span className="text-caption text-fg-muted">Período personalizado (substitui a competência; até 400 dias)</span>
-                <div className="flex items-center gap-1.5">
-                  <DateInput
-                    size="sm"
-                    aria-label="Data inicial"
-                    value={filters.from ?? ""}
-                    onChange={(e) => set("from", e.target.value || null)}
-                    wrapperClassName="w-[9.5rem]"
-                  />
-                  <span className="text-caption text-fg-muted">até</span>
-                  <DateInput
-                    size="sm"
-                    aria-label="Data final"
-                    value={filters.to ?? ""}
-                    onChange={(e) => set("to", e.target.value || null)}
-                    wrapperClassName="w-[9.5rem]"
-                  />
+      <div className="flex shrink-0 flex-wrap items-end gap-2">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="secondary" size="sm" leadingIcon={<SlidersHorizontal />} disabled={pending} data-testid="km-more-filters">
+              Mais filtros
+              {moreCount ? (
+                <Badge variant="accent" size="sm" appearance="solid" className="ml-1">
+                  {moreCount}
+                </Badge>
+              ) : null}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-[min(92vw,36rem)]">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {showPeriod ? (
+                <div className="flex flex-col gap-1 sm:col-span-2">
+                  <span className="text-caption text-fg-muted">Período personalizado (substitui a competência; até 400 dias)</span>
+                  <div className="flex items-center gap-1.5">
+                    <DateInput
+                      size="sm"
+                      aria-label="Data inicial"
+                      value={filters.from ?? ""}
+                      onChange={(e) => set("from", e.target.value || null)}
+                      wrapperClassName="w-[9.5rem]"
+                    />
+                    <span className="text-caption text-fg-muted">até</span>
+                    <DateInput
+                      size="sm"
+                      aria-label="Data final"
+                      value={filters.to ?? ""}
+                      onChange={(e) => set("to", e.target.value || null)}
+                      wrapperClassName="w-[9.5rem]"
+                    />
+                  </div>
                 </div>
-              </div>
-            ) : null}
-            <Field label="BR">
-              <NativeSelect fieldSize="sm" value={filters.br ?? ""} onChange={(e) => set("br", e.target.value || null)}>
-                <option value="">Todas</option>
-                {brs.map((b) => (
-                  <option key={b.id} value={b.id}>{b.code}</option>
-                ))}
-              </NativeSelect>
-            </Field>
-            <Field label="Liderança">
-              <NativeSelect fieldSize="sm" value={filters.leader ?? ""} onChange={(e) => set("leader", e.target.value || null)}>
-                <option value="">Todas</option>
-                {options.leaders.map((l) => (
-                  <option key={l.id} value={l.id}>{l.name}</option>
-                ))}
-              </NativeSelect>
-            </Field>
-            <Field label="Subcategoria">
-              <NativeSelect fieldSize="sm" value={filters.subcategory ?? ""} onChange={(e) => set("subcategory", e.target.value || null)}>
-                <option value="">Todas</option>
-                {subcategories.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </NativeSelect>
-            </Field>
-            <Field label="Modelo">
-              <NativeSelect fieldSize="sm" value={filters.model ?? ""} onChange={(e) => set("model", e.target.value || null)}>
-                <option value="">Todos</option>
-                {options.models.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </NativeSelect>
-            </Field>
-            <Field label="Filial">
-              <NativeSelect fieldSize="sm" value={filters.unit ?? ""} onChange={(e) => set("unit", e.target.value || null)}>
-                <option value="">Todas</option>
-                {options.units.map((u) => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
-                ))}
-              </NativeSelect>
-            </Field>
-            {showStatus ? (
-              <Field label="Situação da leitura">
-                <NativeSelect fieldSize="sm" value={filters.status ?? ""} onChange={(e) => set("status", e.target.value || null)}>
+              ) : null}
+              <Field label="BR">
+                <NativeSelect fieldSize="sm" value={filters.br ?? ""} onChange={(e) => set("br", e.target.value || null)}>
                   <option value="">Todas</option>
-                  {Object.entries(KM_STATUS).map(([code, meta]) => (
-                    <option key={code} value={code}>{meta.label}</option>
+                  {brs.map((b) => (
+                    <option key={b.id} value={b.id}>{b.code}</option>
                   ))}
                 </NativeSelect>
               </Field>
-            ) : null}
-            <Field label="Frota">
-              <NativeSelect fieldSize="sm" value={filters.fleet ?? ""} onChange={(e) => set("fleet", e.target.value || null)}>
-                <option value="">Ativas e com leitura no período</option>
-                <option value="active">Somente ativas</option>
-                <option value="inactive">Inativas (histórico)</option>
-                <option value="all">Todas</option>
-              </NativeSelect>
-            </Field>
-          </div>
-        </PopoverContent>
-      </Popover>
+              <Field label="Liderança">
+                <NativeSelect fieldSize="sm" value={filters.leader ?? ""} onChange={(e) => set("leader", e.target.value || null)}>
+                  <option value="">Todas</option>
+                  {options.leaders.map((l) => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </NativeSelect>
+              </Field>
+              <Field label="Subcategoria">
+                <NativeSelect fieldSize="sm" value={filters.subcategory ?? ""} onChange={(e) => set("subcategory", e.target.value || null)}>
+                  <option value="">Todas</option>
+                  {subcategories.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </NativeSelect>
+              </Field>
+              <Field label="Modelo">
+                <NativeSelect fieldSize="sm" value={filters.model ?? ""} onChange={(e) => set("model", e.target.value || null)}>
+                  <option value="">Todos</option>
+                  {options.models.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </NativeSelect>
+              </Field>
+              <Field label="Filial">
+                <NativeSelect fieldSize="sm" value={filters.unit ?? ""} onChange={(e) => set("unit", e.target.value || null)}>
+                  <option value="">Todas</option>
+                  {options.units.map((u) => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </NativeSelect>
+              </Field>
+              {showStatus ? (
+                <Field label="Situação da leitura">
+                  <NativeSelect fieldSize="sm" value={filters.status ?? ""} onChange={(e) => set("status", e.target.value || null)}>
+                    <option value="">Todas</option>
+                    {Object.entries(KM_STATUS).map(([code, meta]) => (
+                      <option key={code} value={code}>{meta.label}</option>
+                    ))}
+                  </NativeSelect>
+                </Field>
+              ) : null}
+              <Field label="Frota">
+                <NativeSelect fieldSize="sm" value={filters.fleet ?? ""} onChange={(e) => set("fleet", e.target.value || null)}>
+                  <option value="">Ativas e com leitura no período</option>
+                  <option value="active">Somente ativas</option>
+                  <option value="inactive">Inativas (histórico)</option>
+                  <option value="all">Todas</option>
+                </NativeSelect>
+              </Field>
+            </div>
+          </PopoverContent>
+        </Popover>
 
-      {anyActive ? (
-        <Button variant="ghost" size="sm" leadingIcon={<X />} onClick={clearAll} disabled={pending}>
-          Limpar filtros
-        </Button>
-      ) : null}
+        {anyActive ? (
+          <Button variant="ghost" size="sm" leadingIcon={<X />} onClick={clearAll} disabled={pending}>
+            Limpar filtros
+          </Button>
+        ) : null}
+      </div>
     </FilterBar>
     {chips.length ? (
       <div className="flex flex-wrap items-center gap-1.5 border-t border-border-subtle pt-2 pb-1.5" aria-label="Filtros aplicados" data-testid="km-filter-chips">

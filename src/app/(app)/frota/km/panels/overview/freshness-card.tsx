@@ -94,7 +94,7 @@ export function FreshnessCard({ data, ctx }: { data: KmOverviewData; ctx: KmPane
           )}
         </div>
 
-        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2" aria-label="Faixas de atualização">
+        <ul className="grid grid-cols-1 gap-x-4 gap-y-0.5 sm:grid-cols-2 xl:grid-cols-1" aria-label="Faixas de atualização">
           {counts.map((b) => {
             const pressed = active === b.key;
             return (
@@ -106,9 +106,9 @@ export function FreshnessCard({ data, ctx }: { data: KmOverviewData; ctx: KmPane
                   aria-controls={listId}
                   disabled={b.count === 0}
                   className={cn(
-                    "flex w-full items-center gap-2.5 rounded-md border px-3 py-2 text-left hfm-transition hfm-focus-ring",
+                    "flex w-full items-center gap-2.5 rounded-md border px-2.5 py-1.5 text-left hfm-transition hfm-focus-ring",
                     "disabled:cursor-default disabled:opacity-60",
-                    pressed ? "border-primary bg-selected-overlay" : "border-border-subtle hover:bg-hover-overlay",
+                    pressed ? "border-primary bg-selected-overlay" : "border-transparent hover:bg-hover-overlay",
                   )}
                   data-testid={`km-visao-geral-freshness-${b.key}`}
                 >
