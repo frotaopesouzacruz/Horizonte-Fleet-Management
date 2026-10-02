@@ -1,6 +1,5 @@
 import "server-only";
 
-import { createClient } from "@/lib/supabase/server";
 import type { KmLoadContext } from "./context";
 import { kmRpc, kmRpcRaw } from "./rpc";
 import { camelize } from "./types";
@@ -205,23 +204,6 @@ async function findingsPage(batchId: string, code: string | null, limit: number,
     p_offset: offset,
   });
   return { code, offset, total: Number(res?.total ?? 0), rows: Array.isArray(res?.rows) ? res.rows : [] };
-}
-
-/** Total de achados de cada código (uma contagem por código, em paralelo). */
-async function findingCounts(batchId: string): Promise<Record<string, number>> {
-  const pairs = await Promise.all(
-    KM_FINDING_CODES.map(async (code) => {
-      try {
-        const page = await findingsPage(batchId, code, 1, 0);
-        return [code, page.total] as const;
-      } catch {
-        return [code, 0] as const;
-      }
-    }),
-  );
-  const out: Record<string, number> = {};
-  for (const [code, total] of pairs) if (total > 0) out[code] = total;
-  return out;
 }
 
 async function loadDetail(id: string, listRow: KmImportBatch | undefined): Promise<KmBatchDetail> {

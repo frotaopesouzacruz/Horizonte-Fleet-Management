@@ -173,7 +173,6 @@ function layout(extras: PlannerExtraColumn[], days: number, mode: PlannerMode): 
 const PIN = "md:sticky md:left-(--l)";
 const pinStyle = (left: number): CSSVars => ({ "--l": `${left}px` });
 
-const CELL = "h-7 border-b border-r border-border-subtle px-1.5 align-middle";
 const LAST_FIXED = "border-r-2 border-r-border";
 
 // ---------------------------------------------------------------------------
@@ -332,7 +331,7 @@ export function PlannerGrid({
   return (
     <div
       role="region"
-      aria-label="Planner mês/dia: grade de KM por frota e dia (role horizontal e verticalmente)"
+      aria-label="Planner mês/dia: grade de KM por frota e dia (rolagem horizontal e vertical)"
       tabIndex={0}
       data-testid="km-planner-grid"
       className="relative max-h-[72vh] w-full overflow-auto rounded-md border border-border bg-surface hfm-focus-ring"

@@ -3,7 +3,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { Json } from "@/types/database.types";
 import type { KmLoadContext } from "./context";
-import { kmRpc, kmRpcRaw } from "./rpc";
+import { kmPreviewActive, kmRpc, kmRpcRaw } from "./rpc";
 import { camelize } from "./types";
 import { firstParam } from "./url";
 
@@ -332,6 +332,7 @@ const todayInSaoPaulo = () =>
 
 /** Colaboradores ativos (campo Responsável), em páginas: a API limita cada leitura. */
 async function loadEmployees(organizationId: string): Promise<KmRotationEmployee[]> {
+  if (kmPreviewActive()) return [];
   const supabase = await createClient();
   const PAGE = 1000;
   const out: KmRotationEmployee[] = [];
