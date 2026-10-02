@@ -332,8 +332,8 @@ export function MetricStrip({ items, ariaLabel, className }: { items: MetricStri
   // Divisórias como sombras internas (topo e esquerda) e a grade deslocada 1px:
   // a última linha incompleta fica na cor do cartão, sem "buracos" cinza.
   return (
-    <dl aria-label={ariaLabel} className="overflow-hidden rounded-lg border border-border bg-surface-raised shadow-card">
-      <div className={cn("-mt-px -ml-px grid grid-cols-2 md:grid-cols-4", className)}>
+    <div className="overflow-hidden rounded-lg border border-border bg-surface-raised shadow-card">
+      <dl aria-label={ariaLabel} className={cn("-mt-px -ml-px grid grid-cols-2 md:grid-cols-4", className)}>
         {items.map((item) => (
           <div
             key={item.key}
@@ -344,7 +344,7 @@ export function MetricStrip({ items, ariaLabel, className }: { items: MetricStri
             {item.hint != null ? <dd className="line-clamp-2 text-caption text-fg-muted">{item.hint}</dd> : null}
           </div>
         ))}
-      </div>
-    </dl>
+      </dl>
+    </div>
   );
 }

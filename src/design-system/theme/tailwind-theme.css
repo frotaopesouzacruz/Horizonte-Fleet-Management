@@ -150,6 +150,7 @@
   --color-heat-6: var(--heat-6);
   --color-heat-fg-light: var(--heat-fg-light);
   --color-heat-fg-strong: var(--heat-fg-strong);
+  --color-heat-strong-fg: var(--heat-strong-fg);
   --color-blue-50: var(--blue-50);
   --color-blue-100: var(--blue-100);
   --color-blue-600: var(--blue-600);

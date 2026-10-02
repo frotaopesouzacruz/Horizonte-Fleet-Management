@@ -61,7 +61,14 @@ export const TableContainer = React.forwardRef<HTMLDivElement, TableContainerPro
     <TableContext.Provider value={context}>
       <div
         ref={ref}
-        className={cn("relative w-full overflow-auto rounded-lg border border-border bg-surface shadow-card", className)}
+        // Com altura máxima a tabela rola por dentro: precisa ser alcançável pelo
+        // teclado mesmo quando as linhas não têm links (WCAG 2.1.1).
+        tabIndex={resolvedMaxHeight ? 0 : undefined}
+        className={cn(
+          "relative w-full overflow-auto rounded-lg border border-border bg-surface shadow-card",
+          resolvedMaxHeight && "hfm-focus-ring",
+          className,
+        )}
         style={resolvedMaxHeight ? { ...style, maxHeight: resolvedMaxHeight } : style}
         {...props}
       >

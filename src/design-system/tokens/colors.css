@@ -287,6 +287,7 @@
   --heat-6: #3664ae;
   --heat-fg-light: #1b2537;
   --heat-fg-strong: #ffffff;
+  --heat-strong-fg: #ffffff;        /* texto sobre --heat-6 (≥ 5,8:1) */
 
   /* ---- Ambient canvas tint (very subtle depth behind the content) -------- */
   --canvas-glow: radial-gradient(1200px 520px at 12% -8%, rgb(31 75 147 / 0.07), transparent 60%),
@@ -476,6 +477,7 @@
   --heat-6: #6c9de0;
   --heat-fg-light: #dfe6f3;
   --heat-fg-strong: #ffffff;
+  --heat-strong-fg: #0b1426;        /* no escuro o topo da rampa é claro: texto escuro (≥ 6,5:1) */
 
   --canvas-glow: radial-gradient(1200px 560px at 10% -10%, rgb(63 115 207 / 0.14), transparent 60%),
     radial-gradient(900px 420px at 100% 0%, rgb(31 157 210 / 0.07), transparent 55%);

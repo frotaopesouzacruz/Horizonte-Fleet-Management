@@ -71,15 +71,16 @@ const HATCH = "bg-[image:repeating-linear-gradient(135deg,var(--chart-future)_0_
 /** Classes de fundo/texto de cada faixa. As mesmas na legenda e na grade. */
 export const HEAT_CLASS: Record<HeatKey, string> = {
   no_movement: "bg-neutral-soft text-fg-muted",
-  b1: "bg-chart-brand-primary/10 text-fg",
-  b2: "bg-chart-brand-primary/20 text-fg",
-  b3: "bg-chart-brand-primary/35 text-fg",
-  b4: "bg-chart-brand-primary/50 text-fg",
-  b5: "bg-chart-brand-primary/65 font-semibold text-fg",
+  // Rampa de intensidade oficial (--heat-1…6); o texto mantém ≥ 4,5:1 nos dois temas.
+  b1: "bg-heat-1 text-fg",
+  b2: "bg-heat-2 text-fg",
+  b3: "bg-heat-3 text-fg",
+  b4: "bg-heat-4 text-fg",
+  b5: "bg-heat-6 font-semibold text-heat-strong-fg",
   no_reading: "text-fg-subtle",
   inconsistent: "bg-heat-danger font-medium text-heat-danger-fg",
   future: HATCH,
-  out_of_filter: "italic text-fg-disabled",
+  out_of_filter: "italic text-fg-muted",
 };
 
 export const HEAT_LEGEND: { key: HeatKey; label: string; sample: string }[] = [
