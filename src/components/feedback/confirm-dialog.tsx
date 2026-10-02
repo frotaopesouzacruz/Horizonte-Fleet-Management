@@ -107,7 +107,7 @@ export function ConfirmDialog({
           className={cn(
             "fixed top-1/2 left-1/2 z-(--z-overlay) w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2",
             "max-h-[calc(100dvh-2rem)] overflow-y-auto",
-            "rounded-lg border border-border bg-surface-elevated p-5 text-fg shadow-lg outline-none",
+            "rounded-xl border border-border bg-surface-elevated p-5 text-fg shadow-xl outline-none",
             "data-[state=open]:animate-scale-in data-[state=closed]:animate-fade-out",
           )}
         >

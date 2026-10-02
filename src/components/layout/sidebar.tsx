@@ -22,16 +22,36 @@ const ALL_OPEN: readonly string[] = [];
 /* Nav item                                                                   */
 /* -------------------------------------------------------------------------- */
 
-function SidebarItem({ item, collapsed, onNavigate }: { item: NavItem; collapsed: boolean; onNavigate?: () => void }) {
+function SidebarItem({
+  item,
+  collapsed,
+  onNavigate,
+  nested = false,
+  trailing,
+}: {
+  item: NavItem;
+  collapsed: boolean;
+  onNavigate?: () => void;
+  /** Subitem: linha mais baixa, sem ícone em chip, presa à guia do pai. */
+  nested?: boolean;
+  /** Controle à direita (abrir/fechar subitens), fora do link. */
+  trailing?: React.ReactNode;
+}) {
   const pathname = usePathname();
-  const active = !item.planned && isActivePath(pathname, item.href);
+  // Recolhida não há subitens à vista: o item pai assume o destaque deles.
+  const active =
+    !item.planned &&
+    (isActivePath(pathname, item.href) ||
+      (collapsed && (item.children ?? []).some((child) => isActivePath(pathname, child.href))));
   const Icon = item.icon;
 
   const content = (
     <span
       className={cn(
-        "relative flex h-(--sidebar-item-height) items-center gap-2.5 rounded-md text-body-sm hfm-transition",
-        collapsed ? "w-10 justify-center px-0" : "px-2.5",
+        "relative flex items-center gap-2.5 rounded-md text-body-sm hfm-transition",
+        nested ? "h-8" : "h-(--sidebar-item-height)",
+        collapsed ? "w-10 justify-center px-0" : nested ? "px-2" : "px-2.5",
+        trailing && "pr-8",
         active
           ? "bg-primary-soft font-semibold text-primary-soft-fg ring-1 ring-inset ring-border-emphasis/50"
           : item.planned
@@ -44,11 +64,13 @@ function SidebarItem({ item, collapsed, onNavigate }: { item: NavItem; collapsed
       {active ? (
         <span aria-hidden className="absolute top-1.5 bottom-1.5 left-0 w-[3px] rounded-r-full bg-primary" />
       ) : null}
-      <Icon
-        className={cn("size-[18px] shrink-0", active ? "text-primary" : item.planned ? "" : "text-fg-muted")}
-        strokeWidth={active ? 2 : 1.75}
-        aria-hidden
-      />
+      {nested ? null : (
+        <Icon
+          className={cn("size-[18px] shrink-0", active ? "text-primary" : item.planned ? "" : "text-fg-muted")}
+          strokeWidth={active ? 2 : 1.75}
+          aria-hidden
+        />
+      )}
       {/* Recolhida, o ícone é aria-hidden e o rótulo não é pintado: sem isto o
           link chega ao leitor de tela sem nome nenhum. O tooltip resolve para
           quem vê o menu, não para quem o ouve. */}
@@ -82,7 +104,16 @@ function SidebarItem({ item, collapsed, onNavigate }: { item: NavItem; collapsed
 
   // Collapsed has no labels, and a planned module has to say why it does not
   // respond. Both are the same affordance, so both get the same tooltip.
-  if (!collapsed && !item.planned) return node;
+  if (!collapsed && !item.planned) {
+    return trailing ? (
+      <div className="relative">
+        {node}
+        <div className="absolute inset-y-0 right-1 flex items-center">{trailing}</div>
+      </div>
+    ) : (
+      node
+    );
+  }
 
   return (
     <Tooltip>
@@ -96,6 +127,52 @@ function SidebarItem({ item, collapsed, onNavigate }: { item: NavItem; collapsed
         ) : null}
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Item with subitems (expanded)                                              */
+/* -------------------------------------------------------------------------- */
+
+function SidebarBranch({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
+  const pathname = usePathname();
+  const children = item.children ?? [];
+  const inBranch = children.some((child) => isActivePath(pathname, child.href));
+  // Dentro de uma subtela o ramo fica aberto; fora dele, vale a escolha da pessoa.
+  const [manual, setManual] = React.useState(false);
+  const open = inBranch || manual;
+  const setOpen = (fn: (v: boolean) => boolean) => setManual(fn(open));
+  const listId = `nav-branch-${item.href.replace(/[^a-z0-9]/gi, "-")}`;
+
+  return (
+    <div className="flex flex-col">
+      <SidebarItem
+        item={item}
+        collapsed={false}
+        onNavigate={onNavigate}
+        trailing={
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-controls={listId}
+            aria-label={open ? `Recolher ${item.label}` : `Expandir ${item.label}`}
+            className="flex size-6 items-center justify-center rounded-sm text-fg-muted hfm-transition hover:bg-hover-overlay hover:text-fg hfm-focus-ring"
+          >
+            <ChevronDown aria-hidden className={cn("size-3.5 hfm-transition", !open && "-rotate-90")} />
+          </button>
+        }
+      />
+      {open ? (
+        <ul id={listId} className="mt-0.5 ml-[21px] flex flex-col gap-0.5 border-l border-border pl-2">
+          {children.map((child) => (
+            <li key={child.href}>
+              <SidebarItem item={child} collapsed={false} onNavigate={onNavigate} nested />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 
@@ -165,7 +242,11 @@ function SidebarGroup({
         <ul id={listId} className="flex flex-col gap-0.5">
           {group.items.map((item) => (
             <li key={item.href}>
-              <SidebarItem item={item} collapsed={false} onNavigate={onNavigate} />
+              {item.children?.length ? (
+                <SidebarBranch item={item} onNavigate={onNavigate} />
+              ) : (
+                <SidebarItem item={item} collapsed={false} onNavigate={onNavigate} />
+              )}
             </li>
           ))}
         </ul>

@@ -4,13 +4,13 @@ import * as React from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FilterBar } from "@/components/ui/filter-bar";
+import { FilterBar, FilterChip } from "@/components/ui/filter-bar";
 import { DateInput } from "@/components/ui/date-input";
 import { SearchField } from "@/components/ui/search-field";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { NativeSelect } from "@/components/governance/selects";
 import type { KmFilterOptions } from "@/lib/km/options";
-import { competenceLabel, KM_FILTER_PARAM, KM_STATUS, type KmFilters, type KmNavigate } from "@/lib/km/types";
+import { competenceLabel, formatDate, KM_FILTER_PARAM, KM_STATUS, type KmFilters, type KmNavigate } from "@/lib/km/types";
 
 /**
  * Filtros globais do KM — todos por id oficial (operação, UF, cidade, BR,
@@ -107,7 +107,29 @@ export function KmFilterBar({
     navigate(patch);
   };
 
+  // Chips dos filtros aplicados (UI 2.0): o que está valendo, à vista, com
+  // remoção individual. Os nomes vêm das opções oficiais; o filtro é o id.
+  const name = (list: { id: string | number; name?: string; uf?: string; code?: string }[], id?: string) =>
+    id ? (list.find((o) => String(o.id) === id)?.name ?? list.find((o) => String(o.id) === id)?.code ?? id) : "";
+  const chips: { key: keyof KmFilters | "period"; label: string; value: string; clear: Record<string, string | null> }[] = [];
+  if (customPeriod)
+    chips.push({ key: "period", label: "Período", value: `${formatDate(filters.from)} a ${formatDate(filters.to)}`, clear: { [P.from]: null, [P.to]: null } });
+  if (filters.operation) chips.push({ key: "operation", label: "Operação", value: name(options.operations, filters.operation), clear: { [P.operation]: null, [P.state]: null, [P.city]: null, [P.br]: null } });
+  if (filters.state) chips.push({ key: "state", label: "UF", value: states.find((x) => String(x.id) === filters.state)?.uf ?? filters.state, clear: { [P.state]: null, [P.city]: null, [P.br]: null } });
+  if (filters.city) chips.push({ key: "city", label: "Cidade", value: cities.find((x) => String(x.id) === filters.city)?.name ?? filters.city, clear: { [P.city]: null, [P.br]: null } });
+  if (filters.br) chips.push({ key: "br", label: "BR", value: options.brs.find((b) => b.id === filters.br)?.code ?? filters.br, clear: { [P.br]: null } });
+  if (filters.leader) chips.push({ key: "leader", label: "Liderança", value: name(options.leaders, filters.leader), clear: { [P.leader]: null } });
+  if (filters.unit) chips.push({ key: "unit", label: "Filial", value: name(options.units, filters.unit), clear: { [P.unit]: null } });
+  if (filters.vehicleType) chips.push({ key: "vehicleType", label: "Tipo", value: name(options.vehicleTypes, filters.vehicleType), clear: { [P.vehicleType]: null, [P.subcategory]: null } });
+  if (filters.subcategory) chips.push({ key: "subcategory", label: "Subcategoria", value: name(options.subcategories, filters.subcategory), clear: { [P.subcategory]: null } });
+  if (filters.model) chips.push({ key: "model", label: "Modelo", value: name(options.models, filters.model), clear: { [P.model]: null } });
+  if (filters.status) chips.push({ key: "status", label: "Situação", value: KM_STATUS[filters.status as keyof typeof KM_STATUS]?.label ?? filters.status, clear: { [P.status]: null } });
+  if (filters.fleet) chips.push({ key: "fleet", label: "Frota", value: { active: "Somente ativas", inactive: "Inativas", all: "Todas" }[filters.fleet], clear: { [P.fleet]: null } });
+  if (filters.vehicle) chips.push({ key: "vehicle", label: "Veículo", value: filters.vehicle.split(",").map((id) => options.vehicles.find((v) => v.id === id)?.plate ?? id).join(", "), clear: { [P.vehicle]: null } });
+  if (filters.q) chips.push({ key: "q", label: "Busca", value: filters.q, clear: { [P.q]: null } });
+
   return (
+    <>
     <FilterBar className="items-end gap-3" label="Filtros da Gestão de KM">
       {showPeriod ? (
         <Field label="Competência">
@@ -309,5 +331,20 @@ export function KmFilterBar({
         </Button>
       ) : null}
     </FilterBar>
+    {chips.length ? (
+      <div className="flex flex-wrap items-center gap-1.5 border-t border-border-subtle pt-2 pb-1.5" aria-label="Filtros aplicados" data-testid="km-filter-chips">
+        {chips.map((c) => (
+          <FilterChip
+            key={c.key}
+            label={c.label}
+            value={c.value}
+            disabled={pending}
+            removeLabel={`Remover filtro ${c.label}`}
+            onRemove={() => navigate(c.clear)}
+          />
+        ))}
+      </div>
+    ) : null}
+    </>
   );
 }

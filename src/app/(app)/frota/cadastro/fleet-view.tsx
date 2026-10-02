@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   Archive,
@@ -509,6 +510,13 @@ export function FleetView({
           {can("vehicles.correct_odometer") && !row.deleted_at ? (
             <DropdownMenuItem onSelect={() => row.id && setDetailId(row.id)}>
               <Gauge aria-hidden /> Corrigir quilometragem…
+            </DropdownMenuItem>
+          ) : null}
+          {can("km.view") && can("km.view_history") && row.id ? (
+            <DropdownMenuItem asChild>
+              <Link href={`/frota/km?aba=historico&veiculo=${row.id}`}>
+                <Gauge aria-hidden /> Histórico de KM
+              </Link>
             </DropdownMenuItem>
           ) : null}
           {can("vehicles.update") && !row.deleted_at ? (

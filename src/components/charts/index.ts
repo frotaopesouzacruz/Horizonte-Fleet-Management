@@ -6,3 +6,5 @@ export * from "./trend-chart";
 export * from "./bar-charts";
 export * from "./sparkline";
 export * from "./sr-table";
+export * from "./gauge-chart";
+export * from "./donut-chart";

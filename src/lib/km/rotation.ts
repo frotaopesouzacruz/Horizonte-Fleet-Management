@@ -330,16 +330,26 @@ const todayInSaoPaulo = () =>
     new Date(),
   );
 
+/** Colaboradores ativos (campo Responsável), em páginas: a API limita cada leitura. */
 async function loadEmployees(organizationId: string): Promise<KmRotationEmployee[]> {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("employees")
-    .select("id, full_name")
-    .eq("organization_id", organizationId)
-    .eq("employment_status", "active")
-    .is("deleted_at", null)
-    .order("full_name");
-  return (data ?? []).map((e) => ({ id: e.id, name: e.full_name }));
+  const PAGE = 1000;
+  const out: KmRotationEmployee[] = [];
+  for (let from = 0; from < 20 * PAGE; from += PAGE) {
+    const { data, error } = await supabase
+      .from("employees")
+      .select("id, full_name")
+      .eq("organization_id", organizationId)
+      .eq("employment_status", "active")
+      .is("deleted_at", null)
+      .order("full_name")
+      .order("id")
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`employees: ${error.message}`);
+    for (const e of data ?? []) out.push({ id: e.id, name: e.full_name });
+    if (!data || data.length < PAGE) break;
+  }
+  return out;
 }
 
 export async function loadRotationPlanDetail(planId: string): Promise<KmRotationPlanDetail> {

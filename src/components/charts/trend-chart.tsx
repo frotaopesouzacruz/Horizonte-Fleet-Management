@@ -41,6 +41,11 @@ export interface TrendChartProps {
   height?: number;
   /** Pontos abaixo da meta em vermelho (padrão: sim, quando há meta). */
   flagBelowTarget?: boolean;
+  /**
+   * `kind="number"`: o eixo começa em zero (padrão). Desligue para séries que
+   * vivem longe do zero (hodômetro em 80 mil km), senão a linha fica plana.
+   */
+  zeroBaseline?: boolean;
   onSelect?: (point: TrendPoint, index: number) => void;
   className?: string;
 }
@@ -50,7 +55,7 @@ const HATCH_PREFIX = "hfm-trend-future-";
 
 export function TrendChart({
   points, ariaLabel, target = null, targetLabel, kind = "percent", format, axisFormat, height = 200,
-  flagBelowTarget = true, onSelect, className,
+  flagBelowTarget = true, zeroBaseline = true, onSelect, className,
 }: TrendChartProps) {
   const uid = React.useId().replace(/:/g, "");
   const [active, setActive] = React.useState<number | null>(null);
@@ -61,7 +66,11 @@ export function TrendChart({
   else {
     const present = values.filter((v): v is number => v != null);
     if (target != null) present.push(target);
-    const s = niceScale(Math.min(0, ...present), Math.max(1, ...present), 4);
+    const lo = present.length ? Math.min(...present) : 0;
+    const hi = present.length ? Math.max(...present) : 1;
+    const s = zeroBaseline
+      ? niceScale(Math.min(0, lo), Math.max(1, hi), 4)
+      : niceScale(lo - (hi - lo) * 0.08, hi + (hi - lo) * 0.08 || hi + 1, 4);
     domain = [s.min, s.max];
   }
 

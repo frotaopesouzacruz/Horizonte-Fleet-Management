@@ -31,7 +31,7 @@ export function parsePlannerMode(v: string | undefined): PlannerMode {
   return v === "detalhado" ? "detalhado" : "compacto";
 }
 export function parsePlannerSort(v: string | undefined): PlannerSort {
-  return v && v in PLANNER_SORT_LABEL ? (v as PlannerSort) : "local";
+  return v && Object.prototype.hasOwnProperty.call(PLANNER_SORT_LABEL, v) ? (v as PlannerSort) : "local";
 }
 export function parsePlannerColumns(v: string | undefined): PlannerExtraColumn[] {
   const set = new Set((v ?? "").split(",").map((s) => s.trim()));
@@ -109,7 +109,6 @@ export interface CellView {
   mark: string | null;
   start: string;
   end: string;
-  title: string;
 }
 
 function band(km: number): HeatKey {
@@ -121,15 +120,12 @@ function band(km: number): HeatKey {
 }
 
 const odo = (v: number | null) => (v == null ? "—" : fmt1(v));
+const EMPTY_CELL: KmPlannerCell = ["no_reading", null, null, null];
 
 /** Classificação de uma célula para exibição (sem recalcular nada). */
-export function cellView(cell: KmPlannerCell | undefined, day: KmPlannerDay, plate: string): CellView {
-  const [status, start, end, km] = cell ?? (["no_reading", null, null, null] as KmPlannerCell);
-  const date = `${formatDate(day.date)} (${weekdayShort(day.dow)})`;
-  const head = `${plate} · ${date}`;
-  if (status === "future") {
-    return { heat: "future", text: "", mark: null, start: "", end: "", title: `${head}\nDia futuro — sem resultado` };
-  }
+export function cellView(cell: KmPlannerCell | undefined): CellView {
+  const [status, start, end, km] = cell ?? EMPTY_CELL;
+  if (status === "future") return { heat: "future", text: "", mark: null, start: "", end: "" };
   if (status === "out_of_filter") {
     return {
       heat: "out_of_filter",
@@ -137,32 +133,34 @@ export function cellView(cell: KmPlannerCell | undefined, day: KmPlannerDay, pla
       mark: null,
       start: start == null ? "" : fmt1(start),
       end: end == null ? "" : fmt1(end),
-      title: `${head}\nFora do filtro neste dia (outro contexto ou situação) — não entra nos totais${
-        km == null ? "" : `\nKM: ${fmt1(km)}`
-      }`,
     };
   }
-  const meta = KM_STATUS[status as KmReadingStatus];
-  const label = kmStatusLabel(status);
-  const lines = [head, `Situação: ${label}`, `Hodômetro inicial: ${odo(start)}`, `Hodômetro final: ${odo(end)}`];
-  if (status === "no_reading") {
-    lines.push("KM: sem leitura (não é 0 km)");
-    return { heat: "no_reading", text: "—", mark: null, start: odo(start), end: odo(end), title: lines.join("\n") };
-  }
-  const counts = meta?.counts ?? false;
-  if (!counts || km == null) {
-    lines.push(status === "inconsistent" ? "KM: não entra nos totais" : "KM: —");
-    return { heat: "inconsistent", text: "inc.", mark: null, start: odo(start), end: odo(end), title: lines.join("\n") };
-  }
-  lines.push(`KM: ${fmt1(km)}`);
+  if (status === "no_reading") return { heat: "no_reading", text: "—", mark: null, start: odo(start), end: odo(end) };
+  if (!countsCell(cell) || km == null) return { heat: "inconsistent", text: "inc.", mark: null, start: odo(start), end: odo(end) };
   return {
     heat: status === "no_movement" ? "no_movement" : band(km),
     text: fmt1(km),
     mark: STATUS_MARK[status as KmReadingStatus] ?? null,
     start: odo(start),
     end: odo(end),
-    title: lines.join("\n"),
   };
+}
+
+/** Tooltip da célula: situação (catálogo), hodômetros e KM. Montado sob demanda (passar o cursor). */
+export function cellTitle(cell: KmPlannerCell | undefined, day: KmPlannerDay, plate: string): string {
+  const [status, start, end, km] = cell ?? EMPTY_CELL;
+  const head = `${plate} · ${formatDate(day.date)} (${weekdayShort(day.dow)})`;
+  if (status === "future") return `${head}\nDia futuro — sem resultado`;
+  if (status === "out_of_filter") {
+    return `${head}\nFora do filtro neste dia (outro contexto ou situação) — não entra nos totais${
+      km == null ? "" : `\nKM: ${fmt1(km)}`
+    }`;
+  }
+  const lines = [head, `Situação: ${kmStatusLabel(status)}`, `Hodômetro inicial: ${odo(start)}`, `Hodômetro final: ${odo(end)}`];
+  if (status === "no_reading") lines.push("KM: sem leitura (não é 0 km)");
+  else if (!countsCell(cell) || km == null) lines.push("KM: não entra nos totais");
+  else lines.push(`KM: ${fmt1(km)}`);
+  return lines.join("\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -196,11 +194,31 @@ export function dayMetas(data: KmPlannerData): DayMeta[] {
   });
 }
 
-/** Valor agregado de um dia vindo da rotina: futuro em branco, dia sem nenhuma leitura "—". */
-export function dayValue(meta: DayMeta, value: number | null | undefined): string {
+/**
+ * Valor agregado de um dia vindo da rotina: futuro em branco; sem nenhuma
+ * leitura que conte (no dia, ou no conjunto quando `present` é informado) "—".
+ */
+export function dayValue(meta: DayMeta, value: number | null | undefined, present = true): string {
   if (meta.future) return "";
-  if (meta.noReading) return "—";
+  if (meta.noReading || !present) return "—";
   return fmt1(value ?? null);
+}
+
+/** A célula tem KM que conta nos totais (situação do catálogo + KM informado pela rotina). */
+export const countsCell = (cell: KmPlannerCell | undefined): boolean =>
+  Boolean(cell && KM_STATUS[cell[0] as KmReadingStatus]?.counts && cell[3] != null);
+
+/**
+ * Em quais dias um conjunto de frotas tem alguma leitura que conta. Serve só
+ * para não exibir como 0 km (valor que a rotina completa com zero) o dia em
+ * que não houve leitura nenhuma no conjunto.
+ */
+export function presence(rows: KmPlannerRow[], days: number): boolean[] {
+  const out = Array.from({ length: days }, () => false);
+  for (const r of rows) {
+    for (let i = 0; i < days; i++) if (!out[i] && countsCell(r.cells[i])) out[i] = true;
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------

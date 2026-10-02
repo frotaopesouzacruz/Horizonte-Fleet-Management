@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/cn";
 import type { KmAnalysisData, KmAnalysisOperationRow } from "@/lib/km/analysis";
-import { fmt1, fmtInt, fmtKm, fmtKm1, fmtPct } from "@/lib/km/types";
+import { fmtInt, fmtKm, fmtKm1, fmtPct } from "@/lib/km/types";
 import { signedPct, SortHead, useSorted } from "./shared";
 
 /**
@@ -152,7 +152,7 @@ export function OperationView({ data }: { data: KmAnalysisData }) {
         </Table>
       </TableContainer>
       <p className="text-caption text-fg-muted">
-        KM/dia = KM da operação ÷ dias com KM válido no período ({fmt1(totals?.days ?? null)} dias). Sem leitura não entra
+        KM/dia = KM da operação ÷ dias com KM válido no período ({fmtInt(totals?.days ?? null)} dias). Sem leitura não entra
         como zero.
       </p>
     </div>

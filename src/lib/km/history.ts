@@ -134,11 +134,18 @@ export async function loadHistory(ctx: KmLoadContext): Promise<KmHistoryData> {
   const request = { vehicleId, from, to };
   if (!vehicleId) return { vehicle: null, request };
 
-  const data = await kmRpc<Omit<KmHistoryData, "request"> | null>("km_vehicle_history", {
-    p_vehicle_id: vehicleId,
-    p_from: from,
-    p_to: to,
-  });
+  let data: Omit<KmHistoryData, "request"> | null;
+  try {
+    data = await kmRpc<Omit<KmHistoryData, "request"> | null>("km_vehicle_history", {
+      p_vehicle_id: vehicleId,
+      p_from: from,
+      p_to: to,
+    });
+  } catch (error) {
+    // A mensagem do banco já é para a pessoa ("Veículo fora do seu escopo.").
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(message.replace(/^km_vehicle_history:\s*/, ""));
+  }
   if (!data) return { vehicle: null, request };
   return { ...data, vehicle: data.vehicle ?? null, request };
 }

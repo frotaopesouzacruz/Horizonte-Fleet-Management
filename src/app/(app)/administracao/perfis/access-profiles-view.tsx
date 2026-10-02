@@ -98,7 +98,7 @@ const moduleLabel = (module: string) => MODULE_LABELS[module] ?? module;
  * that lists a menu the product no longer has is worse than no simulation.
  */
 const NAVIGATION_PERMISSIONS = navigation.flatMap((group) =>
-  group.items.map((item) => ({ label: item.label, permission: item.permission })),
+  group.items.flatMap((item) => [item, ...(item.children ?? [])]).map((item) => ({ label: item.label, permission: item.permission })),
 );
 
 const SEVERITY: Record<AccessInconsistency["severity"], { label: string; variant: "danger" | "warning" | "neutral" }> = {

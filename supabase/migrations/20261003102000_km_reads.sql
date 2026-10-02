@@ -1067,6 +1067,10 @@ begin
          from pv group by pv.operation_id) q),
     'by_location', (select coalesce(jsonb_agg(q.j order by q.j ->> 'operation', q.j ->> 'state', q.j ->> 'city', q.j ->> 'br'), '[]'::jsonb) from (
        select jsonb_build_object(
+                -- nível da linha na hierarquia Operação (1) → Estado (2) → Cidade (3) → BR (4)
+                'level', case when grouping(x.operation_br_id) = 0 then 4 when grouping(x.city_id) = 0 then 3
+                              when grouping(x.state_id) = 0 then 2 else 1 end,
+                'state_id', x.state_id, 'city_id', x.city_id, 'operation_br_id', x.operation_br_id,
                 'operation_id', x.operation_id,
                 'operation', coalesce((select o.name from public.operations o where o.id = x.operation_id), 'Sem operação'),
                 'state', (select s.uf::text from public.states s where s.id = x.state_id),
@@ -1256,12 +1260,20 @@ begin
                           'reading_id', g.reading_id, 'day', g.day, 'status', g.status, 'alerts', to_jsonb(g.alerts),
                           'odometer_start', g.odometer_start, 'odometer_end', g.odometer_end,
                           'km_informed', g.km_informed, 'km_calculated', g.km_calculated, 'km', g.km,
-                          'corrected', g.is_corrected) as j
+                          'corrected', g.is_corrected,
+                          'odometer_start_imported', src.odometer_start_imported,
+                          'odometer_end_imported', src.odometer_end_imported) as j
                    from g
+                   left join public.km_daily_readings src on src.id = g.reading_id
                   where g.reading_id is not null
                     and (g.status in ('inconsistent', 'km_divergence', 'pending_review', 'high_mileage')
                          or g.alerts && array['odometer_regression', 'odometer_jump', 'registry_divergence'])
                   order by g.day desc limit 1000) q),
+    -- total real de ocorrências (a lista acima traz as 1.000 mais recentes)
+    'issues_total', (select count(*) from g
+                      where g.reading_id is not null
+                        and (g.status in ('inconsistent', 'km_divergence', 'pending_review', 'high_mileage')
+                             or g.alerts && array['odometer_regression', 'odometer_jump', 'registry_divergence'])),
     'stale', (select coalesce(jsonb_agg(private.km_vehicle_card(fr.vehicle_id) || jsonb_build_object(
                 'last_reading_date', fr.last_reading_date, 'missing_days', fr.missing_days, 'bucket', fr.bucket)
                 order by fr.missing_days desc nulls first), '[]'::jsonb)
@@ -1325,6 +1337,44 @@ revoke all on function public.km_import_batches(uuid, integer, integer) from pub
 grant execute on function public.km_import_batches(uuid, integer, integer) to authenticated, service_role;
 
 -- Base consolidada (exportação paginada; mesmos filtros e escopo da tela).
+-- Um lote de KM (resumo da prévia/consolidação e contagem de achados por
+-- código), para quem importa, audita ou cuida da qualidade — sem depender da
+-- permissão genérica de importação de cadastros.
+create or replace function public.km_import_batch(p_batch_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  b public.import_batches;
+begin
+  select * into b from public.import_batches where id = p_batch_id and type = 'km';
+  if b.id is null or not (private.has_permission(b.organization_id, 'km.import')
+                          or private.has_permission(b.organization_id, 'km.view_audit')
+                          or private.has_permission(b.organization_id, 'km.view_quality')) then
+    raise exception 'Lote de KM não encontrado ou fora do seu acesso.' using errcode = 'insufficient_privilege';
+  end if;
+  return jsonb_build_object(
+    'id', b.id, 'status', b.status, 'file_name', b.file_name, 'file_hash', b.file_hash, 'file_size', b.file_size,
+    'total_rows', b.total_rows, 'valid_rows', b.valid_rows, 'warning_rows', b.warning_rows, 'error_rows', b.error_rows,
+    'created_rows', b.created_rows, 'updated_rows', b.updated_rows, 'skipped_rows', b.skipped_rows,
+    'created_at', b.created_at, 'processed_at', b.processed_at,
+    'created_by', (select u.email from auth.users u where u.id = b.created_by),
+    'summary', b.summary,
+    'findings_by_code', (select coalesce(jsonb_object_agg(q.code, q.n), '{}'::jsonb)
+                           from (select e.code, count(*) as n from public.import_errors e
+                                  where e.batch_id = b.id group by e.code) q),
+    'odometers_synced', (select count(*) from public.vehicle_odometer_readings o
+                          join public.km_daily_readings k on k.id = o.km_reading_id
+                         where k.import_batch_id = b.id and o.superseded_by is null));
+end;
+$$;
+
+revoke all on function public.km_import_batch(uuid) from public, anon;
+grant execute on function public.km_import_batch(uuid) to authenticated, service_role;
+
 create or replace function public.km_readings_export(
   p_organization_id uuid, p_filters jsonb default '{}'::jsonb, p_limit integer default 5000, p_offset integer default 0)
 returns jsonb

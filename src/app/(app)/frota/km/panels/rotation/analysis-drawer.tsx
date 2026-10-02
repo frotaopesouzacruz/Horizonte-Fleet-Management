@@ -222,7 +222,7 @@ function VehicleSection({ title, hint, vehicle }: { title: string; hint: string;
         <Fact label="KM atual">{fmtKm(vehicle.odometer)}</Fact>
         <Fact label="Rodagem média">{kmMonth(vehicle.kmMonth)}</Fact>
         <Fact label="Percentil de utilização">
-          {vehicle.percentile == null ? "—" : `${fmtInt(vehicle.percentile)}º na coorte`}
+          {vehicle.percentile == null ? "—" : `Percentil ${fmtInt(vehicle.percentile)} da coorte`}
         </Fact>
         <Fact label="Cobertura de leitura">{fmtPct(vehicle.coveragePct)}</Fact>
         <Fact label="Preventiva">{preventiveText(vehicle)}</Fact>

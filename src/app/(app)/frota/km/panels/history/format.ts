@@ -48,7 +48,9 @@ export function stamp(iso: string | null | undefined): string {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(d);
+  })
+    .format(d)
+    .replace(",", "");
 }
 
 export const HEALTH: Record<string, { label: string; tone: KmTone; hint: string }> = {

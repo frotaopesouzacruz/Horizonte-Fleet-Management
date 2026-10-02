@@ -12,7 +12,7 @@ import { cn } from "@/lib/cn";
  */
 export const badgeVariants = cva(
   [
-    "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-xs border font-medium tracking-normal",
+    "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-sm border font-semibold tracking-normal",
     "[&_svg]:pointer-events-none [&_svg]:shrink-0",
   ],
   {
@@ -28,7 +28,7 @@ export const badgeVariants = cva(
         info: "",
       },
       appearance: {
-        soft: "border-transparent",
+        soft: "",
         solid: "border-transparent",
         outline: "bg-transparent",
       },
@@ -39,14 +39,14 @@ export const badgeVariants = cva(
     },
     compoundVariants: [
       /* soft */
-      { variant: "neutral", appearance: "soft", className: "bg-neutral-soft text-neutral-soft-fg" },
-      { variant: "primary", appearance: "soft", className: "bg-primary-soft text-primary-soft-fg" },
-      { variant: "accent", appearance: "soft", className: "bg-accent-soft text-accent-soft-fg" },
-      { variant: "highlight", appearance: "soft", className: "bg-highlight-soft text-highlight-soft-fg" },
-      { variant: "success", appearance: "soft", className: "bg-success-soft text-success-soft-fg" },
-      { variant: "warning", appearance: "soft", className: "bg-warning-soft text-warning-soft-fg" },
-      { variant: "danger", appearance: "soft", className: "bg-danger-soft text-danger-soft-fg" },
-      { variant: "info", appearance: "soft", className: "bg-info-soft text-info-soft-fg" },
+      { variant: "neutral", appearance: "soft", className: "border-neutral-border bg-neutral-soft text-neutral-soft-fg" },
+      { variant: "primary", appearance: "soft", className: "border-border-emphasis/70 bg-primary-soft text-primary-soft-fg" },
+      { variant: "accent", appearance: "soft", className: "border-info-border bg-accent-soft text-accent-soft-fg" },
+      { variant: "highlight", appearance: "soft", className: "border-warning-border bg-highlight-soft text-highlight-soft-fg" },
+      { variant: "success", appearance: "soft", className: "border-success-border bg-success-soft text-success-soft-fg" },
+      { variant: "warning", appearance: "soft", className: "border-warning-border bg-warning-soft text-warning-soft-fg" },
+      { variant: "danger", appearance: "soft", className: "border-danger-border bg-danger-soft text-danger-soft-fg" },
+      { variant: "info", appearance: "soft", className: "border-info-border bg-info-soft text-info-soft-fg" },
       /* solid */
       { variant: "neutral", appearance: "solid", className: "bg-neutral text-neutral-fg" },
       { variant: "primary", appearance: "solid", className: "bg-primary text-primary-fg" },

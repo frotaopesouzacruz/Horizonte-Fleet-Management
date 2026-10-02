@@ -427,6 +427,15 @@ export function VehicleDetailDrawer({
           <Button variant="secondary" onClick={onClose}>
             Fechar
           </Button>
+          {/* Atalho para o Histórico de KM (Gestão de KM Rodado), pelo id do veículo. */}
+          {vehicle && vehicleId && can("km.view") && can("km.view_history") ? (
+            <Button asChild variant="secondary">
+              <Link href={`/frota/km?aba=historico&veiculo=${vehicleId}`} data-testid="fleet-vehicle-km-history">
+                <Gauge aria-hidden />
+                Histórico de KM
+              </Link>
+            </Button>
+          ) : null}
           {vehicle && can("vehicles.update") && !vehicle.deleted_at ? (
             <Button leadingIcon={<Pencil />} onClick={() => vehicle.id && onEdit(vehicle.id)}>
               Editar cadastro

@@ -88,13 +88,17 @@ export function KmByDayChart({ data, ctx }: { data: KmOverviewData; ctx: KmPanel
       empty={rows.length === 0 ? "Sem dias no período." : undefined}
       insight={
         noReadingDays > 0
-          ? `${fmtInt(noReadingDays)} ${noReadingDays === 1 ? "dia passado ficou" : "dias passados ficaram"} sem nenhuma leitura no período — aparecem sem barra, não como 0 km.`
+          ? noReadingDays === 1
+            ? "1 dia passado ficou sem nenhuma leitura no período — aparece hachurado, não como 0 km."
+            : `${fmtInt(noReadingDays)} dias passados ficaram sem nenhuma leitura no período — aparecem hachurados, não como 0 km.`
           : undefined
       }
       data-testid="km-visao-geral-daily-chart"
+      className="h-full"
     >
       <ColumnChart
         items={items}
+        emptyLabel="Sem leitura"
         ariaLabel={`KM validado por dia, ${formatDate(period.from)} a ${formatDate(period.to)}`}
         format={fmtKm}
         axisFormat={chartFormat.compact}

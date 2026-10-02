@@ -47,13 +47,15 @@ export interface ColumnChartProps {
   showValues?: boolean;
   onSelect?: (item: ColumnDatum, index: number) => void;
   className?: string;
+  /** Texto para coluna sem valor (padrão "Sem base"; ex.: "Sem leitura"). */
+  emptyLabel?: string;
 }
 
 const HATCH = "hfm-col-future-";
 
 export function ColumnChart({
   items, ariaLabel, format, axisFormat, kind = "count", target = null, targetLabel, height = 180, showValues = true,
-  onSelect, className,
+  onSelect, className, emptyLabel = "Sem base",
 }: ColumnChartProps) {
   const uid = React.useId().replace(/:/g, "");
   const [active, setActive] = React.useState<number | null>(null);
@@ -133,7 +135,7 @@ export function ColumnChart({
               const barTop = hasValue ? y(item.value as number) : base;
               const segs = item.segments?.filter((s) => s.value > 0) ?? [];
               let acc = 0;
-              const valueText = item.future ? "—" : item.value == null ? "Sem base" : format(item.value);
+              const valueText = item.future ? "—" : item.value == null ? emptyLabel : format(item.value);
               return (
                 <g key={item.key}>
                   {item.future ? (

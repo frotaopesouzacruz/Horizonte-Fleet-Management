@@ -120,7 +120,7 @@ export const ErrorState = React.forwardRef<HTMLDivElement, ErrorStateProps>(func
       ref={ref}
       className={cn(
         "flex w-full flex-col items-center justify-center gap-3 text-center",
-        variant === "panel" && "rounded-md border border-border bg-surface px-6 py-10",
+        variant === "panel" && "rounded-lg border border-border bg-surface-raised px-6 py-10 shadow-card",
         variant === "page" && "px-6 py-16",
         className,
       )}

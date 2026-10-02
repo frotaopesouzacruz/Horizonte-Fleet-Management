@@ -77,7 +77,7 @@ export function maintenanceText(v: KmRotationVehicle | null | undefined): string
     case undefined:
       return "Nenhuma";
     default:
-      return String(v.maintenanceOpen);
+      return String(v?.maintenanceOpen);
   }
 }
 
@@ -335,7 +335,7 @@ export function planReportText(detail: KmRotationPlanDetail, avgReductionPct: nu
 
   for (const g of groups) {
     lines.push("");
-    lines.push(g.label.toLocaleUpperCase("pt-BR"));
+    lines.push(`GRUPO TÉCNICO: ${g.label}`);
     for (const it of g.items) {
       const a = it.snapshot?.vehicleA;
       const b = it.snapshot?.vehicleB;

@@ -19,7 +19,7 @@ import type { KmPanelContext } from "../../shared";
 // ---------------------------------------------------------------------------
 export interface KmNavLink {
   href: string;
-  onClick: (event: React.MouseEvent<HTMLAnchorElement>) => void;
+  onClick?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
 }
 
 /**
@@ -252,6 +252,9 @@ export function formatStamp(iso: string | null | undefined): string {
     minute: "2-digit",
   }).format(d);
 }
+
+/** Singular/plural pela quantidade. */
+export const plural = (n: number | null | undefined, one: string, many: string) => (n === 1 ? one : many);
 
 /** Parte de um todo, em %, só para exibir (nunca para decidir status). */
 export const shareOf = (part: number | null | undefined, whole: number | null | undefined): number | null =>

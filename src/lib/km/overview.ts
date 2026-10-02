@@ -101,14 +101,15 @@ export interface KmOverviewData {
   kpis: KmOverviewKpis;
   /**
    * Faixas de atualização por código (`updated`, `d1`, `d2_3`, `d4_7`,
-   * `d7_plus`, `never`). Chaves mantidas como no banco (são códigos, não campos).
+   * `d7_plus`, `never`). Chaves mantidas como no banco (são códigos, não
+   * campos); leia com `byCode`.
    */
-  freshness: Partial<Record<KmFreshnessBucket, number>>;
+  freshness: Record<string, number>;
   missingVehicles: KmOverviewMissingVehicle[];
   daily: KmOverviewDay[];
   byOperation: KmOverviewOperation[];
   byType: KmOverviewType[];
-  /** Veículo × dia por situação (código do catálogo → quantidade), sem dias futuros. */
+  /** Veículo × dia por situação (código do catálogo → quantidade), sem dias futuros; leia com `byCode`. */
   byStatus: Record<string, number>;
   topVehicles: KmOverviewVehicle[];
   bottomVehicles: KmOverviewVehicle[];
@@ -142,7 +143,7 @@ export async function loadOverview(ctx: KmLoadContext): Promise<KmOverviewData> 
     bottomVehicles: data.bottomVehicles ?? [],
     insights: data.insights ?? [],
     // mapas cujas chaves são códigos: não passam pelo camelCase ("d2_3", "no_reading")
-    freshness: (freshness ?? {}) as KmOverviewData["freshness"],
+    freshness: freshness ?? {},
     byStatus: byStatus ?? {},
     settings: settings
       ? {

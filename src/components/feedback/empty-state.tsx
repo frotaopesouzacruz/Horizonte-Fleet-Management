@@ -30,7 +30,7 @@ export const emptyStateVariants = cva("flex w-full flex-col items-center justify
     },
     variant: {
       plain: "",
-      panel: "rounded-md border border-dashed border-border bg-surface",
+      panel: "rounded-lg border border-dashed border-border-strong/70 bg-surface-raised/70",
     },
   },
   compoundVariants: [
@@ -91,7 +91,7 @@ export const EmptyState = React.forwardRef<HTMLDivElement, EmptyStateProps>(func
       ) : icon != null ? (
         <div
           aria-hidden
-          className="flex size-10 shrink-0 items-center justify-center rounded-md bg-surface-secondary text-fg-muted [&_svg]:size-5"
+          className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-soft-fg ring-1 ring-inset ring-border-emphasis/50 [&_svg]:size-5"
         >
           {icon}
         </div>

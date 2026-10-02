@@ -66,7 +66,7 @@ type Accessor<T> = (row: T) => number | string | null | undefined;
 export function useSorted<T, K extends string>(
   rows: T[],
   accessors: Record<K, Accessor<T>>,
-  initial: SortState<K> | null,
+  initial: SortState<NoInfer<K>> | null,
 ): { sorted: T[]; sort: SortState<K> | null; setSort: (key: K, dir: TableSortDirection) => void } {
   const [sort, setSortState] = React.useState<SortState<K> | null>(initial);
   const sorted = React.useMemo(() => {
@@ -132,12 +132,16 @@ export function useUrlParam(
   return [value, set];
 }
 
-/** Paginação simples no cliente (fatia para exibir). */
-export function usePage<T>(rows: T[], initialSize = 50) {
-  const [page, setPage] = React.useState(1);
+/**
+ * Paginação simples no cliente (fatia para exibir). `resetKey` volta para a
+ * primeira página quando o recorte muda (filtro, busca).
+ */
+export function usePage<T>(rows: T[], initialSize = 50, resetKey = "") {
+  const [state, setState] = React.useState({ key: resetKey, page: 1 });
   const [pageSize, setPageSize] = React.useState(initialSize);
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
-  const current = Math.min(page, pageCount);
+  const requested = state.key === resetKey ? state.page : 1;
+  const current = Math.min(Math.max(1, requested), pageCount);
   const slice = React.useMemo(
     () => rows.slice((current - 1) * pageSize, current * pageSize),
     [rows, current, pageSize],
@@ -146,10 +150,10 @@ export function usePage<T>(rows: T[], initialSize = 50) {
     page: current,
     pageSize,
     slice,
-    setPage,
+    setPage: (page: number) => setState({ key: resetKey, page }),
     setPageSize: (size: number) => {
       setPageSize(size);
-      setPage(1);
+      setState({ key: resetKey, page: 1 });
     },
   };
 }

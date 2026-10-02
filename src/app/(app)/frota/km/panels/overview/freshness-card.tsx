@@ -8,7 +8,7 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import type { KmOverviewData } from "@/lib/km/overview";
-import { fmtInt, fmtPct, formatDate, KM_FRESHNESS, type KmFreshnessBucket } from "@/lib/km/types";
+import { byCode, fmtInt, fmtPct, formatDate, KM_FRESHNESS, type KmFreshnessBucket } from "@/lib/km/types";
 import type { KmPanelContext } from "../../shared";
 import { addDays, shareOf, statusToneOf, useViewParam, VehicleRef } from "./km-ui";
 
@@ -33,7 +33,7 @@ const BUCKET_LABEL = Object.fromEntries(KM_FRESHNESS.map((b) => [b.key, b.label]
 export function FreshnessCard({ data, ctx }: { data: KmOverviewData; ctx: KmPanelContext }) {
   const [selected, setSelected] = useViewParam("atualizacao");
   const listId = React.useId();
-  const counts = KM_FRESHNESS.map((b) => ({ ...b, count: data.freshness[b.key] ?? 0 }));
+  const counts = KM_FRESHNESS.map((b) => ({ ...b, count: byCode(data.freshness, b.key) ?? 0 }));
   const total = counts.reduce((acc, b) => acc + b.count, 0);
   const missing = data.missingVehicles;
   const yesterday = addDays(data.period.today, -1);
@@ -52,6 +52,7 @@ export function FreshnessCard({ data, ctx }: { data: KmOverviewData; ctx: KmPane
         </>
       }
       data-testid="km-visao-geral-freshness"
+      className="h-full"
       actions={
         missing.length > 0 ? (
           <button
@@ -93,7 +94,7 @@ export function FreshnessCard({ data, ctx }: { data: KmOverviewData; ctx: KmPane
           )}
         </div>
 
-        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3" aria-label="Faixas de atualização">
+        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2" aria-label="Faixas de atualização">
           {counts.map((b) => {
             const pressed = active === b.key;
             return (
@@ -166,7 +167,7 @@ export function FreshnessCard({ data, ctx }: { data: KmOverviewData; ctx: KmPane
             ) : (
               <p className="rounded-md border border-dashed border-border px-3 py-4 text-center text-body-sm text-fg-muted">
                 {active === "updated"
-                  ? `${fmtInt(data.freshness.updated ?? 0)} frotas têm leitura de ontem (${formatDate(yesterday)}) ou mais recente. A lista mostra só frotas ativas sem leitura no dia de referência.`
+                  ? `${fmtInt(byCode(data.freshness, "updated") ?? 0)} frotas têm leitura de ontem (${formatDate(yesterday)}) ou mais recente. A lista mostra só frotas ativas sem leitura no dia de referência.`
                   : "Nenhuma frota ativa desta faixa está sem leitura no dia de referência."}
               </p>
             )

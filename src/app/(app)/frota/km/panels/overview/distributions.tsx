@@ -5,17 +5,19 @@ import { CircleCheck, Info, OctagonAlert, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ChartCard, HBarChart, SrTable, type HBarDatum } from "@/components/charts";
 import type { KmInsight, KmOverviewData } from "@/lib/km/overview";
-import { fmtInt, fmtKm, fmtPct, KM_STATUS, type KmReadingStatus } from "@/lib/km/types";
+import { byCode, camelCode, fmtInt, fmtKm, fmtPct, KM_STATUS, type KmReadingStatus } from "@/lib/km/types";
 import { chartColorOf, shareOf } from "./km-ui";
 
 /** KM por operação e por tipo — barras horizontais, na ordem da rotina (maior KM primeiro). */
 export function KmShareCard({
-  title, description, rows, testId,
+  title, description, rows, testId, empty,
 }: {
   title: string;
   description: React.ReactNode;
   rows: { key: string; label: string; km: number | null; vehicles: number }[];
   testId: string;
+  /** Mensagem no lugar das barras (ex.: período sem KM validado — não desenhar 0 km). */
+  empty?: string;
 }) {
   const total = rows.reduce((acc, r) => acc + (r.km ?? 0), 0);
   const items: HBarDatum[] = rows.map((r, i) => ({
@@ -35,7 +37,12 @@ export function KmShareCard({
     },
   }));
   return (
-    <ChartCard title={title} description={description} empty={rows.length === 0 ? "Sem dados no recorte." : undefined} data-testid={testId}>
+    <ChartCard
+      title={title}
+      description={description}
+      empty={empty ?? (rows.length === 0 ? "Sem dados no recorte." : undefined)}
+      data-testid={testId}
+    >
       <HBarChart items={items} ariaLabel={title} format={fmtKm} />
       <SrTable
         caption={title}
@@ -54,12 +61,12 @@ const STATUS_ORDER: KmReadingStatus[] = [
 /** Veículo × dia por situação da leitura no período (dias futuros fora). */
 export function StatusCard({ data }: { data: KmOverviewData }) {
   const counts = data.byStatus;
-  const known = new Set<string>(STATUS_ORDER);
+  const known = new Set<string>([...STATUS_ORDER, ...STATUS_ORDER.map(camelCode)]);
   const extra = Object.keys(counts).filter((k) => !known.has(k));
   const total = Object.values(counts).reduce((acc, n) => acc + (n ?? 0), 0);
   const rows = [...STATUS_ORDER, ...extra].map((code) => {
     const meta = KM_STATUS[code as KmReadingStatus];
-    return { code, label: meta?.label ?? code, tone: meta?.tone ?? "neutral", n: counts[code] ?? 0, description: meta?.description };
+    return { code, label: meta?.label ?? code, tone: meta?.tone ?? "neutral", n: byCode(counts, code) ?? 0, description: meta?.description };
   });
   const items: HBarDatum[] = rows.map((r) => ({
     key: r.code,

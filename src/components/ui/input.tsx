@@ -13,8 +13,8 @@ import { cn } from "@/lib/cn";
  * for native controls, Radix triggers and anything wired by `FormField`.
  */
 export const fieldControlClasses = [
-  "w-full min-w-0 rounded-sm border border-input-border bg-input text-fg outline-none hfm-transition",
-  "placeholder:text-input-placeholder",
+  "w-full min-w-0 rounded-md border border-input-border bg-input text-fg shadow-xs outline-none hfm-transition",
+  "placeholder:text-input-placeholder hover:border-input-border-hover",
   "focus-visible:border-border-focus focus-visible:shadow-focus",
   "aria-invalid:border-danger",
   "aria-invalid:focus-visible:border-danger aria-invalid:focus-visible:shadow-none",

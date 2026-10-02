@@ -38,6 +38,12 @@ export interface NavItem {
    * never the boundary: the route re-checks it and RLS enforces it.
    */
   permission?: string;
+  /**
+   * Subitens (UI 2.0): telas que pertencem ao item, mostradas recuadas sob ele
+   * na sidebar expandida. Quem não pode ver o item mas pode ver um subitem
+   * recebe o subitem no nível do grupo.
+   */
+  children?: NavItem[];
 }
 
 export interface NavGroup {
@@ -55,8 +61,20 @@ export function visibleNavigation(permissions: string[], isPlatformAdmin = false
     !item.permission || isPlatformAdmin || permissions.includes(item.permission);
 
   return navigation
-    .map((group) => ({ ...group, items: group.items.filter(allowed) }))
+    .map((group) => ({
+      ...group,
+      items: group.items.flatMap((item): NavItem[] => {
+        const children = (item.children ?? []).filter(allowed);
+        if (allowed(item)) return [{ ...item, children: children.length ? children : undefined }];
+        return children;
+      }),
+    }))
     .filter((group) => group.items.length > 0);
+}
+
+/** Todos os itens (com subitens) numa lista só. */
+function flatItems(): NavItem[] {
+  return navigation.flatMap((group) => group.items.flatMap((item) => [item, ...(item.children ?? [])]));
 }
 
 /**
@@ -233,14 +251,16 @@ export const navigation: NavGroup[] = [
         href: "/checklist/aderencia",
         icon: Gauge,
         permission: "adherence.view",
-      },
-      {
-        // §63: a própria situação, por permissão própria — o Operacional a
-        // enxerga sem receber a Aderência da operação.
-        label: "Minha situação",
-        href: "/checklist/aderencia/minha-situacao",
-        icon: UserCheck,
-        permission: "adherence.view_own",
+        children: [
+          {
+            // §63: a própria situação, por permissão própria — o Operacional a
+            // enxerga sem receber a Aderência da operação (vira item do grupo).
+            label: "Minha situação",
+            href: "/checklist/aderencia/minha-situacao",
+            icon: UserCheck,
+            permission: "adherence.view_own",
+          },
+        ],
       },
       {
         // Plano de Ação de Manutenção: as inconformidades técnicas do Check
@@ -249,14 +269,16 @@ export const navigation: NavGroup[] = [
         href: "/checklist/planos-acao",
         icon: ClipboardList,
         permission: "action_plans.view",
-      },
-      {
-        // §65: o motorista acompanha o que ele mesmo apontou, por permissão
-        // própria — sem receber o portal de planos.
-        label: "Meus apontamentos",
-        href: "/checklist/planos-acao/meus-apontamentos",
-        icon: MessageSquareText,
-        permission: "action_plans.view_own",
+        children: [
+          {
+            // §65: o motorista acompanha o que ele mesmo apontou, por permissão
+            // própria — sem receber o portal de planos.
+            label: "Meus apontamentos",
+            href: "/checklist/planos-acao/meus-apontamentos",
+            icon: MessageSquareText,
+            permission: "action_plans.view_own",
+          },
+        ],
       },
     ],
   },
@@ -300,7 +322,5 @@ export function isActivePath(pathname: string, href: string): boolean {
   // Uma entrada mais específica é dona do caminho: em Aderência › Minha
   // situação, só "Minha situação" fica ativa; em Planos de ação › Meus
   // apontamentos, só "Meus apontamentos".
-  return !navigation.some((group) =>
-    group.items.some((item) => item.href !== href && item.href.startsWith(href + "/") && within(item.href)),
-  );
+  return !flatItems().some((item) => item.href !== href && item.href.startsWith(href + "/") && within(item.href));
 }

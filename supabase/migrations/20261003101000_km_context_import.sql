@@ -1088,7 +1088,14 @@ begin
 
   return jsonb_build_object('done', true, 'remaining', 0, 'outcome', jsonb_build_object(
     'batch_id', p_batch_id, 'created_rows', v_b.created_rows, 'updated_rows', v_b.updated_rows,
-    'skipped_rows', v_b.skipped_rows, 'milestone_events', v_events));
+    'skipped_rows', v_b.skipped_rows, 'milestone_events', v_events,
+    -- hodômetros oficiais vigentes que vieram das leituras deste lote
+    'odometers_synced', (select count(*) from public.vehicle_odometer_readings o
+                          join public.km_daily_readings k on k.id = o.km_reading_id
+                         where k.import_batch_id = p_batch_id and o.superseded_by is null),
+    'vehicles_synced', (select count(distinct o.vehicle_id) from public.vehicle_odometer_readings o
+                         join public.km_daily_readings k on k.id = o.km_reading_id
+                        where k.import_batch_id = p_batch_id and o.superseded_by is null)));
 end;
 $$;
 

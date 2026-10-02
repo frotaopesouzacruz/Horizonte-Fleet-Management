@@ -13,7 +13,7 @@ import type { KmPanelContext } from "../shared";
 import { InsightsCard, KmShareCard, StatusCard } from "./overview/distributions";
 import { FreshnessCard } from "./overview/freshness-card";
 import { KmByDayChart } from "./overview/km-by-day-chart";
-import { dateLong, formatStamp, KmKpi, Section, shareOf, useKmLink } from "./overview/km-ui";
+import { dateLong, formatStamp, KmKpi, plural, Section, shareOf, useKmLink } from "./overview/km-ui";
 import { VehicleRankCard } from "./overview/vehicle-rank-card";
 
 /**
@@ -59,19 +59,28 @@ export function OverviewPanel({ data, ctx }: { data: KmOverviewData | null; ctx:
   const highKm = k.highMileageKm ?? settings?.highMileageKm ?? null;
   const dailyNav = canDaily && refDay ? link({ aba: "diaria", dia: refDay }) : null;
   const minCoverage = settings?.minCoveragePct;
+  // Sem nenhum dia com KM validado, total e médias ficam em branco: ausência de dado não é 0 km.
+  const hasKm = k.validDays > 0;
+  const noRef = "sem dia de referência no período";
 
   const header = (
     <p className="text-body-sm text-fg-muted" data-testid="km-visao-geral-period">
       Período <span className="font-medium text-fg-secondary tabular-nums">{formatDate(period.from)} a {formatDate(period.to)}</span>
-      {period.from.slice(0, 7) === period.to.slice(0, 7) ? ` (${competenceLabel(period.competence)})` : ""} · dia de referência{" "}
+      {period.from.slice(0, 7) === period.to.slice(0, 7) ? ` (${competenceLabel(period.competence)})` : ""} ·{" "}
       {refDay ? (
-        <span className="font-medium text-fg-secondary" data-testid="km-visao-geral-reference-day">
-          {dateLong(refDay)}
-        </span>
+        <>
+          dia de referência{" "}
+          <span className="font-medium text-fg-secondary" data-testid="km-visao-geral-reference-day">
+            {dateLong(refDay)}
+          </span>{" "}
+          (último dia com KM validado)
+        </>
       ) : (
-        <span className="font-medium text-fg-secondary" data-testid="km-visao-geral-reference-day">sem KM validado no período</span>
+        <span className="font-medium text-fg-secondary" data-testid="km-visao-geral-reference-day">
+          nenhum dia com KM validado no período
+        </span>
       )}{" "}
-      (último dia com KM validado) · hoje <span className="tabular-nums">{formatDate(period.today)}</span>
+      · hoje <span className="tabular-nums">{formatDate(period.today)}</span>
     </p>
   );
 
@@ -100,8 +109,10 @@ export function OverviewPanel({ data, ctx }: { data: KmOverviewData | null; ctx:
         testId="km-visao-geral-kpis-mileage"
         description={
           <>
-            Só KM validado entra nos totais: Sem leitura e Inconsistente não somam e nunca viram 0 km. As médias diárias
-            usam os {fmtInt(k.validDays)} dias com leitura; médias por veículo, os veículos com KM no período.
+            Só KM validado entra nos totais: Sem leitura e Inconsistente não somam e nunca viram 0 km.{" "}
+            {hasKm
+              ? `As médias diárias usam os ${fmtInt(k.validDays)} ${plural(k.validDays, "dia", "dias")} com leitura; as médias por veículo, os veículos com KM no período.`
+              : "Nenhum dia do período tem KM validado: totais e médias ficam em branco."}
           </>
         }
       >
@@ -109,9 +120,13 @@ export function OverviewPanel({ data, ctx }: { data: KmOverviewData | null; ctx:
           <KmKpi
             testId="km-visao-geral-kpi-km-total"
             label="KM total do período"
-            value={k.kmTotal == null ? "—" : fmtInt(k.kmTotal)}
-            unit={k.kmTotal == null ? undefined : "km"}
-            period={`${fmtInt(k.validDays)} dias com KM válido · ${fmtInt(k.vehicles)} frotas`}
+            value={!hasKm || k.kmTotal == null ? "—" : fmtInt(k.kmTotal)}
+            unit={!hasKm || k.kmTotal == null ? undefined : "km"}
+            period={
+              hasKm
+                ? `${fmtInt(k.validDays)} ${plural(k.validDays, "dia", "dias")} com KM válido · ${fmtInt(k.vehicles)} frotas`
+                : "nenhum dia com KM validado"
+            }
             icon={<Route />}
             status="primary"
           />
@@ -130,7 +145,7 @@ export function OverviewPanel({ data, ctx }: { data: KmOverviewData | null; ctx:
             label="Média diária da frota"
             value={k.avgDailyFleet == null ? "—" : fmtInt(k.avgDailyFleet)}
             unit={k.avgDailyFleet == null ? undefined : "km/dia"}
-            period={`mediana ${fmtKm(k.medianDailyFleet)}`}
+            period={`mediana ${k.medianDailyFleet == null ? "—" : `${fmtInt(k.medianDailyFleet)} km/dia`}`}
             icon={<CalendarDays />}
           />
           <KmKpi
@@ -146,7 +161,7 @@ export function OverviewPanel({ data, ctx }: { data: KmOverviewData | null; ctx:
             label="Média diária por veículo"
             value={k.avgDailyPerVehicle == null ? "—" : fmt1(k.avgDailyPerVehicle)}
             unit={k.avgDailyPerVehicle == null ? undefined : "km/dia"}
-            period="KM ÷ dias com leitura de cada frota"
+            period="KM total ÷ veículo-dias com leitura"
             icon={<Gauge />}
           />
         </div>
@@ -168,10 +183,12 @@ export function OverviewPanel({ data, ctx }: { data: KmOverviewData | null; ctx:
           <KmKpi
             testId="km-visao-geral-kpi-coverage-ref"
             label="Cobertura no dia de referência"
-            value={coverageRefPct == null ? "—" : fmt1(coverageRefPct)}
-            unit={coverageRefPct == null ? undefined : "%"}
-            period={`${fmtInt(k.coverageRefCount)} de ${fmtInt(k.coverageRefTotal)} frotas ativas com leitura`}
-            status={coverageRefPct != null && coverageRefPct < 90 ? "warning" : coverageRefPct != null ? "success" : undefined}
+            value={!refDay || coverageRefPct == null ? "—" : fmt1(coverageRefPct)}
+            unit={!refDay || coverageRefPct == null ? undefined : "%"}
+            period={
+              refDay ? `${fmtInt(k.coverageRefCount)} de ${fmtInt(k.coverageRefTotal)} frotas ativas com leitura` : noRef
+            }
+            status={!refDay || coverageRefPct == null ? undefined : coverageRefPct < 90 ? "warning" : "success"}
             icon={<Percent />}
           />
           <KmKpi
@@ -194,10 +211,10 @@ export function OverviewPanel({ data, ctx }: { data: KmOverviewData | null; ctx:
           <KmKpi
             testId="km-visao-geral-kpi-no-reading-ref"
             label="Sem leitura no dia de referência"
-            value={fmtInt(k.vehiclesWithoutReadingRef)}
-            unit="frotas"
-            period="ativas, sem leitura — não é 0 km"
-            status={k.vehiclesWithoutReadingRef > 0 ? "warning" : undefined}
+            value={refDay ? fmtInt(k.vehiclesWithoutReadingRef) : "—"}
+            unit={refDay ? plural(k.vehiclesWithoutReadingRef, "frota", "frotas") : undefined}
+            period={refDay ? "ativas, sem leitura — não é 0 km" : noRef}
+            status={refDay && k.vehiclesWithoutReadingRef > 0 ? "warning" : undefined}
             icon={<SignalZero />}
             nav={dailyNav}
             destination="Abrir a Visão diária do dia de referência"
@@ -205,9 +222,9 @@ export function OverviewPanel({ data, ctx }: { data: KmOverviewData | null; ctx:
           <KmKpi
             testId="km-visao-geral-kpi-no-movement-ref"
             label="Sem movimento no dia de referência"
-            value={fmtInt(k.noMovementRef)}
-            unit="frotas"
-            period="leitura válida, deslocamento na tolerância"
+            value={refDay ? fmtInt(k.noMovementRef) : "—"}
+            unit={refDay ? plural(k.noMovementRef, "frota", "frotas") : undefined}
+            period={refDay ? "leitura válida, deslocamento na tolerância" : noRef}
             icon={<CircleSlash />}
             nav={dailyNav}
             destination="Abrir a Visão diária do dia de referência"
@@ -216,7 +233,7 @@ export function OverviewPanel({ data, ctx }: { data: KmOverviewData | null; ctx:
             testId="km-visao-geral-kpi-high-mileage"
             label="Dias de alta rodagem"
             value={fmtInt(k.highMileageDays)}
-            unit={`em ${fmtInt(k.highMileageVehicles)} ${k.highMileageVehicles === 1 ? "veículo" : "veículos"}`}
+            unit={`em ${fmtInt(k.highMileageVehicles)} ${plural(k.highMileageVehicles, "veículo", "veículos")}`}
             period={highKm == null ? "acima do limite configurado" : `acima de ${fmtKm(highKm)} no dia`}
             status={k.highMileageDays > 0 ? "warning" : undefined}
             icon={<Flame />}
@@ -225,7 +242,7 @@ export function OverviewPanel({ data, ctx }: { data: KmOverviewData | null; ctx:
             testId="km-visao-geral-kpi-inconsistencies"
             label="Inconsistências"
             value={fmtInt(k.inconsistencies)}
-            unit="leituras"
+            unit={plural(k.inconsistencies, "leitura", "leituras")}
             period="inconsistente, divergência ou hodômetro regressivo"
             status={k.inconsistencies > 0 ? "danger" : undefined}
             icon={<TriangleAlert />}
@@ -244,7 +261,9 @@ export function OverviewPanel({ data, ctx }: { data: KmOverviewData | null; ctx:
 
       {/* -------------------------------------------- Atualização e evolução */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
-        <FreshnessCard data={data} ctx={ctx} />
+        <div className="min-w-0 xl:col-span-2">
+          <FreshnessCard data={data} ctx={ctx} />
+        </div>
         <div className="min-w-0 xl:col-span-3">
           <KmByDayChart data={data} ctx={ctx} />
         </div>
@@ -257,12 +276,14 @@ export function OverviewPanel({ data, ctx }: { data: KmOverviewData | null; ctx:
             title="KM por operação"
             description="Operação de cada leitura (o contexto do dia)."
             rows={data.byOperation.map((o) => ({ key: o.operationId ?? "none", label: o.operation, km: o.km, vehicles: o.vehicles }))}
+            empty={hasKm ? undefined : "Sem KM validado no período."}
             testId="km-visao-geral-by-operation"
           />
           <KmShareCard
             title="KM por tipo de veículo"
             description="Tipo do cadastro do veículo."
             rows={data.byType.map((t) => ({ key: t.vehicleTypeId ?? "none", label: t.type, km: t.km, vehicles: t.vehicles }))}
+            empty={hasKm ? undefined : "Sem KM validado no período."}
             testId="km-visao-geral-by-type"
           />
           <StatusCard data={data} />
@@ -283,11 +304,9 @@ export function OverviewPanel({ data, ctx }: { data: KmOverviewData | null; ctx:
           ctx={ctx}
           title="Bottom 10 — menor rodagem"
           description={
-            <>
-              Só entram veículos com cobertura mínima no período
-              {minCoverage != null ? ` (leitura em pelo menos ${fmtPct(minCoverage)} dos dias até hoje)` : " (parâmetro de cobertura mínima)"}:
-              frota sem leitura não é tratada como menor rodagem.
-            </>
+            minCoverage != null
+              ? `Só entram veículos com leitura em pelo menos ${fmtPct(minCoverage)} dos dias do período até hoje (cobertura mínima): frota sem leitura não é tratada como menor rodagem.`
+              : "Só entram veículos com a cobertura mínima de leituras do período (parâmetro do KM): frota sem leitura não é tratada como menor rodagem."
           }
           rows={data.bottomVehicles}
           empty="Nenhum veículo atinge a cobertura mínima no período."
@@ -297,9 +316,9 @@ export function OverviewPanel({ data, ctx }: { data: KmOverviewData | null; ctx:
 
       <InsightsCard insights={data.insights} />
 
-      <p className="text-caption text-fg-muted">
-        Médias e medianas: KM médio por veículo {fmtKm1(k.avgPerVehicle)} · mediana {fmtKm1(k.medianPerVehicle)}. Frotas no
-        recorte: {fmtInt(k.vehicles)} ({fmtInt(k.activeVehicles)} ativas).
+      <p className="text-caption text-fg-muted" data-testid="km-visao-geral-footnote">
+        Frotas no recorte: {fmtInt(k.vehicles)} ({fmtInt(k.activeVehicles)} ativas). KM por veículo no período: média{" "}
+        {fmtKm1(k.avgPerVehicle)} · mediana {fmtKm1(k.medianPerVehicle)}.
       </p>
     </div>
   );
