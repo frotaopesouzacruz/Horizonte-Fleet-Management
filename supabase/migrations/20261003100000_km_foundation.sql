@@ -127,8 +127,16 @@ insert into public.km_reading_statuses (code, label, description, kind, tone, ha
 on conflict (code) do nothing;
 
 alter table public.km_reading_statuses enable row level security;
-drop policy if exists km_reading_statuses_select on public.km_reading_statuses;
-create policy km_reading_statuses_select on public.km_reading_statuses for select to authenticated using (true);
+do $pol$
+begin
+  if exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'km_reading_statuses' and policyname = 'km_reading_statuses_select') then
+    alter policy km_reading_statuses_select on public.km_reading_statuses to authenticated
+      using (true);
+  else
+    create policy km_reading_statuses_select on public.km_reading_statuses for select to authenticated
+      using (true);
+  end if;
+end $pol$;
 grant select on public.km_reading_statuses to authenticated;
 
 -- -----------------------------------------------------------------------------
@@ -167,9 +175,16 @@ create table if not exists public.km_settings (
 comment on table public.km_settings is 'Parâmetros da Gestão de KM por organização (tolerâncias, alta rodagem, análise e rodízio).';
 
 alter table public.km_settings enable row level security;
-drop policy if exists km_settings_select on public.km_settings;
-create policy km_settings_select on public.km_settings for select to authenticated
-  using (organization_id in (select private.permitted_org_ids('km.view')));
+do $pol$
+begin
+  if exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'km_settings' and policyname = 'km_settings_select') then
+    alter policy km_settings_select on public.km_settings to authenticated
+      using (organization_id in (select private.permitted_org_ids('km.view')));
+  else
+    create policy km_settings_select on public.km_settings for select to authenticated
+      using (organization_id in (select private.permitted_org_ids('km.view')));
+  end if;
+end $pol$;
 grant select on public.km_settings to authenticated;
 
 -- Os parâmetros de uma organização, com os padrões quando ainda não salvos.
@@ -216,9 +231,16 @@ comment on table public.km_data_sources is
   'Fontes de KM (contrato KmDataSource). Toda leitura aponta a fonte; uma fonte automática futura entra pelo mesmo pipeline de staging, validação e consolidação da importação manual.';
 
 alter table public.km_data_sources enable row level security;
-drop policy if exists km_data_sources_select on public.km_data_sources;
-create policy km_data_sources_select on public.km_data_sources for select to authenticated
-  using (organization_id in (select private.permitted_org_ids('km.view')));
+do $pol$
+begin
+  if exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'km_data_sources' and policyname = 'km_data_sources_select') then
+    alter policy km_data_sources_select on public.km_data_sources to authenticated
+      using (organization_id in (select private.permitted_org_ids('km.view')));
+  else
+    create policy km_data_sources_select on public.km_data_sources for select to authenticated
+      using (organization_id in (select private.permitted_org_ids('km.view')));
+  end if;
+end $pol$;
 grant select on public.km_data_sources to authenticated;
 
 -- -----------------------------------------------------------------------------
@@ -316,8 +338,7 @@ create index if not exists km_daily_readings_org_status_idx on public.km_daily_r
 create index if not exists km_daily_readings_operation_date_idx on public.km_daily_readings (operation_id, reading_date);
 create index if not exists km_daily_readings_batch_idx on public.km_daily_readings (import_batch_id) where import_batch_id is not null;
 
-drop trigger if exists km_daily_readings_prevent_tenant_change on public.km_daily_readings;
-create trigger km_daily_readings_prevent_tenant_change before update on public.km_daily_readings
+create or replace trigger km_daily_readings_prevent_tenant_change before update on public.km_daily_readings
   for each row execute function private.tg_prevent_tenant_change();
 
 -- -----------------------------------------------------------------------------
@@ -362,8 +383,7 @@ $$;
 
 revoke execute on function private.tg_km_audit_append_only() from public;
 
-drop trigger if exists km_reading_audit_append_only on public.km_reading_audit;
-create trigger km_reading_audit_append_only
+create or replace trigger km_reading_audit_append_only
   before update or delete on public.km_reading_audit
   for each row execute function private.tg_km_audit_append_only();
 
@@ -505,8 +525,7 @@ create table if not exists public.km_rotation_events (
 
 create index if not exists km_rotation_events_plan_idx on public.km_rotation_events (plan_id, occurred_at);
 
-drop trigger if exists km_rotation_events_append_only on public.km_rotation_events;
-create trigger km_rotation_events_append_only
+create or replace trigger km_rotation_events_append_only
   before update or delete on public.km_rotation_events
   for each row execute function private.tg_km_audit_append_only();
 
@@ -561,35 +580,80 @@ alter table public.km_rotation_events     enable row level security;
 
 -- Com operação no contexto, a operação precisa estar no escopo; sem operação,
 -- o veículo. Avaliado uma vez por consulta (mesmo padrão de 20261002104000).
-drop policy if exists km_daily_readings_select on public.km_daily_readings;
-create policy km_daily_readings_select on public.km_daily_readings for select to authenticated
-  using (
-    organization_id in (select private.permitted_org_ids('km.view'))
-    and (
-      (operation_id is not null and operation_id in (select private.accessible_operation_ids()))
-      or (operation_id is null and vehicle_id in (select private.vehicle_scope_ids('km.view')))
-    ));
+do $pol$
+begin
+  if exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'km_daily_readings' and policyname = 'km_daily_readings_select') then
+    alter policy km_daily_readings_select on public.km_daily_readings to authenticated
+      using (
+        organization_id in (select private.permitted_org_ids('km.view'))
+        and (
+          (operation_id is not null and operation_id in (select private.accessible_operation_ids()))
+          or (operation_id is null and vehicle_id in (select private.vehicle_scope_ids('km.view')))
+        ));
+  else
+    create policy km_daily_readings_select on public.km_daily_readings for select to authenticated
+      using (
+        organization_id in (select private.permitted_org_ids('km.view'))
+        and (
+          (operation_id is not null and operation_id in (select private.accessible_operation_ids()))
+          or (operation_id is null and vehicle_id in (select private.vehicle_scope_ids('km.view')))
+        ));
+  end if;
+end $pol$;
 
-drop policy if exists km_reading_audit_select on public.km_reading_audit;
-create policy km_reading_audit_select on public.km_reading_audit for select to authenticated
-  using (
-    organization_id in (select private.permitted_org_ids('km.view_audit'))
-    and reading_id in (select r.id from public.km_daily_readings r));
+do $pol$
+begin
+  if exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'km_reading_audit' and policyname = 'km_reading_audit_select') then
+    alter policy km_reading_audit_select on public.km_reading_audit to authenticated
+      using (
+        organization_id in (select private.permitted_org_ids('km.view_audit'))
+        and reading_id in (select r.id from public.km_daily_readings r));
+  else
+    create policy km_reading_audit_select on public.km_reading_audit for select to authenticated
+      using (
+        organization_id in (select private.permitted_org_ids('km.view_audit'))
+        and reading_id in (select r.id from public.km_daily_readings r));
+  end if;
+end $pol$;
 
-drop policy if exists km_rotation_plans_select on public.km_rotation_plans;
-create policy km_rotation_plans_select on public.km_rotation_plans for select to authenticated
-  using (organization_id in (select private.permitted_org_ids('km.rotation.view')));
+do $pol$
+begin
+  if exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'km_rotation_plans' and policyname = 'km_rotation_plans_select') then
+    alter policy km_rotation_plans_select on public.km_rotation_plans to authenticated
+      using (organization_id in (select private.permitted_org_ids('km.rotation.view')));
+  else
+    create policy km_rotation_plans_select on public.km_rotation_plans for select to authenticated
+      using (organization_id in (select private.permitted_org_ids('km.rotation.view')));
+  end if;
+end $pol$;
 
-drop policy if exists km_rotation_items_select on public.km_rotation_plan_items;
-create policy km_rotation_items_select on public.km_rotation_plan_items for select to authenticated
-  using (
-    organization_id in (select private.permitted_org_ids('km.rotation.view'))
-    and vehicle_a_id in (select private.vehicle_scope_ids('km.rotation.view'))
-    and vehicle_b_id in (select private.vehicle_scope_ids('km.rotation.view')));
+do $pol$
+begin
+  if exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'km_rotation_plan_items' and policyname = 'km_rotation_items_select') then
+    alter policy km_rotation_items_select on public.km_rotation_plan_items to authenticated
+      using (
+        organization_id in (select private.permitted_org_ids('km.rotation.view'))
+        and vehicle_a_id in (select private.vehicle_scope_ids('km.rotation.view'))
+        and vehicle_b_id in (select private.vehicle_scope_ids('km.rotation.view')));
+  else
+    create policy km_rotation_items_select on public.km_rotation_plan_items for select to authenticated
+      using (
+        organization_id in (select private.permitted_org_ids('km.rotation.view'))
+        and vehicle_a_id in (select private.vehicle_scope_ids('km.rotation.view'))
+        and vehicle_b_id in (select private.vehicle_scope_ids('km.rotation.view')));
+  end if;
+end $pol$;
 
-drop policy if exists km_rotation_events_select on public.km_rotation_events;
-create policy km_rotation_events_select on public.km_rotation_events for select to authenticated
-  using (organization_id in (select private.permitted_org_ids('km.rotation.view')));
+do $pol$
+begin
+  if exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'km_rotation_events' and policyname = 'km_rotation_events_select') then
+    alter policy km_rotation_events_select on public.km_rotation_events to authenticated
+      using (organization_id in (select private.permitted_org_ids('km.rotation.view')));
+  else
+    create policy km_rotation_events_select on public.km_rotation_events for select to authenticated
+      using (organization_id in (select private.permitted_org_ids('km.rotation.view')));
+  end if;
+end $pol$;
 
 revoke insert, update, delete on public.km_daily_readings, public.km_reading_audit, public.km_rotation_plans,
   public.km_rotation_plan_items, public.km_rotation_events, public.km_settings, public.km_data_sources,
