@@ -1,126 +1,114 @@
-# HFM — Visualização de dados (Etapa 17)
+# HFM — Visualização de dados (HFM Chart Theme · UI 2.0)
 
 Kit: `src/components/charts/`. São SVGs desenhados à mão, sem biblioteca de
-gráficos (nenhuma foi adicionada). O kit tem estas peças:
+gráficos (nenhuma foi adicionada nem substituída). Peças:
 
-- `TrendChart`
-- `ColumnChart`, simples ou empilhada
-- `HBarChart`
-- `Sparkline`
-- `ChartCard`
-- `ChartLegend`
-- `ChartFrame` e `ChartTooltipCard`
-- `SrTable`
-- `chartFormat` e os utilitários de escala
+| Peça | Uso |
+|---|---|
+| `TrendChart` | linha/área: tendência contra meta, hodômetro, séries diárias |
+| `ColumnChart` | colunas simples ou empilhadas: volume por período, KM por dia, faixas |
+| `HBarChart` | ranking e quebra por dimensão |
+| `GaugeChart` | taxa com faixa conhecida (score DQ, cobertura, SLA) — **UI 2.0** |
+| `DonutChart` | composição de um total em até ~6 fatias — **UI 2.0** |
+| `Sparkline` | tendência dentro do KPI |
+| `ChartCard`, `ChartLegend`, `ChartFrame`, `ChartTooltipCard`, `SrTable` | moldura, legenda, teclado, tooltip e tabela gêmea |
 
 Os papéis de cor ficam em `src/design-system/tokens/chart.ts` (`chartTheme`) e
-nos tokens `--chart-*`.
+nos tokens `--chart-*` / `--heat-*`.
 
 ## 1. Princípios
 
-1. **O gráfico responde uma pergunta.** O título do `ChartCard` diz qual, e a leitura (`insight`) responde em uma frase factual.
-2. **A marca conduz.** A série principal é `--chart-brand-primary`. Cor semântica só entra quando o dado é um julgamento (abaixo da meta = `--chart-danger`).
-3. **A meta é a única linha tracejada.** É dourada (`--chart-target`), com o valor escrito ("Meta 90%"). O tracejado significa limiar, nunca grade.
-4. **Sem cara de Excel.**
-   - A grade é só horizontal, em hairline (`--chart-grid`), sem traços de eixo nem linhas verticais.
-   - Barras e colunas têm canto arredondado de 4px e base reta no eixo.
-   - Linhas têm 2,5px, com área suave (gradiente de 14% a 0%).
-   - Os valores permanentes aparecem só onde decidem: no ponto corrente da linha e no total das colunas. O resto está no tooltip.
-5. **A cor nunca carrega a informação sozinha.** Todo ponto tem tooltip, todo gráfico tem tabela gêmea (visível ao lado ou `SrTable`), e o texto usa os tokens de texto, nunca a cor da série.
-6. **Futuro não é resultado.** Períodos futuros ficam numa faixa hachurada com o rótulo "Futuro", sem ponto e sem valor.
+1. **O gráfico responde uma pergunta.** O título do `ChartCard` diz qual; a leitura (`insight`) responde em uma frase factual.
+2. **A marca conduz.** Série principal em `--chart-brand-primary`. Cor semântica só quando o dado é um julgamento (abaixo da meta, alta rodagem, crítico).
+3. **A meta é a única linha tracejada** — dourada (`--chart-target`), com valor escrito ("Meta 90%").
+4. **Sem cara de Excel.** Grade só horizontal em hairline, cantos de 4px com base reta, linha de 2,5px com área suave, valores permanentes só onde decidem (ponto corrente, total da coluna).
+5. **Cor nunca sozinha.** Tooltip em todo ponto, tabela gêmea em todo gráfico, texto nos tokens de texto.
+6. **Ausência não é zero.** Dia sem leitura não tem ponto nem barra (e o tooltip diz "Sem leitura (não é 0 km)"); futuro é hachurado, sem valor.
+7. **Nada é cortado.** UI 2.0: margem do eixo pelo maior rótulo, rótulo de destaque contido na área do gráfico, coluna de valor das barras horizontais pelo texto mais longo, rótulos de eixo curtos quando o espaço é pouco (o tooltip mantém o nome completo).
 
-## 2. Papéis de cor
+## 2. Paleta
+
+### 2.1 Papéis semânticos
 
 | Papel | Token | Claro | Escuro | Uso |
 |---|---|---|---|---|
-| brandPrimary | `--chart-brand-primary` | `#1F4B93` | `#6C9DE0` | série principal, linha, barras |
-| brandSecondary | `--chart-brand-secondary` | `#008CCB` | `#38B6F0` | segunda série (ex.: preditiva) |
-| accent | `--chart-accent` | `#F4B223` | `#F4B223` | terceira série de marca (ex.: corretiva) |
-| success | `--chart-success` | `#1E8E5A` | `#3DBB7F` | julgamento positivo |
-| warning | `--chart-warning` | `#C27C0E` | `#F0B33A` | atenção |
-| danger | `--chart-danger` | `#C93636` | `#F06565` | abaixo da meta, crítico |
-| neutral | `--chart-neutral` | `#8A96A8` | `#7F8EAB` | outros, sem classificação |
-| target | `--chart-target` | `#C68600` | `#F4B223` | meta, benchmark |
+| brandPrimary | `--chart-brand-primary` | `#1F4B93` | `#6C9DE0` | série principal |
+| brandSecondary | `--chart-brand-secondary` | `#008CCB` | `#38B6F0` | segunda série |
+| accent | `--chart-accent` | `#F4B223` | `#F4B223` | terceira série de marca |
+| success / warning / danger | `--chart-success/warning/danger` | verde / âmbar / vermelho | versões claras | julgamento |
+| neutral | `--chart-neutral` | slate | slate claro | outros, sem movimento |
+| target | `--chart-target` | `#C68600` | `#F4B223` | meta |
+| track | `--chart-track` | trilho tonal | trilho tonal | fundo de gauge/donut |
 
-A estrutura do gráfico também tem tokens: `--chart-grid`, `--chart-axis-line`,
-`--chart-label`, `--chart-crosshair`, `--chart-hover-band`, `--chart-future`,
-`--chart-tooltip-surface`, `--chart-tooltip-border`, `--chart-area-primary` e
-`--chart-area-primary-fade`.
+### 2.2 Categórica (ordem fixa, marca primeiro, sem vermelho/verde)
 
-**Ordem fixa por entidade.** Uma entidade tem sempre a mesma cor em qualquer
-gráfico da tela. Na Manutenção:
+`--chart-1` Azul Horizonte · `--chart-2` Ciano · `--chart-3` Dourado ·
+`--chart-4` Azul 400 · `--chart-5` Bronze · `--chart-6` Slate · `--chart-7`
+Ciano 400 · `--chart-8` Azul 900. Uma entidade mantém a mesma cor em toda a
+tela (ex.: Manutenção — preventiva `brandPrimary`, corretiva `accent`,
+preditiva `brandSecondary`).
 
-| Tipo | Cor |
-|---|---|
-| preventiva | brandPrimary |
-| corretiva | accent |
-| preditiva | brandSecondary |
-| outros | neutral |
+### 2.3 Intensidade (heatmap / planner)
+
+`--heat-1…6`: rampa azul de intensidade (claro → escuro no tema claro; o
+inverso no escuro). Usada no Planner mês/dia do KM (faixas 0 / ≤50 / 50–100 /
+100–200 / 200–400 / 400+ km) com legenda visível e o número escrito na célula.
+Taxas contra meta (heatmap da Aderência) continuam com as três faixas
+semânticas + "sem base" + "futuro".
 
 ## 3. Tooltip
 
-`ChartTooltipCard`: fica em `surface` elevada, com borda e `shadow-md`, e se
-posiciona ao lado da marca, virando para dentro na metade direita. O conteúdo
-segue esta ordem:
+`ChartTooltipCard` — superfície elevada, `rounded-lg`, `shadow-lg`, título em
+overline, linhas divididas:
 
-1. Título: o período ou o item.
-2. Subtítulo: o contexto ("Mês corrente", "Dia vigente · resultado provisório").
-3. Linhas rótulo/valor, cada uma com a amostra da série (quadrado, ponto, linha ou tracejado). A métrica principal fica em `emphasis`.
-4. Rodapé opcional com a ação ("Clique para ver o detalhe do dia.").
+1. Título (período/item) e subtítulo (contexto).
+2. Linhas rótulo/valor com amostra da série; a métrica principal em `emphasis`.
+3. Rodapé opcional com a ação ("Clique para abrir a Visão diária").
 
-O desvio sempre sai com sinal, em **p.p.** (pontos percentuais). O mesmo
-componente é usado no heatmap.
+Desvio sempre com sinal, em p.p.
 
 ## 4. Tipos
 
-### TrendChart (tendência contra meta)
-- **Domínio percentual** (`kind="percent"`): recorta a faixa útil (ex.: 80–100%), sempre incluindo a meta e nunca saindo de 0–100. Uma linha não mede área, então o zero não é obrigatório.
-- **Pontos abaixo da meta** ficam em vermelho (`flagBelowTarget`). O ponto do período corrente é maior e tem o valor escrito.
-- **Interação:** o hover mostra uma banda na coluna, uma linha-guia vertical e o tooltip.
+### TrendChart
+- `kind="percent"` recorta a faixa útil incluindo a meta; `zeroBaseline={false}` para grandezas absolutas que não começam em zero (hodômetro).
+- Pontos abaixo da meta em vermelho (`flagBelowTarget`); ponto corrente maior, com valor.
 
-### ColumnChart (volume por período)
-- Com `kind="count"`, começa em zero e usa passo inteiro. Com `segments`, as colunas são empilhadas na ordem da legenda, com 1,5px de superfície entre as fatias.
-- Mostra o total acima da coluna. A composição fica no tooltip.
+### ColumnChart
+- `kind="count"` começa em zero com passo inteiro; `segments` empilha na ordem da legenda.
+- `emptyLabel` para o valor nulo ("Sem leitura"); coluna futura hachurada.
 
-### HBarChart (ranking / quebra por dimensão)
-- **Trilho:** cada barra tem um trilho de fundo (`surface-sunken`), então 100% é legível sem eixo.
-- **Rótulo lateral:** traz o valor e o detalhe ("· 5/6", "· 12,5%").
-- **Meta:** linha vertical tracejada, com o rótulo embaixo.
+### HBarChart
+- Trilho de fundo, rótulo lateral com valor e detalhe, meta vertical tracejada.
 
-### Sparkline (tendência no KPI)
-- Mede 96×28px, com a última marca em ponto e a meta tracejada opcional.
-- É decorativa por padrão (`aria-hidden`), porque o valor e a variação estão escritos no cartão.
+### GaugeChart
+- Arco de 240°, trilho `--chart-track`, arco no tom de negócio com gradiente sutil, meta como marcador dourado. Valor nulo = trilho vazio e "—".
+- Só para taxas 0–100 com significado de "quanto do total". Volumes absolutos vão em KPI ou barras.
+- Tom padrão `primary`; tons semânticos só quando há limiar oficial (não inventar faixas).
 
-### Heatmap (calendário de taxa)
-- **Escala `--heat-*`:** três faixas contra a meta (na meta, até 10 p.p. abaixo, abaixo), mais "sem base" (`heat-empty`) e "futuro" (borda tracejada). O texto de cada faixa tem contraste de 7:1 ou mais.
-- **Legenda:** uma faixa "Escala" acima dos calendários.
-- **Tooltip:** o `ChartTooltipCard` aparece no hover e no foco. O nome acessível da célula resume a mesma informação.
-- **Drill-down:** o clique abre a gaveta do dia, com links para Mês/Dia e Jornada.
+### DonutChart
+- Até ~6 fatias com respiro, total no centro, legenda com valor e percentual. Mais categorias → `HBarChart`.
+
+### Sparkline
+- 96×28px, último ponto marcado, meta tracejada opcional, decorativa (`aria-hidden`). Cede espaço ao número do KPI.
 
 ## 5. Acessibilidade
 
-- Cada gráfico é um `role="img"` com `aria-label` descritivo, dentro de uma moldura focável (`role="group"`).
-- **Teclado:**
+- `role="img"` com `aria-label` descritivo, moldura focável.
+- Teclado: ←/→ (↑/↓ nas horizontais), Home/End, Enter (drill-down), Esc.
+- `aria-live="polite"` anuncia o item ativo; tabela gêmea visível ou `SrTable`.
+- Marcas ≥ 3:1 sobre a superfície nos dois temas.
 
-| Tecla | Ação |
+## 6. Aplicação
+
+| Tela | Gráficos |
 |---|---|
-| ← / → (↑ / ↓ nas barras horizontais) | percorre os itens |
-| Home / End | vai ao primeiro / último item |
-| Enter | drill-down, quando existe |
-| Esc | fecha o tooltip |
-
-- Uma região `aria-live="polite"` anuncia o item ativo.
-- Uma tabela gêmea acompanha cada gráfico: visível (Aderência) ou `SrTable` (Manutenção).
-- As marcas gráficas têm 3:1 ou mais sobre a superfície nos dois temas.
-
-## 6. Aplicação atual
-
-| Tela | Gráfico |
-|---|---|
-| Aderência › Visão consolidada | `TrendChart` mensal com meta, `HBarChart` de ranking por dimensão e sparklines nos KPIs |
-| Aderência › Heatmap | escala `--heat-*`, legenda e tooltip rico |
-| Manutenção › Visão geral | `ColumnChart` empilhado (volume por tipo), `HBarChart` (mix e situação), `ColumnChart` (aging) e `InlineBar` |
-| `/dev/design-system` | exemplos de todos os tipos |
-
-As demais telas não tinham gráficos: usam KPIs, tabelas e barras em linha
-(`InlineBar`, planners em grade), e herdam os tokens e componentes refinados.
+| Aderência › Visão consolidada | `TrendChart` mensal com meta, `HBarChart` por dimensão, sparklines |
+| Aderência › Heatmap | escala semântica, legenda, tooltip rico, drill-down |
+| KM › Visão geral | `ColumnChart` KM por dia (dia de referência em destaque), `HBarChart` por operação, tipo e situação |
+| KM › Visão diária | `ColumnChart` de faixas de KM (rótulos curtos) |
+| KM › Histórico | `TrendChart` de hodômetro (`zeroBaseline={false}`), `ColumnChart` KM por dia com troca de mês |
+| KM › Análise gerencial | dispersão por coorte, quadrantes, projeções 30/60/90 |
+| KM › Planner | grade com rampa `--heat-*` |
+| KM › Qualidade | `GaugeChart` do score DQ + barras dos componentes |
+| Manutenção › Visão geral | `ColumnChart` empilhado, `HBarChart`, aging |
+| `/dev/design-system` | todos os tipos, claro e escuro |
