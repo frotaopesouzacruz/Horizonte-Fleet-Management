@@ -272,12 +272,12 @@ function ExecutionDetailBody({
 // Conteúdo (puro — a prévia e os testes o renderizam sem drawer)
 // ---------------------------------------------------------------------------
 
-function Info({ label, children }: { label: string; children?: React.ReactNode }) {
+function Info({ label, children, className }: { label: string; children?: React.ReactNode; className?: string }) {
   const empty = children === null || children === undefined || children === "";
   return (
-    <div className="flex min-w-0 flex-col gap-0.5 rounded-md border border-border bg-surface-secondary px-3 py-2">
+    <div className={cn("flex min-w-0 flex-col gap-0.5 rounded-md border border-border bg-surface-secondary px-3 py-2", className)}>
       <dt className="text-caption text-fg-muted">{label}</dt>
-      <dd className="truncate text-body-sm text-fg">{empty ? "—" : children}</dd>
+      <dd className="text-body-sm break-words text-fg">{empty ? "—" : children}</dd>
     </div>
   );
 }
@@ -312,7 +312,7 @@ export function ExecutionDetailContent({ detail }: { detail: ExecutionDetail }) 
     <div className="flex flex-col gap-4">
       <section
         aria-label="Resumo da execução"
-        className="flex items-start gap-3 rounded-md border border-border bg-surface p-4"
+        className="flex items-start gap-3 rounded-lg border border-border bg-surface-raised p-4"
       >
         <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-success-soft text-success-soft-fg">
           <CheckCircle2 className="size-5" aria-hidden />
@@ -345,7 +345,9 @@ export function ExecutionDetailContent({ detail }: { detail: ExecutionDetail }) 
         </div>
       </section>
 
-      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {/* Gaveta de 36rem: três colunas e valores que quebram linha em vez de
+          "22/09/2026, 07…"; a liderança (nome longo) fecha a última linha. */}
+      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <Info label="Data">{formatDateBr(detail.operationalDate)}</Info>
         <Info label="Placa">
           {detail.licensePlate ?? detail.fleetCode}
@@ -358,10 +360,12 @@ export function ExecutionDetailContent({ detail }: { detail: ExecutionDetail }) 
         <Info label="Cidade/UF">{city}</Info>
         <Info label="Início">{formatDateTimeBr(detail.startedAt)}</Info>
         <Info label="Conclusão">{formatDateTimeBr(detail.submittedAt)}</Info>
-        <Info label="Liderança">{detail.leaderName}</Info>
+        <Info label="Liderança" className="sm:col-span-2">{detail.leaderName}</Info>
       </dl>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {/* 2 × 2 também no desktop: quatro KPIs com ícone não cabem na largura da
+          gaveta sem o rótulo passar por baixo do ícone. */}
+      <div className="grid grid-cols-2 gap-2">
         <KpiCard size="compact" label="Perguntas aplicáveis" value={detail.applicable} icon={<ListChecks />} />
         <KpiCard size="compact" label="Conformes" value={detail.conforming} icon={<CheckCircle2 />} status="success" />
         <KpiCard
@@ -380,7 +384,10 @@ export function ExecutionDetailContent({ detail }: { detail: ExecutionDetail }) 
         />
       </div>
 
-      <section aria-labelledby="execution-cluster-summary" className="rounded-md border border-border">
+      <section
+        aria-labelledby="execution-cluster-summary"
+        className="overflow-hidden rounded-lg border border-border bg-surface-raised"
+      >
         <h4
           id="execution-cluster-summary"
           className="border-b border-border bg-surface-secondary px-3 py-2 text-label font-semibold text-fg"

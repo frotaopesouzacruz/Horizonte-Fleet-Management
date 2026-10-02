@@ -392,8 +392,10 @@ export function ParametersPanel({ mapping, catalog, maintenanceCatalog, perms, a
         <>
           <CoverageStrip coverage={mapping.coverage} />
 
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div role="group" aria-label="Filtrar as ações" className="flex flex-wrap gap-1.5">
+          {/* Os atalhos e a busca dividem uma linha só quando cabem inteiros
+              (1366 px); abaixo disso a busca desce, sem atalho órfão. */}
+          <div className="flex flex-col gap-3 min-[1340px]:flex-row min-[1340px]:items-center min-[1340px]:justify-between">
+            <div role="group" aria-label="Filtrar as ações" className="flex min-w-0 flex-wrap gap-1.5">
               {CHIPS.map((c) => {
                 const active = chip === c.key;
                 return (
@@ -404,10 +406,10 @@ export function ParametersPanel({ mapping, catalog, maintenanceCatalog, perms, a
                     onClick={() => setChip(c.key)}
                     data-testid={`parameters-chip-${c.key}`}
                     className={cn(
-                      "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-body-sm font-medium hfm-transition hfm-focus-ring",
+                      "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-caption font-medium hfm-transition hfm-focus-ring",
                       active
-                        ? "border-primary bg-primary-soft text-primary-soft-fg"
-                        : "border-border bg-surface text-fg-secondary hover:border-border-strong hover:text-fg",
+                        ? "border-primary/40 bg-primary-soft font-semibold text-primary-soft-fg"
+                        : "border-border bg-surface-raised text-fg-secondary shadow-xs hover:border-border-strong hover:text-fg",
                     )}
                   >
                     {c.label}
@@ -424,7 +426,7 @@ export function ParametersPanel({ mapping, catalog, maintenanceCatalog, perms, a
               onValueChange={setQuery}
               placeholder="Buscar pergunta, chave, detalhe ou serviço"
               aria-label="Buscar no mapeamento"
-              wrapperClassName="lg:w-80"
+              wrapperClassName="sm:max-w-md min-[1340px]:w-72 min-[1340px]:shrink-0"
             />
           </div>
 
@@ -501,14 +503,17 @@ function CoverageStrip({ coverage }: { coverage: Coverage | null | undefined }) 
   const tone = pct == null ? null : pct >= 90 ? "bg-success" : pct >= 60 ? "bg-warning" : "bg-danger";
   const n = (v: number | undefined) => formatInt(v ?? 0);
   return (
-    <section aria-label="Cobertura do mapeamento" className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
+    <section
+      aria-label="Cobertura do mapeamento"
+      className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-[minmax(0,1.4fr)_repeat(6,minmax(0,1fr))]"
+    >
       <Metric label="Cobertura do mapeamento" value={formatPct(pct)} accent={tone} className="col-span-2 sm:col-span-1">
         {pct != null ? (
-          <span className="h-1 w-full overflow-hidden rounded-full bg-surface-tertiary" aria-hidden>
+          <span className="mt-auto h-1 w-full overflow-hidden rounded-full bg-surface-tertiary" aria-hidden>
             <span className={cn("block h-full rounded-full", tone)} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
           </span>
         ) : (
-          <span className="text-caption text-fg-muted">Sem ações geradoras</span>
+          <span className="mt-auto text-caption text-fg-muted">Sem ações geradoras</span>
         )}
       </Metric>
       <Metric label="Ações geradoras" value={n(coverage?.actionKeys)} hint="Chaves que viram plano" />
@@ -549,15 +554,17 @@ function Metric({
   return (
     <div
       className={cn(
-        "relative flex min-h-[5rem] min-w-0 flex-col justify-between gap-1.5 overflow-hidden rounded-lg border border-border bg-surface-raised px-3 py-2.5 shadow-card",
+        // UI 2.0: anatomia do KpiCard — rótulo (até 2 linhas), número alinhado
+        // entre os cartões da linha e legenda no pé.
+        "relative flex min-h-[6.5rem] min-w-0 flex-col gap-1.5 overflow-hidden rounded-lg border border-border bg-surface-raised px-3.5 py-3 shadow-card",
         className,
       )}
     >
       {accent ? <span aria-hidden className={cn("absolute inset-x-0 top-0 h-0.5", accent)} /> : null}
-      <span className="text-caption font-medium text-fg-secondary">{label}</span>
-      <span className="text-h2 leading-none font-semibold text-fg tabular-nums">{value}</span>
+      <span className="min-h-8 text-caption font-semibold tracking-wide text-balance text-fg-muted uppercase">{label}</span>
+      <span className="text-kpi-sm font-semibold text-fg tabular-nums">{value}</span>
       {children}
-      {hint ? <span className="text-caption text-fg-muted">{hint}</span> : null}
+      {hint ? <span className="mt-auto text-caption text-fg-muted">{hint}</span> : null}
     </div>
   );
 }
@@ -736,6 +743,9 @@ type Groups = ReturnType<typeof groupByCluster>;
 
 const COLUMNS = 12;
 
+/** Soma das larguras das colunas do mapeamento (tabela de layout fixo). */
+const MAPPING_TABLE_WIDTH = 260 + 190 + 190 + 132 + 96 + 150 + 160 + 150 + 128 + 240 + 124 + 112;
+
 function MappingTable({
   groups,
   canEdit,
@@ -748,22 +758,24 @@ function MappingTable({
   onOpenPlans: (info: RowInfo) => void;
 }) {
   return (
+    // Tabela de auditoria (rola dentro do contêiner): larguras fixas para que
+    // o texto da pergunta e do detalhe não vire uma palavra por linha.
     <TableContainer stickyHeader maxHeight="72vh" className="hidden md:block" tabIndex={0} aria-label="Mapeamento por cluster">
-      <Table style={{ minWidth: 1480 }}>
+      <Table layout="fixed" style={{ minWidth: MAPPING_TABLE_WIDTH }}>
         <TableHeader>
           <TableRow>
             <TableHead style={{ width: 260 }}>Pergunta</TableHead>
-            <TableHead style={{ width: 180 }}>Detalhe</TableHead>
-            <TableHead style={{ width: 160 }}>Action key</TableHead>
-            <TableHead>Domínio</TableHead>
-            <TableHead>Papel</TableHead>
-            <TableHead>Gera plano?</TableHead>
-            <TableHead>Exige manutenção?</TableHead>
-            <TableHead>Prioridade padrão</TableHead>
-            <TableHead>Prazo padrão</TableHead>
+            <TableHead style={{ width: 190 }}>Detalhe</TableHead>
+            <TableHead style={{ width: 190 }}>Action key</TableHead>
+            <TableHead style={{ width: 132 }}>Domínio</TableHead>
+            <TableHead style={{ width: 96 }}>Papel</TableHead>
+            <TableHead style={{ width: 150 }}>Gera plano?</TableHead>
+            <TableHead style={{ width: 160 }}>Exige manutenção?</TableHead>
+            <TableHead style={{ width: 150 }}>Prioridade padrão</TableHead>
+            <TableHead style={{ width: 128 }}>Prazo padrão</TableHead>
             <TableHead style={{ width: 240 }}>Serviços associados</TableHead>
-            <TableHead numeric>Planos abertos</TableHead>
-            <TableHead>
+            <TableHead style={{ width: 124 }} numeric>Planos abertos</TableHead>
+            <TableHead style={{ width: 112 }}>
               <span className="sr-only">Ações</span>
             </TableHead>
           </TableRow>

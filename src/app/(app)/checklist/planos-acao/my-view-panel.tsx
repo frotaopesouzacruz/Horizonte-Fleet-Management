@@ -254,7 +254,8 @@ export function MyViewPanel({ myView, perms, actions }: MyViewPanelProps) {
           description="Planos em aberto em que você é o responsável atual."
           icon={<UserCheck />}
         />
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {/* Um par: as duas colunas preenchem a linha (sem metade vazia). */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <DrillKpi
             testId="my-kpi-mine-open"
             label="Meus planos abertos"

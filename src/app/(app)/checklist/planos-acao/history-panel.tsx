@@ -180,56 +180,60 @@ function HistoryFilterBar({
     });
 
   return (
+    // UI 2.0: cartão de ferramentas como o do cabeçalho — campos rotulados que
+    // crescem juntos e as ações (Aplicar, Limpar) agrupadas à direita.
     <form
       onSubmit={apply}
       role="search"
       aria-label="Filtros do histórico de checklists"
-      className="grid grid-cols-2 items-end gap-3 rounded-md border border-border bg-surface p-3 md:grid-cols-[repeat(2,minmax(0,9.5rem))_minmax(0,1fr)_minmax(0,14rem)_auto]"
+      className="flex flex-wrap items-end gap-x-3 gap-y-2.5 rounded-xl border border-border bg-surface-toolbar px-3 py-2.5 shadow-card"
     >
-      <label className="flex min-w-0 flex-col gap-1">
-        <span className="text-caption font-medium text-fg-secondary">De</span>
-        <DateInput size="sm" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
-      </label>
-      <label className="flex min-w-0 flex-col gap-1">
-        <span className="text-caption font-medium text-fg-secondary">Até</span>
-        <DateInput
-          size="sm"
-          value={to}
-          min={from || undefined}
-          onChange={(e) => setTo(e.target.value)}
-          aria-invalid={invalid || undefined}
-        />
-      </label>
-      <label className="col-span-2 flex min-w-0 flex-col gap-1 md:col-span-1">
-        <span className="text-caption font-medium text-fg-secondary">Placa ou frota</span>
-        <SearchField size="sm" value={q} onValueChange={setQ} placeholder="Ex.: ABC1D23 ou 1024" aria-label="Placa ou frota" />
-      </label>
-      <div className="col-span-2 flex min-w-0 flex-col gap-1 md:col-span-1">
-        <span id="history-operation-label" className="text-caption font-medium text-fg-secondary">Operação</span>
-        <Select value={operation} onValueChange={setOperation}>
-          <SelectTrigger size="sm" aria-labelledby="history-operation-label">
-            <SelectValue placeholder="Todas" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Todas as operações</SelectItem>
-            {catalog.operations.map((o) => (
-              <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex min-w-0 flex-1 basis-[32rem] flex-wrap items-end gap-2.5">
+        <label className="flex min-w-0 flex-[1_1_8.75rem] flex-col gap-1 sm:flex-[0_0_9.5rem]">
+          <span className="text-caption text-fg-muted">De</span>
+          <DateInput size="sm" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
+        </label>
+        <label className="flex min-w-0 flex-[1_1_8.75rem] flex-col gap-1 sm:flex-[0_0_9.5rem]">
+          <span className="text-caption text-fg-muted">Até</span>
+          <DateInput
+            size="sm"
+            value={to}
+            min={from || undefined}
+            onChange={(e) => setTo(e.target.value)}
+            aria-invalid={invalid || undefined}
+          />
+        </label>
+        <label className="flex min-w-0 flex-[1.4_1_12rem] flex-col gap-1">
+          <span className="text-caption text-fg-muted">Placa ou frota</span>
+          <SearchField size="sm" value={q} onValueChange={setQ} placeholder="Ex.: ABC1D23 ou 1024" aria-label="Placa ou frota" />
+        </label>
+        <div className="flex min-w-0 flex-[1_1_11rem] flex-col gap-1">
+          <span id="history-operation-label" className="text-caption text-fg-muted">Operação</span>
+          <Select value={operation} onValueChange={setOperation}>
+            <SelectTrigger size="sm" aria-labelledby="history-operation-label">
+              <SelectValue placeholder="Todas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todas as operações</SelectItem>
+              {catalog.operations.map((o) => (
+                <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
-      <div className="col-span-2 flex flex-wrap items-center gap-2 md:col-span-1">
-        <Button type="submit" size="sm" leadingIcon={<Filter />} disabled={invalid || actions.pending}>
-          Aplicar
-        </Button>
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
         {active ? (
           <Button type="button" size="sm" variant="ghost" onClick={clear} disabled={actions.pending}>
             Limpar
           </Button>
         ) : null}
+        <Button type="submit" size="sm" leadingIcon={<Filter />} disabled={invalid || actions.pending}>
+          Aplicar
+        </Button>
       </div>
       {invalid ? (
-        <p className="col-span-2 text-caption text-danger md:col-span-5" role="alert">
+        <p className="w-full text-caption text-danger" role="alert">
           A data final precisa ser igual ou posterior à inicial.
         </p>
       ) : null}
@@ -262,6 +266,9 @@ function rowLabel(row: HistoryRow) {
   return `Abrir checklist de ${formatDate(row.operationalDate)} · ${vehicleText(row)}`;
 }
 
+/** Soma das colunas do histórico (layout fixo): cabe no conteúdo de 1366 px. */
+const HISTORY_TABLE_WIDTH = 168 + 118 + 160 + 168 + 92 + 92 + 80 + 120;
+
 function HistoryTable({ rows, openTrace }: { rows: HistoryRow[]; openTrace: (id: string) => void }) {
   const onRowClick = (event: React.MouseEvent<HTMLTableRowElement>, id: string) => {
     const row = event.currentTarget;
@@ -272,19 +279,24 @@ function HistoryTable({ rows, openTrace }: { rows: HistoryRow[]; openTrace: (id:
 
   return (
     <TableContainer tabIndex={0} stickyHeader maxHeight="max(24rem, calc(100dvh - 18rem))" className="hidden lg:block">
-      <Table layout="fixed" style={{ minWidth: 1180 }} aria-label="Checklists com inconformidade">
+      {/* Cabe em 1366 px sem rolagem: células de duas linhas (data · tipo,
+          operação · BR) e cabeçalhos curtos com <abbr title> — nenhum título
+          cortado. */}
+      <Table layout="fixed" style={{ minWidth: HISTORY_TABLE_WIDTH }} aria-label="Checklists com inconformidade">
         <TableHeader>
           <TableRow>
-            <TableHead style={{ width: 132 }}>Data</TableHead>
-            <TableHead style={{ width: 84 }}>Tipo</TableHead>
-            <TableHead style={{ width: 150 }}>Placa / frota</TableHead>
-            <TableHead style={{ width: 190 }}>Colaborador</TableHead>
-            <TableHead style={{ width: 170 }}>Operação</TableHead>
-            <TableHead style={{ width: 110 }}>BR</TableHead>
-            <TableHead style={{ width: 110 }} numeric title="Inconformidades (críticas)">Inconformidades</TableHead>
-            <TableHead style={{ width: 110 }} numeric title="Apontamentos de manutenção (em aberto)">Apontamentos</TableHead>
-            <TableHead style={{ width: 96 }} numeric title="Inconformidades encaminhadas ao fluxo de Avarias">Avarias</TableHead>
-            <TableHead style={{ width: 128 }}>Recebimento</TableHead>
+            <TableHead style={{ width: 168 }}>Data · tipo</TableHead>
+            <TableHead style={{ width: 118 }}>Placa / frota</TableHead>
+            <TableHead style={{ width: 160 }}>Colaborador</TableHead>
+            <TableHead style={{ width: 168 }}>Operação · BR</TableHead>
+            <TableHead style={{ width: 92 }} numeric>
+              <abbr title="Inconformidades (críticas)">Inconf.</abbr>
+            </TableHead>
+            <TableHead style={{ width: 92 }} numeric>
+              <abbr title="Apontamentos de manutenção (em aberto)">Apont.</abbr>
+            </TableHead>
+            <TableHead style={{ width: 80 }} numeric title="Inconformidades encaminhadas ao fluxo de Avarias">Avarias</TableHead>
+            <TableHead style={{ width: 120 }}>Recebimento</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -308,15 +320,15 @@ function HistoryTable({ rows, openTrace }: { rows: HistoryRow[]; openTrace: (id:
                   <span className="font-semibold text-link tabular-nums underline-offset-2 hover:underline">
                     {formatDate(row.operationalDate)}
                   </span>
-                  {row.submittedAt ? (
-                    <span className="text-caption text-fg-muted tabular-nums" title={formatDateTime(row.submittedAt)}>
-                      {sentAt(row.submittedAt)}
+                  <span className="text-caption whitespace-nowrap text-fg-muted tabular-nums">
+                    <span className="text-fg-secondary">
+                      {row.checklistType ? (CHECKLIST_TYPE_LABEL[row.checklistType] ?? row.checklistType) : "—"}
                     </span>
-                  ) : null}
+                    {row.submittedAt && sentAt(row.submittedAt) ? (
+                      <span title={formatDateTime(row.submittedAt)}> · {sentAt(row.submittedAt)}</span>
+                    ) : null}
+                  </span>
                 </button>
-              </TableCell>
-              <TableCell className="text-fg-secondary">
-                {row.checklistType ? (CHECKLIST_TYPE_LABEL[row.checklistType] ?? row.checklistType) : "—"}
               </TableCell>
               <TableCell>
                 <span className="flex min-w-0 flex-col leading-tight">
@@ -330,11 +342,14 @@ function HistoryTable({ rows, openTrace }: { rows: HistoryRow[]; openTrace: (id:
                   {row.employeeCode ? <span className="truncate text-caption text-fg-muted">Mat. {row.employeeCode}</span> : null}
                 </span>
               </TableCell>
-              <TableCell truncate title={row.operationName ?? undefined} className="text-fg-secondary">
-                {row.operationName ?? "—"}
-              </TableCell>
-              <TableCell truncate title={row.brCode ?? undefined} className="text-fg-secondary">
-                {row.brCode ?? "—"}
+              <TableCell>
+                <span
+                  className="flex min-w-0 flex-col leading-tight"
+                  title={[row.operationName, row.brCode].filter(Boolean).join(" · ") || undefined}
+                >
+                  <span className="truncate text-fg-secondary">{row.operationName ?? "—"}</span>
+                  {row.brCode ? <span className="truncate text-caption text-fg-muted">{row.brCode}</span> : null}
+                </span>
               </TableCell>
               <TableCell numeric>
                 <Counter value={row.nonConforming} extra={row.critical > 0 ? `${formatInt(row.critical)} crít.` : null} tone="danger" />
@@ -366,7 +381,7 @@ function HistoryCards({ rows, openTrace }: { rows: HistoryRow[]; openTrace: (id:
             data-testid="action-plans-history-card"
             onClick={() => openTrace(row.id)}
             aria-label={rowLabel(row)}
-            className="flex w-full min-w-0 flex-col gap-2 rounded-md border border-border bg-surface p-3 text-left hfm-transition hover:border-border-strong hfm-focus-ring"
+            className="flex w-full min-w-0 flex-col gap-2 rounded-lg border border-border bg-surface-raised p-3 text-left shadow-card hfm-transition hover:border-border-strong hfm-focus-ring"
           >
             <span className="flex w-full items-start justify-between gap-2">
               <span className="min-w-0">

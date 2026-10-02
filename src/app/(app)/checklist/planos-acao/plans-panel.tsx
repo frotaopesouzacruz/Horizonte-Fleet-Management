@@ -447,7 +447,7 @@ function GroupTree({
   return (
     <section
       aria-label={`Planos agrupados por ${levels.map((l) => l.label).join(", ")}`}
-      className="flex flex-col overflow-hidden rounded-md border border-border bg-surface"
+      className="flex flex-col overflow-hidden rounded-lg border border-border bg-surface-raised shadow-card"
       data-testid="action-plans-tree"
     >
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface-secondary px-3 py-2">
@@ -578,7 +578,6 @@ function buildColumns(canOpenMaintenance: boolean, openPlan: (id: string) => voi
         />
       ),
     },
-    { key: "br", label: "BR", width: 104, render: (row) => (row.brCode ? <span className="whitespace-nowrap">{brLabel(row.brCode)}</span> : dash) },
     {
       key: "operation",
       label: "Operação",
@@ -590,18 +589,39 @@ function buildColumns(canOpenMaintenance: boolean, openPlan: (id: string) => voi
           <span className="text-fg-muted">Sem operação</span>
         ),
     },
-    { key: "city", label: "Cidade", width: 150, render: (row) => (cityLabel(row) ? <Two main={cityLabel(row)} title={cityLabel(row) ?? undefined} /> : dash) },
-    { key: "cluster", label: "Cluster", width: 140, render: (row) => (row.clusterName ? <Two main={row.clusterName} title={row.clusterName} /> : dash) },
+    // UI 2.0: células de duas linhas antes da rolagem lateral — "Local" é
+    // cidade + BR, e o cluster vai sob o item.
+    {
+      key: "local",
+      label: "Local",
+      width: 168,
+      render: (row) =>
+        cityLabel(row) || row.brCode ? (
+          <Two
+            main={cityLabel(row) ?? "—"}
+            sub={row.brCode ? brLabel(row.brCode) : undefined}
+            title={[cityLabel(row), row.brCode ? brLabel(row.brCode) : null].filter(Boolean).join(" · ")}
+          />
+        ) : (
+          dash
+        ),
+    },
     {
       key: "item",
-      label: "Item",
-      width: 250,
-      render: (row) => <Two main={<span className="text-fg">{planTitle(row)}</span>} title={planTitle(row)} />,
+      label: "Item · cluster",
+      width: 270,
+      render: (row) => (
+        <Two
+          main={<span className="text-fg">{planTitle(row)}</span>}
+          sub={row.clusterName ?? undefined}
+          title={[planTitle(row), row.clusterName].filter(Boolean).join(" · ")}
+        />
+      ),
     },
     {
       key: "first",
       label: "1º apontamento",
-      width: 136,
+      width: 164,
       sort: "first",
       render: (row) => (
         <Two
@@ -617,11 +637,11 @@ function buildColumns(canOpenMaintenance: boolean, openPlan: (id: string) => voi
       sort: "last",
       render: (row) => <span className="tabular-nums">{formatDate(row.lastOperationalDate)}</span>,
     },
-    { key: "occurrences", label: "Ocorrências", width: 116, sort: "occurrences", numeric: true, render: (row) => formatInt(row.occurrences) },
+    { key: "occurrences", label: "Ocorrências", width: 140, sort: "occurrences", numeric: true, render: (row) => formatInt(row.occurrences) },
     {
       key: "open_items",
       label: "Pendentes",
-      width: 108,
+      width: 130,
       sort: "open_items",
       numeric: true,
       hint: "Apontamentos ainda sem solução",
@@ -634,7 +654,7 @@ function buildColumns(canOpenMaintenance: boolean, openPlan: (id: string) => voi
       numeric: true,
       render: (row) => <span className={row.resolvedItems > 0 ? "text-success-soft-fg" : "text-fg-muted"}>{formatInt(row.resolvedItems)}</span>,
     },
-    { key: "priority", label: "Prioridade", width: 112, sort: "priority", render: (row) => <PriorityBadge priority={row.priority} /> },
+    { key: "priority", label: "Prioridade", width: 130, sort: "priority", render: (row) => <PriorityBadge priority={row.priority} /> },
     {
       key: "due",
       label: "Prazo",
@@ -808,7 +828,7 @@ function PlansList({
           <li
             key={row.id}
             data-testid="action-plans-card"
-            className="overflow-hidden rounded-md border border-border bg-surface hfm-transition hover:border-border-strong"
+            className="overflow-hidden rounded-lg border border-border bg-surface-raised shadow-card hfm-transition hover:border-border-strong"
           >
             <button
               type="button"
@@ -880,7 +900,7 @@ function CardField({ label, value }: { label: string; value: string }) {
   return (
     <span className="flex min-w-0 flex-col">
       <span className="text-fg-muted">{label}</span>
-      <span className="truncate text-fg tabular-nums" title={value}>
+      <span className="line-clamp-2 break-words text-fg tabular-nums" title={value}>
         {value}
       </span>
     </span>
@@ -1029,7 +1049,7 @@ export function PlansPanel({ plans, filters, catalog, perms, actions }: PlansPan
             role="group"
             aria-labelledby={groupingLabelId}
             data-testid="action-plans-grouping"
-            className="inline-flex max-w-full flex-wrap rounded-md border border-border bg-surface p-0.5"
+            className="inline-flex max-w-full flex-wrap gap-0.5 rounded-md border border-border-subtle bg-surface-interactive p-0.5"
           >
             {GROUPINGS.map((g) => {
               const active = grouping === g.value;
@@ -1044,9 +1064,9 @@ export function PlansPanel({ plans, filters, catalog, perms, actions }: PlansPan
                     if (!active) navigate({ agrupar: g.value === "operation" ? null : g.value, pagina: null });
                   }}
                   className={cn(
-                    "inline-flex h-8 items-center gap-1.5 rounded-sm px-2.5 text-label font-medium transition-colors hfm-focus-ring [&_svg]:size-3.5",
+                    "inline-flex h-7 items-center gap-1.5 rounded-sm px-2.5 text-label font-medium whitespace-nowrap transition-colors hfm-focus-ring [&_svg]:size-3.5",
                     "disabled:cursor-wait",
-                    active ? "bg-primary text-primary-fg shadow-xs" : "text-fg-muted hover:text-fg",
+                    active ? "bg-surface-raised font-semibold text-fg shadow-selected" : "text-fg-secondary hover:text-fg",
                   )}
                 >
                   <span aria-hidden className="inline-flex">

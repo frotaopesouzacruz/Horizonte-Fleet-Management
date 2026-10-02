@@ -12,6 +12,7 @@ import { FilterBar, FilterBarClear, FilterChip } from "@/components/ui/filter-ba
 import { inputVariants } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SearchField } from "@/components/ui/search-field";
+import { ToggleChip } from "@/components/ui/segmented-control";
 import { NativeSelect } from "@/components/governance/selects";
 import {
   DEADLINE_LABEL,
@@ -298,24 +299,18 @@ function Toggle({
   icon?: React.ReactNode;
   testId?: string;
 }) {
+  // UI 2.0: opção liga/desliga com marca visível (ToggleChip), na altura dos controles.
   return (
-    <button
-      type="button"
-      aria-pressed={pressed}
+    <ToggleChip
+      pressed={pressed}
+      onPressedChange={onPressedChange}
       disabled={disabled}
       data-testid={testId}
-      onClick={() => onPressedChange(!pressed)}
-      className={cn(
-        "inline-flex h-(--control-height-sm) shrink-0 items-center gap-1.5 rounded-sm border px-2.5 text-body-sm font-medium",
-        "hfm-transition hfm-focus-ring disabled:pointer-events-none disabled:opacity-55 [&_svg]:size-4",
-        pressed
-          ? "border-primary/50 bg-primary-soft text-primary-soft-fg"
-          : "border-input-border bg-input text-fg-secondary hover:bg-hover-overlay hover:text-fg",
-      )}
+      className="h-(--control-height-sm) shrink-0"
     >
-      {icon ? <span aria-hidden className="inline-flex">{icon}</span> : null}
+      {icon ? <span aria-hidden className="inline-flex text-fg-muted">{icon}</span> : null}
       {children}
-    </button>
+    </ToggleChip>
   );
 }
 
@@ -600,126 +595,59 @@ export function ActionPlanFilterBar({ filters, catalog, navigate, pending }: Act
 
   return (
     <div className="flex flex-col" data-testid="action-plans-filters">
-      <FilterBar label="Filtros dos planos de ação" className="items-end gap-3">
-        <Field label="Período (apontamentos)" group>
-          <div className="flex items-center gap-1.5">
-            <DateInput
-              size="sm"
-              aria-label="Data inicial"
-              value={filters.from ?? ""}
-              max={filters.to}
-              disabled={pending}
-              onChange={(e) => set("from", e.target.value || null)}
-              wrapperClassName="w-[8.75rem]"
-            />
-            <span className="text-caption text-fg-muted">até</span>
-            <DateInput
-              size="sm"
-              aria-label="Data final"
-              value={filters.to ?? ""}
-              min={filters.from}
-              disabled={pending}
-              onChange={(e) => set("to", e.target.value || null)}
-              wrapperClassName="w-[8.75rem]"
-            />
-          </div>
-        </Field>
-
-        <Field label="Código, placa, frota ou item" className="w-full min-w-[12rem] flex-1 sm:w-auto sm:max-w-[18rem]">
-          <SearchField
-            key={filters.q ?? ""}
-            size="sm"
-            aria-label="Buscar por código do plano, placa, frota ou item"
-            defaultValue={filters.q ?? ""}
-            placeholder="PA-2026-…, placa, frota, item"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") set("q", (e.target as HTMLInputElement).value.trim() || null);
-            }}
-            onClear={() => {
-              if (filters.q) set("q", null);
-            }}
-            data-testid="action-plans-search"
-          />
-        </Field>
-
-        <Field label="Situação" group>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <div
-              role="group"
-              aria-label="Atalho de situação"
-              className="inline-flex h-(--control-height-sm) items-center rounded-sm border border-input-border bg-input p-0.5"
-            >
-              {QUICK.map((q) => {
-                const active = quick === q.value;
-                return (
-                  <button
-                    key={q.value}
-                    type="button"
-                    aria-pressed={active}
-                    disabled={pending}
-                    data-testid={`action-plans-quick-${q.value}`}
-                    onClick={() => {
-                      if (!active) applyQuick(q.value);
-                    }}
-                    className={cn(
-                      "inline-flex h-full items-center rounded-xs px-2.5 text-caption font-medium hfm-transition hfm-focus-ring",
-                      "disabled:cursor-wait",
-                      active ? "bg-primary text-primary-fg shadow-xs" : "text-fg-secondary hover:text-fg",
-                    )}
-                  >
-                    {q.label}
-                  </button>
-                );
-              })}
+      {/* UI 2.0: a partir de xl, duas linhas cheias — na primeira, período e
+          busca (que cresce) e, à direita, "Mais filtros" e "Limpar"; na
+          segunda, situação, operação, prioridade e "Só os meus", crescendo
+          juntos. Abaixo de xl as duas linhas viram uma só sequência que quebra
+          quando não cabe, com as ações ao fim (ao lado de "Só os meus"). */}
+      <FilterBar
+        label="Filtros dos planos de ação"
+        className="flex-wrap items-end gap-x-3 gap-y-2.5 xl:grid xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start"
+      >
+        <div className="contents xl:flex xl:min-w-0 xl:flex-wrap xl:items-end xl:gap-2.5">
+          <Field label="Período (apontamentos)" group className="flex-[1_1_auto] sm:flex-[0_0_auto]">
+            <div className="flex items-center gap-1.5">
+              <DateInput
+                size="sm"
+                aria-label="Data inicial"
+                value={filters.from ?? ""}
+                max={filters.to}
+                disabled={pending}
+                onChange={(e) => set("from", e.target.value || null)}
+                wrapperClassName="min-w-0 flex-1 sm:w-[8.75rem] sm:flex-none"
+              />
+              <span className="text-caption text-fg-muted">até</span>
+              <DateInput
+                size="sm"
+                aria-label="Data final"
+                value={filters.to ?? ""}
+                min={filters.from}
+                disabled={pending}
+                onChange={(e) => set("to", e.target.value || null)}
+                wrapperClassName="min-w-0 flex-1 sm:w-[8.75rem] sm:flex-none"
+              />
             </div>
-            <MultiSelect
-              label="Situação"
-              options={statusOptions}
-              selected={sel.status}
-              onApply={applyStatuses}
-              disabled={pending}
-              allLabel="Todas as situações"
-              className="w-[11rem]"
-              testId="action-plans-status"
+          </Field>
+
+          <Field label="Código, placa, frota ou item" className="flex-[1_1_14rem] xl:max-w-[36rem]">
+            <SearchField
+              key={filters.q ?? ""}
+              size="sm"
+              aria-label="Buscar por código do plano, placa, frota ou item"
+              defaultValue={filters.q ?? ""}
+              placeholder="PA-2026-…, placa, frota, item"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") set("q", (e.target as HTMLInputElement).value.trim() || null);
+              }}
+              onClear={() => {
+                if (filters.q) set("q", null);
+              }}
+              data-testid="action-plans-search"
             />
-          </div>
-        </Field>
+          </Field>
+        </div>
 
-        <Field label="Operação" group>
-          <MultiSelect
-            label="Operação"
-            options={operationOptions}
-            selected={sel.operation}
-            onApply={applyOperations}
-            disabled={pending}
-            className="w-[11rem]"
-            testId="action-plans-operation"
-          />
-        </Field>
-
-        <Field label="Prioridade" group>
-          <MultiSelect
-            label="Prioridade"
-            options={priorityOptions}
-            selected={sel.priority}
-            onApply={(values) => apply({ [P.priority]: join(values) })}
-            disabled={pending}
-            className="w-[8.5rem]"
-            testId="action-plans-priority"
-          />
-        </Field>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Toggle
-            pressed={Boolean(filters.mine)}
-            onPressedChange={(next) => set("mine", next ? "1" : null)}
-            disabled={pending}
-            icon={<UserRound />}
-            testId="action-plans-mine"
-          >
-            Só os meus
-          </Toggle>
-
+        <div className="order-last flex flex-wrap items-center gap-2 xl:order-none xl:justify-end xl:pt-5">
           <Button
             variant="secondary"
             size="sm"
@@ -746,6 +674,85 @@ export function ActionPlanFilterBar({ filters, catalog, navigate, pending }: Act
             data-testid="action-plans-clear-filters"
           />
         </div>
+
+        <div className="contents xl:col-span-2 xl:flex xl:min-w-0 xl:flex-wrap xl:items-end xl:gap-2.5">
+          <Field label="Situação" group className="flex-[1.6_1_23rem]">
+            <div className="flex flex-wrap items-center gap-1.5 sm:flex-nowrap">
+              <div
+                role="group"
+                aria-label="Atalho de situação"
+                className="inline-flex h-(--control-height-sm) shrink-0 items-center gap-0.5 rounded-md border border-border-subtle bg-surface-interactive p-0.5"
+              >
+                {QUICK.map((q) => {
+                  const active = quick === q.value;
+                  return (
+                    <button
+                      key={q.value}
+                      type="button"
+                      aria-pressed={active}
+                      disabled={pending}
+                      data-testid={`action-plans-quick-${q.value}`}
+                      onClick={() => {
+                        if (!active) applyQuick(q.value);
+                      }}
+                      className={cn(
+                        "inline-flex h-full items-center rounded-sm px-2.5 text-caption font-medium whitespace-nowrap hfm-transition hfm-focus-ring",
+                        "disabled:cursor-wait",
+                        active ? "bg-surface-raised font-semibold text-fg shadow-selected" : "text-fg-secondary hover:text-fg",
+                      )}
+                    >
+                      {q.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <MultiSelect
+                label="Situação"
+                options={statusOptions}
+                selected={sel.status}
+                onApply={applyStatuses}
+                disabled={pending}
+                allLabel="Todas as situações"
+                className="w-auto min-w-[9.5rem] flex-1"
+                testId="action-plans-status"
+              />
+            </div>
+          </Field>
+
+          <Field label="Operação" group className="flex-[1.2_1_9rem]">
+            <MultiSelect
+              label="Operação"
+              options={operationOptions}
+              selected={sel.operation}
+              onApply={applyOperations}
+              disabled={pending}
+              className="w-full"
+              testId="action-plans-operation"
+            />
+          </Field>
+
+          <Field label="Prioridade" group className="flex-[1_1_8rem]">
+            <MultiSelect
+              label="Prioridade"
+              options={priorityOptions}
+              selected={sel.priority}
+              onApply={(values) => apply({ [P.priority]: join(values) })}
+              disabled={pending}
+              className="w-full"
+              testId="action-plans-priority"
+            />
+          </Field>
+
+          <Toggle
+            pressed={Boolean(filters.mine)}
+            onPressedChange={(next) => set("mine", next ? "1" : null)}
+            disabled={pending}
+            icon={<UserRound />}
+            testId="action-plans-mine"
+          >
+            Só os meus
+          </Toggle>
+        </div>
       </FilterBar>
 
       {moreOpen ? (
@@ -753,7 +760,7 @@ export function ActionPlanFilterBar({ filters, catalog, navigate, pending }: Act
           id={moreId}
           role="region"
           aria-label="Mais filtros"
-          className="mb-2 grid grid-cols-1 gap-3 rounded-md border border-border-subtle bg-surface p-3 sm:grid-cols-2 lg:grid-cols-4"
+          className="mb-2 grid grid-cols-1 gap-3 rounded-lg border border-border-subtle bg-surface-interactive p-3 sm:grid-cols-2 lg:grid-cols-4"
         >
           <Field label="UF" group>
             <MultiSelect label="UF" options={stateOptions} selected={sel.state} onApply={applyStates} disabled={pending} />
@@ -898,7 +905,11 @@ export function ActionPlanFilterBar({ filters, catalog, navigate, pending }: Act
       ) : null}
 
       {chips.length ? (
-        <div className="flex flex-wrap items-center gap-1.5 pb-2" aria-label="Outros filtros ativos" role="group">
+        <div
+          className="flex flex-wrap items-center gap-1.5 border-t border-border-subtle pt-2 pb-1.5"
+          aria-label="Outros filtros ativos"
+          role="group"
+        >
           {chips.map((chip) => (
             <FilterChip
               key={chip.key}

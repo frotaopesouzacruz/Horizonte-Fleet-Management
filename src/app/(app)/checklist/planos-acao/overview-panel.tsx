@@ -1081,7 +1081,7 @@ export function OverviewPanel({ dashboard, filters, catalog, actions }: Overview
   const coveragePctUnmapped = share(coverage.unmapped, coverage.actionKeys) ?? 0;
 
   return (
-    <div className="flex min-w-0 flex-col gap-8" data-testid="action-plans-overview">
+    <div className="flex min-w-0 flex-col gap-6" data-testid="action-plans-overview">
       <div className="flex flex-col gap-1">
         <p className="text-body-sm text-fg-muted" data-testid="action-plans-overview-period">
           Período <span className="font-medium text-fg-secondary tabular-nums">{periodText}</span>

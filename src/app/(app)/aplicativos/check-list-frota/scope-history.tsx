@@ -44,7 +44,13 @@ interface Draft {
 
 /** A rotina aceita até 200; pedimos o máximo e avisamos quando bate no teto. */
 const LIMIT = 200;
-const COLUMNS = 11;
+const COLUMNS = 10;
+
+/** Campo da barra de filtros (UI 2.0): rótulo discreto acima, controle `sm`. */
+const FIELD = "w-auto gap-1";
+const FIELD_LABEL = "text-caption font-normal text-fg-muted";
+/** No celular (a tela também abre no app do executor), alvo de toque de 38 px; `sm` a partir de 640 px. */
+const TOUCH = "h-(--control-height-md) sm:h-(--control-height-sm)";
 
 const number = new Intl.NumberFormat("pt-BR");
 
@@ -116,64 +122,99 @@ export function ScopeHistory({ operations, loader, initialRows, onOpenDetail }: 
 
   return (
     <div className="flex flex-col gap-3">
+      {/* UI 2.0: cartão de ferramentas — campos rotulados que crescem juntos e
+          "Aplicar" à direita da primeira linha. */}
       <form
         onSubmit={(event) => {
           event.preventDefault();
           if (!pending) run(draft);
         }}
+        className="rounded-xl border border-border bg-surface-toolbar px-3 py-2.5 shadow-card"
       >
-        <FilterBar label="Filtros do histórico" className="items-end gap-x-3 py-0">
-          <FormField label="De" id="scope-history-from" className="w-auto">
-            <DateInput
-              size="sm"
-              value={draft.dateFrom}
-              max={draft.dateTo || undefined}
-              onChange={(e) => update("dateFrom", e.target.value)}
-            />
-          </FormField>
-          <FormField label="Até" id="scope-history-to" className="w-auto">
-            <DateInput
-              size="sm"
-              value={draft.dateTo}
-              min={draft.dateFrom || undefined}
-              onChange={(e) => update("dateTo", e.target.value)}
-            />
-          </FormField>
-          <FormField label="Operação" id="scope-history-operation" className="w-auto min-w-44">
-            <NativeSelect
-              fieldSize="sm"
-              value={draft.operationId}
-              onChange={(e) => update("operationId", e.target.value)}
+        <FilterBar label="Filtros do histórico" className="flex-wrap items-end gap-x-3 gap-y-2.5 py-0">
+          <div className="flex min-w-0 flex-1 basis-[34rem] flex-wrap items-end gap-2.5">
+            <FormField
+              label="De"
+              id="scope-history-from"
+              className={cn(FIELD, "flex-[1_1_8.75rem] sm:flex-[0_0_9.5rem]")}
+              labelClassName={FIELD_LABEL}
             >
-              <option value="">Todas</option>
-              {operations.map((o) => (
-                <option key={o.id} value={o.id}>{o.name}</option>
-              ))}
-            </NativeSelect>
-          </FormField>
-          <FormField label="Tipo" id="scope-history-type" className="w-auto min-w-28">
-            <NativeSelect
-              fieldSize="sm"
-              value={draft.checklistType}
-              onChange={(e) => update("checklistType", e.target.value as Draft["checklistType"])}
+              <DateInput
+                size="sm"
+                className={TOUCH}
+                value={draft.dateFrom}
+                max={draft.dateTo || undefined}
+                onChange={(e) => update("dateFrom", e.target.value)}
+              />
+            </FormField>
+            <FormField
+              label="Até"
+              id="scope-history-to"
+              className={cn(FIELD, "flex-[1_1_8.75rem] sm:flex-[0_0_9.5rem]")}
+              labelClassName={FIELD_LABEL}
             >
-              <option value="">Todos</option>
-              <option value="saida">Saída</option>
-              <option value="retorno">Retorno</option>
-            </NativeSelect>
-          </FormField>
-          <FormField label="Busca" id="scope-history-search" className="w-auto min-w-56">
-            <Input
-              size="sm"
-              inputMode="search"
-              autoComplete="off"
-              placeholder="Placa, frota ou colaborador"
-              leadingIcon={<Search />}
-              value={draft.search}
-              onChange={(e) => update("search", e.target.value)}
-            />
-          </FormField>
-          <Button type="submit" size="sm" loading={pending}>
+              <DateInput
+                size="sm"
+                className={TOUCH}
+                value={draft.dateTo}
+                min={draft.dateFrom || undefined}
+                onChange={(e) => update("dateTo", e.target.value)}
+              />
+            </FormField>
+            <FormField
+              label="Operação"
+              id="scope-history-operation"
+              className={cn(FIELD, "flex-[1.2_1_10rem]")}
+              labelClassName={FIELD_LABEL}
+            >
+              <NativeSelect
+                fieldSize="sm"
+                className={TOUCH}
+                value={draft.operationId}
+                onChange={(e) => update("operationId", e.target.value)}
+              >
+                <option value="">Todas</option>
+                {operations.map((o) => (
+                  <option key={o.id} value={o.id}>{o.name}</option>
+                ))}
+              </NativeSelect>
+            </FormField>
+            <FormField
+              label="Tipo"
+              id="scope-history-type"
+              className={cn(FIELD, "flex-[0.6_1_7rem]")}
+              labelClassName={FIELD_LABEL}
+            >
+              <NativeSelect
+                fieldSize="sm"
+                className={TOUCH}
+                value={draft.checklistType}
+                onChange={(e) => update("checklistType", e.target.value as Draft["checklistType"])}
+              >
+                <option value="">Todos</option>
+                <option value="saida">Saída</option>
+                <option value="retorno">Retorno</option>
+              </NativeSelect>
+            </FormField>
+            <FormField
+              label="Busca"
+              id="scope-history-search"
+              className={cn(FIELD, "flex-[1.6_1_13rem]")}
+              labelClassName={FIELD_LABEL}
+            >
+              <Input
+                size="sm"
+                className={TOUCH}
+                inputMode="search"
+                autoComplete="off"
+                placeholder="Placa, frota ou colaborador"
+                leadingIcon={<Search />}
+                value={draft.search}
+                onChange={(e) => update("search", e.target.value)}
+              />
+            </FormField>
+          </div>
+          <Button type="submit" size="sm" loading={pending} className={cn("shrink-0", TOUCH)}>
             Aplicar
           </Button>
         </FilterBar>
@@ -196,19 +237,26 @@ export function ScopeHistory({ operations, loader, initialRows, onOpenDetail }: 
         </p>
       ) : null}
 
+      {/* Células de duas linhas (data · tipo, placa · frota, operação · BR) e
+          cabeçalhos curtos com <abbr title>: a tabela cabe sem cortar títulos. */}
       <TableContainer>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Data</TableHead>
-              <TableHead>Tipo</TableHead>
+              <TableHead>Data · tipo</TableHead>
               <TableHead>Placa / Frota</TableHead>
               <TableHead>Operação · BR</TableHead>
               <TableHead>Colaborador</TableHead>
               <TableHead numeric>Duração</TableHead>
-              <TableHead numeric>Conformes</TableHead>
-              <TableHead numeric>Inconformes</TableHead>
-              <TableHead numeric>Críticas</TableHead>
+              <TableHead numeric>
+                <abbr title="Respostas conformes">Conf.</abbr>
+              </TableHead>
+              <TableHead numeric>
+                <abbr title="Respostas inconformes">Inconf.</abbr>
+              </TableHead>
+              <TableHead numeric>
+                <abbr title="Inconformidades críticas">Crít.</abbr>
+              </TableHead>
               <TableHead>Situação</TableHead>
               <TableHead>
                 <span className="sr-only">Ações</span>
@@ -238,23 +286,26 @@ function ScopeRow({ row, onOpen }: { row: ScopeExecution; onOpen: () => void }) 
   const hasCritical = row.criticalNonConforming > 0;
   return (
     <TableRow>
-      <TableCell className="whitespace-nowrap tabular-nums">{formatDateBr(row.operationalDate)}</TableCell>
       <TableCell>
-        <Badge variant={row.checklistType === "saida" ? "info" : "neutral"} appearance="soft" size="sm">
-          {CHECKLIST_TYPE_SHORT[row.checklistType]}
-        </Badge>
+        <span className="flex flex-col items-start gap-1">
+          <span className="whitespace-nowrap tabular-nums">{formatDateBr(row.operationalDate)}</span>
+          <Badge variant={row.checklistType === "saida" ? "info" : "neutral"} appearance="soft" size="sm">
+            {CHECKLIST_TYPE_SHORT[row.checklistType]}
+          </Badge>
+        </span>
       </TableCell>
       <TableCell className="whitespace-nowrap">
-        <span className="font-medium text-fg">{vehicle}</span>
+        <span className="block font-medium text-fg">{vehicle}</span>
         {row.licensePlate && row.fleetCode ? (
           <>
             {" "}
-            <span className="text-fg-muted">{row.fleetCode}</span>
+            <span className="block text-caption text-fg-muted">{row.fleetCode}</span>
           </>
         ) : null}
       </TableCell>
-      <TableCell className="text-fg-muted">
-        {[row.operationName, row.brCode].filter(Boolean).join(" · ")}
+      <TableCell className="min-w-36">
+        <span className="block text-fg-secondary">{row.operationName ?? "—"}</span>
+        {row.brCode ? <span className="block text-caption text-fg-muted">{row.brCode}</span> : null}
       </TableCell>
       <TableCell>
         <span className="block text-fg">{row.employeeName ?? "—"}</span>

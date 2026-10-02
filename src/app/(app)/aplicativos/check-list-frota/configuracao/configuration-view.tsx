@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import {
   ArrowDown, ArrowLeft, ArrowUp, ClipboardList, GitBranchPlus, Layers, ListChecks, Pencil, Plus, Rocket, Save, Trash2,
+  Workflow,
 } from "lucide-react";
 import { PageContent, PageHeader } from "@/components/layout/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -253,30 +254,36 @@ export function ConfigurationView({
             Check List de Frota
           </Link>
         }
-        title="Configuração do Check List de Frota"
+        // O título longo quebra linha em vez de virar "Configuração do Check…"
+        // (o cabeçalho trunca o h1 numa linha só).
+        title={<span className="whitespace-normal">Configuração do Check List de Frota</span>}
         description="Versões, clusters, perguntas, campos condicionais, aplicabilidade e vínculos do formulário."
+        // UI 2.0: o seletor de versão é contexto da tela, não ação — vai ao lado
+        // do título (meta), e as ações à direita ficam só Descartar/Publicar.
         meta={
-          summary ? (
-            <Badge variant={STATUS_VARIANT[summary.status]} appearance="soft" dot>
-              {STATUS_LABEL[summary.status]} · {summary.label}
-            </Badge>
-          ) : null
-        }
-        secondaryActions={
-          versions.length > 0 ? (
-            <div className="w-56">
-              <NativeSelect
-                aria-label="Versão"
-                fieldSize="sm"
-                value={versionId ?? ""}
-                onChange={(e) => selectVersion(e.target.value)}
-              >
-                {versions.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.label} · {STATUS_LABEL[v.status]}
-                  </option>
-                ))}
-              </NativeSelect>
+          summary || versions.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {summary ? (
+                <Badge variant={STATUS_VARIANT[summary.status]} appearance="soft" dot>
+                  {STATUS_LABEL[summary.status]} · {summary.label}
+                </Badge>
+              ) : null}
+              {versions.length > 0 ? (
+                <div className="w-56">
+                  <NativeSelect
+                    aria-label="Versão"
+                    fieldSize="sm"
+                    value={versionId ?? ""}
+                    onChange={(e) => selectVersion(e.target.value)}
+                  >
+                    {versions.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.label} · {STATUS_LABEL[v.status]}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </div>
+              ) : null}
             </div>
           ) : null
         }
@@ -285,7 +292,7 @@ export function ConfigurationView({
             isDraft ? (
               <>
                 {perms.createVersion ? (
-                  <Button variant="outline" leadingIcon={<Trash2 />} onClick={() => void discard()} disabled={busy}>
+                  <Button variant="secondary" leadingIcon={<Trash2 />} onClick={() => void discard()} disabled={busy}>
                     Descartar rascunho
                   </Button>
                 ) : null}
@@ -523,8 +530,17 @@ function GeneralTab({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label="Clusters" value={number.format(tree.clusters.length)} icon={<Layers />} />
         <KpiCard label="Perguntas ativas" value={number.format(activeQuestions)} icon={<ListChecks />} />
-        <KpiCard label="Condicionais · regras" value={`${number.format(conditionals)} · ${number.format(rules)}`} />
-        <KpiCard label="Execuções nesta versão" value={number.format(summary?.executions ?? 0)} icon={<ClipboardList />} />
+        <KpiCard
+          label="Condicionais · regras"
+          value={`${number.format(conditionals)} · ${number.format(rules)}`}
+          icon={<Workflow />}
+        />
+        {/* Sem o resumo da versão, o número não chegou: "—", nunca 0. */}
+        <KpiCard
+          label="Execuções nesta versão"
+          value={summary ? number.format(summary.executions) : "—"}
+          icon={<ClipboardList />}
+        />
       </div>
 
       <Card>

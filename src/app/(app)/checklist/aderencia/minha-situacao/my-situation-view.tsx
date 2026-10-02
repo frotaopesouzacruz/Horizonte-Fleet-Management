@@ -109,7 +109,7 @@ export function MySituationView({
               <CompetencePicker value={competence} onChange={goTo} disabled={pending} />
             </div>
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               leadingIcon={<CalendarCheck />}
               disabled={pending || sameCompetence(currentCompetence, competence)}
@@ -207,7 +207,7 @@ function PositionsCard({ data }: { data: MySituation }) {
             {data.positions.map((p) => (
               <li
                 key={`${p.operationBrId}-${p.dateFrom}`}
-                className="flex min-w-0 flex-col gap-0.5 rounded-sm border border-border bg-surface-secondary px-3 py-2"
+                className="flex min-w-0 flex-col gap-0.5 rounded-md border border-border-subtle bg-surface-interactive px-3 py-2"
               >
                 <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                   <span className="font-semibold break-all text-fg">{p.brCode}</span>
@@ -276,7 +276,7 @@ function ContextBreakdown({ saida, retorno }: { saida: MySituationCounts; retorn
         <h2 className="text-h4 font-semibold text-fg">Saída e retorno</h2>
         <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {([["saida", saida], ["retorno", retorno]] as const).map(([ctx, c]) => (
-            <div key={ctx} className="flex items-center justify-between gap-3 rounded-sm border border-border px-3 py-2">
+            <div key={ctx} className="flex items-center justify-between gap-3 rounded-md border border-border-subtle bg-surface-interactive px-3 py-2">
               <dt className="text-body-sm text-fg-secondary">{CONTEXT_LABEL[ctx]}</dt>
               <dd className="flex flex-col items-end">
                 <StatusBadge status={pctTone(c.adherencePct, c.targetPct)} size="sm">{formatPct(c.adherencePct)}</StatusBadge>

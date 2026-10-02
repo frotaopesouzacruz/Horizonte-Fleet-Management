@@ -85,59 +85,63 @@ export function ActionPlansView({ data }: { data: ActionPlansViewData }) {
 
   return (
     <>
-      <PageHeader
-        eyebrow="Gestão de checklist"
-        title="Planos de Ação"
-        description="Plano de Ação de Manutenção: as inconformidades técnicas do Check List de Frota, da ocorrência à resolução. Avarias seguem o fluxo próprio de Sinistros/Avarias."
-        secondaryActions={
-          perms.export ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="secondary" leadingIcon={<Download />} trailingIcon={<ChevronDown />} data-testid="action-plans-export">
-                  Exportar
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-64">
-                <DropdownMenuLabel>Planos · filtros atuais</DropdownMenuLabel>
-                <DropdownMenuItem asChild>
-                  <a href={exportHref("xlsx", "plans")} download>Planos (XLSX)</a>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <a href={exportHref("csv", "plans")} download>Planos (CSV)</a>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>Apontamentos dos planos filtrados</DropdownMenuLabel>
-                <DropdownMenuItem asChild>
-                  <a href={exportHref("xlsx", "items")} download>Apontamentos (XLSX)</a>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : undefined
+      {/* UI 2.0 (como o KM): as abas escolhem a tela e ficam logo abaixo do
+          título; os filtros da tela escolhida vêm depois, no cartão de
+          ferramentas. A lista de abas rola com setas quando não cabe. */}
+      <Tabs
+        value={tab}
+        onValueChange={(v) =>
+          navigate({ aba: v, pagina: null, ordenar: null, dir: null, agrupar: null, secao: null, confianca: null })
         }
-        filters={
-          showFilters ? (
-            <ActionPlanFilterBar filters={data.filters} catalog={data.catalog} navigate={navigate} pending={pending} />
-          ) : undefined
-        }
-      />
-
-      <PageContent className="flex flex-col gap-5">
-        <Tabs
-          value={tab}
-          onValueChange={(v) =>
-            navigate({ aba: v, pagina: null, ordenar: null, dir: null, agrupar: null, secao: null, confianca: null })
+        className="gap-0"
+      >
+        <PageHeader
+          eyebrow="Gestão de checklist"
+          title="Planos de Ação"
+          description="Plano de Ação de Manutenção: as inconformidades técnicas do Check List de Frota, da ocorrência à resolução. Avarias seguem o fluxo próprio de Sinistros/Avarias."
+          secondaryActions={
+            perms.export ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="secondary" leadingIcon={<Download />} trailingIcon={<ChevronDown />} data-testid="action-plans-export">
+                    Exportar
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-64">
+                  <DropdownMenuLabel>Planos · filtros atuais</DropdownMenuLabel>
+                  <DropdownMenuItem asChild>
+                    <a href={exportHref("xlsx", "plans")} download>Planos (XLSX)</a>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <a href={exportHref("csv", "plans")} download>Planos (CSV)</a>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Apontamentos dos planos filtrados</DropdownMenuLabel>
+                  <DropdownMenuItem asChild>
+                    <a href={exportHref("xlsx", "items")} download>Apontamentos (XLSX)</a>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : undefined
           }
-        >
-          <div className="-mx-1 overflow-x-auto px-1 pb-1">
-            <TabsList className="w-max">
+          tabsPlacement="top"
+          tabs={
+            <TabsList className="w-max max-w-full" aria-label="Telas dos Planos de Ação">
               {tabs.map((t) => (
                 <TabsTrigger key={t} value={t} data-testid={`action-plans-tab-${t}`}>
                   {TAB_LABEL[t]}
                 </TabsTrigger>
               ))}
             </TabsList>
-          </div>
+          }
+          filters={
+            showFilters ? (
+              <ActionPlanFilterBar filters={data.filters} catalog={data.catalog} navigate={navigate} pending={pending} />
+            ) : undefined
+          }
+        />
 
+        <PageContent className="flex flex-col gap-5">
           <div aria-busy={pending} className={pending ? "opacity-70 transition-opacity" : "transition-opacity"}>
             {tab === "visao-geral" ? (
               <TabsContent value="visao-geral">
@@ -181,8 +185,8 @@ export function ActionPlansView({ data }: { data: ActionPlansViewData }) {
               </TabsContent>
             ) : null}
           </div>
-        </Tabs>
-      </PageContent>
+        </PageContent>
+      </Tabs>
 
       <PlanDrawer
         planId={planId}

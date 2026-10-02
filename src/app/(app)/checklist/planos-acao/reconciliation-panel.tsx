@@ -185,7 +185,10 @@ export function ReconciliationPanel({ reconciliation, perms, actions }: Reconcil
         />
       ) : (
         <>
-          <section aria-label="Planos por confiança da conciliação" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <section
+            aria-label="Planos por confiança da conciliação"
+            className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-[repeat(4,minmax(0,1fr))_minmax(0,1.35fr)]"
+          >
             {CONFIDENCES.map((c) => (
               <ConfidenceTile
                 key={c}
@@ -321,15 +324,17 @@ function ConfidenceTile({
       aria-label={`${label}: ${formatInt(value)} ${value === 1 ? "plano" : "planos"}. ${active ? "Remover o filtro da lista" : "Filtrar a lista"}`}
       data-testid={`reconciliation-confidence-${confidence}`}
       className={cn(
-        "relative flex min-h-[5.5rem] min-w-0 flex-col justify-between gap-1.5 overflow-hidden rounded-lg border border-border bg-surface-raised px-3 py-2.5 text-left shadow-card",
+        // UI 2.0: mesma anatomia do KpiCard (rótulo, número, legenda no pé) e
+        // números alinhados entre os cartões, qualquer que seja a legenda.
+        "relative flex min-h-[6.5rem] min-w-0 flex-col gap-1.5 overflow-hidden rounded-lg border border-border bg-surface-raised px-4 py-3.5 text-left shadow-card",
         "hfm-transition hfm-focus-ring hover:border-border-strong hover:shadow-card-hover disabled:cursor-wait",
-        active && "border-primary bg-primary-soft hover:border-primary",
+        active && "border-border-emphasis bg-surface-selected shadow-selected hover:border-border-emphasis",
       )}
     >
       {accent ? <span aria-hidden className={cn("absolute inset-x-0 top-0 h-0.5", accent)} /> : null}
-      <span className="text-caption font-medium text-fg-secondary">{label}</span>
-      <span className="text-h2 leading-none font-semibold text-fg tabular-nums">{formatInt(value)}</span>
-      <span className={cn("text-caption", active ? "font-medium text-primary-soft-fg" : "text-fg-muted")}>
+      <span className="min-h-8 text-caption font-semibold tracking-wide text-balance text-fg-muted uppercase">{label}</span>
+      <span className="text-kpi-sm font-semibold text-fg tabular-nums">{formatInt(value)}</span>
+      <span className={cn("mt-auto text-caption", active ? "font-medium text-primary-soft-fg" : "text-fg-muted")}>
         {active ? "Filtrando a lista" : CONFIDENCE_HINT[confidence]}
       </span>
     </button>
@@ -341,13 +346,13 @@ function CoverageTile({ coverage, onOpen }: { coverage: Coverage | null; onOpen:
   const tone = pct == null ? null : pct >= 90 ? "bg-success" : pct >= 60 ? "bg-warning" : "bg-danger";
   return (
     <div
-      className="relative col-span-2 flex min-h-[5.5rem] min-w-0 flex-col justify-between gap-1.5 overflow-hidden rounded-lg border border-border bg-surface-raised px-3 py-2.5 shadow-card lg:col-span-1"
+      className="relative col-span-2 flex min-h-[6.5rem] min-w-0 flex-col gap-1.5 overflow-hidden rounded-lg border border-border bg-surface-raised px-4 py-3.5 shadow-card md:col-span-1"
       data-testid="reconciliation-coverage"
     >
       {tone ? <span aria-hidden className={cn("absolute inset-x-0 top-0 h-0.5", tone)} /> : null}
-      <span className="text-caption font-medium text-fg-secondary">Cobertura do mapeamento</span>
-      <span className="flex items-baseline gap-2">
-        <span className="text-h2 leading-none font-semibold text-fg tabular-nums">{formatPct(pct)}</span>
+      <span className="min-h-8 text-caption font-semibold tracking-wide text-balance text-fg-muted uppercase">Cobertura do mapeamento</span>
+      <span className="flex flex-wrap items-baseline gap-x-2">
+        <span className="text-kpi-sm font-semibold text-fg tabular-nums">{formatPct(pct)}</span>
         {coverage ? (
           <span className="text-caption text-fg-muted">
             {formatInt(coverage.mapped)} de {formatInt(coverage.actionKeys)} ações com serviço
@@ -362,9 +367,9 @@ function CoverageTile({ coverage, onOpen }: { coverage: Coverage | null; onOpen:
       <button
         type="button"
         onClick={onOpen}
-        className="inline-flex items-center gap-1 self-start rounded-xs text-caption font-medium text-link hover:underline hfm-focus-ring"
+        className="mt-auto inline-flex items-start gap-1 self-start rounded-xs text-left text-caption font-medium text-link hover:underline hfm-focus-ring"
       >
-        <Settings2 aria-hidden className="size-3.5" />
+        <Settings2 aria-hidden className="mt-px size-3.5 shrink-0" />
         Sem mapeamento não há alta confiança — ver mapeamento
       </button>
     </div>

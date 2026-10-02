@@ -75,7 +75,7 @@ export function QuestionCard({
   return (
     <li
       className={cn(
-        "flex flex-col gap-3 rounded-md border bg-surface p-4 hfm-transition",
+        "flex flex-col gap-3 rounded-lg border bg-surface-raised p-4 shadow-card hfm-transition",
         nonConforming
           ? question.criticality === "critica"
             ? "border-danger"
@@ -122,7 +122,7 @@ export function QuestionCard({
                   ? conforms
                     ? "border-success bg-success text-success-fg"
                     : "border-danger bg-danger text-danger-fg"
-                  : "border-border bg-surface text-fg-secondary hover:border-border-strong",
+                  : "border-border bg-surface-raised text-fg-secondary shadow-xs hover:border-border-strong",
               )}
             >
               {value === "yes" ? <Check className="size-5" aria-hidden /> : <X className="size-5" aria-hidden />}
@@ -242,7 +242,7 @@ function ConditionalField({
                 "flex min-h-12 items-center justify-center rounded-md border px-3 text-body-sm font-medium hfm-transition hfm-focus-ring",
                 active
                   ? "border-primary bg-primary-soft text-primary-soft-fg"
-                  : "border-border bg-surface text-fg-secondary hover:border-border-strong",
+                  : "border-border bg-surface-raised text-fg-secondary shadow-xs hover:border-border-strong",
                 invalid && "border-danger",
               )}
             >

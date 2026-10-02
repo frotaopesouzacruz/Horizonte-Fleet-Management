@@ -157,17 +157,26 @@ export function MyReportsView({ result, days, today, portalHref = null }: MyRepo
               {counts.tratados === 1 ? "tratado" : "tratados"} · atualizado em {formatDate(today)}
             </p>
 
-            <div role="group" aria-label="Filtrar apontamentos" className="flex flex-wrap gap-1.5">
+            {/* UI 2.0: alternância de visão em trilho segmentado (o ativo sobe),
+                com alvos de toque de 36 px para o celular. */}
+            <div
+              role="group"
+              aria-label="Filtrar apontamentos"
+              className="inline-flex w-fit max-w-full flex-wrap gap-0.5 rounded-md border border-border-subtle bg-surface-interactive p-0.5"
+            >
               {(Object.keys(FILTER_LABEL) as Filter[]).map((f) => (
-                <Button
+                <button
                   key={f}
-                  size="sm"
-                  variant={filter === f ? "primary" : "outline"}
+                  type="button"
                   aria-pressed={filter === f}
                   onClick={() => setFilter(f)}
+                  className={cn(
+                    "inline-flex h-9 items-center rounded-sm px-3 text-body-sm font-medium whitespace-nowrap text-fg-secondary hfm-transition hfm-focus-ring hover:text-fg",
+                    filter === f && "bg-surface-raised font-semibold text-fg shadow-selected",
+                  )}
                 >
                   {FILTER_LABEL[f]} ({formatInt(counts[f])})
-                </Button>
+                </button>
               ))}
             </div>
 
@@ -218,7 +227,7 @@ function ReportCard({ row }: { row: MyReportRow }) {
   return (
     <article
       className={cn(
-        "flex min-w-0 flex-col gap-3 rounded-md border border-border bg-surface p-4",
+        "flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-surface-raised p-4 shadow-card",
         open && "border-l-2 border-l-warning",
       )}
       data-testid="my-report"
@@ -262,7 +271,7 @@ function ReportCard({ row }: { row: MyReportRow }) {
       </div>
 
       {m ? (
-        <div className="flex flex-col gap-1.5 rounded-sm border border-border px-3 py-2">
+        <div className="flex flex-col gap-1.5 rounded-md border border-border-subtle bg-surface-interactive px-3 py-2">
           <span className="flex flex-wrap items-center gap-2 text-caption text-fg-muted">
             <Wrench className="size-3.5" aria-hidden />
             <span>

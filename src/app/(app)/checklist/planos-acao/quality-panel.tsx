@@ -370,7 +370,7 @@ function EventsList({ events, actions }: { events: QualityData["events"]; action
         <EmptyState size="sm" variant="panel" icon={<History />} headingLevel={3} title="Nenhum evento registrado ainda" />
       ) : (
         <>
-          <ol className="flex flex-col divide-y divide-border rounded-md border border-border bg-surface">
+          <ol className="flex flex-col divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface-raised shadow-card">
             {visible.map((e) => (
               <li
                 key={e.id}
@@ -695,7 +695,7 @@ function RecentFailures({ health, perms, actions }: { health: HealthData; perms:
           Nenhuma falha de recebimento em aberto.
         </p>
       ) : (
-        <ul className="flex flex-col divide-y divide-border rounded-md border border-border bg-surface">
+        <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface-raised shadow-card">
           {health.recentFailures.map((f) => (
             <li key={f.executionId} className="flex min-w-0 flex-wrap items-start justify-between gap-2 px-3 py-2">
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -1120,7 +1120,7 @@ function ImportSection({ actions }: { actions: PanelActions }) {
       </Alert>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <div className="flex flex-col gap-2 rounded-md border border-border bg-surface p-3">
+        <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface-raised p-4 shadow-card">
           <h3 className="text-label font-semibold text-fg">Ações aceitas</h3>
           <dl className="flex flex-col gap-1.5">
             {FOLLOWUP_ACTIONS.map((a) => (
@@ -1133,7 +1133,7 @@ function ImportSection({ actions }: { actions: PanelActions }) {
             ))}
           </dl>
         </div>
-        <details className="group rounded-md border border-border bg-surface p-3">
+        <details className="group rounded-lg border border-border bg-surface-raised p-4 shadow-card">
           <summary className="cursor-pointer text-label font-semibold text-fg hfm-focus-ring">
             Motivos padronizados (coluna Motivo)
           </summary>

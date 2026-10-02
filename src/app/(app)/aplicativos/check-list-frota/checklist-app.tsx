@@ -392,7 +392,7 @@ export function ChecklistApp({
                                 type="button"
                                 onClick={() => pickVehicle(vehicle)}
                                 disabled={loading}
-                                className="flex min-h-16 w-full items-center gap-3 rounded-md border border-border bg-surface p-4 text-left hfm-transition hover:border-border-strong hfm-focus-ring disabled:opacity-60"
+                                className="flex min-h-16 w-full items-center gap-3 rounded-lg border border-border bg-surface-raised p-4 text-left shadow-card hfm-transition hover:border-border-strong hover:shadow-card-hover hfm-focus-ring disabled:opacity-60"
                               >
                                 <Truck className="size-5 shrink-0 text-fg-muted" aria-hidden />
                                 <span className="min-w-0 flex-1">
@@ -496,7 +496,7 @@ function HomeScreen({
       {/* §29: quem está executando aparece antes de qualquer ação. É o que
           permite perceber, ainda na primeira tela, que se entrou com a conta
           errada — depois de 34 respostas seria tarde. */}
-      <div className="flex flex-col items-center gap-3 rounded-md border border-border bg-surface p-6 text-center">
+      <div className="flex flex-col items-center gap-3 rounded-lg border border-border bg-surface-raised shadow-card p-6 text-center">
         <span className="flex size-16 items-center justify-center rounded-full bg-primary-soft text-primary-soft-fg">
           <UserRound className="size-8" aria-hidden />
         </span>
@@ -544,7 +544,7 @@ function HomeScreen({
         <button
           type="button"
           onClick={onHistory}
-          className="flex min-h-14 items-center gap-3 rounded-md border border-border bg-surface p-4 text-left hfm-transition hover:border-border-strong hfm-focus-ring"
+          className="flex min-h-14 items-center gap-3 rounded-lg border border-border bg-surface-raised p-4 text-left shadow-card hfm-transition hover:border-border-strong hover:shadow-card-hover hfm-focus-ring"
         >
           <History className="size-5 shrink-0 text-fg-muted" aria-hidden />
           <span className="flex-1 text-body-sm font-medium text-fg">Meus checklists</span>
@@ -556,7 +556,7 @@ function HomeScreen({
         <button
           type="button"
           onClick={onScope}
-          className="flex min-h-14 items-center gap-3 rounded-md border border-border bg-surface p-4 text-left hfm-transition hover:border-border-strong hfm-focus-ring"
+          className="flex min-h-14 items-center gap-3 rounded-lg border border-border bg-surface-raised p-4 text-left shadow-card hfm-transition hover:border-border-strong hover:shadow-card-hover hfm-focus-ring"
         >
           <ListChecks className="size-5 shrink-0 text-fg-muted" aria-hidden />
           <span className="flex-1 text-body-sm font-medium text-fg">Checklists do escopo</span>
@@ -601,8 +601,8 @@ function PickerScreen({
                   onClick={() => onPick(option.id)}
                   aria-pressed={active}
                   className={cn(
-                    "flex min-h-16 w-full items-center gap-3 rounded-md border bg-surface p-4 text-left hfm-transition hover:border-border-strong hfm-focus-ring active:scale-[0.99]",
-                    active ? "border-primary bg-primary-soft" : "border-border",
+                    "flex min-h-16 w-full items-center gap-3 rounded-lg border p-4 text-left shadow-card hfm-transition hover:border-border-strong hover:shadow-card-hover hfm-focus-ring active:scale-[0.99]",
+                    active ? "border-primary bg-primary-soft" : "border-border bg-surface-raised",
                   )}
                 >
                   {option.icon}
@@ -650,7 +650,7 @@ function HistoryScreen({
           {history.map((item) => (
             <li
               key={item.id}
-              className="flex flex-col gap-2 rounded-md border border-border bg-surface p-4"
+              className="flex flex-col gap-2 rounded-lg border border-border bg-surface-raised shadow-card p-4"
             >
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-body font-semibold text-fg">
@@ -676,9 +676,9 @@ function HistoryScreen({
                 {item.criticalNonConforming > 0 ? (
                   <Badge variant="danger">{number.format(item.criticalNonConforming)} críticas</Badge>
                 ) : null}
+                {/* Tamanho padrão (38 px): alvo de toque confortável no celular. */}
                 <Button
-                  variant="outline"
-                  size="sm"
+                  variant="secondary"
                   className="ml-auto"
                   leadingIcon={<Eye />}
                   onClick={() => onOpen(item.id)}

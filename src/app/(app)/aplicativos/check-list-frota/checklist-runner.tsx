@@ -300,7 +300,7 @@ export function ChecklistRunner({
     const when = finishedAt ?? new Date();
     return (
       <div className="flex flex-col gap-4" data-testid="checklist-done">
-        <div className="flex flex-col items-center gap-3 rounded-md border border-success bg-success-soft p-6 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-lg border border-success-border bg-success-soft px-4 py-6 text-center shadow-card sm:p-6">
           <span className="flex size-16 items-center justify-center rounded-full bg-success text-success-fg">
             <CheckCircle2 className="size-9" aria-hidden />
           </span>
@@ -316,10 +316,12 @@ export function ChecklistRunner({
               <strong className="text-fg">{formatDuration(result.durationSeconds ?? elapsed)}</strong>
             </p>
           </div>
-          <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-3">
+          {/* Três caixas lado a lado também a 390 px, como no pré-resumo — sem
+              uma caixa sozinha na última linha. */}
+          <div className="grid w-full grid-cols-3 gap-2">
             <KpiBox label="Conformes" value={result.conforming} tone="success" />
             <KpiBox label="Inconformes" value={result.nonConforming} tone={result.nonConforming > 0 ? "danger" : "neutral"} />
-            <KpiBox label="Críticas" value={result.criticalNonConforming} tone={result.criticalNonConforming > 0 ? "danger" : "neutral"} className="col-span-2 sm:col-span-1" />
+            <KpiBox label="Críticas" value={result.criticalNonConforming} tone={result.criticalNonConforming > 0 ? "danger" : "neutral"} />
           </div>
           <p className="text-caption text-fg-muted">{dateTime.format(when)}</p>
           {result.nonConforming > 0 ? (
@@ -370,7 +372,7 @@ export function ChecklistRunner({
           </Alert>
         ) : null}
 
-        <dl className="grid grid-cols-2 gap-2 rounded-md border border-border bg-surface p-4">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border bg-surface-raised shadow-card p-4">
           {start.actorName ? <Field label="Usuário" value={start.actorName} /> : null}
           {start.actorCode ? <Field label="Matrícula" value={start.actorCode} /> : null}
           <Field label="Tipo de Check List" value={typeLabel} />
@@ -389,7 +391,7 @@ export function ChecklistRunner({
           <KpiBox label="Inconformes" value={stats.nonConforming} tone={stats.nonConforming > 0 ? "danger" : "neutral"} />
         </div>
 
-        <div className="overflow-hidden rounded-md border border-border bg-surface">
+        <div className="overflow-hidden rounded-lg border border-border bg-surface-raised shadow-card">
           <p className="border-b border-border bg-surface-secondary px-4 py-2 text-caption font-semibold uppercase tracking-wide text-fg-muted">
             Resumo por cluster
           </p>
@@ -419,7 +421,7 @@ export function ChecklistRunner({
         <div className="grid grid-cols-2 gap-2 pb-2">
           <Button
             size="lg"
-            variant="outline"
+            variant="secondary"
             className="h-14"
             leadingIcon={<RotateCcw />}
             onClick={() => setPhase("clusters")}
@@ -482,7 +484,7 @@ export function ChecklistRunner({
           ))}
         </ul>
 
-        <div className="sticky bottom-0 -mx-4 flex gap-2 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-md sm:border">
+        <div className="sticky bottom-0 -mx-4 flex gap-2 border-t border-border bg-surface-raised/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-lg sm:border sm:shadow-card">
           <Button
             size="lg"
             variant="ghost"
@@ -552,7 +554,7 @@ export function ChecklistRunner({
                 type="button"
                 onClick={() => openCluster(index)}
                 className={cn(
-                  "flex w-full flex-col gap-2 rounded-md border bg-surface p-4 text-left hfm-transition hover:border-border-strong hfm-focus-ring",
+                  "flex w-full flex-col gap-2 rounded-lg border bg-surface-raised p-4 text-left shadow-card hfm-transition hover:border-border-strong hover:shadow-card-hover hfm-focus-ring",
                   highlight && s.pending > 0 ? "border-danger" : "border-border",
                 )}
               >
@@ -623,7 +625,7 @@ export function TopBar({
 }) {
   const pct = total > 0 ? Math.round((answered / total) * 100) : 0;
   return (
-    <div className="sticky top-0 z-10 -mx-4 flex items-center gap-2 border-b border-border bg-surface/95 px-3 py-2 backdrop-blur sm:mx-0 sm:rounded-md sm:border">
+    <div className="sticky top-(--topbar-height) z-10 -mx-4 flex items-center gap-2 border-b border-border bg-surface-raised/95 px-3 py-2 backdrop-blur sm:mx-0 sm:rounded-lg sm:border sm:shadow-card">
       <button
         type="button"
         onClick={onBack}
@@ -654,14 +656,16 @@ function KpiBox({
   className?: string;
 }) {
   return (
-    <div className={cn("rounded-lg border border-border bg-surface-raised p-3 text-center shadow-card", className)}>
+    <div className={cn("min-w-0 rounded-lg border border-border bg-surface-raised px-2 py-3 text-center shadow-card sm:px-3", className)}>
       <p className={cn(
         "text-h2 font-semibold tabular-nums",
         tone === "success" ? "text-success" : tone === "danger" ? "text-danger" : "text-fg",
       )}>
         {number.format(value)}
       </p>
-      <p className="text-caption uppercase tracking-wide text-fg-muted">{label}</p>
+      {/* 390 px: três caixas lado a lado — rótulo em caixa normal (como na
+          MetricStrip) para caber sem estourar a borda nem partir a palavra. */}
+      <p className="text-caption font-medium text-fg-muted">{label}</p>
     </div>
   );
 }
