@@ -68,22 +68,23 @@ export function ChartTooltipCard({ content, className }: { content: ChartTooltip
   return (
     <div
       className={cn(
-        "pointer-events-none min-w-44 max-w-72 rounded-md border border-chart-tooltip-border bg-chart-tooltip px-3 py-2.5 text-fg shadow-md",
+        "pointer-events-none min-w-48 max-w-72 rounded-lg border border-chart-tooltip-border bg-chart-tooltip px-3.5 py-3 text-fg shadow-lg",
         className,
       )}
     >
-      <p className="text-caption font-semibold text-fg">{content.title}</p>
-      {content.subtitle ? <p className="text-caption text-fg-muted">{content.subtitle}</p> : null}
+      {/* Cabeçalho HFM: recorte em versalete discreto, contexto abaixo. */}
+      <p className="text-overline font-semibold tracking-wide text-fg-muted uppercase">{content.title}</p>
+      {content.subtitle ? <p className="mt-0.5 text-caption text-fg-secondary">{content.subtitle}</p> : null}
       {content.rows.length > 0 ? (
-        <dl className="mt-1.5 flex flex-col gap-1">
+        <dl className="mt-2 flex flex-col divide-y divide-border-subtle">
           {content.rows.map((row, i) => (
-            <div key={i} className="flex items-center gap-2 text-caption">
+            <div key={i} className="flex items-center gap-2 py-1 text-caption first:pt-0 last:pb-0">
               <Marker color={row.color} marker={row.marker} />
               <dt className="min-w-0 flex-1 truncate text-fg-secondary">{row.label}</dt>
               <dd
                 className={cn(
                   "shrink-0 tabular-nums",
-                  row.emphasis ? "font-semibold text-fg" : "font-medium text-fg",
+                  row.emphasis ? "text-body-sm font-semibold text-fg" : "font-medium text-fg",
                   row.tone ? TONE_CLASS[row.tone] : null,
                 )}
               >
@@ -93,7 +94,7 @@ export function ChartTooltipCard({ content, className }: { content: ChartTooltip
           ))}
         </dl>
       ) : null}
-      {content.footer ? <p className="mt-1.5 border-t border-border-subtle pt-1.5 text-caption text-fg-muted">{content.footer}</p> : null}
+      {content.footer ? <p className="mt-2 border-t border-border-subtle pt-2 text-caption text-fg-muted">{content.footer}</p> : null}
     </div>
   );
 }

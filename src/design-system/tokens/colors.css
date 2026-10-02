@@ -1,153 +1,245 @@
 /* =============================================================================
-   Horizonte Fleet Management — color tokens
-   Source of truth for every color in the product. Components never hardcode
-   colors; they consume semantic tokens (surface, text, primary, status...).
+   Horizonte Fleet Management — color tokens (UI 2.0 · Enterprise Fleet Intelligence)
+
+   Source of truth for every color in the product. Two layers:
+
+   1. SCALES — derived from the official palette (#1F4B93 Azul Horizonte,
+      #008CCB Ciano Tecnológico, #F4B223 Dourado, #FFFFFF, #F1F4F8 Cinza Claro,
+      #1F2937 Texto Escuro). Brand, neutral and semantic ramps. Components never
+      read a scale step directly unless the step *is* the meaning (charts).
+   2. SEMANTIC ROLES — canvas, surfaces by level, text, borders, actions,
+      status, delta, charts, heatmap. Components consume only these.
+
    Light theme on :root, dark theme on .dark (class set by the ThemeProvider).
+   The dark theme is its own palette (blue-graphite levels), not an inversion.
    ========================================================================== */
 
 :root {
-  /* ---- Brand (fixed, derived from the official Horizonte logo) ------------ */
+  /* ---- Official palette (fixed) ------------------------------------------ */
   --brand-blue: #1f4b93;
   --brand-blue-deep: #163669;
   --brand-cyan: #008ccb;
   --brand-gold: #f4b223;
   --brand-navy: #0b1426;
   --brand-white: #ffffff;
+  --brand-gray: #f1f4f8;
+  --brand-ink: #1f2937;
 
-  /* ---- Backgrounds & surfaces --------------------------------------------- */
-  --background: #f2f4f8;            /* app canvas */
-  --surface: #ffffff;               /* cards, panels, table body */
+  /* ---- Brand scale · Azul Horizonte (600 = oficial) ----------------------- */
+  --blue-50: #eef3fb;
+  --blue-100: #dce6f6;
+  --blue-200: #b9cdec;
+  --blue-300: #8faedd;
+  --blue-400: #5f87c8;
+  --blue-500: #3664ae;
+  --blue-600: #1f4b93;
+  --blue-700: #1a3f7c;
+  --blue-800: #163467;
+  --blue-900: #112850;
+  --blue-950: #0b1a36;
+
+  /* ---- Brand scale · Ciano Tecnológico (500 = oficial) -------------------- */
+  --cyan-50: #e6f6fc;
+  --cyan-100: #ccedf9;
+  --cyan-200: #99dbf2;
+  --cyan-300: #5ec4ea;
+  --cyan-400: #26addf;
+  --cyan-500: #008ccb;
+  --cyan-600: #0079b0;
+  --cyan-700: #00648f;
+  --cyan-800: #004f72;
+  --cyan-900: #003a54;
+
+  /* ---- Brand scale · Dourado (400 = oficial) — destaque estratégico ------- */
+  --gold-50: #fef8e7;
+  --gold-100: #fdefc8;
+  --gold-200: #fade91;
+  --gold-300: #f7cb5a;
+  --gold-400: #f4b223;
+  --gold-500: #db9a10;
+  --gold-600: #b67d06;
+  --gold-700: #8c5f05;
+  --gold-800: #6b4804;
+  --gold-900: #4a3203;
+
+  /* ---- Neutral scale · slate azulado (100 = Cinza Claro, 800 = Texto) ----- */
+  --neutral-0: #ffffff;
+  --neutral-25: #fafbfd;
+  --neutral-50: #f6f8fb;
+  --neutral-100: #f1f4f8;
+  --neutral-150: #e9eef4;
+  --neutral-200: #e1e7ef;
+  --neutral-300: #cbd3df;
+  --neutral-400: #9aa6b8;
+  --neutral-500: #6b7890;
+  --neutral-600: #4e5b72;
+  --neutral-700: #374357;
+  --neutral-800: #1f2937;
+  --neutral-900: #151c28;
+  --neutral-950: #0c121c;
+
+  /* ---- Semantic scales ---------------------------------------------------- */
+  --green-50: #e8f6ee;
+  --green-100: #d2eedf;
+  --green-500: #1a8455;
+  --green-600: #167048;
+  --green-700: #14623f;
+  --amber-50: #fdf3df;
+  --amber-100: #fbe7bf;
+  --amber-500: #c27c0e;
+  --amber-600: #9d6308;
+  --amber-700: #7a4e05;
+  --red-50: #fdeded;
+  --red-100: #f9d7d7;
+  --red-500: #c93636;
+  --red-600: #b02d2d;
+  --red-700: #8f2323;
+
+  /* ---- Canvas & surfaces (level 0 → 4) ------------------------------------
+     0 canvas · 1 card/raised · 2 interactive surface inside a card (segmented
+     tracks, inner tiles, inputs on tonal fields) · 3 popover/menu · 4 dialog,
+     drawer. The canvas is a tonal blue-gray so white cards read as layers. */
+  --background: #edf1f7;            /* canvas (level 0) */
+  --surface-canvas: #edf1f7;
+  --surface: #ffffff;               /* panels, table body */
+  --surface-raised: #ffffff;        /* cards, KPIs, chart cards (level 1) */
   --surface-secondary: #f6f8fb;     /* table headers, grouped sections */
-  --surface-tertiary: #eceff5;      /* inset areas, disabled fields */
-  --surface-elevated: #ffffff;      /* popovers, menus, dialogs */
+  --surface-tertiary: #eef2f7;      /* inset areas, disabled fields */
+  --surface-interactive: #f3f6fa;   /* level 2: controls/tiles inside a card */
+  --surface-elevated: #ffffff;      /* popovers, menus, dialogs (levels 3–4) */
   --surface-sidebar: #ffffff;
   --surface-topbar: #ffffff;
+  --surface-header: transparent;    /* page header sits on the canvas */
+  --surface-toolbar: #ffffff;       /* filter toolbar card */
   --surface-overlay: rgb(11 20 38 / 0.48);   /* modal scrim */
   --surface-inverse: #14213d;
+  --surface-sunken: #eef2f7;        /* progress tracks, empty plots */
+  --surface-hover: #f5f7fb;
+  --surface-selected: #eef3fb;
 
   /* ---- Borders ------------------------------------------------------------ */
-  --border: #dfe4ec;
-  --border-strong: #c5cdda;
-  --border-subtle: #eaeef4;
+  --border: #e1e7ef;
+  --border-strong: #cbd3df;
+  --border-subtle: #ebeff5;
+  --border-emphasis: #b9cdec;
   --border-focus: var(--brand-cyan);
 
   /* ---- Text --------------------------------------------------------------- */
   --text-primary: #1b2537;
   --text-secondary: #4a5872;
-  --text-muted: #5d6b81;          /* 5.4:1 on surface, 4.9:1 on background */
-  --text-subtle: #64718a;         /* placeholders "sem dado", setas: 4.8:1 on surface */
+  --text-muted: #5d6b81;          /* 5.4:1 on surface, 4.9:1 on canvas */
+  --text-subtle: #64718a;
   --text-disabled: #a3adbf;
   --text-inverse: #ffffff;
   --text-link: #1f4b93;
   --text-link-hover: #163669;
 
-  /* ---- Primary (Horizonte blue): main actions, active navigation, links --- */
+  /* ---- Primary (Azul Horizonte): main actions, active navigation, links --- */
   --primary: #1f4b93;
   --primary-hover: #1a407e;
   --primary-active: #163669;
   --primary-foreground: #ffffff;
-  --primary-soft: #e8eef8;          /* selected/active backgrounds */
-  --primary-soft-hover: #dbe5f4;
+  --primary-soft: #eaf0fa;
+  --primary-soft-hover: #dce6f6;
   --primary-soft-foreground: #1a407e;
+  /* Ação selecionada (botão ON, segmento ativo): o único lugar em que a
+     interface usa um degradê — e só dentro da família da marca. */
+  --primary-gradient: linear-gradient(135deg, #1f4b93 0%, #2a5fb0 55%, #0079b0 100%);
 
   /* ---- Secondary (neutral) ----------------------------------------------- */
-  --secondary: #eef1f6;
+  --secondary: #eef2f7;
   --secondary-hover: #e3e8f0;
   --secondary-active: #d8dfe9;
   --secondary-foreground: #1b2537;
 
-  /* ---- Accent (technological cyan): data, information, secondary indicators */
+  /* ---- Accent (Ciano Tecnológico): dados, informação, indicadores -------- */
   --accent: #0079b0;              /* 4.8:1 with white text; --brand-cyan stays pure for graphics */
   --accent-hover: #006998;
   --accent-active: #005c86;
   --accent-foreground: #ffffff;
-  --accent-soft: #e2f3fb;
+  --accent-soft: #e6f6fc;
   --accent-soft-foreground: #045f88;
 
-  /* ---- Highlight (Horizonte gold): sparse brand accents only -------------- */
+  /* ---- Highlight (Dourado): metas e destaques estratégicos, com parcimônia - */
   --highlight: #f4b223;
   --highlight-hover: #e2a11a;
   --highlight-foreground: #2a1f05;
-  --highlight-soft: #fdf3dc;
+  --highlight-soft: #fef5e0;
   --highlight-soft-foreground: #7a5300;
 
   /* ---- Semantic status ---------------------------------------------------- */
-  --success: #1a8455;             /* 4.7:1 with white text */
+  --success: #1a8455;
   --success-hover: #167048;
   --success-foreground: #ffffff;
-  --success-soft: #e2f4ea;
+  --success-soft: #e8f6ee;
   --success-soft-foreground: #14623f;
+  --success-border: #b8e0c9;
 
-  --warning: #9d6308;             /* 5.0:1 with white text */
+  --warning: #9d6308;
   --warning-hover: #855307;
   --warning-foreground: #ffffff;
-  --warning-soft: #fdf1da;
+  --warning-soft: #fdf3df;
   --warning-soft-foreground: #7a4e05;
+  --warning-border: #f0d39a;
 
   --danger: #c93636;
   --danger-hover: #b02d2d;
   --danger-active: #952525;
   --danger-foreground: #ffffff;
-  --danger-soft: #fce8e8;
+  --danger-soft: #fdeded;
   --danger-soft-foreground: #8f2323;
+  --danger-border: #f2c2c2;
 
   --info: #0b76ad;
   --info-hover: #096492;
   --info-foreground: #ffffff;
-  --info-soft: #e2f3fb;
+  --info-soft: #e6f6fc;
   --info-soft-foreground: #045f88;
+  --info-border: #b3dff2;
 
-  --neutral: #5f6e85;             /* 5.2:1 with white text */
+  --neutral: #5f6e85;
   --neutral-hover: #516075;
   --neutral-foreground: #ffffff;
-  --neutral-soft: #eef1f5;
+  --neutral-soft: #eef2f7;
   --neutral-soft-foreground: #45546b;
+  --neutral-border: #d7dee8;
 
   /* ---- Interaction -------------------------------------------------------- */
   --ring: #008ccb;
   --ring-offset: #ffffff;
-  --hover-overlay: rgb(27 37 55 / 0.04);
+  --hover-overlay: rgb(31 75 147 / 0.045);
   --selected-overlay: rgb(31 75 147 / 0.08);
   --input-background: #ffffff;
-  --input-border: #c9d1de;
+  --input-border: #cbd3df;
+  --input-border-hover: #9aa6b8;
   --input-placeholder: #8b96a9;
 
-  /* ---- Charts (ordered series palette) ----------------------------------- */
-  --chart-1: #1f4b93;
-  --chart-2: #008ccb;
-  --chart-3: #f4b223;
-  --chart-4: #1e8e5a;
-  --chart-5: #c93636;
-  --chart-6: #6b7a90;
-  --chart-7: #6c9de0;
-  --chart-8: #0f2a5c;
-  --chart-grid: #e6eaf1;
+  /* ---- Chart series (categorical, brand-first, no semantic colors) -------- */
+  --chart-1: #1f4b93;   /* Azul Horizonte */
+  --chart-2: #008ccb;   /* Ciano */
+  --chart-3: #f4b223;   /* Dourado */
+  --chart-4: #5f87c8;   /* Azul 400 */
+  --chart-5: #8c5f05;   /* Bronze (dourado 700) */
+  --chart-6: #6b7890;   /* Slate */
+  --chart-7: #26addf;   /* Ciano 400 */
+  --chart-8: #112850;   /* Azul 900 */
+  --chart-grid: #e7ecf3;
   --chart-axis: #5d6b81;
   --chart-tooltip-bg: #14213d;
   --chart-tooltip-fg: #ffffff;
-
-  /* ---- Surface levels (Etapa 17) ------------------------------------------
-     Canvas (--background) › raised (cards, KPIs, chart cards) › elevated
-     (menus, tooltips, dialogs). `sunken` is the well below the surface:
-     progress tracks, empty chart plots, heatmap cells without base. */
-  --surface-raised: #ffffff;
-  --surface-sunken: #eef1f6;
-  --surface-hover: #f6f8fb;
-  --surface-selected: #e8eef8;
-  --surface-header: #ffffff;        /* page header band */
 
   /* ---- Delta semantics (KPI trends) --------------------------------------
      The direction of a number is not its meaning: "down" is good for costs,
      downtime and pending items. Components resolve good/bad from the metric's
      `goodWhen` and paint with these three pairs only. */
   --delta-positive: #14623f;
-  --delta-positive-bg: #e2f4ea;
+  --delta-positive-bg: #e8f6ee;
   --delta-negative: #8f2323;
-  --delta-negative-bg: #fce8e8;
+  --delta-negative-bg: #fdeded;
   --delta-neutral: #45546b;
-  --delta-neutral-bg: #eef1f5;
+  --delta-neutral-bg: #eef2f7;
 
-  /* ---- HFM data visualization theme --------------------------------------
+  /* ---- HFM chart theme ----------------------------------------------------
      Brand-first series, semantic marks only where the data is a judgement
      (below target = danger). Graphic marks keep ≥3:1 against the surface
      (WCAG 1.4.11); text inside charts uses the text tokens, never a series. */
@@ -158,21 +250,23 @@
   --chart-warning: #c27c0e;
   --chart-danger: #c93636;
   --chart-neutral: #8a96a8;
-  /* Target / benchmark: gold deepened to 3:1 so a 2px dashed line reads on
-     white; its label is written in --highlight-soft-foreground. */
   --chart-target: #c68600;
   --chart-target-label: #7a5300;
-  --chart-area-primary: rgb(31 75 147 / 0.14);
+  --chart-area-primary: rgb(31 75 147 / 0.16);
   --chart-area-primary-fade: rgb(31 75 147 / 0);
-  --chart-axis-line: #c5cdda;
+  --chart-area-secondary: rgb(0 140 203 / 0.14);
+  --chart-area-secondary-fade: rgb(0 140 203 / 0);
+  --chart-bar-primary: linear-gradient(180deg, #2a5fb0 0%, #1f4b93 100%);
+  --chart-axis-line: #cbd3df;
   --chart-label: #5d6b81;
   --chart-crosshair: #9aa6b8;
   --chart-hover-band: rgb(31 75 147 / 0.05);
-  --chart-future: #c5cdda;
+  --chart-future: #cbd3df;
+  --chart-track: #e9eef4;
   --chart-tooltip-surface: #ffffff;
-  --chart-tooltip-border: #dfe4ec;
+  --chart-tooltip-border: #e1e7ef;
 
-  /* ---- Heatmap scale (adherence and other rate grids) -------------------- */
+  /* ---- Heatmap scale (adherence, KM and other rate grids) ---------------- */
   --heat-success-bg: #d5efe0;
   --heat-success-border: #9fd6b8;
   --heat-success-fg: #0f5234;
@@ -182,41 +276,63 @@
   --heat-danger-bg: #f9d7d7;
   --heat-danger-border: #eca5a5;
   --heat-danger-fg: #7d1d1d;
-  --heat-empty-bg: #f3f5f9;
+  --heat-empty-bg: #f3f6fa;
   --heat-empty-border: #e3e8ef;
+  /* Intensity ramp (brand blue) for magnitude grids such as daily KM. */
+  --heat-1: #eef3fb;
+  --heat-2: #dce6f6;
+  --heat-3: #b9cdec;
+  --heat-4: #8faedd;
+  --heat-5: #5f87c8;
+  --heat-6: #3664ae;
+  --heat-fg-light: #1b2537;
+  --heat-fg-strong: #ffffff;
+
+  /* ---- Ambient canvas tint (very subtle depth behind the content) -------- */
+  --canvas-glow: radial-gradient(1200px 520px at 12% -8%, rgb(31 75 147 / 0.07), transparent 60%),
+    radial-gradient(900px 420px at 100% 0%, rgb(0 140 203 / 0.05), transparent 55%);
 
   color-scheme: light;
 }
 
 .dark {
-  /* ---- Backgrounds & surfaces (real dark: navy levels, never #000) -------- */
-  --background: #0b1426;
-  --surface: #111c33;
-  --surface-secondary: #172440;
-  --surface-tertiary: #1c2b4a;
-  --surface-elevated: #1a2946;
-  --surface-sidebar: #0a1222;
-  --surface-topbar: #0f1a30;
-  --surface-overlay: rgb(3 8 20 / 0.64);
-  --surface-inverse: #e8edf6;
+  /* ---- Canvas & surfaces: blue-graphite levels, never #000 --------------- */
+  --background: #0a111f;
+  --surface-canvas: #0a111f;
+  --surface: #111a2c;
+  --surface-raised: #111a2c;
+  --surface-secondary: #152035;
+  --surface-tertiary: #1a263d;
+  --surface-interactive: #172238;
+  --surface-elevated: #18243b;
+  --surface-sidebar: #0c1424;
+  --surface-topbar: #0c1424;
+  --surface-header: transparent;
+  --surface-toolbar: #111a2c;
+  --surface-overlay: rgb(3 8 20 / 0.66);
+  --surface-inverse: #e6ebf4;
+  --surface-sunken: #0d1525;
+  --surface-hover: #16213a;
+  --surface-selected: rgb(63 115 207 / 0.16);
 
   /* ---- Borders ------------------------------------------------------------ */
-  --border: #24345a;
-  --border-strong: #35497a;
-  --border-subtle: #1c2a49;
+  --border: #1f2b44;
+  --border-strong: #2c3b5a;
+  --border-subtle: #18233a;
+  --border-emphasis: #34508a;
   --border-focus: #38b6f0;
 
   /* ---- Text --------------------------------------------------------------- */
-  --text-primary: #e8edf6;
-  --text-secondary: #aab7cf;
-  --text-muted: #8a98b4;          /* 5.0:1 on elevated, 4.8:1 on tertiary */
-  --text-subtle: #8795b2;
-  --text-disabled: #55638a;
-  --text-inverse: #0b1426;
+  --text-primary: #e6ebf4;
+  --text-secondary: #a9b4c8;
+  --text-muted: #8794ac;
+  --text-subtle: #8592ab;
+  --text-disabled: #536180;
+  --text-inverse: #0a111f;
   --text-link: #7fb0f5;
   --text-link-hover: #a3c6f8;
 
-  /* ---- Primary (blue lifted for contrast on navy) ------------------------- */
+  /* ---- Primary (blue lifted for contrast) --------------------------------- */
   --primary: #3a6bc4;
   --primary-hover: #4a7bd3;
   --primary-active: #2f5aa8;
@@ -224,18 +340,19 @@
   --primary-soft: rgb(74 123 211 / 0.16);
   --primary-soft-hover: rgb(74 123 211 / 0.24);
   --primary-soft-foreground: #a6c3f4;
+  --primary-gradient: linear-gradient(135deg, #2f5aa8 0%, #3f73cf 55%, #1f9dd2 100%);
 
   /* ---- Secondary ---------------------------------------------------------- */
-  --secondary: #1c2b4a;
-  --secondary-hover: #23345a;
-  --secondary-active: #2a3d69;
-  --secondary-foreground: #e8edf6;
+  --secondary: #1a263d;
+  --secondary-hover: #213050;
+  --secondary-active: #283a60;
+  --secondary-foreground: #e6ebf4;
 
   /* ---- Accent ------------------------------------------------------------- */
   --accent: #2fb1e8;
   --accent-hover: #4fbfee;
   --accent-active: #1f9dd2;
-  --accent-foreground: #0b1426;
+  --accent-foreground: #0a111f;
   --accent-soft: rgb(47 177 232 / 0.14);
   --accent-soft-foreground: #7fd1f5;
 
@@ -252,12 +369,14 @@
   --success-foreground: #06251a;
   --success-soft: rgb(61 187 127 / 0.14);
   --success-soft-foreground: #7fd9ab;
+  --success-border: rgb(61 187 127 / 0.32);
 
   --warning: #f0b33a;
   --warning-hover: #f3c05c;
   --warning-foreground: #1f1500;
   --warning-soft: rgb(240 179 58 / 0.14);
   --warning-soft-foreground: #f6cc73;
+  --warning-border: rgb(240 179 58 / 0.32);
 
   --danger: #f06565;
   --danger-hover: #f37e7e;
@@ -265,48 +384,45 @@
   --danger-foreground: #24080a;
   --danger-soft: rgb(240 101 101 / 0.14);
   --danger-soft-foreground: #f8a3a3;
+  --danger-border: rgb(240 101 101 / 0.34);
 
   --info: #38b6f0;
   --info-hover: #5cc3f3;
   --info-foreground: #06202e;
   --info-soft: rgb(56 182 240 / 0.14);
   --info-soft-foreground: #8ad4f7;
+  --info-border: rgb(56 182 240 / 0.32);
 
   --neutral: #8b9ab5;
   --neutral-hover: #9dabc4;
-  --neutral-foreground: #0b1426;
+  --neutral-foreground: #0a111f;
   --neutral-soft: rgb(139 154 181 / 0.14);
   --neutral-soft-foreground: #b6c2d8;
+  --neutral-border: rgb(139 154 181 / 0.28);
 
   /* ---- Interaction -------------------------------------------------------- */
   --ring: #38b6f0;
-  --ring-offset: #0b1426;
-  --hover-overlay: rgb(232 237 246 / 0.05);
+  --ring-offset: #0a111f;
+  --hover-overlay: rgb(230 235 244 / 0.05);
   --selected-overlay: rgb(74 123 211 / 0.14);
-  --input-background: #0f1a30;
-  --input-border: #2d3f68;
+  --input-background: #0e1729;
+  --input-border: #2b3a5a;
+  --input-border-hover: #3c5079;
   --input-placeholder: #6f7f9e;
 
-  /* ---- Charts ------------------------------------------------------------- */
+  /* ---- Chart series ------------------------------------------------------- */
   --chart-1: #6c9de0;
   --chart-2: #38b6f0;
   --chart-3: #f4b223;
-  --chart-4: #3dbb7f;
-  --chart-5: #f06565;
+  --chart-4: #a6c3f4;
+  --chart-5: #d9a441;
   --chart-6: #8b9ab5;
-  --chart-7: #a6c3f4;
-  --chart-8: #2fb1e8;
-  --chart-grid: #1f2f52;
+  --chart-7: #7fd1f5;
+  --chart-8: #3f73cf;
+  --chart-grid: #1c2840;
   --chart-axis: #7f8eab;
-  --chart-tooltip-bg: #e8edf6;
-  --chart-tooltip-fg: #0b1426;
-
-  /* ---- Surface levels ----------------------------------------------------- */
-  --surface-raised: #122039;
-  --surface-sunken: #0d172b;
-  --surface-hover: #172440;
-  --surface-selected: rgb(74 123 211 / 0.16);
-  --surface-header: #0f1a30;
+  --chart-tooltip-bg: #e6ebf4;
+  --chart-tooltip-fg: #0a111f;
 
   /* ---- Delta semantics ---------------------------------------------------- */
   --delta-positive: #7fd9ab;
@@ -316,7 +432,7 @@
   --delta-neutral: #b6c2d8;
   --delta-neutral-bg: rgb(139 154 181 / 0.14);
 
-  /* ---- HFM data visualization theme (own dark palette, not an inversion) -- */
+  /* ---- HFM chart theme (own dark palette) --------------------------------- */
   --chart-brand-primary: #6c9de0;
   --chart-brand-secondary: #38b6f0;
   --chart-accent: #f4b223;
@@ -326,15 +442,19 @@
   --chart-neutral: #7f8eab;
   --chart-target: #f4b223;
   --chart-target-label: #f7c65c;
-  --chart-area-primary: rgb(108 157 224 / 0.20);
+  --chart-area-primary: rgb(108 157 224 / 0.22);
   --chart-area-primary-fade: rgb(108 157 224 / 0);
-  --chart-axis-line: #35497a;
+  --chart-area-secondary: rgb(56 182 240 / 0.18);
+  --chart-area-secondary-fade: rgb(56 182 240 / 0);
+  --chart-bar-primary: linear-gradient(180deg, #7aa8e6 0%, #4f80d0 100%);
+  --chart-axis-line: #2c3b5a;
   --chart-label: #8f9dba;
-  --chart-crosshair: #55638a;
+  --chart-crosshair: #536180;
   --chart-hover-band: rgb(108 157 224 / 0.08);
-  --chart-future: #35497a;
-  --chart-tooltip-surface: #1a2946;
-  --chart-tooltip-border: #2d3f68;
+  --chart-future: #2c3b5a;
+  --chart-track: #1a263d;
+  --chart-tooltip-surface: #18243b;
+  --chart-tooltip-border: #2b3a5a;
 
   /* ---- Heatmap scale ------------------------------------------------------ */
   --heat-success-bg: rgb(61 187 127 / 0.20);
@@ -346,8 +466,19 @@
   --heat-danger-bg: rgb(240 101 101 / 0.22);
   --heat-danger-border: rgb(240 101 101 / 0.50);
   --heat-danger-fg: #fbbdbd;
-  --heat-empty-bg: #14213b;
-  --heat-empty-border: #1f2f52;
+  --heat-empty-bg: #121c30;
+  --heat-empty-border: #1c2840;
+  --heat-1: #15233d;
+  --heat-2: #1a3058;
+  --heat-3: #22407a;
+  --heat-4: #2d559c;
+  --heat-5: #3f73cf;
+  --heat-6: #6c9de0;
+  --heat-fg-light: #dfe6f3;
+  --heat-fg-strong: #ffffff;
+
+  --canvas-glow: radial-gradient(1200px 560px at 10% -10%, rgb(63 115 207 / 0.14), transparent 60%),
+    radial-gradient(900px 420px at 100% 0%, rgb(31 157 210 / 0.07), transparent 55%);
 
   color-scheme: dark;
 }

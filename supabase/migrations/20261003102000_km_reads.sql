@@ -381,7 +381,8 @@ begin
                                                   or 'odometer_regression' = any (g.alerts)),
       'valid_days', (select count(*) from daily d where d.with_reading > 0),
       'last_update', (select max(r.ingested_at) from public.km_daily_readings r where r.organization_id = p_organization_id),
-      'high_mileage_km', v_set.high_mileage_km),
+      'high_mileage_km', v_set.high_mileage_km,
+      'min_coverage_pct', v_set.min_coverage_pct),
     'freshness', (select jsonb_build_object(
                     'updated', count(*) filter (where fr.bucket = 'updated'),
                     'd1', count(*) filter (where fr.bucket = 'd1'),
@@ -648,8 +649,10 @@ begin
   )
   select jsonb_build_object(
     'date', v_day,
+    'today', private.maintenance_today(p_organization_id),
     'kpis', jsonb_build_object(
-      'km_total', round(coalesce(sum(g.km) filter (where g.counts), 0), 1),
+      -- sem nenhuma leitura válida no dia, o KM do dia é desconhecido (nulo), não 0
+      'km_total', round(sum(g.km) filter (where g.counts), 1),
       'vehicles', count(*),
       'vehicles_used', count(*) filter (where g.counts and g.status <> 'no_movement'),
       'no_movement', count(*) filter (where g.status = 'no_movement'),
@@ -681,7 +684,7 @@ begin
                                      (6, 'b5', '400 km ou mais', 400, null)) b(ord, band, label, lo, hi)) q),
     'without_reading', (select coalesce(jsonb_agg(g2.card || jsonb_build_object('status', g2.status, 'br', g2.br, 'local', g2.local)
                                          order by g2.card ->> 'plate'), '[]'::jsonb)
-                          from g g2 where not g2.has_reading),
+                          from g g2 where not g2.has_reading and g2.status <> 'inconsistent'),
     'by_operation', (select coalesce(jsonb_agg(q.j order by (q.j ->> 'km')::numeric desc), '[]'::jsonb) from (
                        select jsonb_build_object('label', coalesce(g2.operation, 'Sem operação'),
                                 'km', round(coalesce(sum(g2.km) filter (where g2.counts), 0), 1), 'vehicles', count(*),

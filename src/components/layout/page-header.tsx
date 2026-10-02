@@ -24,13 +24,21 @@ export interface PageHeaderProps extends Omit<React.HTMLAttributes<HTMLDivElemen
   meta?: React.ReactNode;
   /** Módulo ou área acima do título ("Gestão de checklist"), quando não há breadcrumb. */
   eyebrow?: React.ReactNode;
+  /**
+   * Contexto da visão (UI 2.0): competência, recorte, última atualização.
+   * Pequenos itens abaixo da descrição — use `PageHeaderContext`.
+   */
+  context?: React.ReactNode;
 }
 
 /**
- * PageHeader — the standard top of every page and the first level of the page
- * narrative: header › filters › KPIs › analyses › details. Every slot is
- * optional: a list page may use title + primaryAction + filters, a detail page
- * may use breadcrumb + title + meta + tabs.
+ * PageHeader — o topo de toda página e o primeiro nível da narrativa:
+ * cabeçalho › filtros › KPIs › análises › detalhes.
+ *
+ * UI 2.0: o cabeçalho mora no próprio canvas (sem faixa branca), com título
+ * forte, descrição, contexto e ações separados; os filtros ficam numa barra de
+ * ferramentas elevada (nível 1), e as abas logo abaixo do título quando
+ * `tabsPlacement="top"`. Todos os slots são opcionais.
  */
 export function PageHeader({
   title,
@@ -43,47 +51,85 @@ export function PageHeader({
   tabsPlacement = "bottom",
   meta,
   eyebrow,
+  context,
   className,
   ...props
 }: PageHeaderProps) {
   const tabsOnTop = Boolean(tabs) && tabsPlacement === "top";
   return (
     <div
+      data-slot="page-header"
       className={cn(
-        "flex flex-col gap-3 border-b border-border bg-surface-header px-4 pt-4 sm:px-6 sm:pt-5",
-        tabs && !tabsOnTop ? "pb-0" : tabsOnTop && !filters ? "pb-0" : "pb-4",
+        "flex flex-col gap-4 bg-surface-header px-4 pt-5 sm:px-6 sm:pt-6",
+        tabs && !tabsOnTop ? "pb-0" : "pb-4",
         className,
       )}
       {...props}
     >
-      {breadcrumb ? <div className="-mb-1">{breadcrumb}</div> : null}
+      {breadcrumb ? <div className="-mb-2">{breadcrumb}</div> : null}
 
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
           {eyebrow && !breadcrumb ? (
-            <p className="mb-1 text-overline font-semibold uppercase text-fg-muted">{eyebrow}</p>
+            <p className="mb-1.5 flex items-center gap-2 text-overline font-semibold uppercase text-primary-soft-fg">
+              <span aria-hidden className="h-3 w-0.5 rounded-full bg-highlight" />
+              {eyebrow}
+            </p>
           ) : null}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <h1 className="truncate text-page-title font-semibold text-fg">{title}</h1>
             {meta}
           </div>
-          {description ? <p className="mt-1 max-w-3xl text-body-sm text-fg-secondary">{description}</p> : null}
+          {description ? <p className="mt-1.5 max-w-3xl text-body-sm text-fg-secondary">{description}</p> : null}
+          {context ? <div className="mt-2.5 flex flex-wrap items-center gap-2">{context}</div> : null}
         </div>
 
         {primaryAction || secondaryActions ? (
-          <div className="flex shrink-0 flex-wrap items-center gap-2 md:justify-end">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 md:justify-end md:pt-1">
             {secondaryActions}
             {primaryAction}
           </div>
         ) : null}
       </div>
 
-      {tabsOnTop ? <div className={filters ? undefined : "-mb-px"}>{tabs}</div> : null}
+      {tabsOnTop ? <div>{tabs}</div> : null}
       {filters ? (
-        <div className={cn("-mx-1", tabsOnTop ? "pt-0.5" : "border-t border-border-subtle pt-1")}>{filters}</div>
+        <div
+          data-slot="page-toolbar"
+          className="rounded-xl border border-border bg-surface-toolbar px-2.5 py-1 shadow-card sm:px-3"
+        >
+          {filters}
+        </div>
       ) : null}
-      {tabs && !tabsOnTop ? <div className="-mb-px">{tabs}</div> : null}
+      {tabs && !tabsOnTop ? <div className="-mb-px border-b border-border">{tabs}</div> : null}
     </div>
+  );
+}
+
+/** Um item de contexto do cabeçalho: rótulo discreto + valor ("Competência · Outubro/2026"). */
+export function PageHeaderContext({
+  label,
+  children,
+  icon,
+  className,
+}: {
+  label?: React.ReactNode;
+  children: React.ReactNode;
+  icon?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-surface-raised px-2.5 text-caption text-fg-secondary shadow-xs",
+        "[&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-fg-muted",
+        className,
+      )}
+    >
+      {icon}
+      {label != null ? <span className="text-fg-muted">{label}</span> : null}
+      <span className="font-semibold text-fg">{children}</span>
+    </span>
   );
 }
 

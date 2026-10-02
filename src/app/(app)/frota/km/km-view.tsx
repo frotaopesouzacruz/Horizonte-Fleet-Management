@@ -77,7 +77,7 @@ export function KmView({ data }: { data: KmViewData }) {
   return (
     <Tabs
       value={tab}
-      onValueChange={(v) => navigate({ aba: v, sub: null, item: null, plano: null, lote: null })}
+      onValueChange={(v) => navigate({ aba: v, sub: null, item: null, plano: null, lote: null, atualizacao: null, dia_ranking: null })}
       className="gap-0"
     >
       <PageHeader

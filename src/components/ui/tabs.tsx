@@ -5,11 +5,13 @@ import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { cn } from "@/lib/cn";
 
 /**
- * Tabs — two appearances:
- *  - underline (default): flat, for page sections
- *  - segmented: contained pills, for compact switches (views, periods)
+ * Tabs — três aparências (UI 2.0):
+ *  - underline (padrão): telas de um módulo, logo abaixo do título;
+ *  - segmented: alternâncias compactas (visões, períodos) — trilho tonal com o
+ *    segmento ativo elevado, como os controles selecionados;
+ *  - container: sub-abas dentro de um card ou painel (trilho de nível 2).
  */
-type TabsAppearance = "underline" | "segmented";
+type TabsAppearance = "underline" | "segmented" | "container";
 const TabsAppearanceContext = React.createContext<TabsAppearance>("underline");
 
 export interface TabsProps extends React.ComponentPropsWithoutRef<typeof TabsPrimitive.Root> {
@@ -42,8 +44,11 @@ export const TabsList = React.forwardRef<
         // `shrink-0`: dentro de uma coluna flex (gaveta com corpo rolável), a lista
         // de abas não pode encolher até 1px e deixar os botões fora da área clicável.
         "flex shrink-0 items-center overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-        appearance === "underline" && "gap-1 border-b border-border",
-        appearance === "segmented" && "inline-flex w-fit gap-0.5 rounded-sm border border-border bg-surface-secondary p-0.5",
+        appearance === "underline" && "gap-0.5 border-b border-border",
+        appearance === "segmented" &&
+          "inline-flex w-fit gap-0.5 rounded-md border border-border-subtle bg-surface-interactive p-0.5",
+        appearance === "container" &&
+          "inline-flex w-fit max-w-full gap-1 rounded-lg border border-border-subtle bg-surface-interactive p-1",
         className,
       )}
       {...props}
@@ -62,10 +67,15 @@ export const TabsTrigger = React.forwardRef<
       className={cn(
         "inline-flex items-center gap-1.5 whitespace-nowrap text-body-sm font-medium hfm-transition hfm-focus-ring",
         "disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
-        appearance === "underline" &&
-          "-mb-px h-9 border-b-2 border-transparent px-3 text-fg-secondary hover:text-fg data-[state=active]:border-primary data-[state=active]:text-primary-soft-fg",
+        appearance === "underline" && [
+          "relative -mb-px h-10 rounded-t-md px-3 text-fg-secondary hover:bg-hover-overlay hover:text-fg",
+          "after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent after:transition-colors",
+          "data-[state=active]:font-semibold data-[state=active]:text-primary-soft-fg data-[state=active]:after:bg-primary",
+        ],
         appearance === "segmented" &&
-          "h-7 rounded-xs px-3 text-fg-secondary hover:text-fg data-[state=active]:bg-surface data-[state=active]:text-fg data-[state=active]:shadow-xs",
+          "h-7 rounded-sm px-3 text-fg-secondary hover:text-fg data-[state=active]:bg-surface-raised data-[state=active]:font-semibold data-[state=active]:text-fg data-[state=active]:shadow-selected",
+        appearance === "container" &&
+          "h-8 rounded-md px-3 text-fg-secondary hover:bg-hover-overlay hover:text-fg data-[state=active]:bg-surface-raised data-[state=active]:font-semibold data-[state=active]:text-primary-soft-fg data-[state=active]:shadow-selected",
         className,
       )}
       {...props}

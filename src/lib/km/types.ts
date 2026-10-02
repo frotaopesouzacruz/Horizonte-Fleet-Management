@@ -72,7 +72,7 @@ export const KM_FILTER_PARAM: Record<keyof KmFilters, string> = {
   vehicleType: "tipo",
   subcategory: "subcategoria",
   model: "modelo",
-  vehicle: "veiculo",
+  vehicle: "veiculos",
   status: "situacao",
   fleet: "frota",
   q: "q",

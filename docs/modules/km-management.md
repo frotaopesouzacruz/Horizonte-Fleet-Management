@@ -158,8 +158,10 @@ in the default scope), by default only between different cities, where A has a
 higher odometer and a higher daily mileage than B and the gap is at least the
 configured minimum. With G = odometer A − odometer B and D = (daily A − daily
 B) × horizon: gap without rotation = G + D, with rotation = |G − D|, reduction
-= (G + D) − |G − D|. Priority by reduction: Alta ≥ 30 %, Média ≥ 15 %, Baixa
-> 0, Sem benefício. Each vehicle appears in at most one suggestion (greedy by
+= (G + D) − |G − D|. Priority by reduction (legacy HFC bands): Alta ≥ 50 %,
+Média ≥ 20 %, Baixa ≥ 5 %, below that Sem benefício. Only active vehicles, not
+in maintenance in progress and with a reading in the last 15 days enter the
+suggestions. Each vehicle appears in at most one suggestion (greedy by
 reduction). "Condicionado" flags overdue or near preventive and maintenance in
 progress or scheduled. Scenarios for 30/60/90 days and a deterministic
 justification come with every pair.

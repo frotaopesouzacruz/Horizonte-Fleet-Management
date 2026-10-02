@@ -131,6 +131,32 @@
   --color-surface-hover: var(--surface-hover);
   --color-surface-selected: var(--surface-selected);
   --color-surface-header: var(--surface-header);
+  --color-surface-canvas: var(--surface-canvas);
+  --color-surface-interactive: var(--surface-interactive);
+  --color-surface-toolbar: var(--surface-toolbar);
+  --color-border-emphasis: var(--border-emphasis);
+  --color-input-border-hover: var(--input-border-hover);
+  --color-success-border: var(--success-border);
+  --color-warning-border: var(--warning-border);
+  --color-danger-border: var(--danger-border);
+  --color-info-border: var(--info-border);
+  --color-neutral-border: var(--neutral-border);
+  --color-chart-track: var(--chart-track);
+  --color-heat-1: var(--heat-1);
+  --color-heat-2: var(--heat-2);
+  --color-heat-3: var(--heat-3);
+  --color-heat-4: var(--heat-4);
+  --color-heat-5: var(--heat-5);
+  --color-heat-6: var(--heat-6);
+  --color-heat-fg-light: var(--heat-fg-light);
+  --color-heat-fg-strong: var(--heat-fg-strong);
+  --color-blue-50: var(--blue-50);
+  --color-blue-100: var(--blue-100);
+  --color-blue-600: var(--blue-600);
+  --color-cyan-50: var(--cyan-50);
+  --color-cyan-500: var(--cyan-500);
+  --color-gold-50: var(--gold-50);
+  --color-gold-400: var(--gold-400);
 
   --color-delta-positive: var(--delta-positive);
   --color-delta-positive-bg: var(--delta-positive-bg);
@@ -181,7 +207,11 @@
   --text-overline--letter-spacing: 0.06em;
   --text-page-title: var(--text-page-title);
   --text-page-title--line-height: var(--leading-page-title);
-  --text-page-title--letter-spacing: var(--tracking-tight);
+  --text-page-title--letter-spacing: var(--tracking-title);
+  --text-table-head: var(--text-table-head);
+  --text-table-head--line-height: var(--leading-table-head);
+  --text-meta: var(--text-meta);
+  --text-meta--line-height: var(--leading-meta);
   --text-section-title: var(--text-section-title);
   --text-section-title--line-height: var(--leading-section-title);
   --text-card-title: var(--text-card-title);
@@ -202,6 +232,7 @@
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
   --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
   --shadow-xs: var(--shadow-xs);
   --shadow-sm: var(--shadow-sm);
   --shadow-md: var(--shadow-md);
@@ -210,6 +241,10 @@
   --shadow-xl: var(--shadow-xl);
   --shadow-card: var(--shadow-card);
   --shadow-card-hover: var(--shadow-card-hover);
+  --shadow-selected: var(--shadow-selected);
+  --shadow-overlay: var(--shadow-overlay);
+  --shadow-glow-primary: var(--glow-primary);
+  --shadow-glow-highlight: var(--glow-highlight);
 
   /* motion */
   --ease-standard: var(--ease-standard);

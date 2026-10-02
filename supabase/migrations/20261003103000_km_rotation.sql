@@ -21,7 +21,9 @@
 --   gap sem rodízio = G + D
 --   gap com rodízio = |G − D|        (A passa a rodar como B e vice-versa)
 --   redução         = (G + D) − |G − D|,  redução % = redução / (G + D)
--- Prioridade pela redução %: ALTA ≥ 30%, MÉDIA ≥ 15%, BAIXA > 0, SEM BENEFÍCIO.
+-- Prioridade pela redução %: ALTA ≥ 50%, MÉDIA ≥ 20%, BAIXA ≥ 5%, abaixo disso
+-- SEM BENEFÍCIO (faixas do legado). Fora das sugestões: frota inativa, em
+-- manutenção (em andamento) ou sem leitura há mais de 15 dias.
 -- "Condicionado" quando um dos veículos tem preventiva vencida ou a vencer em
 -- até 30 dias, ou manutenção programada/em andamento.
 -- =============================================================================
@@ -49,9 +51,10 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select case when p_reduction_pct is null or p_reduction_pct <= 0 then 'none'
-              when p_reduction_pct >= 30 then 'high'
-              when p_reduction_pct >= 15 then 'medium'
+  -- Faixas do legado (HFC): ganho abaixo de 5% não justifica a troca.
+  select case when p_reduction_pct is null or p_reduction_pct < 5 then 'none'
+              when p_reduction_pct >= 50 then 'high'
+              when p_reduction_pct >= 20 then 'medium'
               else 'low' end;
 $$;
 
@@ -68,7 +71,7 @@ returns table (
   cohort_daily_median numeric, cohort_odometer_median numeric,
   operation_id uuid, city_id integer, operation_br_id uuid,
   odometer numeric, daily_avg numeric, km_period numeric, coverage_pct numeric, daily_percentile numeric,
-  quadrant text, info jsonb, conditions text[])
+  quadrant text, info jsonb, conditions text[], suggestible boolean)
 language sql
 stable
 security definer
@@ -98,8 +101,17 @@ as $$
            case when (pc.j ->> 'km_remaining')::numeric > 0 and (pc.j ->> 'km_remaining')::numeric <= d.daily_avg * 30
                 then 'Preventiva a vencer em até 30 dias' end,
            case when mo.status = 'in_progress' then 'Em manutenção' end,
-           case when mo.status = 'scheduled' then 'Manutenção programada' end], null)
+           case when mo.status = 'scheduled' then 'Manutenção programada' end], null),
+         -- entra nas sugestões: frota ativa, fora de manutenção em andamento e com
+         -- leitura nos últimos 15 dias
+         vs.status = 'active' and coalesce(mo.status, '') <> 'in_progress'
+           and lr.last_day >= private.maintenance_today(p_organization_id) - 15
     from d
+    join public.vehicles vs on vs.id = d.vehicle_id
+    left join lateral (
+      select max(r.reading_date) as last_day from public.km_daily_readings r
+       where r.vehicle_id = d.vehicle_id
+         and r.status not in ('no_reading', 'inconsistent')) lr on true
     left join lateral (
       select jsonb_build_object('cycle_number', c.cycle_number, 'milestone_km', c.milestone_km,
                                 'km_remaining', round(c.milestone_km - d.odometer)) as j
@@ -147,6 +159,7 @@ as $$
       cross join st
      where p_pairs is null
        and a.cohort_size >= st.min_cohort_size
+       and a.suggestible and bb.suggestible
        and a.odometer > bb.odometer and a.daily_avg > bb.daily_avg
        and a.odometer - bb.odometer >= st.rotation_min_gap_km
        and (p_scope_mode = 'same_cohort_global' or a.operation_id is not distinct from bb.operation_id)

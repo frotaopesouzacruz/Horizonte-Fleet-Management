@@ -102,13 +102,13 @@ export function TrendIndicator({ trend, size = "md", className, ...props }: Tren
 }
 
 export const kpiCardVariants = cva(
-  "relative flex flex-col overflow-hidden rounded-lg border border-border bg-surface-raised text-fg shadow-card",
+  "relative flex flex-col overflow-hidden rounded-lg border border-border bg-surface-raised text-fg shadow-card hfm-transition",
   {
     variants: {
       size: {
-        default: "min-h-28 gap-2 px-4 py-3.5",
+        default: "min-h-30 gap-2.5 px-4 py-4",
         compact: "min-h-24 gap-1.5 px-3.5 py-3",
-        hero: "min-h-32 gap-2.5 px-5 py-4",
+        hero: "min-h-36 gap-3 px-5 py-5",
       },
       status: {
         neutral: "",
@@ -142,9 +142,22 @@ const ACCENT_LINE: Record<KpiStatus, string | null> = {
   info: "bg-info",
 };
 
+/** Canto tonal (UI 2.0): a mesma cor do acento, quase imperceptível. */
+const CORNER_TONE: Record<KpiStatus, string | null> = {
+  neutral: null,
+  secondary: null,
+  primary: "[--accent-tone:rgb(31_75_147/0.08)]",
+  accent: "[--accent-tone:rgb(0_140_203/0.09)]",
+  highlight: "[--accent-tone:rgb(244_178_35/0.14)]",
+  success: "[--accent-tone:rgb(26_132_85/0.08)]",
+  warning: "[--accent-tone:rgb(194_124_14/0.10)]",
+  danger: "[--accent-tone:rgb(201_54_54/0.08)]",
+  info: "[--accent-tone:rgb(11_118_173/0.08)]",
+};
+
 const ICON_CHIP: Record<KpiStatus, string> = {
-  neutral: "bg-surface-secondary text-fg-secondary",
-  secondary: "bg-surface-secondary text-fg-secondary",
+  neutral: "bg-surface-interactive text-fg-secondary",
+  secondary: "bg-surface-interactive text-fg-secondary",
   primary: "bg-primary-soft text-primary-soft-fg",
   accent: "bg-accent-soft text-accent-soft-fg",
   highlight: "bg-highlight-soft text-highlight-soft-fg",
@@ -234,26 +247,27 @@ export const KpiCard = React.forwardRef<HTMLElement, KpiCardProps>(function KpiC
   }
 
   const hasFooter = trend || period != null || target != null;
+  const corner = CORNER_TONE[resolvedStatus];
 
   return (
     <section
       ref={ref}
       data-status={resolvedStatus}
-      className={cn(kpiCardVariants({ size, status }), className)}
+      className={cn(kpiCardVariants({ size, status }), corner && ["hfm-corner-accent", corner], className)}
       {...props}
     >
       {accent ? <span aria-hidden className={cn("absolute inset-x-0 top-0 h-0.5", accent)} /> : null}
 
       <header className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <h3 className="min-w-0 text-balance text-label font-medium text-fg-secondary">{label}</h3>
+          <h3 className="min-w-0 text-balance text-caption font-semibold tracking-wide text-fg-muted uppercase">{label}</h3>
           {badge}
         </div>
         {icon ? (
           <span
             className={cn(
-              "flex size-8 shrink-0 items-center justify-center rounded-md [&_svg]:size-4 [&_svg]:shrink-0",
-              size === "compact" && "size-7",
+              "flex size-9 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset ring-black/[0.03] [&_svg]:size-[18px] [&_svg]:shrink-0 dark:ring-white/[0.06]",
+              size === "compact" && "size-8 [&_svg]:size-4",
               ICON_CHIP[resolvedStatus],
             )}
             aria-hidden

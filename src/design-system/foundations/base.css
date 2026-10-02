@@ -34,6 +34,11 @@
 
   body {
     background-color: var(--background);
+    /* UI 2.0: um brilho tonal muito sutil no alto do canvas dá profundidade
+       sem competir com os dados; fixo, para não "andar" com a rolagem. */
+    background-image: var(--canvas-glow);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
     color: var(--text-primary);
     min-height: 100dvh;
   }
@@ -108,4 +113,17 @@
   background-size: 200% 100%;
   animation: shimmer 1.6s linear infinite;
   border-radius: var(--radius-sm);
+}
+
+/* Acento de canto (UI 2.0): uma região tonal discreta no canto superior
+   direito de cards estratégicos. Recebe a cor por --accent-tone. */
+@utility hfm-corner-accent {
+  background-image: radial-gradient(180px 120px at 100% 0%, var(--accent-tone, rgb(31 75 147 / 0.08)), transparent 70%);
+}
+
+/* Superfície de nível 2 (controle ou bloco dentro de um card). */
+@utility hfm-inset-surface {
+  background-color: var(--surface-interactive);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
 }

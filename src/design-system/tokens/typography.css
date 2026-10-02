@@ -29,12 +29,15 @@
   /* Etapa 17 — hierarchy roles. Page title › section title › card title ›
      body › label › caption, and the KPI numerals, which are the only sizes
      above the page title and only ever carry a number. */
-  --text-page-title: 26px;   --leading-page-title: 32px;
+  --text-page-title: 28px;   --leading-page-title: 34px;
   --text-section-title: 18px; --leading-section-title: 24px;
   --text-card-title: 15px;   --leading-card-title: 20px;
-  --text-kpi: 30px;          --leading-kpi: 34px;
+  --text-kpi: 31px;          --leading-kpi: 36px;
   --text-kpi-sm: 26px;       --leading-kpi-sm: 30px;
-  --text-kpi-lg: 34px;       --leading-kpi-lg: 38px;
+  --text-kpi-lg: 36px;       --leading-kpi-lg: 40px;
+  /* Cabeçalho de tabela e metadados (UI 2.0). */
+  --text-table-head: 12px;   --leading-table-head: 16px;
+  --text-meta: 11.5px;       --leading-meta: 16px;
 
   --font-weight-regular: 400;
   --font-weight-medium: 500;
@@ -42,6 +45,7 @@
   --font-weight-bold: 700;
 
   --tracking-tight: -0.01em;
+  --tracking-title: -0.018em;
   --tracking-normal: 0;
   --tracking-wide: 0.04em;
   --tracking-kpi: -0.02em;

@@ -19,19 +19,25 @@ import { cn } from "@/lib/cn";
 export const buttonVariants = cva(
   [
     "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap select-none",
-    "rounded-sm font-medium hfm-transition hfm-focus-ring",
+    "rounded-md font-medium hfm-transition hfm-focus-ring",
     "disabled:pointer-events-none disabled:opacity-55",
     "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   ],
   {
     variants: {
       variant: {
-        primary: "bg-primary text-primary-fg hover:bg-primary-hover active:bg-primary-active",
-        secondary: "bg-secondary text-secondary-fg hover:bg-secondary-hover active:bg-secondary-active",
+        // UI 2.0: primário com leve profundidade (sombra com tom da marca e um
+        // filete de luz no topo); secundário é uma superfície elevada — legível
+        // tanto sobre o canvas tonal quanto dentro de um card.
+        primary:
+          "bg-primary text-primary-fg shadow-[0_1px_2px_rgb(15_23_42/0.10),0_4px_10px_-4px_rgb(31_75_147/0.45),inset_0_1px_0_rgb(255_255_255/0.10)] hover:bg-primary-hover active:bg-primary-active",
+        secondary:
+          "border border-border bg-surface-raised text-secondary-fg shadow-xs hover:border-border-strong hover:bg-surface-hover active:bg-secondary",
         outline:
-          "border border-border-strong bg-surface text-fg hover:bg-secondary active:bg-secondary-hover",
-        ghost: "text-fg-secondary hover:bg-secondary hover:text-fg active:bg-secondary-hover",
-        danger: "bg-danger text-danger-fg hover:bg-danger-hover active:bg-danger-active",
+          "border border-border-strong bg-transparent text-fg hover:bg-hover-overlay active:bg-secondary",
+        ghost: "text-fg-secondary hover:bg-hover-overlay hover:text-fg active:bg-secondary",
+        danger:
+          "bg-danger text-danger-fg shadow-[0_1px_2px_rgb(15_23_42/0.10),0_4px_10px_-4px_rgb(201_54_54/0.45)] hover:bg-danger-hover active:bg-danger-active",
         highlight: "bg-highlight text-highlight-fg hover:bg-highlight-hover active:bg-highlight-hover",
         link: "h-auto px-0 text-link underline-offset-4 hover:text-link-hover hover:underline",
       },
@@ -88,16 +94,16 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
 
 export const iconButtonVariants = cva(
   [
-    "inline-flex shrink-0 items-center justify-center rounded-sm hfm-transition hfm-focus-ring",
+    "inline-flex shrink-0 items-center justify-center rounded-md hfm-transition hfm-focus-ring",
     "disabled:pointer-events-none disabled:opacity-55 [&_svg]:shrink-0",
   ],
   {
     variants: {
       variant: {
         primary: "bg-primary text-primary-fg hover:bg-primary-hover active:bg-primary-active",
-        secondary: "bg-secondary text-secondary-fg hover:bg-secondary-hover",
-        outline: "border border-border-strong bg-surface text-fg-secondary hover:bg-secondary hover:text-fg",
-        ghost: "text-fg-secondary hover:bg-secondary hover:text-fg",
+        secondary: "border border-border bg-surface-raised text-fg-secondary shadow-xs hover:bg-surface-hover hover:text-fg",
+        outline: "border border-border-strong bg-transparent text-fg-secondary hover:bg-hover-overlay hover:text-fg",
+        ghost: "text-fg-secondary hover:bg-hover-overlay hover:text-fg",
         danger: "text-danger hover:bg-danger-soft",
       },
       size: {

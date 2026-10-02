@@ -3,31 +3,38 @@
    ========================================================================== */
 
 :root {
-  /* ---- Radius (moderate; no capsule aesthetics) -------------------------- */
+  /* ---- Radius (UI 2.0) ----------------------------------------------------
+     Controles 6–8px, campos 8px, cards 12px, painéis de destaque e modais
+     16px. Nada de cápsulas: arredondado o bastante para parecer produto, não
+     brinquedo. */
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
-  --radius-lg: 10px;
-  --radius-xl: 12px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
   --radius-full: 9999px;
 
-  /* ---- Elevation (discreet; cards rely on borders, not shadows) ----------- */
-  --shadow-xs: 0 1px 2px rgb(16 24 40 / 0.05);
-  --shadow-sm: 0 1px 2px rgb(16 24 40 / 0.06), 0 1px 3px rgb(16 24 40 / 0.08);
-  --shadow-md: 0 4px 12px -2px rgb(16 24 40 / 0.10), 0 2px 4px -2px rgb(16 24 40 / 0.06);
-  --shadow-lg: 0 12px 28px -6px rgb(16 24 40 / 0.16), 0 4px 8px -4px rgb(16 24 40 / 0.06);
-  --shadow-focus: 0 0 0 3px rgb(0 140 203 / 0.28);
-  --shadow-xl: 0 24px 48px -12px rgb(16 24 40 / 0.22), 0 8px 16px -8px rgb(16 24 40 / 0.08);
-  /* Cards at rest: a hairline of depth so the raised surface separates from
-     the canvas without a heavy border. */
-  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.03);
-  --shadow-card-hover: 0 2px 4px rgb(16 24 40 / 0.05), 0 6px 16px -4px rgb(16 24 40 / 0.08);
+  /* ---- Elevation (UI 2.0) -------------------------------------------------
+     Sombras difusas com leve tom da marca, nunca pesadas. Os cards se separam
+     do canvas tonal pela sombra mais do que pela borda.
+     0 canvas · 1 cards, KPIs, chart cards, tabelas · 2 card em hover, barras
+     fixas · 3 popovers, menus, tooltips · 4 dialogs e drawers. */
+  --shadow-xs: 0 1px 2px rgb(15 23 42 / 0.05);
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.05), 0 2px 6px -1px rgb(31 75 147 / 0.07);
+  --shadow-md: 0 10px 28px -8px rgb(15 23 42 / 0.16), 0 2px 6px -2px rgb(15 23 42 / 0.06);
+  --shadow-lg: 0 18px 40px -12px rgb(15 23 42 / 0.20), 0 4px 10px -4px rgb(15 23 42 / 0.06);
+  --shadow-focus: 0 0 0 3px rgb(0 140 203 / 0.26);
+  --shadow-xl: 0 28px 64px -16px rgb(15 23 42 / 0.30), 0 8px 18px -8px rgb(15 23 42 / 0.10);
+  --shadow-overlay: var(--shadow-xl);
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 3px 10px -3px rgb(31 75 147 / 0.08);
+  --shadow-card-hover: 0 2px 4px rgb(15 23 42 / 0.05), 0 14px 30px -10px rgb(31 75 147 / 0.18);
+  /* Controle selecionado (segmento ON, aba em container): leve e com tom. */
+  --shadow-selected: 0 1px 2px rgb(15 23 42 / 0.06), 0 4px 12px -4px rgb(31 75 147 / 0.28);
+  /* Brilho de destaque (KPI estratégico, gauge): quase imperceptível. */
+  --glow-primary: 0 0 0 1px rgb(31 75 147 / 0.06), 0 8px 24px -12px rgb(31 75 147 / 0.35);
+  --glow-highlight: 0 8px 24px -14px rgb(244 178 35 / 0.55);
 
-  /* ---- Elevation scale (Etapa 17) -----------------------------------------
-     0 canvas and flat regions · 1 cards, KPIs, chart cards, tables ·
-     2 hovered cards and sticky bars · 3 popovers, menus, tooltips ·
-     4 dialogs and drawers. Borders carry the hierarchy in dark mode, where
-     shadows barely read; the scale stays the same. */
   --elevation-0: none;
   --elevation-1: var(--shadow-card);
   --elevation-2: var(--shadow-card-hover);
@@ -96,12 +103,17 @@
 }
 
 .dark {
+  /* No escuro a sombra quase não se lê: a hierarquia vem da borda e de um
+     filete de luz no topo de cada superfície elevada. */
   --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.30);
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.35), 0 1px 3px rgb(0 0 0 / 0.30);
-  --shadow-md: 0 4px 14px -2px rgb(0 0 0 / 0.45), 0 2px 4px -2px rgb(0 0 0 / 0.30);
-  --shadow-lg: 0 14px 32px -8px rgb(0 0 0 / 0.60), 0 4px 10px -4px rgb(0 0 0 / 0.40);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.32), 0 2px 6px -1px rgb(0 0 0 / 0.30);
+  --shadow-md: 0 12px 30px -8px rgb(0 0 0 / 0.55), 0 2px 6px -2px rgb(0 0 0 / 0.35), inset 0 1px 0 rgb(255 255 255 / 0.04);
+  --shadow-lg: 0 18px 40px -10px rgb(0 0 0 / 0.60), 0 4px 10px -4px rgb(0 0 0 / 0.40), inset 0 1px 0 rgb(255 255 255 / 0.04);
   --shadow-focus: 0 0 0 3px rgb(56 182 240 / 0.32);
-  --shadow-xl: 0 24px 56px -12px rgb(0 0 0 / 0.65), 0 8px 16px -8px rgb(0 0 0 / 0.45);
-  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.24);
-  --shadow-card-hover: 0 2px 4px rgb(0 0 0 / 0.30), 0 8px 20px -6px rgb(0 0 0 / 0.40);
+  --shadow-xl: 0 28px 64px -14px rgb(0 0 0 / 0.70), 0 8px 18px -8px rgb(0 0 0 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.05);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.28), inset 0 1px 0 rgb(255 255 255 / 0.03);
+  --shadow-card-hover: 0 2px 4px rgb(0 0 0 / 0.32), 0 12px 28px -10px rgb(0 0 0 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.05);
+  --shadow-selected: 0 1px 2px rgb(0 0 0 / 0.35), 0 6px 16px -6px rgb(63 115 207 / 0.55);
+  --glow-primary: 0 0 0 1px rgb(108 157 224 / 0.10), 0 10px 28px -14px rgb(63 115 207 / 0.55);
+  --glow-highlight: 0 10px 28px -16px rgb(244 178 35 / 0.45);
 }

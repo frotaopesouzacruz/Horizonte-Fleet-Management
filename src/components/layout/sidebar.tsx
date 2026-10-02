@@ -30,10 +30,10 @@ function SidebarItem({ item, collapsed, onNavigate }: { item: NavItem; collapsed
   const content = (
     <span
       className={cn(
-        "relative flex h-(--sidebar-item-height) items-center gap-2.5 rounded-sm text-body-sm hfm-transition",
+        "relative flex h-(--sidebar-item-height) items-center gap-2.5 rounded-md text-body-sm hfm-transition",
         collapsed ? "w-10 justify-center px-0" : "px-2.5",
         active
-          ? "bg-primary-soft font-semibold text-primary-soft-fg"
+          ? "bg-primary-soft font-semibold text-primary-soft-fg ring-1 ring-inset ring-border-emphasis/50"
           : item.planned
             ? "font-medium text-fg-disabled"
             : "font-medium text-fg-secondary hover:bg-hover-overlay hover:text-fg",

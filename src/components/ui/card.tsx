@@ -18,9 +18,13 @@ export const cardVariants = cva("relative flex flex-col rounded-lg bg-surface-ra
       default: "border border-border shadow-card",
       outlined: "border border-border",
       elevated: "border border-border shadow-card-hover",
+      /** Nível 2: bloco dentro de outro card (tiles, controles agrupados). */
+      inset: "border border-border-subtle bg-surface-interactive shadow-none",
+      /** Estado selecionado (card escolhido numa lista de opções). */
+      selected: "border border-border-emphasis bg-surface-selected shadow-selected",
       interactive: [
         "border border-border shadow-card hfm-transition hfm-focus-ring cursor-pointer",
-        "hover:border-border-strong hover:shadow-card-hover",
+        "hover:-translate-y-px hover:border-border-emphasis hover:shadow-card-hover",
         "after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:bg-hover-overlay after:opacity-0",
         "after:transition-opacity after:duration-(--duration-base) hover:after:opacity-100",
       ],
@@ -29,13 +33,38 @@ export const cardVariants = cva("relative flex flex-col rounded-lg bg-surface-ra
   defaultVariants: { variant: "default" },
 });
 
+/** Acento do card: linha superior de 2px + canto tonal. Só quando há significado. */
+export type CardAccent = "primary" | "accent" | "highlight" | "success" | "warning" | "danger" | "info";
+
+const CARD_ACCENT_LINE: Record<CardAccent, string> = {
+  primary: "bg-primary",
+  accent: "bg-accent",
+  highlight: "bg-highlight",
+  success: "bg-success",
+  warning: "bg-warning",
+  danger: "bg-danger",
+  info: "bg-info",
+};
+
+const CARD_ACCENT_TONE: Record<CardAccent, string> = {
+  primary: "[--accent-tone:rgb(31_75_147/0.07)]",
+  accent: "[--accent-tone:rgb(0_140_203/0.08)]",
+  highlight: "[--accent-tone:rgb(244_178_35/0.12)]",
+  success: "[--accent-tone:rgb(26_132_85/0.08)]",
+  warning: "[--accent-tone:rgb(194_124_14/0.10)]",
+  danger: "[--accent-tone:rgb(201_54_54/0.08)]",
+  info: "[--accent-tone:rgb(11_118_173/0.08)]",
+};
+
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof cardVariants> {
   /** Render the child element (e.g. Next.js Link) instead of a <div>. */
   asChild?: boolean;
+  /** Acento discreto (linha superior + canto tonal) para cards estratégicos. */
+  accent?: CardAccent;
 }
 
 export const Card = React.forwardRef<HTMLDivElement, CardProps>(function Card(
-  { className, variant, asChild = false, onClick, onKeyDown, tabIndex, role, ...props },
+  { className, variant, asChild = false, accent, onClick, onKeyDown, tabIndex, role, children, ...props },
   ref,
 ) {
   const Comp = asChild ? Slot : "div";
@@ -56,13 +85,23 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(function Card(
   return (
     <Comp
       ref={ref}
-      className={cn(cardVariants({ variant }), className)}
+      data-accent={accent}
+      className={cn(
+        cardVariants({ variant }),
+        accent && ["overflow-hidden hfm-corner-accent", CARD_ACCENT_TONE[accent]],
+        className,
+      )}
       onClick={onClick}
       onKeyDown={handleKeyDown}
       role={role ?? (clickableDiv ? "button" : undefined)}
       tabIndex={tabIndex ?? (clickableDiv ? 0 : undefined)}
       {...props}
-    />
+    >
+      {accent && !asChild ? (
+        <span aria-hidden className={cn("pointer-events-none absolute inset-x-0 top-0 h-0.5", CARD_ACCENT_LINE[accent])} />
+      ) : null}
+      {children}
+    </Comp>
   );
 });
 

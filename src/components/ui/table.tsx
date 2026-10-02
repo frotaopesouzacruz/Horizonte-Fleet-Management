@@ -61,7 +61,7 @@ export const TableContainer = React.forwardRef<HTMLDivElement, TableContainerPro
     <TableContext.Provider value={context}>
       <div
         ref={ref}
-        className={cn("relative w-full overflow-auto rounded-md border border-border bg-surface", className)}
+        className={cn("relative w-full overflow-auto rounded-lg border border-border bg-surface shadow-card", className)}
         style={resolvedMaxHeight ? { ...style, maxHeight: resolvedMaxHeight } : style}
         {...props}
       >
@@ -114,7 +114,7 @@ export const TableHeader = React.forwardRef<HTMLTableSectionElement, TableHeader
       ref={ref}
       data-sticky={isSticky || undefined}
       className={cn(
-        "bg-surface-secondary text-caption font-semibold text-fg-secondary",
+        "bg-surface-secondary text-table-head font-semibold tracking-[0.01em] text-fg-secondary",
         "[&_tr]:h-(--table-header-height) [&_tr]:border-b [&_tr]:border-border [&_tr:hover]:bg-transparent",
         isSticky && [
           // `relative` used to be added here to anchor the ::after rule below.
@@ -179,8 +179,8 @@ export const TableRow = React.forwardRef<HTMLTableRowElement, TableRowProps>(fun
       data-state={selected ? "selected" : undefined}
       aria-selected={selected}
       className={cn(
-        "h-10 border-b border-border-subtle hfm-transition",
-        "hover:bg-hover-overlay data-[state=selected]:bg-selected-overlay",
+        "h-11 border-b border-border-subtle hfm-transition",
+        "hover:bg-surface-hover data-[state=selected]:bg-selected-overlay data-[state=selected]:shadow-[inset_3px_0_0_var(--primary)]",
         className,
       )}
       {...props}
