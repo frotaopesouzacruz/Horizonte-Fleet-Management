@@ -109,7 +109,7 @@ Nenhum texto abaixo de 11px. Numerais de tabela à direita com `tabular-nums`.
 |---|---|---|
 | `PageHeader` / `PageHeaderContext` | `components/layout/page-header.tsx` | sobre o canvas; overline com barra dourada; título 28px; `context` (chips de contexto); filtros num **toolbar card** (`data-slot="page-toolbar"`); abas acima ou abaixo |
 | `SectionHeader` | `components/layout/section-header.tsx` | abre um nível da narrativa; ícone em chip |
-| `Sidebar` (`SidebarItem`, `SidebarBranch`) | `components/layout/sidebar.tsx` | 248px expandida / 68px recolhida com tooltip; ativo com anel e barra; submenus com linha-guia; pai realçado quando o filho está ativo |
+| `Sidebar` (`SidebarItem`, `SidebarBranch`) | `components/layout/sidebar.tsx` | 248px expandida / 68px recolhida com tooltip; ativo com anel e barra; submenus com linha-guia; o ramo abre sozinho na tela do item ou numa subtela (fora dele, vale a escolha da pessoa) e o pai fica realçado quando o filho está ativo |
 | `Card` | `components/ui/card.tsx` | variantes `default`, `outlined`, `elevated`, `inset`, `selected`, `interactive`; `accent` (linha superior + canto) |
 | `KpiCard` / `MetricStrip` / `TrendIndicator` | `components/ui/kpi-card.tsx` | rótulo overline, ícone em chip 36px, número protagonista (nunca encolhe), sparkline que cede espaço, rodapé com delta, comparação (até 2 linhas) e meta; `MetricStrip` sem células vazias |
 | `Tabs` | `components/ui/tabs.tsx` | `underline` (telas do módulo), `segmented` (alternâncias), `container` (sub-abas em cartão); rolagem lateral com bordas esmaecidas e setas; aba ativa entra na área visível |
