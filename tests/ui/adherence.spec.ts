@@ -332,6 +332,52 @@ test.describe("aderência", () => {
     expect(crashes).toEqual([]);
   });
 
+  test("governança: histórico de Check List — planilha modelo gerada do catálogo publicado", async ({ page }) => {
+    const crashes: string[] = [];
+    page.on("pageerror", (error) => crashes.push(error.message));
+    await page.goto(`${PREVIEW}?aba=governanca`);
+
+    const card = page.getByTestId("adherence-history-import");
+    await expect(card.getByRole("heading", { name: "Histórico de Check List" })).toBeVisible();
+    await expect(card.getByTestId("adherence-history-catalog")).toContainText("Versão 2.0: 6 perguntas");
+    await expect(card.getByTestId("adherence-history-apply-exclusions")).toBeVisible();
+
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      card.getByTestId("adherence-history-template").click(),
+    ]);
+    expect(download.suggestedFilename()).toBe("modelo-historico-check-list.xlsx");
+    const file = await download.path();
+    expect(file).toBeTruthy();
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(file!);
+    const ws = wb.getWorksheet("Histórico");
+    expect(ws).toBeTruthy();
+    const headers: string[] = [];
+    ws!.getRow(1).eachCell((c) => headers.push(String(c.value ?? "")));
+    expect(headers.slice(0, 8)).toEqual(["Placa", "Frota", "Data", "Contexto", "Status", "Matrícula", "Motorista", "Justificativa"]);
+    expect(headers).toContain("A frota está limpa externamente?");
+    expect(headers).toContain("Descreva a avaria identificada.");
+    // rótulo repetido ganha a pergunta para não haver ambiguidade
+    expect(headers).toContain("Qual lado apresenta falha? — As luzes de freio estão funcionando?");
+    expect(headers).toContain("Qual lado apresenta falha? — As luzes de ré estão funcionando?");
+    expect(wb.getWorksheet("Instruções")).toBeTruthy();
+    const lists = wb.getWorksheet("Listas");
+    expect(lists).toBeTruthy();
+    const texts: string[] = [];
+    lists!.eachRow((row) => row.eachCell((c) => texts.push(String(c.value ?? ""))));
+    expect(texts).toContain("Fez Check List");
+    expect(texts).toContain("Sem Rota");
+    expect(texts).toContain("N/A");
+
+    // o histórico de importações distingue o tipo e resume o lote do histórico
+    await expect(page.getByText("historico-check-list-2026.xlsx")).toBeVisible();
+    await expect(page.getByText("Histórico de Check List", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText(/9\.410 execuções · 8\.469 expurgos · 332 solicitações/)).toBeVisible();
+    expect(crashes).toEqual([]);
+  });
+
   test("governança: o histórico de importações lista os lotes e abre os erros por linha", async ({ page }) => {
     const crashes: string[] = [];
     page.on("pageerror", (error) => crashes.push(error.message));

@@ -3,7 +3,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { AdherenceView, type AdherenceTab } from "@/app/(app)/checklist/aderencia/adherence-view";
 import type { ChecklistContext } from "@/lib/adherence/queries";
 import {
-  COMPETENCE, COVERAGE, HEATMAP, HEATMAP_NEXT, HEATMAP_PREV, IMPORT_HISTORY, INSIGHTS, JOURNEY, LEADERS,
+  COMPETENCE, COVERAGE, HEATMAP, HEATMAP_NEXT, HEATMAP_PREV, HISTORY_LAYOUT, IMPORT_HISTORY, INSIGHTS, JOURNEY, LEADERS,
   MATRIX, MONTHLY, OPERATIONS, OPTIONS, REQUESTS, RETURN_TRACKING, SUMMARY, TODAY,
 } from "./fixture";
 
@@ -40,7 +40,7 @@ export default async function PreviewPage({ searchParams }: { searchParams: Prom
   const day = first(params, "dia") ?? TODAY;
 
   return (
-    <AppShell permissions={["adherence.view", "adherence.request", "adherence.approve", "adherence.override", "adherence.reconcile", "adherence.manage_targets", "adherence.manage_rules", "adherence.view_audit"]}>
+    <AppShell permissions={["adherence.view", "adherence.request", "adherence.approve", "adherence.override", "adherence.reconcile", "adherence.manage_targets", "adherence.manage_rules", "adherence.view_audit", "adherence.import"]}>
       <AdherenceView
         basePath="/dev/preview-aderencia"
         context={context}
@@ -70,6 +70,7 @@ export default async function PreviewPage({ searchParams }: { searchParams: Prom
         requestFilters={{}}
         returnTracking={RETURN_TRACKING}
         importHistory={IMPORT_HISTORY}
+        historyLayout={HISTORY_LAYOUT}
         perms={{ request: true, approve: true, override: true, bulk: true, reconcile: true, import: true, export: true, manageTargets: true, manageRules: true, viewAudit: true }}
       />
     </AppShell>

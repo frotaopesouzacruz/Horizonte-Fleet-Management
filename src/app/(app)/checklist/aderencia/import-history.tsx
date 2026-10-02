@@ -3,6 +3,7 @@
 import * as React from "react";
 import { ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/feedback/empty-state";
 import {
@@ -14,6 +15,8 @@ import { formatDateTimeBr, formatInt } from "./status";
 export interface ImportHistoryProps {
   imports: ImportHistoryRow[];
 }
+
+const num = (v: unknown): number => (typeof v === "number" ? v : v == null ? 0 : Number(v) || 0);
 
 function statusOf(status: string): { label: string; tone: "success" | "danger" | "neutral" | "pending" } {
   switch (status) {
@@ -53,6 +56,7 @@ export function ImportHistory({ imports }: ImportHistoryProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead>Arquivo</TableHead>
+                  <TableHead>Tipo</TableHead>
                   <TableHead>Data</TableHead>
                   <TableHead>Responsável</TableHead>
                   <TableHead className="text-right">Linhas</TableHead>
@@ -73,6 +77,16 @@ export function ImportHistory({ imports }: ImportHistoryProps) {
                       <TableRow>
                         <TableCell>
                           <span className="font-medium text-fg">{b.fileName ?? "Arquivo sem nome"}</span>
+                          {b.type === "checklist_history" && b.status === "completed" ? (
+                            <span className="block text-caption text-fg-muted">
+                              {formatInt(num(b.summary.executions_created))} execuções · {formatInt(num(b.summary.overrides_applied))} expurgos · {formatInt(num(b.summary.requests_created))} solicitações
+                            </span>
+                          ) : null}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={b.type === "checklist_history" ? "primary" : "neutral"} size="sm">
+                            {b.type === "checklist_history" ? "Histórico de Check List" : "Status diário"}
+                          </Badge>
                         </TableCell>
                         <TableCell className="text-caption tabular-nums text-fg-muted">{formatDateTimeBr(b.createdAt)}</TableCell>
                         <TableCell className="text-fg-muted">{b.createdByName ?? "—"}</TableCell>
@@ -86,7 +100,7 @@ export function ImportHistory({ imports }: ImportHistoryProps) {
                       </TableRow>
                       {hasErrors ? (
                         <TableRow className="hover:bg-transparent">
-                          <TableCell colSpan={10} className="py-1.5">
+                          <TableCell colSpan={11} className="py-1.5">
                             <details className="group/errors">
                               <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-xs text-caption text-fg-muted hfm-focus-ring hover:text-fg">
                                 <ChevronRight className="size-3.5 transition-transform group-open/errors:rotate-90" aria-hidden />

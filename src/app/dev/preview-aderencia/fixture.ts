@@ -1,3 +1,4 @@
+import type { ChecklistHistoryLayout } from "@/lib/adherence/history-import-columns";
 import type {
   AdherenceInsights, AdherenceMonthly, AdherenceOptions, AdherenceSummary, HeatmapDay, ImportHistoryRow, JourneyRow, MatrixPage, MatrixRow, RequestsPage, ReturnTracking,
 } from "@/lib/adherence/queries";
@@ -283,7 +284,13 @@ export const RETURN_TRACKING: ReturnTracking = {
 /** Histórico de importações (§67): um lote limpo e um com duas linhas rejeitadas. */
 export const IMPORT_HISTORY: ImportHistoryRow[] = [
   {
-    id: "imp2", fileName: "aderencia_setembro_v2.xlsx", status: "completed", totalRows: 120, validRows: 116, warningRows: 2, errorRows: 2,
+    id: "imp3", type: "checklist_history", fileName: "historico-check-list-2026.xlsx", status: "completed", totalRows: 19842, validRows: 18100, warningRows: 1690, errorRows: 52,
+    createdRows: 18211, skippedRows: 1631, summary: { date_from: "2026-01-01", date_to: "2026-08-31", executions_created: 9410, overrides_applied: 8469, requests_created: 332, no_change: 1527, answers_created: 366990 },
+    errorMessage: null, createdAt: "2026-10-02T13:10:00Z", processedAt: "2026-10-02T13:24:00Z", createdByName: "Gabriel Albino",
+    errors: [{ row: 5120, message: "Veiculo nao encontrado pela placa nem pela frota. A importacao nao cria veiculos." }],
+  },
+  {
+    id: "imp2", type: "adherence", fileName: "aderencia_setembro_v2.xlsx", status: "completed", totalRows: 120, validRows: 116, warningRows: 2, errorRows: 2,
     createdRows: 110, skippedRows: 6, summary: { dateFrom: "2026-09-01", dateTo: "2026-09-21" }, errorMessage: null,
     createdAt: "2026-09-22T12:40:00Z", processedAt: "2026-09-22T12:40:04Z", createdByName: "Gabriel Albino",
     errors: [
@@ -292,8 +299,36 @@ export const IMPORT_HISTORY: ImportHistoryRow[] = [
     ],
   },
   {
-    id: "imp1", fileName: "aderencia_setembro_v1.xlsx", status: "completed", totalRows: 96, validRows: 96, warningRows: 0, errorRows: 0,
+    id: "imp1", type: "adherence", fileName: "aderencia_setembro_v1.xlsx", status: "completed", totalRows: 96, validRows: 96, warningRows: 0, errorRows: 0,
     createdRows: 96, skippedRows: 0, summary: { dateFrom: "2026-09-01", dateTo: "2026-09-15" }, errorMessage: null,
     createdAt: "2026-09-16T09:05:00Z", processedAt: "2026-09-16T09:05:03Z", createdByName: "Gabriel Albino", errors: [],
   },
 ];
+
+/** Catálogo publicado (recorte) para o modelo do histórico de Check List. */
+export const HISTORY_LAYOUT: ChecklistHistoryLayout = {
+  version: { id: "v2", label: "2.0" },
+  canOverride: true,
+  statuses: [
+    { code: "FEZ", label: "Fez Check List", description: "Checklist realizado no dia: vira execução oficial com as respostas informadas." },
+    { code: "NAO_FEZ", label: "Não Fez Check List", description: "Dia devido sem checklist. Nada é gravado: é o padrão do motor." },
+    { code: "SEM_ROTA", label: "Sem Rota", description: "Expurgo: o veículo não tinha rota na data." },
+    { code: "MANUTENCAO", label: "Manutenção", description: "Expurgo: o veículo estava em manutenção." },
+    { code: "EM_VIAGEM", label: "Em Viagem", description: "Expurgo: veículo em viagem, sem saída ou retorno local." },
+    { code: "RESERVA", label: "Frota Reserva", description: "Expurgo: veículo reserva não escalado." },
+    { code: "FROTA_NAO_ATIVA", label: "Frota não ativa", description: "Expurgo: veículo fora de operação na data." },
+    { code: "OUTROS", label: "Outros", description: "Expurgo por outro motivo; informe a justificativa." },
+  ],
+  questions: [
+    { questionKey: "5s.limpeza_externa", clusterKey: "5s", clusterName: "5S", text: "A frota está limpa externamente?", conformingAnswer: "yes", criticality: "media", conditional: null },
+    { questionKey: "funilaria.avaria", clusterKey: "funilaria", clusterName: "Funilaria", text: "Possui alguma avaria? Exemplo: amassado, arranhão, quebra ou dano aparente.", conformingAnswer: "no", criticality: "media",
+      conditional: { fieldKey: "descricao_avaria", label: "Descreva a avaria identificada.", fieldType: "text", triggerAnswer: "yes", options: [] } },
+    { questionKey: "luzes.freio", clusterKey: "luzes", clusterName: "Luzes e Sinalização", text: "As luzes de freio estão funcionando?", conformingAnswer: "yes", criticality: "critica",
+      conditional: { fieldKey: "lado_falha", label: "Qual lado apresenta falha?", fieldType: "single_select", triggerAnswer: "no", options: [{ label: "Esquerdo", value: "esquerdo" }, { label: "Direito", value: "direito" }] } },
+    { questionKey: "luzes.re", clusterKey: "luzes", clusterName: "Luzes e Sinalização", text: "As luzes de ré estão funcionando?", conformingAnswer: "yes", criticality: "media",
+      conditional: { fieldKey: "lado_falha", label: "Qual lado apresenta falha?", fieldType: "single_select", triggerAnswer: "no", options: [{ label: "Esquerdo", value: "esquerdo" }, { label: "Direito", value: "direito" }] } },
+    { questionKey: "mecanica.problema_mecanico", clusterKey: "mecanica", clusterName: "Mecânica", text: "A frota apresenta algum problema mecânico? Exemplo: câmbio, embreagem, motor ou ruído anormal.", conformingAnswer: "no", criticality: "critica",
+      conditional: { fieldKey: "descricao_problema", label: "Descreva o problema mecânico identificado.", fieldType: "text", triggerAnswer: "yes", options: [] } },
+    { questionKey: "pneus.dianteiros", clusterKey: "pneus", clusterName: "Pneus", text: "Os pneus dianteiros estão em boas condições?", conformingAnswer: "yes", criticality: "critica", conditional: null },
+  ],
+};

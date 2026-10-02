@@ -276,7 +276,7 @@ reprocessamentos, eventos de avaria pendentes, falhas recentes, série diária.
 
 | Módulo | Integração |
 |---|---|
-| Check List de Frota | fonte única (evento do outbox; sem fotos ou anexos; nenhum formulário novo) |
+| Check List de Frota | fonte única (evento do outbox; sem fotos ou anexos; nenhum formulário novo). As execuções importadas pelo histórico da Aderência (`source = 'import'`) entram pelo mesmo evento: inconformidades históricas viram apontamentos com a data operacional original (prazo contado dela) |
 | Manutenção | abertura pelo assistente oficial, vínculo N:N, resolução pelos apontamentos da manutenção, gatilhos de situação |
 | Cadastro de Frotas | aba "Planos de ação" na gaveta do veículo (ativos, ciclos, reincidências, manutenções) |
 | BRs, Fidelização, Lideranças | contexto histórico congelado do checklist (BR, operação, cidade, liderança da data); trocas posteriores não movem o plano (T101) |

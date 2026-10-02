@@ -3,6 +3,8 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { Competence } from "@/lib/governance/competence";
 import type { Json } from "@/types/database.types";
+import type { ChecklistHistoryLayout } from "./history-import-columns";
+import { parseChecklistHistoryLayout } from "./history-layout";
 
 /**
  * Leituras da Aderência (Etapa 11).
@@ -1188,6 +1190,8 @@ export async function getAdherenceInsights(
 // ---------------------------------------------------------------------------
 export interface ImportHistoryRow {
   id: string;
+  /** `adherence` (status diário) ou `checklist_history` (histórico de Check List). */
+  type: string;
   fileName: string | null;
   status: string;
   totalRows: number;
@@ -1209,12 +1213,21 @@ export async function listAdherenceImportHistory(organizationId: string, limit =
   const { data, error } = await supabase.rpc("adherence_import_history", { p_organization_id: organizationId, p_limit: limit });
   if (error) throw new Error(error.message);
   return arr(data).map((b) => ({
-    id: str(b.id), fileName: strOrNull(b.file_name), status: str(b.status), totalRows: num(b.total_rows), validRows: num(b.valid_rows),
+    id: str(b.id), type: str(b.type) || "adherence", fileName: strOrNull(b.file_name), status: str(b.status), totalRows: num(b.total_rows), validRows: num(b.valid_rows),
     warningRows: num(b.warning_rows), errorRows: num(b.error_rows), createdRows: num(b.created_rows), skippedRows: num(b.skipped_rows),
     summary: obj(b.summary), errorMessage: strOrNull(b.error_message), createdAt: str(b.created_at), processedAt: strOrNull(b.processed_at),
     createdByName: strOrNull(b.created_by_name),
     errors: arr(b.errors).map((e) => ({ row: num(e.row), message: str(e.message) })),
   }));
+}
+
+/** Catálogo publicado do Check List para o modelo e a importação do histórico (`checklist_history_import_layout`). */
+export async function getChecklistHistoryLayout(organizationId: string): Promise<ChecklistHistoryLayout> {
+  const supabase = await createClient();
+  const { data, error } = await (supabase.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>)(
+    "checklist_history_import_layout", { p_organization_id: organizationId });
+  if (error) throw new Error(error.message);
+  return parseChecklistHistoryLayout(data);
 }
 
 export type { Json };

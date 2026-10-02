@@ -51,6 +51,8 @@ export interface GovernancePanelProps {
   onChanged: () => void;
   /** Seção de importação, injetada para a prévia não depender dela. */
   importSection?: React.ReactNode;
+  /** Importação do histórico de Check List (modelo + pipeline). */
+  historyImportSection?: React.ReactNode;
   /** Histórico de importações (§67). */
   importHistory?: ImportHistoryRow[];
 }
@@ -60,7 +62,7 @@ export interface GovernancePanelProps {
  * (§26, §28, §36). Nada aqui reprocessa sem prévia e sem motivo, e nada aqui
  * muda um Perfil de Acesso.
  */
-export function GovernancePanel({ options, operations, perms, today, competence, onChanged, importSection, importHistory = [] }: GovernancePanelProps) {
+export function GovernancePanel({ options, operations, perms, today, competence, onChanged, importSection, historyImportSection, importHistory = [] }: GovernancePanelProps) {
   const router = useRouter();
   const { toast } = useToast();
   const confirm = useConfirm();
@@ -153,6 +155,7 @@ export function GovernancePanel({ options, operations, perms, today, competence,
 
   return (
     <div className="flex flex-col gap-5">
+      {historyImportSection}
       {importSection}
 
       {perms.reconcile ? (

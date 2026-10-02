@@ -24,6 +24,7 @@ import {
   type JourneyRow,
   type RequestsPage,
   type ReturnTracking,
+  getChecklistHistoryLayout,
 } from "@/lib/adherence/queries";
 import { AdherenceView, type AdherenceTab } from "./adherence-view";
 
@@ -115,7 +116,7 @@ export default async function AdherencePage({ searchParams }: { searchParams: Pr
 
   const [
     summary, heatmap, matrix, journey, requests, governance, leaders, filterOptions,
-    monthly, insights, returnTracking, importHistory, heatmapPrev, heatmapNext,
+    monthly, insights, returnTracking, importHistory, heatmapPrev, heatmapNext, historyLayout,
   ] = await Promise.all([
     getAdherenceSummary(orgId, from, to, context, filters, groupBy),
     getAdherenceHeatmap(orgId, competence, context, filters),
@@ -133,6 +134,8 @@ export default async function AdherencePage({ searchParams }: { searchParams: Pr
       ? listAdherenceImportHistory(orgId) : Promise.resolve([] as ImportHistoryRow[])).catch(() => [] as ImportHistoryRow[]),
     getAdherenceHeatmap(orgId, prevCompetence, context, filters).catch(() => []),
     getAdherenceHeatmap(orgId, nextCompetence, context, filters).catch(() => []),
+    (session.isPlatformAdmin || session.permissions.includes("adherence.import")
+      ? getChecklistHistoryLayout(orgId) : Promise.resolve(null)).catch(() => null),
   ]);
 
   const has = (code: string) => session.isPlatformAdmin || session.permissions.includes(code);
@@ -154,6 +157,7 @@ export default async function AdherencePage({ searchParams }: { searchParams: Pr
       insights={insights}
       returnTracking={returnTracking}
       importHistory={importHistory}
+      historyLayout={historyLayout}
       matrix={matrix}
       journey={journey}
       requests={requests}

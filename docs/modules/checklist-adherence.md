@@ -248,9 +248,43 @@ oficial, expurgo aprovado ou solicitação pendente; nunca toca em perfis de
 acesso. O mesmo arquivo (hash) é reconhecido e não duplica.
 
 `adherence_import_history` (`adherence.import` ou `adherence.view_audit`)
-lista os lotes do módulo com totais (linhas, válidas, avisos, erros, criadas,
-ignoradas), responsável e os erros por linha (até 50), para a seção
-"Histórico de importações".
+lista os lotes do módulo — status diário (`adherence`) e histórico de Check
+List (`checklist_history`) — com o tipo, totais (linhas, válidas, avisos,
+erros, criadas, ignoradas), responsável e os erros por linha (até 50), para a
+seção "Histórico de importações".
+
+### 12.1 Histórico de Check List (`checklist_history`)
+
+A planilha modelo (botão "Baixar planilha modelo" em Importação e
+reconciliação, gerada no navegador a partir de `checklist_history_import_layout`)
+tem uma linha por placa e dia: Placa, Frota, Data, Contexto (Saída/Retorno),
+Status, Matrícula, Motorista, Justificativa e, na ordem do formulário
+publicado, uma coluna por pergunta (Sim/Não/N/A) seguida do seu campo
+condicional (rótulo; com o texto da pergunta quando o rótulo se repete).
+As abas Instruções e Listas trazem as regras, os status e as opções aceitas.
+O arquivo do HFC "11_Check List" (coluna Usuario = motorista, "0" = campo
+vazio, opções separadas por ";") é lido sem ajustes além dos cabeçalhos
+repetidos.
+
+Status do dia → o que a importação grava (`stage_checklist_history_import` /
+`process_checklist_history_import`, em partes, sem teto de linhas):
+
+| Status | Resultado |
+|---|---|
+| Fez Check List, com colaborador cadastrado (matrícula ou nome) e respostas | **Execução oficial** do Check List de Frota (`checklist_executions` com `source = 'import'`, `import_batch_id`, chave `hist:<veículo>:<dia>:<contexto>`), respostas com conformidade por pergunta, clusters e o **mesmo evento do outbox** do aplicativo: a Aderência concilia (FEZ_CHECKLIST) e os Planos de Ação ingerem as inconformidades. Perguntas N/A não contam como aplicáveis; perguntas sem coluna ficam sem resposta. |
+| Fez Check List sem colaborador cadastrado ou sem respostas | Solicitação **pendente** de execução comprovada (`count_done`), com a referência do arquivo como evidência — a decisão é humana; as respostas não entram. A prévia lista os colaboradores não encontrados. |
+| Não Fez Check List | Nada é gravado (padrão do motor). |
+| Sem Rota, Manutenção, Em Viagem, Frota Reserva, Frota não ativa, Outros | Com `adherence.override` e a opção "aplicar expurgos" ligada: exceção autorizada (`is_override`, `source = 'import'`, decidida pelo importador — a correção administrativa da tela, em lote). Caso contrário: solicitação pendente. |
+
+Antes das linhas, o processamento gera as obrigações do período mês a mês
+com o mesmo gerador da reconciliação (`private.adherence_generate`, sem
+aposentar nada), para que "Não fez" e os expurgos tenham onde se apoiar. O
+contexto operacional de cada execução é o da data (Fidelização → alocação do
+cadastro, liderança do Planner). Linhas sem obrigação (veículo não previsto
+ou tipo sem obrigação) são ignoradas com aviso; placa ou status desconhecidos
+viram inconsistência; reimportar o mesmo dia da mesma placa não duplica
+(`already_imported`), e um dia que já tem checklist do aplicativo não é
+sobrescrito (`already_done`). Nunca cria veículo, colaborador ou pergunta.
 
 ## 13. RBAC e RLS
 
@@ -439,7 +473,7 @@ construído nesta etapa, sem segundo motor e sem cadastro paralelo:
 | Decisão de solicitações em lote com prévia | `decide_adherence_requests_bulk` · Solicitações |
 | Seleção de múltiplos dias na matriz | `adherence_select_obligations` + `bulk_adherence_override` · Mês/Dia |
 | Filtro por situação da justificativa | `adherence_obligations_filtered.justification` · filtros |
-| Histórico de importações | `adherence_import_history` · Importação |
+| Histórico de importações | `adherence_import_history` · Importação · Histórico de Check List (`checklist_history_import_layout`, `stage_checklist_history_import`, `process_checklist_history_import`) |
 | Exportação XLSX/CSV auditada | `log_adherence_export` · `/checklist/aderencia/export` |
 | Substituição de veículo sem duplicar denominador | `private.adherence_planned_fleet` (vínculo `planned`) e atualização de contexto em `private.adherence_generate` |
 

@@ -29,6 +29,8 @@ import { RequestsPanel, RequestsOverviewPanel } from "./requests-panel";
 import { GovernancePanel } from "./governance-panel";
 import { ObligationDrawer } from "./obligation-drawer";
 import { ImportSection } from "./import-section";
+import { HistoryImportSection } from "./history-import-section";
+import type { ChecklistHistoryLayout } from "@/lib/adherence/history-import-columns";
 
 export type AdherenceTab =
   | "consolidada" | "heatmap" | "matriz" | "jornada" | "expurgos" | "solicitacoes" | "governanca";
@@ -80,6 +82,8 @@ export interface AdherenceViewProps {
   returnTracking?: ReturnTracking | null;
   /** Histórico de importações (§67). */
   importHistory?: ImportHistoryRow[];
+  /** Catálogo publicado do Check List (modelo e importação do histórico); nulo sem permissão de importar. */
+  historyLayout?: ChecklistHistoryLayout | null;
   matrix: MatrixPage;
   journey: JourneyRow[];
   requests: RequestsPage | null;
@@ -111,7 +115,7 @@ export type Navigate = (patch: Record<string, string | null>) => void;
  */
 export function AdherenceView({
   context, competence, today, day, tab, groupBy, summary, heatmap, heatmapPrev = [], heatmapNext = [],
-  monthly = null, dashboardYear, insights = null, returnTracking = null, importHistory = [],
+  monthly = null, dashboardYear, insights = null, returnTracking = null, importHistory = [], historyLayout = null,
   matrix, journey, requests,
   options, operations, coverage, leaders, branches, vehicleTypes, filters, requestFilters, perms,
   basePath = "/checklist/aderencia",
@@ -463,7 +467,8 @@ export function AdherenceView({
           <TabsContent value="governanca">
             <GovernancePanel options={options} operations={operations} perms={perms} today={today}
               competence={competence} onChanged={refresh} importHistory={importHistory}
-              importSection={perms.import && basePath === "/checklist/aderencia" ? <ImportSection onChanged={refresh} /> : undefined} />
+              importSection={perms.import && basePath === "/checklist/aderencia" ? <ImportSection onChanged={refresh} /> : undefined}
+              historyImportSection={perms.import && historyLayout ? <HistoryImportSection layout={historyLayout} onChanged={refresh} /> : undefined} />
           </TabsContent>
         </Tabs>
       </PageContent>
