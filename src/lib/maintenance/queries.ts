@@ -8,6 +8,7 @@ import {
   camelize,
   DEFAULT_SETTINGS,
   type ChecklistFinding,
+  type HierarchyLevel,
   type HierarchyNode,
   type MaintenanceCatalog,
   type MaintenanceDashboard,
