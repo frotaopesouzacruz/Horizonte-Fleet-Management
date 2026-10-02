@@ -10,10 +10,25 @@ import {
   type MaintenanceViewData,
 } from "@/app/(app)/frota/manutencao/shared";
 import type { MaintenanceTab } from "@/lib/maintenance/types";
-import { firstParam, parseMaintenanceFilters, type SearchParamsLike } from "@/lib/maintenance/url";
 import {
-  BASE_PAGE, CATALOG, DASHBOARD, HIERARCHY, IMPORT_HISTORY, OPTIONS, PARAMETERS, PREDICTIVE, PREVENTIVE,
-  SCHEDULE_KPIS, SCHEDULE_PAGE, TODAY,
+  firstParam,
+  parseHierarchyLevels,
+  parseMaintenanceFilters,
+  type SearchParamsLike,
+} from "@/lib/maintenance/url";
+import {
+  BASE_PAGE,
+  CATALOG,
+  DASHBOARD,
+  hierarchyFixture,
+  IMPORT_HISTORY,
+  OPTIONS,
+  PARAMETERS,
+  PREDICTIVE,
+  PREVENTIVE,
+  SCHEDULE_KPIS,
+  SCHEDULE_PAGE,
+  TODAY,
 } from "./fixture";
 
 /**
@@ -27,19 +42,35 @@ import {
  * `?perfil=lideranca` renderiza com as permissões padrão da Liderança de
  * Operações (sem Cadastros de gestão, sem Importações, sem Exportar).
  */
-export const metadata = { title: "Preview · Manutenção", robots: { index: false, follow: false } };
+export const metadata = {
+  title: "Preview · Manutenção",
+  robots: { index: false, follow: false },
+};
 
 export const dynamic = "force-dynamic";
 
 const enabled =
-  process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_ENABLE_DEV_PAGES === "1";
+  process.env.NODE_ENV !== "production" ||
+  process.env.NEXT_PUBLIC_ENABLE_DEV_PAGES === "1";
 
-const LEADERSHIP = ["maintenance.view", "maintenance.view_dashboard", "maintenance.view_base", "maintenance.create"];
+const LEADERSHIP = [
+  "maintenance.view",
+  "maintenance.view_dashboard",
+  "maintenance.view_base",
+  "maintenance.create",
+];
 
-export default async function PreviewPage({ searchParams }: { searchParams: Promise<SearchParamsLike> }) {
+export default async function PreviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParamsLike>;
+}) {
   if (!enabled) notFound();
   const params = await searchParams;
-  const granted = firstParam(params, "perfil") === "lideranca" ? LEADERSHIP : Object.values(PERMISSION_CODES);
+  const granted =
+    firstParam(params, "perfil") === "lideranca"
+      ? LEADERSHIP
+      : Object.values(PERMISSION_CODES);
   const perms = buildPerms((code) => granted.includes(code));
   const tabs = visibleTabs(perms);
   const requested = firstParam(params, "aba") as MaintenanceTab | undefined;
@@ -55,17 +86,27 @@ export default async function PreviewPage({ searchParams }: { searchParams: Prom
     options: OPTIONS,
     perms,
     dashboard: DASHBOARD,
-    schedule: { kpis: SCHEDULE_KPIS, page: SCHEDULE_PAGE, list: { sort: "scheduled", dir: "asc", page: 1, pageSize: 50 } },
+    schedule: {
+      kpis: SCHEDULE_KPIS,
+      page: SCHEDULE_PAGE,
+      list: { sort: "scheduled", dir: "asc", page: 1, pageSize: 50 },
+    },
     preventive: { matrix: PREVENTIVE, filters: { situation: "active" } },
     predictive: { overview: PREDICTIVE, filters: {} },
     base: {
-      view: firstParam(params, "visao") === "hierarquia" ? "hierarquia" : "tabela",
+      view:
+        firstParam(params, "visao") === "hierarquia" ? "hierarquia" : "tabela",
       page: BASE_PAGE,
-      hierarchy: HIERARCHY,
+      hierarchy: hierarchyFixture(
+        BASE_PAGE.rows,
+        parseHierarchyLevels(firstParam(params, "niveis")),
+      ),
       list: { sort: "reference", dir: "desc", page: 1, pageSize: 50 },
+      levels: parseHierarchyLevels(firstParam(params, "niveis")),
     },
     cadastros: {
-      section: section && CATALOG_SECTIONS.includes(section) ? section : "clusters",
+      section:
+        section && CATALOG_SECTIONS.includes(section) ? section : "clusters",
       parameters: PARAMETERS,
     },
     importacoes: { history: IMPORT_HISTORY },

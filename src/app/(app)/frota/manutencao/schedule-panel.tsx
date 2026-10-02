@@ -18,6 +18,7 @@ import {
   MapPin,
   Plus,
   Timer,
+  Truck,
   Wrench,
   X,
 } from "lucide-react";
@@ -26,7 +27,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { KpiCard, type KpiStatus } from "@/components/ui/kpi-card";
 import { statusTone } from "@/components/ui/status-badge";
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { ErrorState } from "@/components/feedback/error-state";
 import { MaintenanceTypeBadge } from "@/components/maintenance/badges";
@@ -47,7 +56,12 @@ import {
   type ScheduleQueue,
 } from "@/lib/maintenance/types";
 import { SORT_LABEL } from "./maintenance-table";
-import type { ListState, MaintenancePerms, MaintenanceViewData, PanelActions } from "./shared";
+import type {
+  ListState,
+  MaintenancePerms,
+  MaintenanceViewData,
+  PanelActions,
+} from "./shared";
 
 /**
  * Programação & execução — o funil do dia a dia.
@@ -66,7 +80,9 @@ export interface SchedulePanelProps {
   actions: PanelActions;
 }
 
-type CardFilter = { kind: "status"; status: MaintenanceStatus } | { kind: "queue"; queue: ScheduleQueue };
+type CardFilter =
+  | { kind: "status"; status: MaintenanceStatus }
+  | { kind: "queue"; queue: ScheduleQueue };
 
 interface CardDef {
   id: string;
@@ -79,7 +95,10 @@ interface CardDef {
   tone: (n: number) => KpiStatus;
 }
 
-const alert = (tone: KpiStatus) => (n: number): KpiStatus => (n > 0 ? tone : "neutral");
+const alert =
+  (tone: KpiStatus) =>
+  (n: number): KpiStatus =>
+    n > 0 ? tone : "neutral";
 
 const CARDS: CardDef[] = [
   {
@@ -107,7 +126,7 @@ const CARDS: CardDef[] = [
     icon: <Wrench />,
     value: (k) => k.inProgress,
     period: () => "com entrada registrada",
-    tone: () => "accent",
+    tone: () => "progress",
   },
   {
     id: "scheduled_today",
@@ -202,7 +221,10 @@ function QueueCard({
         period={
           active ? (
             <>
-              <span className="font-semibold text-primary-soft-fg">Filtrando a lista</span> · {period}
+              <span className="font-semibold text-primary-soft-fg">
+                Filtrando a lista
+              </span>{" "}
+              · {period}
             </>
           ) : (
             period
@@ -228,7 +250,14 @@ function QueueCard({
 // ---------------------------------------------------------------------------
 
 /** Ordem do funil; o que vier fora dela (ex.: um filtro de situação) entra depois. */
-const FUNNEL: MaintenanceStatus[] = ["to_schedule", "scheduled", "in_progress", "completed", "not_performed", "cancelled"];
+const FUNNEL: MaintenanceStatus[] = [
+  "to_schedule",
+  "scheduled",
+  "in_progress",
+  "completed",
+  "not_performed",
+  "cancelled",
+];
 
 const BOARD_TITLE: Record<MaintenanceStatus, string> = {
   to_schedule: "Há agendar",
@@ -246,7 +275,17 @@ const BOARD_HINT: Partial<Record<MaintenanceStatus, string>> = {
   completed: "com saída registrada",
 };
 
-type ColumnKey = "code" | "vehicle" | "services" | "supplier" | "requested" | "scheduled" | "entry" | "exit" | "age" | "duration";
+type ColumnKey =
+  | "code"
+  | "vehicle"
+  | "services"
+  | "supplier"
+  | "requested"
+  | "scheduled"
+  | "entry"
+  | "exit"
+  | "age"
+  | "duration";
 
 interface BoardColumn {
   key: ColumnKey;
@@ -275,35 +314,98 @@ function boardColumns(status: MaintenanceStatus): BoardColumn[] {
     { key: "services", label: "Serviços" },
     { key: "supplier", label: "Fornecedor", width: 156 },
   ];
-  const requested: BoardColumn = { key: "requested", label: "Solicitação", width: 128, sort: "requested" };
-  const scheduled: BoardColumn = { key: "scheduled", label: "Agendamento", width: 148, sort: "scheduled", strong: true };
-  const entry: BoardColumn = { key: "entry", label: "Entrada", width: 148, sort: "entry" };
-  const exit = (label: string, width = 168): BoardColumn => ({ key: "exit", label, width, sort: "exit", strong: true });
-  const age = (hint: string): BoardColumn => ({ key: "age", label: "Aberta há", width: 92, numeric: true, hint });
+  const requested: BoardColumn = {
+    key: "requested",
+    label: "Solicitação",
+    width: 128,
+    sort: "requested",
+  };
+  const scheduled: BoardColumn = {
+    key: "scheduled",
+    label: "Agendamento",
+    width: 148,
+    sort: "scheduled",
+    strong: true,
+  };
+  const entry: BoardColumn = {
+    key: "entry",
+    label: "Entrada",
+    width: 148,
+    sort: "entry",
+  };
+  const exit = (label: string, width = 168): BoardColumn => ({
+    key: "exit",
+    label,
+    width,
+    sort: "exit",
+    strong: true,
+  });
+  const age = (hint: string): BoardColumn => ({
+    key: "age",
+    label: "Aberta há",
+    width: 92,
+    numeric: true,
+    hint,
+  });
   switch (status) {
     case "to_schedule":
-      return [...base, { ...requested, strong: true }, age("Dias desde a solicitação")];
+      return [
+        ...base,
+        { ...requested, strong: true },
+        age("Dias desde a solicitação"),
+      ];
     case "scheduled":
-      return [...base, scheduled, exit("Previsão de saída"), age("Dias desde a solicitação")];
+      return [
+        ...base,
+        scheduled,
+        exit("Previsão de saída"),
+        age("Dias desde a solicitação"),
+      ];
     case "in_progress":
-      return [...base, entry, exit("Previsão de saída"), age("Dias desde a entrada na oficina")];
+      return [
+        ...base,
+        entry,
+        exit("Previsão de saída"),
+        age("Dias desde a entrada na oficina"),
+      ];
     case "completed":
       return [
         ...base,
         entry,
         exit("Saída", 148),
-        { key: "duration", label: "TMM", width: 100, sort: "duration", numeric: true, hint: "Tempo de manutenção: da entrada real à saída real" },
+        {
+          key: "duration",
+          label: "TMM",
+          width: 100,
+          sort: "duration",
+          numeric: true,
+          hint: "Tempo de manutenção: da entrada real à saída real",
+        },
       ];
     default:
-      return [...base, requested, { ...scheduled, strong: false }, entry, { ...exit("Saída / previsão"), strong: false }];
+      return [
+        ...base,
+        requested,
+        { ...scheduled, strong: false },
+        entry,
+        { ...exit("Saída / previsão"), strong: false },
+      ];
   }
+}
+
+interface VehicleGroup {
+  key: string;
+  label: string;
+  missing: boolean;
+  rows: MaintenanceRow[];
 }
 
 interface CityGroup {
   key: string;
   label: string;
   missing: boolean;
-  rows: MaintenanceRow[];
+  total: number;
+  vehicles: VehicleGroup[];
 }
 
 interface OperationGroup {
@@ -316,15 +418,34 @@ interface OperationGroup {
   cities: CityGroup[];
 }
 
-const collator = new Intl.Collator("pt-BR", { sensitivity: "base", numeric: true });
-const byLabel = (a: { label: string; missing: boolean }, b: { label: string; missing: boolean }) =>
+const collator = new Intl.Collator("pt-BR", {
+  sensitivity: "base",
+  numeric: true,
+});
+const byLabel = (
+  a: { label: string; missing: boolean },
+  b: { label: string; missing: boolean },
+) =>
   Number(a.missing) - Number(b.missing) || collator.compare(a.label, b.label);
 
-/** Operação → Cidade/UF, na ordem alfabética; "Sem operação" e "Sem cidade" por último. A ordem das linhas é a do servidor. */
+/**
+ * Operação → Cidade/UF → Placa, em ordem alfabética; "Sem operação", "Sem
+ * cidade" e "Sem placa" por último. A placa é o último agrupamento: todas as
+ * manutenções de uma frota nesta situação ficam juntas, lidas de uma vez. A
+ * ordem das linhas dentro da placa é a do servidor.
+ */
 function groupByLocation(rows: MaintenanceRow[]): OperationGroup[] {
-  const ops = new Map<string, OperationGroup & { cityMap: Map<string, CityGroup> }>();
+  type CityBuild = Omit<CityGroup, "vehicles"> & {
+    vehicleMap: Map<string, VehicleGroup>;
+  };
+  const ops = new Map<
+    string,
+    Omit<OperationGroup, "cities"> & { cityMap: Map<string, CityBuild> }
+  >();
   for (const row of rows) {
-    const opKey = row.operationId ?? (row.operationName ? `n:${row.operationName}` : "none");
+    const opKey =
+      row.operationId ??
+      (row.operationName ? `n:${row.operationName}` : "none");
     let op = ops.get(opKey);
     if (!op) {
       op = {
@@ -334,7 +455,6 @@ function groupByLocation(rows: MaintenanceRow[]): OperationGroup[] {
         total: 0,
         lateEntry: 0,
         exitOverdue: 0,
-        cities: [],
         cityMap: new Map(),
       };
       ops.set(opKey, op);
@@ -343,7 +463,12 @@ function groupByLocation(rows: MaintenanceRow[]): OperationGroup[] {
     if (row.lateEntry) op.lateEntry += 1;
     if (row.exitOverdue) op.exitOverdue += 1;
 
-    const cityKey = row.cityId != null ? `c:${row.cityId}` : row.cityName ? `n:${row.cityName}/${row.stateUf ?? ""}` : `uf:${row.stateUf ?? ""}`;
+    const cityKey =
+      row.cityId != null
+        ? `c:${row.cityId}`
+        : row.cityName
+          ? `n:${row.cityName}/${row.stateUf ?? ""}`
+          : `uf:${row.stateUf ?? ""}`;
     let city = op.cityMap.get(cityKey);
     if (!city) {
       city = {
@@ -354,32 +479,69 @@ function groupByLocation(rows: MaintenanceRow[]): OperationGroup[] {
             ? `Sem cidade (${row.stateUf})`
             : "Sem cidade",
         missing: !row.cityName,
-        rows: [],
+        total: 0,
+        vehicleMap: new Map(),
       };
       op.cityMap.set(cityKey, city);
     }
-    city.rows.push(row);
+    city.total += 1;
+
+    const vehicleKey = `v:${row.vehicleId}`;
+    let vehicle = city.vehicleMap.get(vehicleKey);
+    if (!vehicle) {
+      vehicle = {
+        key: vehicleKey,
+        label:
+          row.licensePlate || row.fleetCode
+            ? vehicleLabel(row.licensePlate, row.fleetCode)
+            : "Sem placa",
+        missing: !row.licensePlate && !row.fleetCode,
+        rows: [],
+      };
+      city.vehicleMap.set(vehicleKey, vehicle);
+    }
+    vehicle.rows.push(row);
   }
   return [...ops.values()]
-    .map(({ cityMap, ...op }) => ({ ...op, cities: [...cityMap.values()].sort(byLabel) }))
+    .map(({ cityMap, ...op }) => ({
+      ...op,
+      cities: [...cityMap.values()]
+        .map(({ vehicleMap, ...city }) => ({
+          ...city,
+          vehicles: [...vehicleMap.values()].sort(byLabel),
+        }))
+        .sort(byLabel),
+    }))
     .sort(byLabel);
 }
 
-const plural = (n: number, one: string, many: string) => `${formatInt(n)} ${n === 1 ? one : many}`;
+const plural = (n: number, one: string, many: string) =>
+  `${formatInt(n)} ${n === 1 ? one : many}`;
 
 const dash = <span className="text-fg-muted">—</span>;
 
-function Two({ main, sub, title }: { main: React.ReactNode; sub?: React.ReactNode; title?: string }) {
+function Two({
+  main,
+  sub,
+  title,
+}: {
+  main: React.ReactNode;
+  sub?: React.ReactNode;
+  title?: string;
+}) {
   return (
     <div className="flex min-w-0 flex-col" title={title}>
       <span className="truncate">{main}</span>
-      {sub ? <span className="truncate text-caption text-fg-muted">{sub}</span> : null}
+      {sub ? (
+        <span className="truncate text-caption text-fg-muted">{sub}</span>
+      ) : null}
     </div>
   );
 }
 
 function ServicesCell({ row }: { row: MaintenanceRow }) {
-  if (row.items.length === 0) return <span className="text-fg-muted">Sem serviços</span>;
+  if (row.items.length === 0)
+    return <span className="text-fg-muted">Sem serviços</span>;
   const [first, ...rest] = row.items;
   const clusters = [...new Set(row.items.map((i) => i.cluster))];
   const full = row.items.map((i) => `${i.cluster}: ${i.service}`).join("\n");
@@ -390,24 +552,30 @@ function ServicesCell({ row }: { row: MaintenanceRow }) {
         {rest.length > 0 ? (
           <Badge variant="neutral" size="sm" className="tabular-nums">
             <span aria-hidden>+{rest.length}</span>
-            <span className="sr-only">e mais: {rest.map((i) => i.service).join(", ")}</span>
+            <span className="sr-only">
+              e mais: {rest.map((i) => i.service).join(", ")}
+            </span>
           </Badge>
         ) : null}
       </span>
-      <span className="truncate text-caption text-fg-muted">{clusters.join(" · ")}</span>
+      <span className="truncate text-caption text-fg-muted">
+        {clusters.join(" · ")}
+      </span>
     </div>
   );
 }
 
 function SupplierCell({ row }: { row: MaintenanceRow }) {
-  if (!row.supplierName && !row.supplierNameInformed && !row.serviceOrderNumber) return dash;
+  if (!row.supplierName && !row.supplierNameInformed && !row.serviceOrderNumber)
+    return dash;
   return (
     <Two
       main={
         row.supplierName ??
         (row.supplierNameInformed ? (
           <span className="text-fg-secondary">
-            {row.supplierNameInformed} <span className="text-fg-muted">(fora do catálogo)</span>
+            {row.supplierNameInformed}{" "}
+            <span className="text-fg-muted">(fora do catálogo)</span>
           </span>
         ) : (
           <span className="text-fg-muted">Sem fornecedor</span>
@@ -415,7 +583,10 @@ function SupplierCell({ row }: { row: MaintenanceRow }) {
       }
       sub={row.serviceOrderNumber ? `OS ${row.serviceOrderNumber}` : undefined}
       title={[
-        row.supplierName ?? (row.supplierNameInformed ? `${row.supplierNameInformed} (informado na importação, fora do catálogo)` : null),
+        row.supplierName ??
+          (row.supplierNameInformed
+            ? `${row.supplierNameInformed} (informado na importação, fora do catálogo)`
+            : null),
         row.serviceOrderNumber ? `OS ${row.serviceOrderNumber}` : null,
       ]
         .filter(Boolean)
@@ -425,17 +596,32 @@ function SupplierCell({ row }: { row: MaintenanceRow }) {
 }
 
 const LateEntryBadge = () => (
-  <Badge variant="warning" appearance="outline" size="sm" title="Agendada para uma data que já passou, sem entrada registrada">
+  <Badge
+    variant="warning"
+    appearance="outline"
+    size="sm"
+    title="Agendada para uma data que já passou, sem entrada registrada"
+  >
     Entrada atrasada
   </Badge>
 );
 const ExitOverdueBadge = () => (
-  <Badge variant="danger" appearance="outline" size="sm" title="Em execução com a previsão de saída já vencida">
+  <Badge
+    variant="danger"
+    appearance="outline"
+    size="sm"
+    title="Em execução com a previsão de saída já vencida"
+  >
     Saída vencida
   </Badge>
 );
 const ReopenBadge = ({ count }: { count: number }) => (
-  <Badge variant="neutral" appearance="outline" size="sm" title={`Reaberta ${count} vez(es)`}>
+  <Badge
+    variant="neutral"
+    appearance="outline"
+    size="sm"
+    title={`Reaberta ${count} vez(es)`}
+  >
     Reaberta{count > 1 ? ` ${count}×` : ""}
   </Badge>
 );
@@ -455,7 +641,13 @@ function DurationValue({ row }: { row: MaintenanceRow }) {
   if (row.durationHours == null) return dash;
   const approx = row.durationPrecision === "date";
   return (
-    <span title={approx ? "Aproximado: calculado só pelas datas, sem a hora de entrada ou de saída" : "Entrada e saída reais"}>
+    <span
+      title={
+        approx
+          ? "Aproximado: calculado só pelas datas, sem a hora de entrada ou de saída"
+          : "Entrada e saída reais"
+      }
+    >
       {approx ? (
         <>
           <span aria-hidden>≈ </span>
@@ -468,11 +660,23 @@ function DurationValue({ row }: { row: MaintenanceRow }) {
 }
 
 /** Data com o alerta que ela explica logo abaixo (entrada atrasada, saída vencida). */
-function DateCell({ value, alertBadge, danger }: { value: string | null; alertBadge?: React.ReactNode; danger?: boolean }) {
+function DateCell({
+  value,
+  alertBadge,
+  danger,
+}: {
+  value: string | null;
+  alertBadge?: React.ReactNode;
+  danger?: boolean;
+}) {
   if (!value && !alertBadge) return dash;
   return (
     <div className="flex min-w-0 flex-col items-start gap-0.5">
-      <span className={cn("truncate tabular-nums", danger && "text-danger-soft-fg")}>{value ?? "—"}</span>
+      <span
+        className={cn("truncate tabular-nums", danger && "text-danger-soft-fg")}
+      >
+        {value ?? "—"}
+      </span>
       {alertBadge}
     </div>
   );
@@ -485,7 +689,12 @@ function exitValue(row: MaintenanceRow, column: BoardColumn) {
   return column.label === "Saída / previsão" ? `Prev. ${value}` : value;
 }
 
-function renderCell(column: BoardColumn, row: MaintenanceRow, keys: Set<ColumnKey>, open: (id: string) => void) {
+function renderCell(
+  column: BoardColumn,
+  row: MaintenanceRow,
+  keys: Set<ColumnKey>,
+  open: (id: string) => void,
+) {
   switch (column.key) {
     case "code": {
       // Alerta cuja data não está neste quadro vai para junto do código.
@@ -507,7 +716,9 @@ function renderCell(column: BoardColumn, row: MaintenanceRow, keys: Set<ColumnKe
           </button>
           <span className="flex flex-wrap items-center gap-1">
             <MaintenanceTypeBadge type={row.type} name={row.typeName} />
-            {row.reopenCount > 0 ? <ReopenBadge count={row.reopenCount} /> : null}
+            {row.reopenCount > 0 ? (
+              <ReopenBadge count={row.reopenCount} />
+            ) : null}
             {orphanLate ? <LateEntryBadge /> : null}
             {orphanExit ? <ExitOverdueBadge /> : null}
           </span>
@@ -517,9 +728,15 @@ function renderCell(column: BoardColumn, row: MaintenanceRow, keys: Set<ColumnKe
     case "vehicle":
       return (
         <Two
-          main={<span className="font-medium text-fg">{vehicleLabel(row.licensePlate, row.fleetCode)}</span>}
+          main={
+            <span className="font-medium text-fg">
+              {vehicleLabel(row.licensePlate, row.fleetCode)}
+            </span>
+          }
           sub={row.leaderName ?? undefined}
-          title={[vehicleLabel(row.licensePlate, row.fleetCode), row.leaderName].filter(Boolean).join(" · ")}
+          title={[vehicleLabel(row.licensePlate, row.fleetCode), row.leaderName]
+            .filter(Boolean)
+            .join(" · ")}
         />
       );
     case "services":
@@ -527,16 +744,30 @@ function renderCell(column: BoardColumn, row: MaintenanceRow, keys: Set<ColumnKe
     case "supplier":
       return <SupplierCell row={row} />;
     case "requested":
-      return row.requestedOn ? <span className="tabular-nums">{formatDate(row.requestedOn)}</span> : dash;
+      return row.requestedOn ? (
+        <span className="tabular-nums">{formatDate(row.requestedOn)}</span>
+      ) : (
+        dash
+      );
     case "scheduled":
       return (
         <DateCell
-          value={row.scheduledDate ? formatDateTime(row.scheduledDate, row.scheduledTime) : null}
+          value={
+            row.scheduledDate
+              ? formatDateTime(row.scheduledDate, row.scheduledTime)
+              : null
+          }
           alertBadge={row.lateEntry ? <LateEntryBadge /> : null}
         />
       );
     case "entry":
-      return row.entryDate ? <span className="whitespace-nowrap tabular-nums">{formatDateTime(row.entryDate, row.entryTime)}</span> : dash;
+      return row.entryDate ? (
+        <span className="whitespace-nowrap tabular-nums">
+          {formatDateTime(row.entryDate, row.entryTime)}
+        </span>
+      ) : (
+        dash
+      );
     case "exit":
       return (
         <DateCell
@@ -553,21 +784,35 @@ function renderCell(column: BoardColumn, row: MaintenanceRow, keys: Set<ColumnKe
 }
 
 /** Rótulo e valor de uma coluna de data/tempo, para o cartão do celular. */
-function cardField(column: BoardColumn, row: MaintenanceRow): { label: string; value: React.ReactNode } | null {
+function cardField(
+  column: BoardColumn,
+  row: MaintenanceRow,
+): { label: string; value: React.ReactNode } | null {
   switch (column.key) {
     case "requested":
       return { label: "Solicitação", value: formatDate(row.requestedOn) };
     case "scheduled":
-      return { label: "Agendamento", value: formatDateTime(row.scheduledDate, row.scheduledTime) };
+      return {
+        label: "Agendamento",
+        value: formatDateTime(row.scheduledDate, row.scheduledTime),
+      };
     case "entry":
-      return { label: "Entrada", value: formatDateTime(row.entryDate, row.entryTime) };
+      return {
+        label: "Entrada",
+        value: formatDateTime(row.entryDate, row.entryTime),
+      };
     case "exit":
       return {
         label: row.exitDate ? "Saída" : "Previsão de saída",
-        value: row.exitDate ? formatDateTime(row.exitDate, row.exitTime) : formatDateTime(row.expectedExitDate, row.expectedExitTime),
+        value: row.exitDate
+          ? formatDateTime(row.exitDate, row.exitTime)
+          : formatDateTime(row.expectedExitDate, row.expectedExitTime),
       };
     case "age":
-      return { label: "Aberta há", value: row.ageDays == null ? "—" : `${formatInt(row.ageDays)} d` };
+      return {
+        label: "Aberta há",
+        value: row.ageDays == null ? "—" : `${formatInt(row.ageDays)} d`,
+      };
     case "duration":
       return { label: "TMM", value: <DurationValue row={row} /> };
     default:
@@ -585,7 +830,7 @@ function GroupToggle({
   extra,
   className,
 }: {
-  level: "operation" | "city";
+  level: "operation" | "city" | "vehicle";
   label: string;
   missing: boolean;
   count: number;
@@ -595,6 +840,8 @@ function GroupToggle({
   className?: string;
 }) {
   const Chevron = expanded ? ChevronDown : ChevronRight;
+  const LevelIcon =
+    level === "city" ? MapPin : level === "vehicle" ? Truck : null;
   return (
     <button
       type="button"
@@ -606,12 +853,25 @@ function GroupToggle({
       )}
     >
       <Chevron className="size-4 shrink-0 text-fg-muted" aria-hidden />
-      {level === "city" ? <MapPin className="size-3.5 shrink-0 text-fg-muted" aria-hidden /> : null}
-      <span className="sr-only">{level === "operation" ? "Operação" : "Cidade"}: </span>
+      {LevelIcon ? (
+        <LevelIcon className="size-3.5 shrink-0 text-fg-muted" aria-hidden />
+      ) : null}
+      <span className="sr-only">
+        {level === "operation"
+          ? "Operação"
+          : level === "city"
+            ? "Cidade"
+            : "Placa"}
+        :{" "}
+      </span>
       <span
         className={cn(
           "truncate",
-          level === "operation" ? "font-semibold text-fg" : "font-medium text-fg-secondary",
+          level === "operation"
+            ? "font-semibold text-fg"
+            : level === "city"
+              ? "font-medium text-fg-secondary"
+              : "font-medium text-fg tabular-nums",
           missing && "text-fg-muted italic",
         )}
         title={label}
@@ -620,7 +880,10 @@ function GroupToggle({
       </span>
       <Badge variant="neutral" size="sm" className="shrink-0 tabular-nums">
         {formatInt(count)}
-        <span className="sr-only"> {count === 1 ? "manutenção" : "manutenções"}</span>
+        <span className="sr-only">
+          {" "}
+          {count === 1 ? "manutenção" : "manutenções"}
+        </span>
       </Badge>
       {extra}
     </button>
@@ -633,12 +896,22 @@ function OperationAlerts({ op }: { op: OperationGroup }) {
   return (
     <span className="hidden shrink-0 items-center gap-1 sm:inline-flex">
       {op.lateEntry ? (
-        <Badge variant="warning" appearance="outline" size="sm" className="tabular-nums">
+        <Badge
+          variant="warning"
+          appearance="outline"
+          size="sm"
+          className="tabular-nums"
+        >
           {plural(op.lateEntry, "entrada atrasada", "entradas atrasadas")}
         </Badge>
       ) : null}
       {op.exitOverdue ? (
-        <Badge variant="danger" appearance="outline" size="sm" className="tabular-nums">
+        <Badge
+          variant="danger"
+          appearance="outline"
+          size="sm"
+          className="tabular-nums"
+        >
           {plural(op.exitOverdue, "saída vencida", "saídas vencidas")}
         </Badge>
       ) : null}
@@ -666,37 +939,71 @@ function StatusBoard({
 
   const groups = React.useMemo(() => groupByLocation(rows), [rows]);
   const columns = React.useMemo(() => boardColumns(status), [status]);
-  const keys = React.useMemo(() => new Set(columns.map((c) => c.key)), [columns]);
-  const minWidth = columns.reduce((sum, c) => sum + (c.width ?? ELASTIC_MIN), 0);
+  const keys = React.useMemo(
+    () => new Set(columns.map((c) => c.key)),
+    [columns],
+  );
+  const minWidth = columns.reduce(
+    (sum, c) => sum + (c.width ?? ELASTIC_MIN),
+    0,
+  );
   const cityCount = groups.reduce((sum, g) => sum + g.cities.length, 0);
-  const collapsible = groups.length > 1 || cityCount > 1;
+  const vehicleCount = groups.reduce(
+    (sum, g) => sum + g.cities.reduce((n, c) => n + c.vehicles.length, 0),
+    0,
+  );
+  const collapsible = groups.length > 1 || cityCount > 1 || vehicleCount > 1;
 
   // Sem escolha explícita: quadro aberto; com muitas operações, só a primeira vem aberta.
   const [boardOpen, setBoardOpen] = React.useState(true);
   const [openState, setOpenState] = React.useState<Record<string, boolean>>({});
   const opKey = (op: OperationGroup) => `o:${op.key}`;
-  const cityKey = (op: OperationGroup, city: CityGroup) => `c:${op.key}|${city.key}`;
-  const isOpOpen = (op: OperationGroup, index: number) => openState[opKey(op)] ?? (groups.length <= 3 || index === 0);
-  const isCityOpen = (op: OperationGroup, city: CityGroup) => openState[cityKey(op, city)] ?? true;
-  const toggle = (key: string, current: boolean) => setOpenState((s) => ({ ...s, [key]: !current }));
+  const cityKey = (op: OperationGroup, city: CityGroup) =>
+    `c:${op.key}|${city.key}`;
+  const vehicleKey = (
+    op: OperationGroup,
+    city: CityGroup,
+    vehicle: VehicleGroup,
+  ) => `${cityKey(op, city)}|${vehicle.key}`;
+  const isOpOpen = (op: OperationGroup, index: number) =>
+    openState[opKey(op)] ?? (groups.length <= 3 || index === 0);
+  const isCityOpen = (op: OperationGroup, city: CityGroup) =>
+    openState[cityKey(op, city)] ?? true;
+  const isVehicleOpen = (key: string) => openState[key] ?? true;
+  const toggle = (key: string, current: boolean) =>
+    setOpenState((s) => ({ ...s, [key]: !current }));
   const setAll = (value: boolean) =>
     setOpenState(
       Object.fromEntries(
-        groups.flatMap((op) => [[opKey(op), value] as const, ...op.cities.map((c) => [cityKey(op, c), value] as const)]),
+        groups.flatMap((op) => [
+          [opKey(op), value] as const,
+          ...op.cities.flatMap((c) => [
+            [cityKey(op, c), value] as const,
+            ...c.vehicles.map((v) => [vehicleKey(op, c, v), value] as const),
+          ]),
+        ]),
       ),
     );
 
-  const onRowClick = (event: React.MouseEvent<HTMLTableRowElement>, id: string) => {
+  const onRowClick = (
+    event: React.MouseEvent<HTMLTableRowElement>,
+    id: string,
+  ) => {
     // Botões dentro da linha têm ação própria.
     const row = event.currentTarget;
-    const own = (event.target as HTMLElement).closest("a, button, input, select, textarea, [tabindex]");
+    const own = (event.target as HTMLElement).closest(
+      "a, button, input, select, textarea, [tabindex]",
+    );
     if (own && own !== row && row.contains(own)) return;
     openMaintenance(id);
   };
-  const onSort = (key: MaintenanceSortKey) => (dir: "asc" | "desc") => navigate({ ordenar: key, dir, pagina: null });
+  const onSort = (key: MaintenanceSortKey) => (dir: "asc" | "desc") =>
+    navigate({ ordenar: key, dir, pagina: null });
 
   const BoardChevron = boardOpen ? ChevronDown : ChevronRight;
-  const cardFields = columns.filter((c) => !["code", "vehicle", "services", "supplier"].includes(c.key));
+  const cardFields = columns.filter(
+    (c) => !["code", "vehicle", "services", "supplier"].includes(c.key),
+  );
 
   return (
     <section
@@ -704,8 +1011,18 @@ function StatusBoard({
       data-testid={`maintenance-schedule-board-${status}`}
       className="relative flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface"
     >
-      <span aria-hidden className={cn("absolute inset-x-0 top-0 h-1", tone.dotClassName)} />
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 pt-3.5 pb-2.5 sm:px-4">
+      <span
+        aria-hidden
+        className={cn("absolute inset-x-0 top-0 h-1", tone.dotClassName)}
+      />
+      {/* Cabeçalho preenchido na cor da situação: o status se lê antes do título,
+          de um quadro para o outro. */}
+      <div
+        className={cn(
+          "flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b px-3 pt-3.5 pb-2.5 sm:px-4",
+          tone.softClassName,
+        )}
+      >
         <div className="flex min-w-0 flex-col">
           <h3 id={titleId} className="text-body font-semibold text-fg">
             <button
@@ -715,27 +1032,59 @@ function StatusBoard({
               onClick={() => setBoardOpen((v) => !v)}
               className="-ml-1 flex min-h-8 items-center gap-2 rounded-xs px-1 text-left hfm-focus-ring hover:bg-hover-overlay"
             >
-              <BoardChevron className="size-4 shrink-0 text-fg-muted" aria-hidden />
-              <span className={cn("size-2.5 shrink-0 rounded-full", tone.dotClassName)} aria-hidden />
+              <BoardChevron
+                className="size-4 shrink-0 text-fg-muted"
+                aria-hidden
+              />
+              <span
+                className={cn(
+                  "size-2.5 shrink-0 rounded-full",
+                  tone.dotClassName,
+                )}
+                aria-hidden
+              />
               <span>{title}</span>
-              <Badge variant="neutral" size="md" className="tabular-nums">
+              <Badge
+                variant={tone.variant}
+                appearance="solid"
+                size="md"
+                className="tabular-nums"
+              >
                 {formatInt(rows.length)}
-                <span className="sr-only"> {rows.length === 1 ? "manutenção" : "manutenções"}</span>
+                <span className="sr-only">
+                  {" "}
+                  {rows.length === 1 ? "manutenção" : "manutenções"}
+                </span>
               </Badge>
             </button>
           </h3>
-          <p className="pl-[2.625rem] text-caption text-fg-muted">
-            {[BOARD_HINT[status], plural(groups.length, "operação", "operações"), plural(cityCount, "cidade", "cidades")]
+          <p className="pl-[2.625rem] text-caption text-fg-secondary">
+            {[
+              BOARD_HINT[status],
+              plural(groups.length, "operação", "operações"),
+              plural(cityCount, "cidade", "cidades"),
+              plural(vehicleCount, "placa", "placas"),
+            ]
               .filter(Boolean)
               .join(" · ")}
           </p>
         </div>
         {boardOpen && collapsible ? (
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" leadingIcon={<ChevronsUpDown />} onClick={() => setAll(true)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              leadingIcon={<ChevronsUpDown />}
+              onClick={() => setAll(true)}
+            >
               Expandir tudo
             </Button>
-            <Button variant="ghost" size="sm" leadingIcon={<ChevronsDownUp />} onClick={() => setAll(false)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              leadingIcon={<ChevronsDownUp />}
+              onClick={() => setAll(false)}
+            >
               Recolher tudo
             </Button>
           </div>
@@ -743,26 +1092,42 @@ function StatusBoard({
       </div>
 
       {boardOpen ? (
-        <div id={bodyId} className="border-t border-border">
-          {/* lg+: uma tabela por quadro, com as linhas de operação e de cidade entre as manutenções. */}
+        <div id={bodyId}>
+          {/* lg+: uma tabela por quadro, com as linhas de operação, cidade e placa entre as manutenções. */}
           <TableContainer
             tabIndex={0}
             stickyHeader
             maxHeight="max(24rem, calc(100dvh - 18rem))"
             className="hidden rounded-none border-0 lg:block"
           >
-            <Table layout="fixed" style={{ minWidth }} aria-label={`${title}: manutenções por operação e cidade`}>
+            <Table
+              layout="fixed"
+              style={{ minWidth }}
+              aria-label={`${title}: manutenções por operação, cidade e placa`}
+            >
               <TableHeader>
                 <TableRow>
                   {columns.map((column, index) => (
                     <TableHead
                       key={column.key}
-                      style={{ width: column.width, left: index === 0 ? 0 : undefined, zIndex: index === 0 ? 21 : undefined }}
-                      className={cn(index === 0 && "sticky border-r border-border bg-surface-secondary", column.strong && "text-fg")}
+                      style={{
+                        width: column.width,
+                        left: index === 0 ? 0 : undefined,
+                        zIndex: index === 0 ? 21 : undefined,
+                      }}
+                      className={cn(
+                        index === 0 &&
+                          "sticky border-r border-border bg-surface-secondary",
+                        column.strong && "text-fg",
+                      )}
                       numeric={column.numeric}
                       title={column.hint}
                       sortable={Boolean(column.sort)}
-                      sortDirection={column.sort && list.sort === column.sort ? list.dir : null}
+                      sortDirection={
+                        column.sort && list.sort === column.sort
+                          ? list.dir
+                          : null
+                      }
                       onSort={column.sort ? onSort(column.sort) : undefined}
                     >
                       {column.label}
@@ -780,7 +1145,10 @@ function StatusBoard({
                         data-level="operation"
                         className="border-b border-border hover:bg-transparent [&>td]:bg-surface-secondary"
                       >
-                        <TableCell colSpan={columns.length} className="px-2 py-1">
+                        <TableCell
+                          colSpan={columns.length}
+                          className="px-2 py-1"
+                        >
                           <div className="sticky left-2 flex w-fit min-w-0 items-center gap-2">
                             <GroupToggle
                               level="operation"
@@ -790,7 +1158,9 @@ function StatusBoard({
                               expanded={opOpen}
                               onToggle={() => toggle(opKey(op), opOpen)}
                             />
-                            <span className="shrink-0 text-caption text-fg-muted">{plural(op.cities.length, "cidade", "cidades")}</span>
+                            <span className="shrink-0 text-caption text-fg-muted">
+                              {plural(op.cities.length, "cidade", "cidades")}
+                            </span>
                             <OperationAlerts op={op} />
                           </div>
                         </TableCell>
@@ -805,43 +1175,113 @@ function StatusBoard({
                                   data-level="city"
                                   className="hover:bg-transparent"
                                 >
-                                  <TableCell colSpan={columns.length} className="py-0.5 pr-2 pl-5">
+                                  <TableCell
+                                    colSpan={columns.length}
+                                    className="py-0.5 pr-2 pl-5"
+                                  >
                                     <GroupToggle
                                       level="city"
                                       label={city.label}
                                       missing={city.missing}
-                                      count={city.rows.length}
+                                      count={city.total}
                                       expanded={cityOpen}
-                                      onToggle={() => toggle(cityKey(op, city), cityOpen)}
+                                      onToggle={() =>
+                                        toggle(cityKey(op, city), cityOpen)
+                                      }
                                       className="sticky left-5 w-fit"
+                                      extra={
+                                        <span className="shrink-0 text-caption text-fg-muted">
+                                          {plural(
+                                            city.vehicles.length,
+                                            "placa",
+                                            "placas",
+                                          )}
+                                        </span>
+                                      }
                                     />
                                   </TableCell>
                                 </TableRow>
                                 {cityOpen
-                                  ? city.rows.map((row) => (
-                                      <TableRow
-                                        key={row.id}
-                                        data-testid="maintenance-row"
-                                        onClick={(event) => onRowClick(event, row.id)}
-                                        className="group h-(--table-row-height) cursor-pointer"
-                                      >
-                                        {columns.map((column, index) => (
-                                          <TableCell
-                                            key={column.key}
-                                            numeric={column.numeric}
-                                            style={{ left: index === 0 ? 0 : undefined, zIndex: index === 0 ? 1 : undefined }}
-                                            className={cn(
-                                              "py-1.5",
-                                              index === 0 &&
-                                                "sticky border-r border-border bg-surface pl-6 after:pointer-events-none after:absolute after:inset-0 after:bg-hover-overlay after:opacity-0 group-hover:after:opacity-100",
-                                              column.strong ? "font-medium text-fg" : "text-fg-secondary",
-                                            )}
+                                  ? city.vehicles.map((vehicle) => {
+                                      const vKey = vehicleKey(
+                                        op,
+                                        city,
+                                        vehicle,
+                                      );
+                                      const vehicleOpen = isVehicleOpen(vKey);
+                                      return (
+                                        <React.Fragment key={vehicle.key}>
+                                          <TableRow
+                                            data-testid="maintenance-schedule-group"
+                                            data-level="vehicle"
+                                            className="hover:bg-transparent"
                                           >
-                                            {renderCell(column, row, keys, openMaintenance)}
-                                          </TableCell>
-                                        ))}
-                                      </TableRow>
-                                    ))
+                                            <TableCell
+                                              colSpan={columns.length}
+                                              className="py-0.5 pr-2 pl-9"
+                                            >
+                                              <GroupToggle
+                                                level="vehicle"
+                                                label={vehicle.label}
+                                                missing={vehicle.missing}
+                                                count={vehicle.rows.length}
+                                                expanded={vehicleOpen}
+                                                onToggle={() =>
+                                                  toggle(vKey, vehicleOpen)
+                                                }
+                                                className="sticky left-9 w-fit"
+                                              />
+                                            </TableCell>
+                                          </TableRow>
+                                          {vehicleOpen
+                                            ? vehicle.rows.map((row) => (
+                                                <TableRow
+                                                  key={row.id}
+                                                  data-testid="maintenance-row"
+                                                  onClick={(event) =>
+                                                    onRowClick(event, row.id)
+                                                  }
+                                                  className="group h-(--table-row-height) cursor-pointer"
+                                                >
+                                                  {columns.map(
+                                                    (column, index) => (
+                                                      <TableCell
+                                                        key={column.key}
+                                                        numeric={column.numeric}
+                                                        style={{
+                                                          left:
+                                                            index === 0
+                                                              ? 0
+                                                              : undefined,
+                                                          zIndex:
+                                                            index === 0
+                                                              ? 1
+                                                              : undefined,
+                                                        }}
+                                                        className={cn(
+                                                          "py-1.5",
+                                                          index === 0 &&
+                                                            "sticky border-r border-border bg-surface pl-10 after:pointer-events-none after:absolute after:inset-0 after:bg-hover-overlay after:opacity-0 group-hover:after:opacity-100",
+                                                          column.strong
+                                                            ? "font-medium text-fg"
+                                                            : "text-fg-secondary",
+                                                        )}
+                                                      >
+                                                        {renderCell(
+                                                          column,
+                                                          row,
+                                                          keys,
+                                                          openMaintenance,
+                                                        )}
+                                                      </TableCell>
+                                                    ),
+                                                  )}
+                                                </TableRow>
+                                              ))
+                                            : null}
+                                        </React.Fragment>
+                                      );
+                                    })
                                   : null}
                               </React.Fragment>
                             );
@@ -874,72 +1314,140 @@ function StatusBoard({
                       expanded={opOpen}
                       onToggle={() => toggle(opKey(op), opOpen)}
                     />
-                    <span className="text-caption text-fg-muted">{plural(op.cities.length, "cidade", "cidades")}</span>
+                    <span className="text-caption text-fg-muted">
+                      {plural(op.cities.length, "cidade", "cidades")}
+                    </span>
                   </div>
                   {opOpen ? (
                     <div className="flex flex-col gap-2 px-3 pt-1 pb-3">
                       {op.cities.map((city) => {
                         const cityOpen = isCityOpen(op, city);
                         return (
-                          <div key={city.key} data-testid="maintenance-schedule-group-mobile" data-level="city" className="flex flex-col gap-1.5">
+                          <div
+                            key={city.key}
+                            data-testid="maintenance-schedule-group-mobile"
+                            data-level="city"
+                            className="flex flex-col gap-1.5"
+                          >
                             <GroupToggle
                               level="city"
                               label={city.label}
                               missing={city.missing}
-                              count={city.rows.length}
+                              count={city.total}
                               expanded={cityOpen}
-                              onToggle={() => toggle(cityKey(op, city), cityOpen)}
+                              onToggle={() =>
+                                toggle(cityKey(op, city), cityOpen)
+                              }
                               className="-ml-1"
                             />
-                            {cityOpen ? (
-                              <ul className="flex flex-col gap-2" aria-label={`${title} · ${op.label} · ${city.label}`}>
-                                {city.rows.map((row) => (
-                                  <li key={row.id}>
-                                    <button
-                                      type="button"
-                                      data-testid="maintenance-card"
-                                      onClick={() => openMaintenance(row.id)}
-                                      className="flex w-full flex-col gap-2 rounded-md border border-border bg-surface p-3 text-left hfm-transition hover:border-border-strong hfm-focus-ring"
+                            {cityOpen
+                              ? city.vehicles.map((vehicle) => {
+                                  const vKey = vehicleKey(op, city, vehicle);
+                                  const vehicleOpen = isVehicleOpen(vKey);
+                                  return (
+                                    <div
+                                      key={vehicle.key}
+                                      data-testid="maintenance-schedule-group-mobile"
+                                      data-level="vehicle"
+                                      className="flex flex-col gap-1.5 pl-3"
                                     >
-                                      <span className="flex w-full items-start justify-between gap-2">
-                                        <span className="min-w-0">
-                                          <span className="block truncate text-body-sm font-semibold text-fg tabular-nums">{row.code}</span>
-                                          <span className="block truncate text-caption text-fg-secondary">
-                                            {vehicleLabel(row.licensePlate, row.fleetCode)}
-                                            {row.supplierName ? ` · ${row.supplierName}` : ""}
-                                          </span>
-                                        </span>
-                                        <MaintenanceTypeBadge type={row.type} name={row.typeName} />
-                                      </span>
-                                      {row.lateEntry || row.exitOverdue || row.reopenCount > 0 ? (
-                                        <span className="flex flex-wrap items-center gap-1">
-                                          <AlertBadges row={row} />
-                                        </span>
+                                      <GroupToggle
+                                        level="vehicle"
+                                        label={vehicle.label}
+                                        missing={vehicle.missing}
+                                        count={vehicle.rows.length}
+                                        expanded={vehicleOpen}
+                                        onToggle={() =>
+                                          toggle(vKey, vehicleOpen)
+                                        }
+                                        className="-ml-1"
+                                      />
+                                      {vehicleOpen ? (
+                                        <ul
+                                          className="flex flex-col gap-2"
+                                          aria-label={`${title} · ${op.label} · ${city.label} · ${vehicle.label}`}
+                                        >
+                                          {vehicle.rows.map((row) => (
+                                            <li key={row.id}>
+                                              <button
+                                                type="button"
+                                                data-testid="maintenance-card"
+                                                onClick={() =>
+                                                  openMaintenance(row.id)
+                                                }
+                                                className="flex w-full flex-col gap-2 rounded-md border border-border bg-surface p-3 text-left hfm-transition hover:border-border-strong hfm-focus-ring"
+                                              >
+                                                <span className="flex w-full items-start justify-between gap-2">
+                                                  <span className="min-w-0">
+                                                    <span className="block truncate text-body-sm font-semibold text-fg tabular-nums">
+                                                      {row.code}
+                                                    </span>
+                                                    <span className="block truncate text-caption text-fg-secondary">
+                                                      {vehicleLabel(
+                                                        row.licensePlate,
+                                                        row.fleetCode,
+                                                      )}
+                                                      {row.supplierName
+                                                        ? ` · ${row.supplierName}`
+                                                        : ""}
+                                                    </span>
+                                                  </span>
+                                                  <MaintenanceTypeBadge
+                                                    type={row.type}
+                                                    name={row.typeName}
+                                                  />
+                                                </span>
+                                                {row.lateEntry ||
+                                                row.exitOverdue ||
+                                                row.reopenCount > 0 ? (
+                                                  <span className="flex flex-wrap items-center gap-1">
+                                                    <AlertBadges row={row} />
+                                                  </span>
+                                                ) : null}
+                                                {row.items.length ? (
+                                                  <span className="line-clamp-2 text-caption text-fg-secondary">
+                                                    {row.items
+                                                      .map((i) => i.service)
+                                                      .join(" · ")}
+                                                  </span>
+                                                ) : null}
+                                                <span className="grid w-full grid-cols-2 gap-x-3 gap-y-1 text-caption">
+                                                  {cardFields.map((column) => {
+                                                    const field = cardField(
+                                                      column,
+                                                      row,
+                                                    );
+                                                    if (!field) return null;
+                                                    return (
+                                                      <span
+                                                        key={column.key}
+                                                        className="flex min-w-0 flex-col"
+                                                      >
+                                                        <span className="text-fg-muted">
+                                                          {field.label}
+                                                        </span>
+                                                        <span
+                                                          className={cn(
+                                                            "truncate text-fg tabular-nums",
+                                                            column.strong &&
+                                                              "font-semibold",
+                                                          )}
+                                                        >
+                                                          {field.value}
+                                                        </span>
+                                                      </span>
+                                                    );
+                                                  })}
+                                                </span>
+                                              </button>
+                                            </li>
+                                          ))}
+                                        </ul>
                                       ) : null}
-                                      {row.items.length ? (
-                                        <span className="line-clamp-2 text-caption text-fg-secondary">
-                                          {row.items.map((i) => i.service).join(" · ")}
-                                        </span>
-                                      ) : null}
-                                      <span className="grid w-full grid-cols-2 gap-x-3 gap-y-1 text-caption">
-                                        {cardFields.map((column) => {
-                                          const field = cardField(column, row);
-                                          if (!field) return null;
-                                          return (
-                                            <span key={column.key} className="flex min-w-0 flex-col">
-                                              <span className="text-fg-muted">{field.label}</span>
-                                              <span className={cn("truncate text-fg tabular-nums", column.strong && "font-semibold")}>
-                                                {field.value}
-                                              </span>
-                                            </span>
-                                          );
-                                        })}
-                                      </span>
-                                    </button>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : null}
+                                    </div>
+                                  );
+                                })
+                              : null}
                           </div>
                         );
                       })}
@@ -964,17 +1472,22 @@ export function SchedulePanel(props: SchedulePanelProps) {
   const { navigate, pending } = actions;
 
   const activeQueue = filters.queue ?? null;
-  const activeStatus = !activeQueue && filters.status ? (filters.status as MaintenanceStatus) : null;
+  const activeStatus =
+    !activeQueue && filters.status
+      ? (filters.status as MaintenanceStatus)
+      : null;
   const hasFilter = Boolean(activeQueue || filters.status);
 
   const isActive = (f: CardFilter) =>
     f.kind === "queue" ? activeQueue === f.queue : activeStatus === f.status;
 
-  const clearQueue = () => navigate({ fila: null, situacao: null, pagina: null });
+  const clearQueue = () =>
+    navigate({ fila: null, situacao: null, pagina: null });
 
   const toggle = (f: CardFilter) => {
     if (isActive(f)) return clearQueue();
-    if (f.kind === "queue") navigate({ fila: f.queue, pagina: null, situacao: null });
+    if (f.kind === "queue")
+      navigate({ fila: f.queue, pagina: null, situacao: null });
     else navigate({ situacao: f.status, fila: null, pagina: null });
   };
 
@@ -1001,7 +1514,12 @@ export function SchedulePanel(props: SchedulePanelProps) {
   }, [page]);
 
   const newButton = perms.create ? (
-    <Button size="sm" leadingIcon={<Plus />} onClick={() => actions.openWizard()} data-testid="maintenance-schedule-new">
+    <Button
+      size="sm"
+      leadingIcon={<Plus />}
+      onClick={() => actions.openWizard()}
+      data-testid="maintenance-schedule-new"
+    >
       Nova manutenção
     </Button>
   ) : null;
@@ -1022,15 +1540,25 @@ export function SchedulePanel(props: SchedulePanelProps) {
     content = (
       <EmptyState
         variant="panel"
-        title={hasFilter ? "Nenhuma manutenção nesta fila" : "Nenhuma manutenção em aberto"}
+        title={
+          hasFilter
+            ? "Nenhuma manutenção nesta fila"
+            : "Nenhuma manutenção em aberto"
+        }
         description={
           hasFilter
-            ? `Não há manutenções em “${activeQueue ? QUEUE_LABEL[activeQueue] : STATUS_LABEL[filters.status as MaintenanceStatus] ?? filters.status}” para os filtros escolhidos.`
+            ? `Não há manutenções em “${activeQueue ? QUEUE_LABEL[activeQueue] : (STATUS_LABEL[filters.status as MaintenanceStatus] ?? filters.status)}” para os filtros escolhidos.`
             : "Não há manutenções há agendar, agendadas ou em execução para os filtros escolhidos."
         }
         action={
           hasFilter ? (
-            <Button variant="secondary" size="sm" leadingIcon={<X />} onClick={clearQueue} disabled={pending}>
+            <Button
+              variant="secondary"
+              size="sm"
+              leadingIcon={<X />}
+              onClick={clearQueue}
+              disabled={pending}
+            >
               Limpar fila
             </Button>
           ) : (
@@ -1042,7 +1570,10 @@ export function SchedulePanel(props: SchedulePanelProps) {
     );
   } else {
     content = (
-      <div className="flex min-w-0 flex-col gap-4" aria-busy={pending || undefined}>
+      <div
+        className="flex min-w-0 flex-col gap-4"
+        aria-busy={pending || undefined}
+      >
         {page.total > page.rows.length ? (
           <p
             role="status"
@@ -1051,12 +1582,19 @@ export function SchedulePanel(props: SchedulePanelProps) {
           >
             <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
             <span>
-              Mostrando {formatInt(page.rows.length)} de {formatInt(page.total)} manutenções — refine os filtros.
+              Mostrando {formatInt(page.rows.length)} de {formatInt(page.total)}{" "}
+              manutenções — refine os filtros.
             </span>
           </p>
         ) : null}
         {boards.map(([status, rows]) => (
-          <StatusBoard key={status} status={status} rows={rows} list={list} actions={actions} />
+          <StatusBoard
+            key={status}
+            status={status}
+            rows={rows}
+            list={list}
+            actions={actions}
+          />
         ))}
       </div>
     );
@@ -1064,14 +1602,21 @@ export function SchedulePanel(props: SchedulePanelProps) {
 
   return (
     <div className="flex flex-col gap-5" data-testid="maintenance-schedule">
-      <section aria-labelledby="maintenance-schedule-kpis" className="flex flex-col gap-3">
+      <section
+        aria-labelledby="maintenance-schedule-kpis"
+        className="flex flex-col gap-3"
+      >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0">
-            <h2 id="maintenance-schedule-kpis" className="text-h4 font-semibold text-fg">
+            <h2
+              id="maintenance-schedule-kpis"
+              className="text-h4 font-semibold text-fg"
+            >
               Indicadores da programação
             </h2>
             <p className="text-caption text-fg-muted">
-              {kpis ? `Situação em ${formatDate(kpis.today)} · ` : ""}selecione um indicador para filtrar a fila abaixo.
+              {kpis ? `Situação em ${formatDate(kpis.today)} · ` : ""}selecione
+              um indicador para filtrar a fila abaixo.
             </p>
           </div>
           {hasFilter ? (
@@ -1114,22 +1659,32 @@ export function SchedulePanel(props: SchedulePanelProps) {
         )}
       </section>
 
-      <section aria-labelledby="maintenance-schedule-list" className="flex flex-col gap-3">
+      <section
+        aria-labelledby="maintenance-schedule-list"
+        className="flex flex-col gap-3"
+      >
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h2 id="maintenance-schedule-list" className="text-h4 font-semibold text-fg">
+              <h2
+                id="maintenance-schedule-list"
+                className="text-h4 font-semibold text-fg"
+              >
                 Fila de manutenções
               </h2>
               {page ? (
                 <Badge variant="neutral" size="sm" className="tabular-nums">
                   {formatInt(page.total)}
-                  <span className="sr-only"> {page.total === 1 ? "manutenção" : "manutenções"}</span>
+                  <span className="sr-only">
+                    {" "}
+                    {page.total === 1 ? "manutenção" : "manutenções"}
+                  </span>
                 </Badge>
               ) : null}
             </div>
             <p className="text-caption text-fg-muted" aria-live="polite">
-              {scope} · {order} · um quadro por situação, agrupado por operação e cidade
+              {scope} · {order} · um quadro por situação, agrupado por operação,
+              cidade e placa
             </p>
           </div>
           {newButton}
@@ -1140,8 +1695,9 @@ export function SchedulePanel(props: SchedulePanelProps) {
         <p className="flex items-start gap-1.5 text-caption text-fg-muted">
           <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
           <span>
-            O TMM conta da entrada real à saída real na oficina, nunca da data da solicitação; “≈” indica TMM calculado
-            só pelas datas. Para mudar a situação, abra a manutenção: Agendar → Iniciar → Concluir.
+            O TMM conta da entrada real à saída real na oficina, nunca da data
+            da solicitação; “≈” indica TMM calculado só pelas datas. Para mudar
+            a situação, abra a manutenção: Agendar → Iniciar → Concluir.
           </span>
         </p>
       </section>

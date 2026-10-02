@@ -120,6 +120,7 @@ export const kpiCardVariants = cva(
         warning: "",
         danger: "",
         info: "",
+        progress: "",
       },
     },
     defaultVariants: { size: "default", status: "neutral" },
@@ -140,6 +141,7 @@ const ACCENT_LINE: Record<KpiStatus, string | null> = {
   warning: "bg-warning",
   danger: "bg-danger",
   info: "bg-info",
+  progress: "bg-progress",
 };
 
 /** Canto tonal (UI 2.0): a mesma cor do acento, quase imperceptível. */
@@ -153,6 +155,7 @@ const CORNER_TONE: Record<KpiStatus, string | null> = {
   warning: "[--accent-tone:rgb(194_124_14/0.10)]",
   danger: "[--accent-tone:rgb(201_54_54/0.08)]",
   info: "[--accent-tone:rgb(11_118_173/0.08)]",
+  progress: "[--accent-tone:rgb(109_79_194/0.09)]",
 };
 
 const ICON_CHIP: Record<KpiStatus, string> = {
@@ -165,6 +168,7 @@ const ICON_CHIP: Record<KpiStatus, string> = {
   warning: "bg-warning-soft text-warning-soft-fg",
   danger: "bg-danger-soft text-danger-soft-fg",
   info: "bg-info-soft text-info-soft-fg",
+  progress: "bg-progress-soft text-progress-soft-fg",
 };
 
 const SPARK_COLOR: Record<KpiStatus, string> = {
@@ -177,6 +181,7 @@ const SPARK_COLOR: Record<KpiStatus, string> = {
   warning: "var(--chart-warning)",
   danger: "var(--chart-danger)",
   info: "var(--chart-brand-secondary)",
+  progress: "var(--progress)",
 };
 
 export interface KpiCardProps

@@ -19,6 +19,10 @@ export interface StatusToneConfig {
   textClassName: string;
   /** Screen-reader hint appended to the dot when it stands alone. */
   srLabel: string;
+  /** Tinted surface and border for a header or band in this tone. */
+  softClassName: string;
+  /** Text color made for `softClassName`. */
+  softForegroundClassName: string;
 }
 
 const STATUS_TONES: Record<StatusTone, StatusToneConfig> = {
@@ -28,6 +32,8 @@ const STATUS_TONES: Record<StatusTone, StatusToneConfig> = {
     dotClassName: "bg-success",
     textClassName: "text-success",
     srLabel: "Situação: ok",
+    softClassName: "bg-success-soft border-success-border",
+    softForegroundClassName: "text-success-soft-fg",
   },
   warning: {
     variant: "warning",
@@ -35,6 +41,8 @@ const STATUS_TONES: Record<StatusTone, StatusToneConfig> = {
     dotClassName: "bg-warning",
     textClassName: "text-warning",
     srLabel: "Situação: atenção",
+    softClassName: "bg-warning-soft border-warning-border",
+    softForegroundClassName: "text-warning-soft-fg",
   },
   danger: {
     variant: "danger",
@@ -42,6 +50,8 @@ const STATUS_TONES: Record<StatusTone, StatusToneConfig> = {
     dotClassName: "bg-danger",
     textClassName: "text-danger",
     srLabel: "Situação: crítico",
+    softClassName: "bg-danger-soft border-danger-border",
+    softForegroundClassName: "text-danger-soft-fg",
   },
   info: {
     variant: "info",
@@ -49,6 +59,8 @@ const STATUS_TONES: Record<StatusTone, StatusToneConfig> = {
     dotClassName: "bg-info",
     textClassName: "text-info",
     srLabel: "Situação: informativo",
+    softClassName: "bg-info-soft border-info-border",
+    softForegroundClassName: "text-info-soft-fg",
   },
   neutral: {
     variant: "neutral",
@@ -56,6 +68,8 @@ const STATUS_TONES: Record<StatusTone, StatusToneConfig> = {
     dotClassName: "bg-neutral",
     textClassName: "text-neutral",
     srLabel: "Situação: neutro",
+    softClassName: "bg-neutral-soft border-neutral-border",
+    softForegroundClassName: "text-neutral-soft-fg",
   },
   pending: {
     variant: "neutral",
@@ -63,13 +77,19 @@ const STATUS_TONES: Record<StatusTone, StatusToneConfig> = {
     dotClassName: "bg-neutral",
     textClassName: "text-fg-muted",
     srLabel: "Situação: pendente",
+    softClassName: "bg-neutral-soft border-neutral-border",
+    softForegroundClassName: "text-neutral-soft-fg",
   },
+  // Violeta, não ciano: "em andamento" precisa se distinguir de "agendado"
+  // (info) e de "dados" (accent) à primeira vista.
   progress: {
-    variant: "accent",
+    variant: "progress",
     icon: RefreshCw,
-    dotClassName: "bg-accent",
-    textClassName: "text-accent",
+    dotClassName: "bg-progress",
+    textClassName: "text-progress",
     srLabel: "Situação: em andamento",
+    softClassName: "bg-progress-soft border-progress-border",
+    softForegroundClassName: "text-progress-soft-fg",
   },
 };
 

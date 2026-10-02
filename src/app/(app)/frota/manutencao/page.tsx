@@ -16,7 +16,7 @@ import {
   type PreventiveFilters,
 } from "@/lib/maintenance/queries";
 import type { MaintenanceFilters, MaintenanceSortKey, MaintenanceTab } from "@/lib/maintenance/types";
-import { firstParam, parseMaintenanceFilters, type SearchParamsLike } from "@/lib/maintenance/url";
+import { firstParam, parseHierarchyLevels, parseMaintenanceFilters, type SearchParamsLike } from "@/lib/maintenance/url";
 import { MaintenanceView } from "./maintenance-view";
 import {
   buildPerms,
@@ -138,11 +138,12 @@ export default async function MaintenancePage({ searchParams }: { searchParams: 
   } else if (tab === "base") {
     const view = first(params, "visao") === "hierarquia" ? "hierarquia" : "tabela";
     const list = parseList(params, { sort: "reference", dir: "desc" });
+    const levels = parseHierarchyLevels(first(params, "niveis"));
     const [page, hierarchy] = await Promise.all([
       view === "tabela" ? safe(listMaintenances(orgId, filters, list), "base_list") : Promise.resolve(null),
-      view === "hierarquia" ? safe(getMaintenanceHierarchy(orgId, filters), "hierarchy") : Promise.resolve(null),
+      view === "hierarquia" ? safe(getMaintenanceHierarchy(orgId, filters, levels), "hierarchy") : Promise.resolve(null),
     ]);
-    data.base = { view, page, hierarchy, list };
+    data.base = { view, page, hierarchy, list, levels };
     data.today = page?.today ?? "";
   } else if (tab === "cadastros") {
     const requestedSection = first(params, "secao") as CatalogSection | undefined;

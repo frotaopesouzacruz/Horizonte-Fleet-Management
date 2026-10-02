@@ -168,7 +168,7 @@ export const PREDICTIVE_STATUS_TONE: Record<PredictiveStatus, StatusTone> = {
   critical: "danger",
   due: "warning",
   to_schedule: "info",
-  upcoming: "progress",
+  upcoming: "pending",
   ok: "success",
   initial_inspection: "pending",
   no_km: "neutral",
@@ -590,20 +590,45 @@ export interface ScheduleKpis {
   scheduleOverdueDays: number;
 }
 
-export interface HierarchyRow {
-  operationId: string | null;
-  operationName: string | null;
-  stateUf: string | null;
-  cityId: number | null;
-  cityName: string | null;
-  brId: string | null;
-  brCode: string | null;
-  vehicleId: string;
-  licensePlate: string | null;
-  fleetCode: string | null;
+/** Níveis da hierarquia da Base geral, na ordem canônica em que a árvore os aninha. */
+export type HierarchyLevel = "operation" | "city" | "vehicle" | "cluster" | "service";
+export const HIERARCHY_LEVELS: HierarchyLevel[] = ["operation", "city", "vehicle", "cluster", "service"];
+export const DEFAULT_HIERARCHY_LEVELS: HierarchyLevel[] = ["operation", "city", "vehicle"];
+export const HIERARCHY_LEVEL_LABEL: Record<HierarchyLevel, string> = {
+  operation: "Operação",
+  city: "Cidade",
+  vehicle: "Placa",
+  cluster: "Cluster",
+  service: "Serviço",
+};
+/** Código do nível na URL (`niveis=operacao,cidade,placa`). */
+export const HIERARCHY_LEVEL_PARAM: Record<HierarchyLevel, string> = {
+  operation: "operacao",
+  city: "cidade",
+  vehicle: "placa",
+  cluster: "cluster",
+  service: "servico",
+};
+export interface HierarchyPathNode {
+  level: HierarchyLevel;
+  /** Id do nível ("-" quando a manutenção não tem esse dado). */
+  key: string;
+  label: string | null;
+  /** UF da cidade, código de frota da placa ou cluster do serviço. */
+  extra: string | null;
+}
+/**
+ * Um nó da árvore, pronto do servidor: `path` tem `depth` entradas e as
+ * contagens são de manutenções distintas (uma manutenção com dois serviços
+ * conta uma vez no cluster e uma vez no pai).
+ */
+export interface HierarchyNode {
+  depth: number;
+  path: HierarchyPathNode[];
   total: number;
   open: number;
   inProgress: number;
+  vehicles: number;
   lastReference: string | null;
 }
 

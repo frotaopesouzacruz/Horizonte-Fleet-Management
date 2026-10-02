@@ -6,7 +6,8 @@
  * mora na URL — um link copiado abre a mesma visão.
  */
 import type {
-  HierarchyRow,
+  HierarchyLevel,
+  HierarchyNode,
   MaintenanceCatalog,
   MaintenanceDashboard,
   MaintenanceFilters,
@@ -124,7 +125,14 @@ export interface MaintenanceViewData {
   /** Preditiva. */
   predictive?: { overview: PredictiveOverview | null; filters: PredictiveFilters };
   /** Base geral. */
-  base?: { view: "tabela" | "hierarquia"; page: MaintenancePage | null; hierarchy: HierarchyRow[] | null; list: ListState };
+  base?: {
+    view: "tabela" | "hierarquia";
+    page: MaintenancePage | null;
+    hierarchy: HierarchyNode[] | null;
+    list: ListState;
+    /** Níveis da hierarquia, na ordem canônica. */
+    levels: HierarchyLevel[];
+  };
   /** Cadastros. */
   cadastros?: { section: CatalogSection; parameters: MaintenanceParameters | null };
   /** Importações. */

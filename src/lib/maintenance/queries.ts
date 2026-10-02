@@ -8,7 +8,7 @@ import {
   camelize,
   DEFAULT_SETTINGS,
   type ChecklistFinding,
-  type HierarchyRow,
+  type HierarchyNode,
   type MaintenanceCatalog,
   type MaintenanceDashboard,
   type MaintenanceDetail,
@@ -239,14 +239,19 @@ export async function getScheduleKpis(organizationId: string, filters: Maintenan
   return camelize<ScheduleKpis>(data);
 }
 
-export async function getMaintenanceHierarchy(organizationId: string, filters: MaintenanceFilters): Promise<HierarchyRow[]> {
+/** Nós da hierarquia pelos níveis escolhidos; o servidor agrupa e conta, a tela só monta a árvore. */
+export async function getMaintenanceHierarchy(
+  organizationId: string,
+  filters: MaintenanceFilters,
+  levels: HierarchyLevel[],
+): Promise<HierarchyNode[]> {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("maintenance_hierarchy", {
     p_organization_id: organizationId,
-    p_filters: filtersPayload(filters),
+    p_filters: { ...filtersPayload(filters), levels },
   });
   if (error) fail("maintenance_hierarchy", error);
-  return camelize<HierarchyRow[]>(data ?? []);
+  return camelize<HierarchyNode[]>(data ?? []);
 }
 
 export async function getMaintenanceDetail(maintenanceId: string): Promise<MaintenanceDetail | null> {

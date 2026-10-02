@@ -89,6 +89,12 @@
   --color-info-soft: var(--info-soft);
   --color-info-soft-fg: var(--info-soft-foreground);
 
+  --color-progress: var(--progress);
+  --color-progress-hover: var(--progress-hover);
+  --color-progress-fg: var(--progress-foreground);
+  --color-progress-soft: var(--progress-soft);
+  --color-progress-soft-fg: var(--progress-soft-foreground);
+
   --color-neutral: var(--neutral);
   --color-neutral-hover: var(--neutral-hover);
   --color-neutral-fg: var(--neutral-foreground);
@@ -140,6 +146,7 @@
   --color-warning-border: var(--warning-border);
   --color-danger-border: var(--danger-border);
   --color-info-border: var(--info-border);
+  --color-progress-border: var(--progress-border);
   --color-neutral-border: var(--neutral-border);
   --color-chart-track: var(--chart-track);
   --color-heat-1: var(--heat-1);

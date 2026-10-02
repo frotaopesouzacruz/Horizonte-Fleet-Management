@@ -197,6 +197,15 @@
   --info-soft-foreground: #045f88;
   --info-border: #b3dff2;
 
+  /* ---- Progress (violeta): em andamento / em execução --------------------- */
+  /* Distinto do azul informativo (agendado) e do ciano de dados: 5.9:1 com texto branco. */
+  --progress: #6d4fc2;
+  --progress-hover: #5f43b0;
+  --progress-foreground: #ffffff;
+  --progress-soft: #efeafc;
+  --progress-soft-foreground: #4b3597;
+  --progress-border: #d3c8f3;
+
   --neutral: #5f6e85;
   --neutral-hover: #516075;
   --neutral-foreground: #ffffff;
@@ -393,6 +402,13 @@
   --info-soft: rgb(56 182 240 / 0.14);
   --info-soft-foreground: #8ad4f7;
   --info-border: rgb(56 182 240 / 0.32);
+
+  --progress: #a48bf0;
+  --progress-hover: #b59ff3;
+  --progress-foreground: #140c2e;
+  --progress-soft: rgb(164 139 240 / 0.16);
+  --progress-soft-foreground: #c9b9f8;
+  --progress-border: rgb(164 139 240 / 0.34);
 
   --neutral: #8b9ab5;
   --neutral-hover: #9dabc4;

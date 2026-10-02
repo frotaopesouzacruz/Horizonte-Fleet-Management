@@ -26,6 +26,7 @@ export const badgeVariants = cva(
         warning: "",
         danger: "",
         info: "",
+        progress: "",
       },
       appearance: {
         soft: "",
@@ -47,6 +48,7 @@ export const badgeVariants = cva(
       { variant: "warning", appearance: "soft", className: "border-warning-border bg-warning-soft text-warning-soft-fg" },
       { variant: "danger", appearance: "soft", className: "border-danger-border bg-danger-soft text-danger-soft-fg" },
       { variant: "info", appearance: "soft", className: "border-info-border bg-info-soft text-info-soft-fg" },
+      { variant: "progress", appearance: "soft", className: "border-progress-border bg-progress-soft text-progress-soft-fg" },
       /* solid */
       { variant: "neutral", appearance: "solid", className: "bg-neutral text-neutral-fg" },
       { variant: "primary", appearance: "solid", className: "bg-primary text-primary-fg" },
@@ -56,6 +58,7 @@ export const badgeVariants = cva(
       { variant: "warning", appearance: "solid", className: "bg-warning text-warning-fg" },
       { variant: "danger", appearance: "solid", className: "bg-danger text-danger-fg" },
       { variant: "info", appearance: "solid", className: "bg-info text-info-fg" },
+      { variant: "progress", appearance: "solid", className: "bg-progress text-progress-fg" },
       /* outline */
       { variant: "neutral", appearance: "outline", className: "border-border-strong text-fg-secondary" },
       { variant: "primary", appearance: "outline", className: "border-primary/50 text-primary-soft-fg" },
@@ -65,6 +68,7 @@ export const badgeVariants = cva(
       { variant: "warning", appearance: "outline", className: "border-warning/50 text-warning-soft-fg" },
       { variant: "danger", appearance: "outline", className: "border-danger/50 text-danger-soft-fg" },
       { variant: "info", appearance: "outline", className: "border-info/50 text-info-soft-fg" },
+      { variant: "progress", appearance: "outline", className: "border-progress/50 text-progress-soft-fg" },
     ],
     defaultVariants: { variant: "neutral", appearance: "soft", size: "md" },
   },
