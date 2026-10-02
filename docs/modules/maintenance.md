@@ -93,6 +93,22 @@ The daily routine (`hfm_maintenance_daily`, pg_cron, 06:15) reprocesses pending,
   - beyond that → Crítica;
   - Realizada once completed. Adherence is early, on time or late.
 - **Generating from a cycle** is idempotent: `created = false` returns the one that already exists. Completing it marks the cycle; reopening undoes that.
+- **Declared × effective cycle** (migration `20261002107000`):
+  - `maintenances.preventive_cycle_declared` is the MP *informed* (spreadsheet "Ciclo Preventivo" column or chosen on screen).
+  - `preventive_cycle_id` is the *effective* cycle, set per vehicle by `private.maintenance_preventive_reconcile_vehicle`. Completed preventives are taken in visit order:
+    - a declared MP above the last one done is kept;
+    - a repeated or lower MP (e.g. "MP1" at 60,126 km after MP1 and MP2) becomes the not-yet-done cycle whose milestone is closest to the entry KM (MP3);
+    - a second preventive in the same visit (same date and KM ±100) is linked to the first one's cycle and does not complete another;
+    - an open preventive whose MP is already done moves to the next pending cycle.
+  - Each change is logged as a `preventive_updated` event with declared, from, to and reason.
+  - The cycle is completed by the first completed preventive linked to it. Cycles left without one reopen; manual completions are never touched.
+- **When it runs:**
+  - at the end of every maintenance import batch (trigger on `import_batches`). This also records the declared MP of new rows, corrects an entry KM that came from the import when the sheet changes it (never on a record a user touched; event `km_changed`), and adds `cycle_reconciled` warnings to the batch;
+  - when cycles are created or their rule/milestone changes (statement triggers on `maintenance_preventive_cycles`). This is what links preventives imported before the vehicle had a rule;
+  - when the import informs the cycle of an existing preventive (`maintenance_import_link_cycle`);
+  - on demand with `public.maintenance_reconcile_preventive(org, vehicle?, dry_run default true)`, which requires `maintenance.manage_parameters`.
+- **Import comparison:** validation and reidentification compare the *declared* MP, so re-importing the same file stays at 0 changes.
+- **Drawer:** shows "Ciclo preventivo MPx", plus the declared MP when it differs.
 
 ### Predictive
 - Each item has KM and/or day intervals with bands: alert = Próximo, schedule = A programar, tolerance = Vencido, beyond = Crítico.

@@ -719,6 +719,18 @@ function ScheduleSection({ detail, catalog }: { detail: MaintenanceDetail; catal
         {open && detail.ageDays != null ? <Fact label="Em aberto há">{formatInt(detail.ageDays)} dia(s)</Fact> : null}
         <Fact label="Fornecedor">{supplier}</Fact>
         <Fact label="Ordem de serviço (OS)">{detail.serviceOrderNumber}</Fact>
+        {detail.type === "preventive" ? (
+          <Fact label="Ciclo preventivo">
+            <span data-testid="maintenance-drawer-cycle">
+              {detail.preventiveCycleNumber != null ? `MP${detail.preventiveCycleNumber}` : "Sem ciclo"}
+              {detail.preventiveCycleDeclared != null && detail.preventiveCycleDeclared !== detail.preventiveCycleNumber ? (
+                <span className="text-fg-muted">
+                  {` · informado na planilha: MP${detail.preventiveCycleDeclared} (conciliado pela sequência e pelo KM de entrada)`}
+                </span>
+              ) : null}
+            </span>
+          </Fact>
+        ) : null}
         {detail.description ? <Fact label="Descrição" wide>{detail.description}</Fact> : null}
         {detail.notes ? <Fact label="Observações" wide>{detail.notes}</Fact> : null}
         {detail.schedulingNotes ? <Fact label="Observações do agendamento" wide>{detail.schedulingNotes}</Fact> : null}

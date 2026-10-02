@@ -95,6 +95,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   context_divergent: "Contexto divergente (mantido o do HFM)",
   duplicate_in_file: "Repetida no arquivo",
   superseded: "Aviso superado pela reidentificação",
+  cycle_reconciled: "Ciclo preventivo conciliado pelo KM",
   conflict: "Conflito: alterada no HFM",
   unchanged: "Já importada, sem mudança",
   unknown_city: "Cidade não encontrada",

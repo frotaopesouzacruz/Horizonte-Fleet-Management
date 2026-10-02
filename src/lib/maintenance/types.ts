@@ -495,6 +495,10 @@ export interface MaintenanceRow {
   exitOverdue: boolean;
   reopenCount: number;
   preventiveCycleId: string | null;
+  /** MP efetivo (ciclo ligado) e MP informado (planilha/tela); diferem quando a
+   *  conciliação corrigiu o ciclo pela sequência e pelo KM de entrada. */
+  preventiveCycleNumber?: number | null;
+  preventiveCycleDeclared?: number | null;
   predictiveCycleId: string | null;
   items: MaintenanceItemSummary[];
   createdAt: string;
