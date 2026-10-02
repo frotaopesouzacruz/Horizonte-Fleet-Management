@@ -35,6 +35,7 @@ const FX = fixtures as Fx & Record<string, unknown>;
 function resolver(fn: string): unknown {
   switch (fn) {
     case "km_overview": return FX.overview;
+    case "km_fleet_current": return FX.fleetCurrent;
     case "km_settings_get": return FX.settings;
     case "km_planner": return FX.planner;
     case "km_daily": return FX.daily;

@@ -33,7 +33,7 @@ type RpcVoid = (fn: string, args: Record<string, unknown>) => Promise<{ error: {
  */
 export async function logKmExport(
   organizationId: string,
-  kind: "base" | "gerencial" | "qualidade",
+  kind: "base" | "gerencial" | "qualidade" | "km_atual",
   format: "xlsx" | "csv" | "pdf",
   rowCount: number,
   filters: Record<string, Json>,

@@ -10,9 +10,11 @@ import { loadQuality, type KmQualityData } from "./quality";
 import { loadRotation, type KmRotationData } from "./rotation";
 import { loadHistory, type KmHistoryData } from "./history";
 import { loadBatches, type KmBatchesData } from "./batches";
+import { loadFleetCurrent, type KmFleetCurrentData } from "./fleet-current";
 
 export interface KmTabData {
   "visao-geral": KmOverviewData;
+  frotas: KmFleetCurrentData;
   analise: KmAnalysisData;
   planner: KmPlannerData;
   diaria: KmDailyData;
@@ -35,6 +37,7 @@ export async function loadKmTab<T extends KmTab>(
   try {
     const loaders: { [K in KmTab]: (c: KmLoadContext) => Promise<KmTabData[K]> } = {
       "visao-geral": loadOverview,
+      frotas: loadFleetCurrent,
       analise: loadAnalysis,
       planner: loadPlanner,
       diaria: loadDaily,

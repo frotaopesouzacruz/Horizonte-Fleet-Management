@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import {
-  CalendarDays, ClipboardCheck, Database, ExternalLink, FileSpreadsheet, FileText, PieChart, Repeat, ShieldOff,
+  CalendarDays, ClipboardCheck, Database, ExternalLink, FileSpreadsheet, FileText, Gauge, PieChart, Repeat, ShieldOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FilterChip } from "@/components/ui/filter-bar";
@@ -165,6 +165,27 @@ export function ReportsPanel({ data, ctx }: { data: null | null; ctx: KmPanelCon
                 </a>
               </Button>
             </>
+          }
+        />
+
+        <ReportCard
+          testId="km-relatorios-km-atual"
+          icon={<Gauge />}
+          title="KM atual das frotas"
+          description="Retrato de hoje: uma linha por placa com o hodômetro oficial vigente, agrupável por operação."
+          contents={[
+            "Operação, frota, placa, tipo, carroceria, modelo, UF, cidade, BR e liderança",
+            "Última leitura, origem (Gestão de KM, Manutenção, correção, cadastro), KM atual e dias sem atualização",
+            "Status: atualizado recentemente, leitura defasada ou sem leitura (KM em branco, não 0)",
+          ]}
+          note="Não depende da competência: usa só os filtros de frota, operação e local."
+          actions={
+            <Button asChild size="sm">
+              <a href={exportHref("km-atual")} download data-testid="km-relatorios-km-atual-xlsx">
+                <FileSpreadsheet aria-hidden />
+                Excel
+              </a>
+            </Button>
           }
         />
 

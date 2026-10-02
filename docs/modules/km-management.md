@@ -9,11 +9,12 @@ routines, under the caller's RLS and scope. The browser never recalculates
 mileage, status, coverage or dispersion.
 
 Route: `/frota/km` (menu **Gestão de frota › Gestão de KM Rodado**, permission
-`km.view`). Ten tabs, each behind its own permission:
+`km.view`). Eleven tabs, each behind its own permission:
 
 | Tab | Permission | Routine |
 |---|---|---|
 | Visão geral | `km.view_dashboard` | `km_overview` |
+| KM atual | `km.view` | `km_fleet_current` |
 | Análise gerencial | `km.view_analysis` | `km_analysis` |
 | Planner mês/dia | `km.view_planner` | `km_planner` |
 | Visão diária | `km.view_daily` | `km_daily` |
@@ -182,6 +183,24 @@ assignments, explicit `confirm: true`, then the official
 `invert_fidelization_vehicles` in the same transaction, with the item stamped,
 an event and `km.rotation_applied_to_fidelization`.
 
+## KM atual das frotas (`km_fleet_current`)
+
+A snapshot of today, not a period: one row per vehicle in the KM scope and
+filters (default: active vehicles; `fleet_status` `all`/`inactive` widen it)
+with the **official current odometer** — the most recent non-superseded row of
+`vehicle_odometer_readings`, whatever wrote it — plus today's context
+(Fidelização → allocation → Lideranças via `private.km_context_pairs`), the
+reading's `source`, whether it came from the KM ledger (`km_reading_id` set),
+`days_since` (today − reading date, never negative) and the freshness code:
+`recent` (today or yesterday), `stale` (2 days or more), `never` (no reading at
+all → `odometer_km` null, never 0). `p_filters.freshness` (array of those codes)
+restricts the rows; the summary (vehicles, recent, stale, never, avg/max days,
+operations, from_km_module, last_reading_date) is computed over the same set.
+Context filters (operation, BR, leader, unit, state, city) apply to today's
+context. The screen groups the rows by operation ("Sem operação" last), links
+each plate to Histórico por frota and exports the same set
+(`export/km-atual`, kind `km_atual` in `log_km_export`).
+
 ## Integrations
 
 - **Cadastro de Frotas**: plates and vehicle data are read, never written;
@@ -191,6 +210,32 @@ an event and `km.rotation_applied_to_fidelization`.
 - **Manutenção**: the KM ledger is the official odometer source
   (`vehicle_odometer_readings`), feeding entry KM, preventive cycles and the
   predictive engine; crossing a preventive milestone emits an event.
+
+### Odometer synchronisation audit (2026-10)
+
+One table is the official odometer for the whole system:
+`public.vehicle_odometer_readings` (`source` ∈ initial_registration,
+manual_correction, import, checklist, fuelling, maintenance, telemetry;
+`superseded_by` marks corrected rows; `km_reading_id` ties a row to a KM day).
+
+| Module | Writes | Reads |
+|---|---|---|
+| Cadastro de Frotas | initial registration, `correct_vehicle_odometer`, vehicle import, scope mutations | `vehicle_directory` (latest non-superseded → `current_odometer_km`, `odometer_reading_date`, `odometer_source`) |
+| Gestão de KM | `private.km_sync_odometer` on every imported day with a trustworthy end odometer (source `telemetry`, note "Gestão de KM — hodômetro final do dia", supersedes the previous row for the same day on change) | `km_fleet_current`; rotation execution odometers |
+| Manutenção | entry KM of a maintenance (source `maintenance`) | `private.maintenance_resolve_km` (exact/previous/next reading, `km_compatible_days`, `km_estimated_max_days`), preventive matrix and predictive overview (latest reading per vehicle) |
+| Check List / Abastecimento | none yet — the `checklist` and `fuelling` sources are reserved | — |
+
+Conclusions: every module that needs KM reads the same latest row, and the KM
+import feeds that row, so Cadastro, Manutenção and KM agree on the current
+odometer by construction. Known gaps, by design or pending: Check List and
+fuelling do not record odometers; KM-origin rows are labelled `telemetry`
+(the screen shows them as "Gestão de KM" through `km_reading_id`; a dedicated
+`km` source would need a constraint change); the Visão geral freshness
+distribution (`private.km_vehicle_freshness`) counts only KM-ledger readings,
+while KM atual uses the official odometer of any source and shows its origin;
+Operação in `vehicle_directory` comes from `vehicle_operation_assignments`,
+whereas KM uses the Fidelização → allocation → Lideranças context, so the two
+labels can differ for a plate whose Fidelização moved.
 
 ## Security
 
@@ -238,6 +283,7 @@ status catalog by code.
 | `page.tsx`, `km-view.tsx`, `shared.ts` | Route `/frota/km`, tab registry with its permission, `KmPanelContext` / `KmViewData` contracts, PageHeader and the global tab list. |
 | `km-filters.tsx` | Global filter bar (competência, operação, UF, cidade, tipo, placa, …) — values are IDs, the plate search is the only text. |
 | `panels/overview-panel.tsx` + `overview/*` | Visão geral: KPIs, KM por dia, status and freshness distributions, vehicle rank, insights (`components/km-insights.tsx`). |
+| `panels/fleet-panel.tsx` + `fleet/model.ts` | KM atual: metric strip, freshness chips (`leitura` in the URL), search, table grouped by operation (collapsible), plate → Histórico, export link; `model.ts` only groups, labels the source and picks the tone. |
 | `panels/analysis-panel.tsx` + `analysis/*` | Análise gerencial: by operation, by location (Operação → Estado → Cidade → BR), dispersion with bands and "Ponto para análise", quadrants, projections. |
 | `panels/planner-panel.tsx` + `planner/*` | Planner mês/dia: heat grid (`model.ts`), legend, summary, compact/detailed mode, export of the Controle Mensal. |
 | `panels/daily-panel.tsx` + `daily/*` | Visão diária: day picker, ranking, vehicles without reading, inconsistencies. |
@@ -246,7 +292,7 @@ status catalog by code.
 | `panels/quality-panel.tsx` + `quality/*` | Qualidade de dados: score gauge, indicators, fleet health, issues table, `components/correction-dialog.tsx`, parameters. |
 | `panels/import-panel.tsx` + `import/*` | Importação: source card (only the official sheet), pipeline steps, open batches, preview summary, findings, outcome. |
 | `panels/batches-panel.tsx` + `batches/*` | Lotes: table and batch detail. |
-| `panels/reports-panel.tsx` + `reports/*` | Relatórios: report cards → `export/{base,controle-mensal,gerencial,qualidade,rodizio}/route.ts` (XLSX via `relatorio/xlsx-kit.ts`, each download logged by `relatorio/export-log.ts` → `log_km_export`) and the printable `relatorio/page.tsx` (`report-document.tsx`, `print-button.tsx`). |
+| `panels/reports-panel.tsx` + `reports/*` | Relatórios: report cards → `export/{base,controle-mensal,gerencial,qualidade,rodizio,km-atual}/route.ts` (XLSX via `relatorio/xlsx-kit.ts`, each download logged by `relatorio/export-log.ts` → `log_km_export`) and the printable `relatorio/page.tsx` (`report-document.tsx`, `print-button.tsx`). |
 
 Fixture preview for design and UI tests: `/dev/preview-km` (`kmFixtureStore`);
 Playwright: `tests/ui/km.spec.ts`.
@@ -259,5 +305,6 @@ Playwright: `tests/ui/km.spec.ts`.
 | `20261003101000_km_context_import.sql` | parsers, classification, context at the date, continuity, odometer sync, import evaluation, staging/finalize, findings, consolidation, cancel |
 | `20261003102000_km_reads.sql` | grid, freshness, overview, planner, daily, history, cohorts/dispersion/analysis, quality, batches, export page, export log, correction, review, reprocess, settings |
 | `20261003103000_km_rotation.sql` | candidates, simulation, plans, item/plan status, revalidation, evaluation, Fidelização preview/apply |
+| `20261003111000_km_fleet_current.sql` | `km_fleet_current`: KM atual das frotas (official current odometer of any source, today's context, freshness) |
 
 Tests: `supabase/tests/remote/29_km.sql` (K1–K16).

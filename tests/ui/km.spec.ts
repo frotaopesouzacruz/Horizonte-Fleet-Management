@@ -13,6 +13,7 @@ import AxeBuilder from "@axe-core/playwright";
 const PREVIEW = "/dev/preview-km";
 const TABS = [
   ["visao-geral", "Visão geral"],
+  ["frotas", "KM atual"],
   ["analise", "Análise gerencial"],
   ["planner", "Planner mês/dia"],
   ["diaria", "Visão diária"],
@@ -39,7 +40,7 @@ async function setTheme(page: Page, url: string, theme: "light" | "dark") {
 }
 
 test.describe("gestão de KM rodado", () => {
-  test("as dez abas oficiais, na ordem, e a entrada no menu Gestão de frota", async ({ page }) => {
+  test("as onze abas oficiais, na ordem, e a entrada no menu Gestão de frota", async ({ page }) => {
     const crashes = crashesOf(page);
     await page.goto(PREVIEW);
     await expect(page.getByRole("heading", { name: "Gestão de KM Rodado", level: 1 })).toBeVisible();
@@ -68,6 +69,55 @@ test.describe("gestão de KM rodado", () => {
     await expect(insights.getByText(/75 de 88 frotas ativas têm leitura válida/)).toBeVisible();
     await expect(page.getByTestId("km-visao-geral-bottom")).toContainText("cobertura mínima");
     expect(crashes).toEqual([]);
+  });
+
+  test("KM atual: placas agrupadas por operação, hodômetro oficial com origem e situação da leitura", async ({ page }) => {
+    const crashes = crashesOf(page);
+    await page.goto(`${PREVIEW}?aba=frotas`);
+    const panel = page.getByTestId("km-frotas");
+    await expect(panel.getByRole("heading", { name: "KM atual das frotas" })).toBeVisible();
+    // Resumo da rotina, sem recontar na tela.
+    await expect(page.getByTestId("km-frotas-recent")).toHaveText("14");
+    await expect(page.getByTestId("km-frotas-stale")).toHaveText("8");
+    await expect(page.getByTestId("km-frotas-never")).toHaveText("2");
+    // Um grupo por operação, "Sem operação" por último; todas as linhas abertas.
+    const groups = page.getByTestId("km-frotas-group");
+    await expect(groups).toHaveCount(4);
+    await expect(groups.last()).toContainText("Sem operação");
+    await expect(page.getByTestId("km-frotas-row")).toHaveCount(24);
+    // Colunas pedidas: frota, placa, tipo, carroceria, local, última leitura, KM atual, dias e status.
+    const header = page.getByTestId("km-frotas-table").getByRole("columnheader");
+    await expect(header).toHaveText(["Frota", "Placa", "Tipo", "Carroceria", "Local", "Última leitura", "KM atual", "Dias s/ atualização", "Status"]);
+    // Status nas palavras do pedido, e a origem da leitura ao lado da data.
+    await expect(page.getByTestId("km-frotas-status").filter({ hasText: "Atualizado recentemente" })).toHaveCount(14);
+    await expect(page.getByTestId("km-frotas-status").filter({ hasText: "Leitura defasada" })).toHaveCount(8);
+    await expect(page.getByTestId("km-frotas-status").filter({ hasText: "Sem leitura" })).toHaveCount(2);
+    await expect(panel.getByText("Gestão de KM", { exact: true }).first()).toBeVisible();
+    await expect(panel.getByText("Manutenção", { exact: true }).first()).toBeVisible();
+    // Sem leitura não vira 0 km.
+    const neverRow = page.locator('[data-testid="km-frotas-row"][data-freshness="never"]').first();
+    await expect(neverRow).not.toContainText("km");
+    await expect(neverRow.getByRole("cell").nth(6)).toHaveText("—");
+    // A placa leva ao Histórico por frota.
+    await expect(page.getByTestId("km-frotas-plate").first()).toHaveAttribute("href", /aba=historico&veiculo=/);
+    // Recolher tudo esconde as linhas; o grupo continua com a contagem.
+    await page.getByTestId("km-frotas-toggle-all").click();
+    await expect(page.getByTestId("km-frotas-row")).toHaveCount(0);
+    await expect(groups).toHaveCount(4);
+    await page.getByTestId("km-frotas-group-toggle").first().click();
+    await expect(page.getByTestId("km-frotas-row").first()).toBeVisible();
+    // Exportação do mesmo recorte.
+    await expect(page.getByTestId("km-frotas-export")).toHaveAttribute("href", /\/export\/km-atual(\?|$)/);
+    expect(crashes).toEqual([]);
+  });
+
+  test("KM atual: o filtro de atualização vive na URL (leitura=defasada)", async ({ page }) => {
+    await page.goto(`${PREVIEW}?aba=frotas&leitura=defasada`);
+    await expect(page.getByTestId("km-frotas-filter-stale")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("km-frotas-filter-recent")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByTestId("km-frotas-export")).toHaveAttribute("href", /leitura=defasada/);
+    await page.getByTestId("km-frotas-filter-recent").click();
+    await expect(page).toHaveURL(/leitura=recente%2Cdefasada|leitura=recente,defasada/);
   });
 
   test("planner: modo compacto/detalhado na URL e exportação do Controle Mensal", async ({ page }) => {
@@ -136,7 +186,7 @@ test.describe("gestão de KM rodado", () => {
 
   test("celular: sem rolagem lateral da página", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    for (const aba of ["visao-geral", "planner", "diaria"]) {
+    for (const aba of ["visao-geral", "frotas", "planner", "diaria"]) {
       await page.goto(`${PREVIEW}?aba=${aba}`);
       await expect(page.getByRole("heading", { name: "Gestão de KM Rodado", level: 1 })).toBeVisible();
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -145,8 +195,8 @@ test.describe("gestão de KM rodado", () => {
   });
 
   for (const theme of ["light", "dark"] as const) {
-    test(`acessibilidade (${theme}): visão geral, planner e qualidade sem violações`, async ({ page }) => {
-      for (const aba of ["visao-geral", "planner", "qualidade"]) {
+    test(`acessibilidade (${theme}): visão geral, KM atual, planner e qualidade sem violações`, async ({ page }) => {
+      for (const aba of ["visao-geral", "frotas", "planner", "qualidade"]) {
         await setTheme(page, `${PREVIEW}?aba=${aba}`, theme);
         await expect(page.getByRole("heading", { name: "Gestão de KM Rodado", level: 1 })).toBeVisible();
         // Abas hidratadas: a lista vira parada de tabulação (antes disso a lista rolável não tem foco).

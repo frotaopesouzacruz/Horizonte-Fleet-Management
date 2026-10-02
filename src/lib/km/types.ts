@@ -10,6 +10,7 @@ export { camelize, formatDate } from "@/lib/maintenance/types";
 
 export const KM_TABS = [
   "visao-geral",
+  "frotas",
   "analise",
   "planner",
   "diaria",
@@ -24,6 +25,7 @@ export type KmTab = (typeof KM_TABS)[number];
 
 export const KM_TAB_LABEL: Record<KmTab, string> = {
   "visao-geral": "Visão geral",
+  frotas: "KM atual",
   analise: "Análise gerencial",
   planner: "Planner mês/dia",
   diaria: "Visão diária",
@@ -126,6 +128,8 @@ export const KM_PERMISSION_CODES: Record<keyof KmPerms, string> = {
 export function kmVisibleTabs(p: KmPerms): KmTab[] {
   const out: KmTab[] = [];
   if (p.dashboard) out.push("visao-geral");
+  // KM atual das frotas: hodômetro oficial vigente, basta ver o módulo.
+  if (p.view) out.push("frotas");
   if (p.analysis) out.push("analise");
   if (p.planner) out.push("planner");
   if (p.daily) out.push("diaria");
@@ -224,6 +228,25 @@ export const KM_FRESHNESS = [
   { key: "never", label: "Nunca teve leitura", tone: "neutral" },
 ] as const;
 export type KmFreshnessBucket = (typeof KM_FRESHNESS)[number]["key"];
+
+/**
+ * KM atual das frotas — atualização do hodômetro oficial vigente (qualquer
+ * origem). `recent` = leitura de hoje ou de ontem; `stale` = 2 dias ou mais;
+ * `never` = a frota nunca teve hodômetro registrado.
+ */
+export type KmCurrentFreshness = "recent" | "stale" | "never";
+export const KM_CURRENT_FRESHNESS: KmCurrentFreshness[] = ["recent", "stale", "never"];
+/** Valor do parâmetro de URL `leitura` ↔ código da rotina. */
+export const KM_CURRENT_FRESHNESS_PARAM: Record<KmCurrentFreshness, string> = { recent: "recente", stale: "defasada", never: "sem" };
+export const KM_CURRENT_FRESHNESS_LABEL: Record<KmCurrentFreshness, string> = {
+  recent: "Atualizado recentemente",
+  stale: "Leitura defasada",
+  never: "Sem leitura",
+};
+export function parseCurrentFreshness(value: string | undefined): KmCurrentFreshness[] {
+  const codes = new Set((value ?? "").split(",").map((v) => v.trim().toLowerCase()));
+  return KM_CURRENT_FRESHNESS.filter((k) => codes.has(KM_CURRENT_FRESHNESS_PARAM[k]));
+}
 
 // ---------------------------------------------------------------------------
 // Veículo (cartão comum devolvido pelas rotinas)

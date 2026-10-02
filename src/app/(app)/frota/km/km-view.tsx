@@ -9,6 +9,7 @@ import type { KmTabData } from "@/lib/km/loaders";
 import { KmFilterBar } from "./km-filters";
 import type { KmPanelContext, KmViewData } from "./shared";
 import { OverviewPanel } from "./panels/overview-panel";
+import { FleetPanel } from "./panels/fleet-panel";
 import { AnalysisPanel } from "./panels/analysis-panel";
 import { PlannerPanel } from "./panels/planner-panel";
 import { DailyPanel } from "./panels/daily-panel";
@@ -20,9 +21,9 @@ import { BatchesPanel } from "./panels/batches-panel";
 import { ReportsPanel } from "./panels/reports-panel";
 
 /** Abas cujo conteúdo depende dos filtros globais. */
-const FILTERED: KmTab[] = ["visao-geral", "analise", "planner", "diaria", "rodizio", "qualidade", "relatorios"];
+const FILTERED: KmTab[] = ["visao-geral", "frotas", "analise", "planner", "diaria", "rodizio", "qualidade", "relatorios"];
 /** Abas em que a competência não se aplica (têm data própria ou não usam período). */
-const NO_PERIOD: KmTab[] = ["diaria"];
+const NO_PERIOD: KmTab[] = ["frotas", "diaria"];
 
 /** Competência efetiva informada pela aba (quando a URL não fixa uma). */
 function effectiveCompetence(data: unknown): string | null {
@@ -77,7 +78,7 @@ export function KmView({ data }: { data: KmViewData }) {
   return (
     <Tabs
       value={tab}
-      onValueChange={(v) => navigate({ aba: v, sub: null, item: null, plano: null, lote: null, atualizacao: null, dia_ranking: null })}
+      onValueChange={(v) => navigate({ aba: v, sub: null, item: null, plano: null, lote: null, atualizacao: null, dia_ranking: null, leitura: null })}
       className="gap-0"
     >
       <PageHeader
@@ -113,6 +114,7 @@ export function KmView({ data }: { data: KmViewData }) {
         <div aria-busy={pending} className={pending ? "opacity-70 transition-opacity" : "transition-opacity"}>
           <TabsContent value={tab}>
             {tab === "visao-geral" ? <OverviewPanel data={d as KmTabData["visao-geral"] | null} ctx={ctx} /> : null}
+            {tab === "frotas" ? <FleetPanel data={d as KmTabData["frotas"] | null} ctx={ctx} /> : null}
             {tab === "analise" ? <AnalysisPanel data={d as KmTabData["analise"] | null} ctx={ctx} /> : null}
             {tab === "planner" ? <PlannerPanel data={d as KmTabData["planner"] | null} ctx={ctx} /> : null}
             {tab === "diaria" ? <DailyPanel data={d as KmTabData["diaria"] | null} ctx={ctx} /> : null}
