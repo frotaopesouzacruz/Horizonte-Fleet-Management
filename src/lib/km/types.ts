@@ -269,3 +269,73 @@ export function competenceLabel(competence: string | null | undefined): string {
 
 /** Contexto que todo painel recebe da tela. */
 export type KmNavigate = (patch: Record<string, string | null>) => void;
+
+// ---------------------------------------------------------------------------
+// Dispersão & outliers (códigos do banco → rótulos do HFC)
+// ---------------------------------------------------------------------------
+export const KM_BAND: Record<string, { label: string; tone: KmTone | "brand" }> = {
+  far_above: { label: "Muito acima da faixa", tone: "danger" },
+  above: { label: "Acima da faixa", tone: "warning" },
+  within: { label: "Dentro da faixa", tone: "success" },
+  below: { label: "Abaixo da faixa", tone: "info" },
+  far_below: { label: "Muito abaixo da faixa", tone: "brand" },
+  small_cohort: { label: "Coorte insuficiente", tone: "neutral" },
+  insufficient_coverage: { label: "Dados insuficientes", tone: "neutral" },
+};
+
+/** Quadrantes: hodômetro acumulado (x) × intensidade de rodagem (y), pelas medianas da coorte. */
+export const KM_QUADRANT: Record<string, { label: string; tone: KmTone; hint: string }> = {
+  high_km_high_use: {
+    label: "Prioridade de alívio",
+    tone: "danger",
+    hint: "Hodômetro acima da mediana da coorte e rodagem acima da mediana.",
+  },
+  high_km_low_use: {
+    label: "Utilização compensatória",
+    tone: "warning",
+    hint: "Hodômetro acima da mediana, rodagem abaixo: já compensa o acumulado.",
+  },
+  low_km_high_use: {
+    label: "Em equalização",
+    tone: "info",
+    hint: "Hodômetro abaixo da mediana, rodagem acima: aproxima-se da coorte.",
+  },
+  low_km_low_use: {
+    label: "Pode absorver rodagem",
+    tone: "success",
+    hint: "Hodômetro e rodagem abaixo da mediana: candidato a receber rodagem.",
+  },
+};
+
+/** Outlier é "ponto para análise", nunca erro. */
+export const KM_OUTLIER: Record<string, string> = {
+  above_cohort: "Rodagem acima da coorte",
+  below_cohort: "Rodagem abaixo da coorte",
+  high_odometer: "Hodômetro acima da coorte",
+  underused: "Baixa utilização",
+  low_coverage: "Cobertura insuficiente",
+};
+export const KM_OUTLIER_TAG = "Ponto para análise";
+
+// ---------------------------------------------------------------------------
+// Plano de rodízio
+// ---------------------------------------------------------------------------
+export const KM_ROTATION_STATUS: Record<string, { label: string; tone: KmTone }> = {
+  suggested: { label: "Sugerido", tone: "neutral" },
+  approved: { label: "Aprovado", tone: "info" },
+  scheduled: { label: "Programado", tone: "warning" },
+  executed: { label: "Executado", tone: "success" },
+  cancelled: { label: "Cancelado", tone: "danger" },
+};
+
+export const KM_ROTATION_PRIORITY: Record<string, { label: string; tone: KmTone }> = {
+  high: { label: "Alta", tone: "success" },
+  medium: { label: "Média", tone: "warning" },
+  low: { label: "Baixa", tone: "info" },
+  none: { label: "Sem benefício", tone: "neutral" },
+};
+
+export const KM_ROTATION_SCOPE: Record<string, string> = {
+  same_cohort_same_operation: "Mesma coorte e mesma operação",
+  same_cohort_global: "Mesma coorte técnica (todas as operações)",
+};
