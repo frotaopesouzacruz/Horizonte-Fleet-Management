@@ -91,6 +91,7 @@ import {
 } from "./lifecycle-dialogs";
 import type { MaintenancePerms } from "./shared";
 import { MaintenanceActionPlans } from "@/components/action-plans/maintenance-action-plans";
+import { MaintenanceMtsr } from "@/components/mtsr/maintenance-mtsr";
 
 /**
  * Gaveta de detalhe da manutenção.
@@ -343,6 +344,7 @@ function DrawerInner({
         />
         <FindingsSection detail={detail} canUnlink={can.unlink} onUnlink={(finding) => setDialog({ kind: "unlink", finding })} />
         <MaintenanceActionPlans maintenanceId={detail.id} />
+        <MaintenanceMtsr maintenanceId={detail.id} vehicleId={detail.vehicleId} />
         {detail.recurrence.length > 0 ? <RecurrenceSection detail={detail} onOpenMaintenance={onOpenMaintenance} /> : null}
       </DrawerBody>
 

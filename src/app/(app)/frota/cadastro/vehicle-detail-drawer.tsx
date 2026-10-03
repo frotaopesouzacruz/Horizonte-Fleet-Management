@@ -49,6 +49,7 @@ import { loadVehicleBrHistory } from "@/lib/governance/actions";
 import type { VehicleBrHistory, VehicleBrRow } from "@/lib/governance/brs";
 import { VehicleMaintenanceHistory } from "@/components/maintenance/vehicle-maintenance-history";
 import { VehicleActionPlans } from "@/components/action-plans/vehicle-action-plans";
+import { VehicleMtsr } from "@/components/mtsr/vehicle-mtsr";
 import { useOperationGeography } from "./use-operation-geography";
 import { formatDate, formatPlate } from "./fleet-view";
 
@@ -139,6 +140,8 @@ export function VehicleDetailDrawer({
   const canViewMaintenance = can("maintenance.view_base");
   // Planos de Ação: consulta aos planos do veículo (a tratativa é no módulo).
   const canViewActionPlans = can("action_plans.view");
+  // Segurança › Gestão de MTSR: situação do veículo (a tratativa é na ficha MTSR).
+  const canViewMtsr = can("mtsr.view");
 
   /**
    * The Fidelização tab loads only when it is first shown for this vehicle
@@ -247,6 +250,7 @@ export function VehicleDetailDrawer({
                 <TabsTrigger value="km">Quilometragem</TabsTrigger>
                 {canViewMaintenance ? <TabsTrigger value="manutencao">Manutenção</TabsTrigger> : null}
                 {canViewActionPlans ? <TabsTrigger value="planos-acao">Planos de ação</TabsTrigger> : null}
+                {canViewMtsr ? <TabsTrigger value="mtsr">MTSR</TabsTrigger> : null}
                 <TabsTrigger value="historico">Histórico</TabsTrigger>
               </TabsList>
 
@@ -379,6 +383,14 @@ export function VehicleDetailDrawer({
               {canViewActionPlans && vehicleId ? (
                 <TabsContent value="planos-acao" className="flex flex-col gap-4">
                   <VehicleActionPlans vehicleId={vehicleId} />
+                </TabsContent>
+              ) : null}
+
+              {/* ------------------------------------------------- MTSR ---- */}
+              {/* Consulta pelo id do veículo; tratar o componente é na ficha MTSR. */}
+              {canViewMtsr && vehicleId ? (
+                <TabsContent value="mtsr" className="flex flex-col gap-4">
+                  <VehicleMtsr vehicleId={vehicleId} />
                 </TabsContent>
               ) : null}
 

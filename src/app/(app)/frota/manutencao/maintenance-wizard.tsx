@@ -37,6 +37,7 @@ import {
   searchMaintenanceVehicles,
   type CreateMaintenanceInput,
 } from "@/lib/maintenance/actions";
+import { loadMtsrCatalog } from "@/lib/mtsr/actions";
 import {
   CRITICALITY_LABEL,
   EXECUTION_LABEL,
@@ -259,6 +260,26 @@ function WizardBody({
   React.useEffect(() => {
     if (initial.vehicleId) fetchVehicle(initial.vehicleId, today);
   }, [initial, fetchVehicle, today]);
+
+  // Componente MTSR vindo do preset (sem serviços escolhidos) sugere os
+  // serviços mapeados a ele no catálogo do MTSR — os padrão, ou todos os
+  // mapeados quando não há padrão. O que não se aplicar ao tipo/veículo sai
+  // da seleção por `effectiveServiceIds`.
+  React.useEffect(() => {
+    const componentId = initial.mtsrComponentId;
+    if (!componentId || initial.serviceIds?.length) return;
+    let alive = true;
+    void loadMtsrCatalog().then((result) => {
+      if (!alive || !result.ok || !result.data) return;
+      const mapped = result.data.componentServices.filter((cs) => cs.componentId === componentId && cs.isActive);
+      const defaults = mapped.filter((cs) => cs.isDefault);
+      const ids = (defaults.length ? defaults : mapped).map((cs) => cs.serviceId);
+      if (ids.length) setServiceIds((prev) => [...new Set([...prev, ...ids])]);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [initial]);
 
   // Busca por placa/frota, com espera de 300 ms entre teclas.
   React.useEffect(() => {
