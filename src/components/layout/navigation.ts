@@ -284,6 +284,23 @@ export const navigation: NavGroup[] = [
   },
   {
     /**
+     * Segurança operacional: módulos que acompanham a conformidade dos
+     * componentes de segurança da frota (MTSR). A permissão de ver o módulo
+     * é `mtsr.view`; cada aba confere a sua própria no servidor.
+     */
+    id: "safety",
+    label: "Segurança",
+    items: [
+      {
+        label: "Gestão de MTSR",
+        href: "/seguranca/mtsr",
+        icon: ShieldCheck,
+        permission: "mtsr.view",
+      },
+    ],
+  },
+  {
+    /**
      * Aplicativos são os módulos que o time OPERA no celular, não os que a
      * administração configura. Por isso são um grupo próprio e não um item
      * dentro de Gestão de frota: quem abre esta entrada está saindo para rota,
@@ -299,6 +316,12 @@ export const navigation: NavGroup[] = [
         label: "Check List de Frota",
         href: "/aplicativos/check-list-frota",
         icon: ClipboardCheck,
+        permission: "applications.view",
+      },
+      {
+        label: "Vistoria MTSR",
+        href: "/aplicativos/vistoria-mtsr",
+        icon: ShieldCheck,
         permission: "applications.view",
       },
     ],

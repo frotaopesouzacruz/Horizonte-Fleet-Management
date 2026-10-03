@@ -161,4 +161,8 @@ export interface WizardPreset {
   actionPlanItemIds?: string[];
   description?: string;
   priority?: string;
+  /** Abertura a partir de um componente NOK do MTSR: grava pela rotina do MTSR (origem "mtsr", vínculo componente × manutenção). */
+  mtsrComponentId?: string;
+  mtsrComponentName?: string;
+  mtsrInspectionItemId?: string;
 }

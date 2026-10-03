@@ -204,6 +204,9 @@ export interface CreateMaintenanceInput {
   /** Abertura pelo Plano de Ação: a rotina do plano chama a da Manutenção e vincula. */
   actionPlanId?: string | null;
   actionPlanItemIds?: string[];
+  /** Abertura por um componente NOK do MTSR: a rotina do MTSR chama a da Manutenção (origem "mtsr") e grava o vínculo. */
+  mtsrComponentId?: string | null;
+  mtsrInspectionItemId?: string | null;
 }
 
 export async function createMaintenance(
@@ -235,6 +238,17 @@ export async function createMaintenance(
       duplicate_justification: input.duplicateJustification ?? undefined,
       notes: input.notes ?? undefined,
   });
+  if (input.mtsrComponentId) {
+    // Segurança › Gestão de MTSR: mesma manutenção oficial, origem "mtsr" e o
+    // vínculo componente × manutenção (revalidação ao concluir).
+    const result = await call<{ id: string; code: string; status: string }>("mtsr.maintenance.open",
+      "mtsr_maintenance_open", {
+        p_organization_id: organizationId,
+        p_payload: { ...payload, component_id: input.mtsrComponentId, ...(input.mtsrInspectionItemId ? { inspection_item_id: input.mtsrInspectionItemId } : {}) },
+      }, "Não foi possível abrir a manutenção pelo MTSR.");
+    if (result.ok) revalidatePath("/seguranca/mtsr");
+    return result;
+  }
   if (input.actionPlanId) {
     // Gestão de Checklist › Planos de Ação: mesma manutenção oficial, origem
     // "Plano de ação", apontamentos do plano e o vínculo plano × manutenção.

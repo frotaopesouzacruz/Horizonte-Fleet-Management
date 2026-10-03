@@ -548,6 +548,8 @@ function WizardBody({
       duplicateJustification: justification.length >= 10 ? justification : null,
       actionPlanId: initial.actionPlanId ?? null,
       actionPlanItemIds: initial.actionPlanItemIds,
+      mtsrComponentId: initial.mtsrComponentId ?? null,
+      mtsrInspectionItemId: initial.mtsrInspectionItemId ?? null,
     };
   };
 
@@ -602,6 +604,7 @@ function WizardBody({
         <DialogDescription>
           Passo {step} de 5 · {current.label}. {current.hint}
           {initial.actionPlanCode ? ` Origem: Plano de Ação ${initial.actionPlanCode} — Checklist.` : ""}
+          {initial.mtsrComponentName ? ` Origem: componente MTSR "${initial.mtsrComponentName}" não conforme — Segurança.` : ""}
         </DialogDescription>
       </DialogHeader>
       <Stepper step={step} onGoTo={(s) => goTo(s)} disabled={working} />

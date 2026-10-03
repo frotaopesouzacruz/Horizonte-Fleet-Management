@@ -88,6 +88,9 @@ const MODULE_LABELS: Record<string, string> = {
   maintenance: "Manutenção",
   adherence: "Aderência",
   action_plans: "Planos de ação",
+  mtsr: "Gestão de MTSR",
+  applications: "Aplicativos",
+  km: "Gestão de KM Rodado",
 };
 
 const moduleLabel = (module: string) => MODULE_LABELS[module] ?? module;
