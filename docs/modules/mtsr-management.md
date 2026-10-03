@@ -276,6 +276,11 @@ own parameters) and reuse the KM workbook kit
 | `src/components/mtsr/badges.tsx` | Status badges (deadline, conformity, criticality, component, inspection, revalidation, ingestion outcome, verification mode). |
 | `src/app/(app)/seguranca/mtsr/*` | Page, view, filters and the tab panels; `panels/ingestion/import-section.tsx` is the import; `export/*` the three routes and `export-log.ts`. |
 | `src/app/(app)/aplicativos/vistoria-mtsr/*` | The field app. |
+| `src/app/(app)/seguranca/mtsr/veiculos/[id]/*` | Ficha MTSR 360° (`mtsr_vehicle_sheet`): status, components with history, inspections, linked maintenances, timeline; backoffice update and maintenance dialogs. |
+| `src/components/mtsr/vehicle-mtsr.tsx`, `maintenance-mtsr.tsx`, `maintenance-dialogs.tsx` | Integrations: MTSR tab in the vehicle record, MTSR block in the maintenance drawer, open / link / unlink dialogs. |
+| `src/app/dev/preview-mtsr/*` (`?aba=`, `?perfil=lideranca`, `/ficha`) | Preview with recorded routine outputs (`fixtures.json`) through the real loaders; absent from a normal production build. |
+| `tests/ui/mtsr.spec.ts`, `tests/ui/mtsr-app.spec.ts` | Playwright against the previews: tabs by permission, KPIs, hand-drawn SVG charts, matrix and grouping, queues, catalogue forms, sheet, mobile overflow, axe light/dark. |
+| `supabase/tests/remote/31_mtsr.sql` | 59 assertions on the rules (deadline, conformity, criticality, submit / validate / return / reject, stale readings, ingestion outcomes and priorities, maintenance revalidation, parameters, nomenclature, retention), run in production inside a rolled-back transaction. |
 
 ## Migrations
 
