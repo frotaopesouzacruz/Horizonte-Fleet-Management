@@ -1,0 +1,8 @@
+# Dados operacionais (placas, usuários, gestores, preços): nunca versionar
+fontes/
+saida/
+*.xlsx
+*.xlsm
+*.pkl
+
+__pycache__/
