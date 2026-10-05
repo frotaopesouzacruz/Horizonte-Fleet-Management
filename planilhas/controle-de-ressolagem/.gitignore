@@ -1,0 +1,6 @@
+# Dados operacionais (placas, gestores, histórico): nunca versionar
+saida/
+fontes/
+*.xlsx
+*.xlsm
+__pycache__/
