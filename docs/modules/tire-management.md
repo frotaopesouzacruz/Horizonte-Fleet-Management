@@ -222,6 +222,23 @@ base, histórico, aderências, cronograma, serviços) e o aplicativo; Operaciona
 - Interface: `tests/ui/tires.spec.ts` e `tests/ui/tires-app.spec.ts` contra as
   prévias `/dev/preview-pneus` e `/dev/preview-vistoria-pneus`.
 
+## 8. Situação em produção (06/10/2026)
+
+- Migrations de sincronização, conformidade, histórico de indicadores,
+  auditoria e linguagem aplicadas; pg_cron `hfm_tires_kpi_tick` (a cada 15 min)
+  e `hfm_tires_audit_daily` (06:20) ativos. `33_tires_evolution.sql` passou em
+  produção (43 verificações, desfeito ao final).
+- Primeira varredura da Central de Auditoria (manual, Administrador): 120
+  pendências abertas, a maioria de baixa severidade (KM Real negativo,
+  número de calibragem formatado como data, datas inconsistentes) e 2 de
+  severidade alta (sulco inválido).
+- Evolução dos Indicadores: a primeira captura semanal é na sexta-feira
+  09/10/2026, 22:00; a comparação semana × semana aparece a partir da segunda.
+- Sincronização com o SharePoint: aguarda o aplicativo da TI e as variáveis
+  descritas em [`tire-sync-sharepoint.md`](./tire-sync-sharepoint.md); até lá
+  as execuções registram "credenciais ausentes" e a carga manual da planilha
+  segue como contingência.
+
 ## Fora do Escopo Atual
 
 ### CPK DE PNEUS
