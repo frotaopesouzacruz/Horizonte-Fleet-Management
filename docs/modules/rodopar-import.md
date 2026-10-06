@@ -95,12 +95,25 @@ mudança e por problema, frotas não encontradas e motivos de bloqueio.
 Lote não confirmado pode ser descartado (`tire_import_cancel`) sem alterar a
 base; lote confirmado não pode ser cancelado.
 
-## 6. Primeira carga real
+## 6. Primeira carga real (produção, 06/10/2026)
 
-Arquivo `Rodopar_10.xlsx` (sha256 `1a700605…177dd099`, 617 linhas: 409 USO,
-99 ESTOQUE, 68 DESCARTE, 41 BAIXADO), data de referência **05/10/2026** (maior
-data de atualização do arquivo). Reenviar o mesmo arquivo é recusado como
-duplicado.
+Arquivo `Rodopar_10.xlsx` (sha256 `1a700605…177dd099`), data de referência
+**05/10/2026** (maior data de atualização do arquivo), pelo mesmo pipeline da
+tela (`tire_import_start` → `tire_import_stage` em 6 partes, cada uma com soma
+MD5 conferida no banco antes de gravar → `tire_import_validate` →
+`tire_import_confirm`), com a pessoa administradora como autora:
+
+| Etapa | Resultado |
+|---|---|
+| Validação | 617 linhas, 617 válidas, **0 erros**, 93 com aviso (80 KM Real negativo, 15 números gravados como data, 2 sulcos fora do limite, 1 menor sulco divergente, 1 data futura). |
+| Situação canônica | 409 em uso, 99 estoque, 68 descartados, 41 baixados. |
+| Enriquecimento | 75 frotas no arquivo, 75 resolvidas no Cadastro de Frotas, 0 não encontradas; nenhum veículo criado. |
+| Confirmação | 617 pneus, 617 fotografias, 617 eventos `TIRE_CREATED`, trilha de auditoria e `tires.snapshot.confirmed` no outbox. |
+| Idempotência | Reenvio do mesmo arquivo recusado com `tire_duplicate_file` ("já importado e confirmado como fotografia de 05/10/2026"); nenhum lote criado. |
+
+Uma primeira tentativa de confirmação foi revertida por inteiro porque a
+consulta de conferência executada na mesma transação falhou — prova prática de
+que a confirmação é atômica (nada ficou pela metade).
 
 ## Fora do Escopo Atual
 
