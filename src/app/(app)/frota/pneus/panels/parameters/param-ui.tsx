@@ -113,7 +113,7 @@ export function ReadOnlyNotice() {
     <Alert variant="neutral" icon={<Lock />} data-testid="tires-param-readonly">
       <AlertTitle>Somente leitura</AlertTitle>
       <AlertDescription>
-        Você pode consultar prazos, regras de PSI, posições, layouts e vínculos, mas alterá-los exige a permissão{" "}
+        Você pode consultar prazos, regras de PSI, posições, layouts, vínculos, a fonte oficial e a agenda dos indicadores, mas alterá-los exige a permissão{" "}
         <span className="font-mono text-caption">{TIRES_PERMISSION_CODES.parameters}</span>.
       </AlertDescription>
     </Alert>

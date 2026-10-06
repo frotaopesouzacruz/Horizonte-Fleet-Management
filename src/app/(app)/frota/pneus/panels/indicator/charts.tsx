@@ -51,7 +51,7 @@ export function StatusBars({
                   <span className="flex min-w-0 items-center gap-2">
                     <StatusDot status={e.tone} />
                     <span className={cn("truncate text-body-sm", e.count > 0 ? "text-fg" : "text-fg-muted")}>{e.label}</span>
-                    {isActive ? <span className="shrink-0 text-caption font-semibold text-primary">filtrando</span> : null}
+                    {isActive ? <span className="shrink-0 text-caption font-semibold text-fg-secondary">filtrando</span> : null}
                   </span>
                   <span aria-hidden className="block h-2 overflow-hidden rounded-full bg-surface-sunken">
                     <span
@@ -61,7 +61,7 @@ export function StatusBars({
                   </span>
                   <span className="whitespace-nowrap text-right text-body-sm tabular-nums">
                     <span className={cn("font-semibold", e.count > 0 ? "text-fg" : "text-fg-muted")}>{fmtInt(e.count)}</span>
-                    <span className="text-fg-muted"> · {fmtPct(pct == null ? null : Math.round(pct * 10) / 10)}</span>
+                    <span className="text-fg-muted"> · {fmtPct(pct)}</span>
                   </span>
                   {clickable ? <ChevronRight aria-hidden className="size-4 text-fg-muted" /> : <span aria-hidden className="size-4" />}
                 </>
@@ -136,7 +136,7 @@ export function Columns({
   const plot = height - 22;
   const n = Math.max(items.length, 1);
   return (
-    <figure className="flex min-w-0 flex-col gap-2" data-testid={testId}>
+    <figure className="flex min-w-0 flex-col gap-2" aria-label={caption} data-testid={testId}>
       {legend?.length ? <ChartLegend items={legend} /> : null}
       <div aria-hidden className={cn("relative", markers.length ? "pt-5" : "pt-1")}>
         <div className="flex items-end border-b" style={{ height, borderColor: "var(--chart-axis-line)" }}>
@@ -186,7 +186,6 @@ export function Columns({
           </span>
         ))}
       </div>
-      <figcaption className="sr-only">{caption}</figcaption>
       <SrTable
         caption={caption}
         columns={["Faixa", "Pneus"]}
@@ -218,7 +217,7 @@ export function CalibrationMatrix({
     const body = (
       <>
         <span className="text-h3 font-semibold text-fg tabular-nums">{fmtInt(e.count)}</span>
-        <span className="text-caption text-fg-secondary tabular-nums">{fmtPct(pct == null ? null : Math.round(pct * 10) / 10)} dos pneus</span>
+        <span className="text-caption text-fg-secondary tabular-nums">{fmtPct(pct)} dos pneus</span>
         <span className={cn("text-caption font-semibold", t.softForegroundClassName)}>{e.label}</span>
         {note ? <span className="text-caption text-fg-secondary">{note}</span> : null}
       </>

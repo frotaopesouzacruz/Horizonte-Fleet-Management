@@ -4,12 +4,14 @@ import { SlidersHorizontal } from "lucide-react";
 import type { TiresTabData } from "@/lib/tires/loaders";
 import type { TiresPanelContext } from "../shared";
 import { GeneralParameters } from "./parameters/general-form";
+import { KpiScheduleSection } from "./parameters/kpi-schedule";
 import { LayoutsSection } from "./parameters/layouts";
 import { LinksSection } from "./parameters/links";
 import { ReadOnlyNotice } from "./parameters/param-ui";
 import { PositionsSection } from "./parameters/positions";
 import { PressureRulesSection } from "./parameters/pressure-rules";
 import { ServiceKindsSection } from "./parameters/service-kinds";
+import { SyncSourceSection } from "./parameters/sync-source";
 import { PanelEmpty, PanelError, SubTabs } from "./tires-ui";
 
 /**
@@ -18,7 +20,7 @@ import { PanelEmpty, PanelError, SubTabs } from "./tires-ui";
  * tolerâncias e limites vêm sempre de `tires_catalog` — nenhum número fixo na
  * tela. Sem `tires.parameters.manage` a aba é só leitura.
  */
-type Sub = "prazos" | "psi" | "posicoes" | "layouts" | "vinculos" | "servicos";
+type Sub = "prazos" | "psi" | "posicoes" | "layouts" | "vinculos" | "servicos" | "fonte" | "indicadores";
 
 const SUBS: { value: Sub; label: string }[] = [
   { value: "prazos", label: "Prazos e limites" },
@@ -27,6 +29,8 @@ const SUBS: { value: Sub; label: string }[] = [
   { value: "layouts", label: "Layouts" },
   { value: "vinculos", label: "Vínculos" },
   { value: "servicos", label: "Serviços da Manutenção" },
+  { value: "fonte", label: "Fonte oficial (SharePoint)" },
+  { value: "indicadores", label: "Agenda dos indicadores" },
 ];
 
 export function ParametersPanel({ data, ctx }: { data: TiresTabData["parametros"] | null; ctx: TiresPanelContext }) {
@@ -57,6 +61,8 @@ export function ParametersPanel({ data, ctx }: { data: TiresTabData["parametros"
       {sub === "layouts" ? <LayoutsSection catalog={data} canManage={canManage} onDone={onDone} /> : null}
       {sub === "vinculos" ? <LinksSection catalog={data} canManage={canManage} vehicles={ctx.options?.vehicles ?? null} onDone={onDone} /> : null}
       {sub === "servicos" ? <ServiceKindsSection catalog={data} canManage={canManage} onDone={onDone} /> : null}
+      {sub === "fonte" ? <SyncSourceSection source={data.syncSource} canManage={canManage} onDone={onDone} /> : null}
+      {sub === "indicadores" ? <KpiScheduleSection schedule={data.kpiSchedule} canManage={canManage} onDone={onDone} /> : null}
     </div>
   );
 }

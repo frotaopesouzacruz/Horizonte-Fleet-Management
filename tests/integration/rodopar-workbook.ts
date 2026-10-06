@@ -33,5 +33,6 @@ export async function buildRodoparXlsx(rows: Cells[], opts: { drop?: string[]; e
     ]);
   }
   const buf = await wb.xlsx.writeBuffer();
-  return (buf as Buffer).buffer.slice((buf as Buffer).byteOffset, (buf as Buffer).byteOffset + (buf as Buffer).byteLength) as ArrayBuffer;
+  const view = new Uint8Array(buf as unknown as ArrayBuffer);
+  return view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength) as ArrayBuffer;
 }

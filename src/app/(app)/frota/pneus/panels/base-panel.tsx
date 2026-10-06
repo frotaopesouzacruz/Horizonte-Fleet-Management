@@ -2,38 +2,47 @@
 
 import * as React from "react";
 import {
-  AlertTriangle, ChevronDown, ChevronUp, Disc3, Hash, Layers, ListOrdered, PackageX, Recycle, Ruler, Truck, Warehouse,
+  AlertTriangle, ChevronDown, ChevronRight, ChevronUp, Disc3, Hash, Layers, ListOrdered, Loader2, PackageX, Recycle, Ruler, Truck,
+  Warehouse,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { AxleDiagram, type AxlePosition, type AxleTireState } from "@/components/tires/axle-diagram";
+import {
+  ConformBadge, CriticalityBadge, VehicleCroqui, criticalityOf, croquiLayout, type CroquiTire,
+} from "@/components/tires/vehicle-croqui";
 import { NativeSelect } from "@/components/governance/selects";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SegmentedControl, ToggleChip } from "@/components/ui/segmented-control";
-import { StatusBadge, StatusDot, statusTone } from "@/components/ui/status-badge";
+import { StatusBadge, StatusDot } from "@/components/ui/status-badge";
 import { Table, TableBody, TableCell, TableContainer, TableEmpty, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { TiresTabData } from "@/lib/tires/loaders";
 import {
-  DEADLINE_LABEL, DEADLINE_SHORT, DEADLINE_TONE, LAYOUT_SOURCE_LABEL, PSI_LABEL, PSI_TONE, SEVERITY_LABEL, SEVERITY_TONE,
-  STATUS_LABEL, STATUS_ORDER, STATUS_TONE, TREAD_LABEL, TREAD_ORDER, TREAD_TONE, fmtInt, fmtKm, fmtMm, fmtNum, formatDate,
-  issueLabel, type CanonicalStatus, type DeadlineStatus, type PsiStatus, type TireFleetGroup, type TirePositionInfo, type TireRow,
-  type TiresBaseFleet, type TiresBaseRows, type TiresBaseView, type TireVehicleLayout, type TiresTone, type TreadClass,
+  DEADLINE_LABEL, DEADLINE_SHORT, DEADLINE_TONE, GROUP_BY_LABEL, GROUP_BY_PARAM, LAYOUT_SOURCE_LABEL, PSI_LABEL, PSI_TONE,
+  SEVERITY_LABEL, SEVERITY_TONE, STATUS_LABEL, STATUS_ORDER, STATUS_TONE, TREAD_LABEL, TREAD_TONE, fmtInt, fmtKm, fmtMm, fmtNum,
+  fmtPct, formatDate, issueLabel, reasonLabel, type CanonicalStatus, type DeadlineStatus, type PsiStatus, type TireBaseGroup,
+  type TireFleetGroup, type TirePositionInfo, type TireRow, type TiresBaseFleet, type TiresBaseGroups, type TiresBaseRows,
+  type TiresBaseView, type TiresGroupBy, type TireVehicleLayout, type TiresTone, type TreadClass,
 } from "@/lib/tires/types";
-import type { TiresBaseSort } from "@/lib/tires/url";
+import { splitList, type TiresBaseSort } from "@/lib/tires/url";
 import type { TiresPanelContext } from "../shared";
 import {
   ExportButton, FireLink, PanelEmpty, PanelError, PlateLink, plural, Section, TiresKpi, TiresPagination, useTiresLink, useViewParam,
+  type TiresNavLink,
 } from "./tires-ui";
 
 /**
  * Gestão de Pneus → Base geral.
  *
  * `tires_base` devolve a página já filtrada, ordenada e avaliada (classe do
- * sulco, prazos, regra de PSI e severidade vêm do banco). Três visões na URL
- * (`visao`): por frota (pneus em uso agrupados por veículo, com o diagrama de
- * eixos montado do dicionário de posições), por Nº Fogo (todos os pneus da
- * fotografia) e fora da frota (estoque, ressolagem, descarte, baixa).
+ * sulco, prazos, regra de PSI, severidade, criticidade e conformidade vêm do
+ * banco). Três visões na URL (`visao`):
+ * - por frota: pneus em uso agrupados por veículo, com o croqui real do
+ *   veículo (montado do layout e do dicionário de posições). Por padrão as
+ *   frotas vêm agrupadas (`agrupar` = operação | local | liderança | nenhum);
+ *   cada grupo aberto (`abertos`, até 6) traz as suas frotas do servidor;
+ * - por Nº Fogo: todos os pneus da base oficial (Rodopar);
+ * - fora da frota: estoque, ressolagem, descarte e baixa.
  */
 export function BasePanel({ data, ctx }: { data: TiresTabData["base"] | null; ctx: TiresPanelContext }) {
   if (ctx.error) return <PanelError ctx={ctx} title="Não foi possível carregar a Base geral." testId="tires-base-error" />;
@@ -51,8 +60,8 @@ export function BasePanel({ data, ctx }: { data: TiresTabData["base"] | null; ct
     return (
       <PanelEmpty
         icon={<Disc3 />}
-        title="Nenhuma fotografia oficial importada"
-        description="A Base geral mostra a fotografia do Rodopar 10. Importe o relatório em Importação Rodopar para começar."
+        title="Nenhum dado oficial disponível"
+        description="A Base geral mostra a base oficial (Rodopar). Sincronize ou envie o relatório em Sincronização Rodopar para começar."
         testId="tires-base-no-photo"
       />
     );
@@ -67,17 +76,37 @@ const VIEW_OPTIONS: { value: TiresBaseView; label: string; icon: React.ReactNode
 ];
 
 type BaseData = NonNullable<TiresTabData["base"]>;
+type GroupByValue = TiresGroupBy | "nenhum";
+
+/** Frota da Base Geral com a conformidade calculada no banco. */
+type FleetGroup = TireFleetGroup & {
+  nonconform?: number | null;
+  conformPct?: number | null;
+  operationId?: string | null;
+  cityId?: number | null;
+  leaderId?: string | null;
+  tireRows: CroquiTire[];
+};
+
+/** Frotas da página (sem agrupamento) × resumo por grupo (com agrupamento). */
+function splitGroups(data: BaseData): { fleets: FleetGroup[]; grouped: TiresBaseGroups | null } {
+  const raw = (data as unknown as { groups?: unknown }).groups;
+  const summary = data.groupSummary ?? null;
+  if (summary && Array.isArray(summary.groups)) return { fleets: [], grouped: summary };
+  return { fleets: Array.isArray(raw) ? (raw as FleetGroup[]) : [], grouped: null };
+}
 
 function BaseContent({ data, ctx }: { data: BaseData; ctx: TiresPanelContext }) {
   const view: TiresBaseView = data.view ?? "frota";
+  const groupBy: GroupByValue = view === "frota" ? (data.groupBy ?? "nenhum") : "nenhum";
   const sort = ctx.params.ordem ?? null;
   const dir = ctx.params.dir === "desc" ? "desc" : "asc";
 
   const changeView = (v: TiresBaseView) =>
-    ctx.navigate({ visao: v === "frota" ? null : v, pagina: null, ordem: null, dir: null, grupo: null });
+    ctx.navigate({ visao: v === "frota" ? null : v, pagina: null, ordem: null, dir: null, grupo: null, abertos: null });
 
   return (
-    <div className="flex flex-col gap-5" data-testid="tires-base" data-view={view}>
+    <div className="flex flex-col gap-5" data-testid="tires-base" data-view={view} data-group-by={groupBy}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SegmentedControl<TiresBaseView>
           aria-label="Visão da Base geral"
@@ -89,28 +118,70 @@ function BaseContent({ data, ctx }: { data: BaseData; ctx: TiresPanelContext }) 
           data-testid="tires-base-view"
         />
         <div className="flex flex-wrap items-center gap-2">
-          {view === "frota" ? <FleetSort ctx={ctx} /> : null}
+          {view === "frota" ? (
+            <>
+              <GroupBySelect ctx={ctx} value={groupBy} />
+              <FleetSort ctx={ctx} />
+            </>
+          ) : null}
           <ExportButton ctx={ctx} kind="base" extra={{ visao: view, ordem: sort, dir: sort ? dir : null }} testId="tires-base-export" />
         </div>
       </div>
 
       <p className="text-body-sm text-fg-muted" data-testid="tires-base-photo">
-        Fotografia oficial do Rodopar de{" "}
+        Base oficial (Rodopar), dados de{" "}
         <span className="font-medium text-fg-secondary tabular-nums">{formatDate(data.referenceDate)}</span> · prazos contados em{" "}
         <span className="font-medium text-fg-secondary tabular-nums">{formatDate(data.asOf)}</span>
         {view === "fora" ? " · estoque, ressolagem, descarte e baixa" : null}
-        <span className="sr-only">. A vistoria de campo não altera a fotografia oficial.</span>
+        <span className="sr-only">. A vistoria de campo não altera a base oficial.</span>
       </p>
 
       {data.view === "fogo" || data.view === "fora" ? (
         <RowsView data={data} ctx={ctx} />
       ) : (
-        <FleetView data={data as TiresBaseFleet} positions={data.positions ?? []} ctx={ctx} />
+        <FleetView data={data} groupBy={groupBy} positions={data.positions ?? []} ctx={ctx} />
       )}
     </div>
   );
 }
 
+const GROUP_OPTIONS: { value: GroupByValue; label: string }[] = [
+  { value: "operation", label: GROUP_BY_LABEL.operation },
+  { value: "city", label: GROUP_BY_LABEL.city },
+  { value: "leader", label: GROUP_BY_LABEL.leader },
+  { value: "nenhum", label: "Sem agrupamento" },
+];
+
+function GroupBySelect({ ctx, value }: { ctx: TiresPanelContext; value: GroupByValue }) {
+  return (
+    <label className="flex items-center gap-2">
+      <span className="text-caption text-fg-muted">Agrupar por</span>
+      <NativeSelect
+        fieldSize="sm"
+        value={value}
+        disabled={ctx.pending}
+        onChange={(e) => {
+          const v = e.target.value as GroupByValue;
+          // operação é o padrão (sem parâmetro); trocar o agrupamento fecha os grupos e volta à 1ª página
+          ctx.navigate({
+            agrupar: v === "operation" ? null : v === "nenhum" ? "nenhum" : GROUP_BY_PARAM[v],
+            abertos: null,
+            grupo: null,
+            pagina: null,
+          });
+        }}
+        className="w-auto min-w-44"
+        data-testid="tires-base-groupby"
+      >
+        {GROUP_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </NativeSelect>
+    </label>
+  );
+}
 // ---------------------------------------------------------------------------
 // Peças compartilhadas (também usadas na ficha 360°)
 // ---------------------------------------------------------------------------
@@ -310,77 +381,362 @@ function FleetSort({ ctx }: { ctx: TiresPanelContext }) {
   );
 }
 
-function FleetView({ data, positions, ctx }: { data: TiresBaseFleet; positions: TirePositionInfo[]; ctx: TiresPanelContext }) {
-  const { summary, groups, total, limit } = data;
+/**
+ * Frotas abertas ("Ver pneus e posições") na URL (`grupo`), sem nova consulta.
+ * Sem escolha explícita, uma lista com uma única frota (ex.: link da placa)
+ * já abre expandida.
+ */
+function useFleetExpansion() {
   const [param, setParam] = useViewParam("grupo");
-  // Sem escolha explícita, um único veículo no recorte (ex.: link da placa) já abre expandido.
-  const expanded = React.useMemo(() => {
-    if (param == null) return new Set(groups.length === 1 ? [groups[0].key] : []);
-    return new Set(param.split(",").filter((k) => k && k !== "-"));
-  }, [param, groups]);
-  const toggle = (key: string) => {
-    const next = new Set(expanded);
+  const explicit = React.useMemo(() => (param == null ? null : new Set(param.split(",").filter((k) => k && k !== "-"))), [param]);
+  const isOpen = (key: string, single: boolean) => (explicit ? explicit.has(key) : single);
+  const toggle = (key: string, single: boolean) => {
+    const next = new Set(explicit ?? (single ? [key] : []));
     if (next.has(key)) next.delete(key);
     else next.add(key);
     setParam(next.size ? [...next].join(",") : "-");
   };
-  const dict = React.useMemo(() => new Map(positions.map((p) => [p.code, p])), [positions]);
+  return { isOpen, toggle };
+}
+type FleetExpansion = ReturnType<typeof useFleetExpansion>;
+
+const MAX_OPEN_GROUPS = 6;
+
+/**
+ * Grupos abertos na URL (`abertos`, até 6): cada um traz as suas frotas do
+ * servidor. Enquanto a navegação corre, o grupo já aparece aberto (carregando).
+ */
+function useOpenGroups(ctx: TiresPanelContext, keys: string[]) {
+  const server = ctx.params.abertos ?? "";
+  const [local, setLocal] = React.useState<{ base: string; value: string } | null>(null);
+  const value = local && local.base === server && ctx.pending ? local.value : server;
+  const open = React.useMemo(() => splitList(value).slice(0, MAX_OPEN_GROUPS), [value]);
+  const toggle = (key: string) => {
+    // chaves que sumiram do recorte (filtros mudaram) não ocupam vaga
+    const list = open.filter((k) => k !== key && keys.includes(k));
+    if (!open.includes(key)) list.push(key);
+    const next = list.slice(-MAX_OPEN_GROUPS).join(",");
+    setLocal({ base: server, value: next });
+    ctx.navigate({ abertos: next || null });
+  };
+  return { open, toggle };
+}
+
+function FleetView({ data, groupBy, positions, ctx }: {
+  data: BaseData;
+  groupBy: GroupByValue;
+  positions: TirePositionInfo[];
+  ctx: TiresPanelContext;
+}) {
+  const fleetData = data as unknown as TiresBaseFleet;
+  const { fleets, grouped } = splitGroups(data);
+  const expansion = useFleetExpansion();
+  const summary = fleetData.summary;
 
   return (
     <>
       <Section
         title="Resumo das frotas"
         testId="tires-base-fleet-summary"
-        description="Frotas com pneus em uso na fotografia. Crítica: algum pneu com sulco crítico ou abaixo do legal, ou medição vencida. Atenção: sulco em atenção, PSI fora da faixa, calibragem vencida ou medição/calibragem sem registro."
+        description="Frotas com pneus em uso nos dados atuais. Crítica: algum pneu com sulco crítico ou abaixo do legal, ou medição vencida. Atenção: sulco em atenção, PSI fora da faixa, calibragem vencida ou medição/calibragem sem registro."
       >
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <TiresKpi kpi="base-fleets" label="Frotas no recorte" value={fmtInt(summary.fleets)} icon={<Truck />} status="primary" />
+          <TiresKpi kpi="base-fleets" label="Frotas no recorte" value={fmtInt(summary?.fleets)} icon={<Truck />} status="primary" />
           <TiresKpi
             kpi="base-fleets-critical"
             label="Frotas críticas"
-            value={fmtInt(summary.critical)}
-            status={summary.critical > 0 ? "danger" : undefined}
+            value={fmtInt(summary?.critical)}
+            status={(summary?.critical ?? 0) > 0 ? "danger" : undefined}
             icon={<AlertTriangle />}
           />
           <TiresKpi
             kpi="base-fleets-attention"
             label="Frotas em atenção"
-            value={fmtInt(summary.attention)}
-            status={summary.attention > 0 ? "warning" : undefined}
+            value={fmtInt(summary?.attention)}
+            status={(summary?.attention ?? 0) > 0 ? "warning" : undefined}
             icon={<Ruler />}
           />
-          <TiresKpi kpi="base-fleets-ok" label="Frotas sem pendência" value={fmtInt(summary.ok)} status="success" icon={<Layers />} />
-          <TiresKpi kpi="base-fleets-tires" label="Pneus em uso" value={fmtInt(summary.tires)} icon={<Disc3 />} />
+          <TiresKpi kpi="base-fleets-ok" label="Frotas sem pendência" value={fmtInt(summary?.ok)} status="success" icon={<Layers />} />
+          <TiresKpi kpi="base-fleets-tires" label="Pneus em uso" value={fmtInt(summary?.tires)} icon={<Disc3 />} />
         </div>
       </Section>
 
-      <Section
-        title="Frotas"
-        testId="tires-base-fleets"
-        description="Abra uma frota para ver o diagrama de eixos (montado do layout do veículo e do dicionário de posições) e os pneus montados."
-      >
-        {groups.length === 0 ? (
-          <PanelEmpty
-            icon={<Truck />}
-            title="Nenhum pneu em uso no recorte"
-            description="Nenhuma frota tem pneus em uso com os filtros atuais. Ajuste ou limpe os filtros da tela."
-            testId="tires-base-fleets-empty"
-          />
-        ) : (
-          <ul className="flex flex-col gap-3" aria-label="Frotas com pneus em uso">
-            {groups.map((g) => (
-              <li key={g.key}>
-                <FleetCard group={g} dict={dict} expanded={expanded.has(g.key)} onToggle={() => toggle(g.key)} />
-              </li>
-            ))}
-          </ul>
-        )}
-        <TiresPagination ctx={ctx} total={total} limit={limit} label="Paginação das frotas" testId="tires-base-fleet-pagination" />
-      </Section>
+      {groupBy === "nenhum" ? (
+        <Section
+          title="Frotas"
+          testId="tires-base-fleets"
+          description="Abra uma frota para ver o croqui do veículo (montado do layout e do dicionário de posições) e os pneus montados."
+        >
+          {fleets.length === 0 && (fleetData.total ?? 0) > 0 ? (
+            // o resumo conta frotas, mas a página delas não veio: nunca dizer "nenhum pneu"
+            <PanelEmpty
+              icon={<Truck />}
+              title="A lista de frotas não veio do servidor"
+              description="O resumo tem frotas no recorte, mas a página de frotas não foi devolvida. Recarregue a página."
+              testId="tires-base-fleets-missing"
+            />
+          ) : fleets.length === 0 ? (
+            <PanelEmpty
+              icon={<Truck />}
+              title="Nenhum pneu em uso no recorte"
+              description="Nenhuma frota tem pneus em uso com os filtros atuais. Ajuste ou limpe os filtros da tela."
+              testId="tires-base-fleets-empty"
+            />
+          ) : (
+            <FleetList fleets={fleets} positions={positions} expansion={expansion} label="Frotas com pneus em uso" />
+          )}
+          <TiresPagination ctx={ctx} total={fleetData.total} limit={fleetData.limit} label="Paginação das frotas" testId="tires-base-fleet-pagination" />
+        </Section>
+      ) : (
+        <GroupedFleets
+          grouped={grouped}
+          groupBy={groupBy}
+          openGroups={data.openGroups ?? {}}
+          positions={positions}
+          expansion={expansion}
+          ctx={ctx}
+        />
+      )}
     </>
   );
 }
 
+function FleetList({ fleets, positions, expansion, label }: {
+  fleets: FleetGroup[];
+  positions: TirePositionInfo[];
+  expansion: FleetExpansion;
+  label: string;
+}) {
+  const single = fleets.length === 1;
+  return (
+    <ul className="flex flex-col gap-3" aria-label={label}>
+      {fleets.map((g) => (
+        <li key={g.key}>
+          <FleetCard group={g} positions={positions} expanded={expansion.isOpen(g.key, single)} onToggle={() => expansion.toggle(g.key, single)} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Por frota, agrupada (operação · local de operação · liderança)
+// ---------------------------------------------------------------------------
+function GroupedFleets({ grouped, groupBy, openGroups, positions, expansion, ctx }: {
+  grouped: TiresBaseGroups | null;
+  groupBy: TiresGroupBy;
+  openGroups: Record<string, TiresBaseFleet>;
+  positions: TirePositionInfo[];
+  expansion: FleetExpansion;
+  ctx: TiresPanelContext;
+}) {
+  const link = useTiresLink(ctx);
+  const groups = React.useMemo(() => grouped?.groups ?? [], [grouped]);
+  const { open, toggle } = useOpenGroups(ctx, groups.map((g) => g.key));
+  const dim = GROUP_BY_LABEL[groupBy];
+
+  /** "Ver todas": aplica o filtro global do grupo e desliga o agrupamento (lista paginada). */
+  const allLink = (g: TireBaseGroup): TiresNavLink => {
+    const param = GROUP_BY_PARAM[groupBy];
+    const patch: Record<string, string | null> = { agrupar: "nenhum", abertos: null, grupo: null };
+    if (g.id == null || g.key === "—") {
+      const missing = new Set(splitList(ctx.filters.missing));
+      missing.add(param);
+      patch.sem = [...missing].join(",");
+      patch[param] = null;
+    } else {
+      patch[param] = g.id;
+    }
+    return link(patch);
+  };
+
+  return (
+    <Section
+      title={`Frotas por ${dim.toLowerCase()}`}
+      testId="tires-base-fleets"
+      description={`Grupos do mais crítico para o menos crítico. Abra um grupo (até ${MAX_OPEN_GROUPS} ao mesmo tempo) para ver as frotas e, em cada frota, o croqui com os pneus e posições.`}
+      actions={
+        <span className="text-caption text-fg-muted tabular-nums">
+          {fmtInt(groups.length)} {plural(groups.length, "grupo", "grupos")}
+        </span>
+      }
+    >
+      {groups.length === 0 ? (
+        <PanelEmpty
+          icon={<Truck />}
+          title="Nenhum pneu em uso no recorte"
+          description="Nenhuma frota tem pneus em uso com os filtros atuais. Ajuste ou limpe os filtros da tela."
+          testId="tires-base-fleets-empty"
+        />
+      ) : (
+        <ul className="flex flex-col gap-3" aria-label={`Frotas agrupadas por ${dim.toLowerCase()}`} data-testid="tires-base-groups">
+          {groups.map((g) => (
+            <li key={g.key}>
+              <GroupCard
+                group={g}
+                dim={dim}
+                open={open.includes(g.key)}
+                fleetData={openGroups[g.key]}
+                pending={ctx.pending}
+                onToggle={() => toggle(g.key)}
+                onRetry={ctx.refresh}
+                allLink={allLink(g)}
+                positions={positions}
+                expansion={expansion}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
+  );
+}
+
+function GroupStat({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn("flex min-w-0 flex-col gap-0.5", className)}>
+      <dt className="text-caption text-fg-muted">{label}</dt>
+      <dd className="text-body-sm font-semibold tabular-nums text-fg">{children}</dd>
+    </div>
+  );
+}
+
+/** % de conformidade geral (do banco) com barra de apoio; o número é a informação. */
+function ConformityMeter({ pct }: { pct: number | null | undefined }) {
+  if (pct == null) return <span className="text-fg-muted">—</span>;
+  const width = Math.max(0, Math.min(100, pct));
+  return (
+    <span className="flex items-center gap-2">
+      <span>{fmtPct(pct)}</span>
+      <span aria-hidden className="h-1.5 w-14 overflow-hidden rounded-full bg-surface-sunken ring-1 ring-border-subtle ring-inset">
+        <span className="block h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
+      </span>
+    </span>
+  );
+}
+
+function FleetStatusCounts({ critical, attention, ok }: { critical: number; attention: number; ok: number }) {
+  const items = [
+    { n: critical, label: plural(critical, "crítica", "críticas"), tone: "danger" as const },
+    { n: attention, label: "em atenção", tone: "warning" as const },
+    { n: ok, label: "sem pendência", tone: "success" as const },
+  ];
+  return (
+    <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-caption font-normal">
+      {items.map((i) => (
+        <span key={i.label} className="inline-flex items-center gap-1 whitespace-nowrap">
+          <StatusDot status={i.tone} size="sm" />
+          <span className="font-semibold text-fg">{fmtInt(i.n)}</span>
+          <span className="text-fg-secondary">{i.label}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function GroupCard({ group: g, dim, open, fleetData, pending, onToggle, onRetry, allLink, positions, expansion }: {
+  group: TireBaseGroup;
+  dim: string;
+  open: boolean;
+  fleetData: TiresBaseFleet | undefined;
+  pending: boolean;
+  onToggle: () => void;
+  onRetry: () => void;
+  allLink: TiresNavLink;
+  positions: TirePositionInfo[];
+  expansion: FleetExpansion;
+}) {
+  const bodyId = React.useId();
+  const fleets = (fleetData?.groups ?? null) as FleetGroup[] | null;
+  const loading = open && !fleets && pending;
+  return (
+    <article
+      className={cn(
+        "flex flex-col rounded-lg border bg-surface-raised shadow-card",
+        g.critical > 0 ? "border-danger/40" : g.attention > 0 ? "border-warning/40" : "border-border",
+      )}
+      data-testid="tires-base-group"
+      data-key={g.key}
+      data-open={open || undefined}
+    >
+      <div className="flex flex-col gap-3 p-3 sm:p-4 lg:flex-row lg:items-center lg:gap-6">
+        <h3 className="min-w-0 lg:w-[19rem] lg:shrink-0">
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={bodyId}
+            onClick={onToggle}
+            className="-mx-1 flex min-h-11 w-[calc(100%+0.5rem)] items-center gap-2 rounded-md px-1 text-left hfm-transition hfm-focus-ring hover:bg-hover-overlay"
+            data-testid="tires-base-group-toggle"
+          >
+            <ChevronRight aria-hidden className={cn("size-4 shrink-0 text-fg-muted hfm-transition", open && "rotate-90")} />
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="truncate text-body font-semibold text-fg">{g.label}</span>
+              <span className="text-caption font-normal text-fg-muted">{open ? "Ocultar frotas" : "Ver frotas"}</span>
+            </span>
+            <span className="sr-only"> — {dim}</span>
+          </button>
+        </h3>
+        <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-4 xl:grid-cols-[repeat(4,minmax(0,auto))_minmax(0,1fr)] xl:gap-x-6">
+          <GroupStat label="Frotas">{fmtInt(g.fleets)}</GroupStat>
+          <GroupStat label="Pneus em uso">{fmtInt(g.tires)}</GroupStat>
+          <GroupStat label="Não conformes">{fmtInt(g.nonconform)}</GroupStat>
+          <GroupStat label="Conformidade geral">
+            <ConformityMeter pct={g.conformPct} />
+          </GroupStat>
+          <GroupStat label="Situação das frotas" className="col-span-2 sm:col-span-4 xl:col-span-1">
+            <FleetStatusCounts critical={g.critical} attention={g.attention} ok={g.ok} />
+          </GroupStat>
+        </dl>
+      </div>
+
+      {open ? (
+        <div
+          id={bodyId}
+          className="flex flex-col gap-3 border-t border-border-subtle bg-surface px-3 py-3 sm:px-4"
+          aria-busy={loading || undefined}
+          data-testid="tires-base-group-fleets"
+        >
+          {fleets ? (
+            fleets.length ? (
+              <>
+                <FleetList fleets={fleets} positions={positions} expansion={expansion} label={`Frotas de ${g.label}`} />
+                {fleetData && fleetData.total > fleets.length ? (
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-fg-muted">
+                    Mostrando {fmtInt(fleets.length)} de {fmtInt(fleetData.total)} frotas (as mais graves primeiro).
+                    <Button asChild variant="link" size="sm">
+                      <a href={allLink.href} onClick={allLink.onClick} data-testid="tires-base-group-all">
+                        Ver todas as {fmtInt(fleetData.total)} frotas
+                      </a>
+                    </Button>
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <p className="text-caption text-fg-muted">Nenhuma frota com pneus em uso neste grupo com os filtros atuais.</p>
+            )
+          ) : loading ? (
+            <p className="flex items-center gap-2 text-caption text-fg-muted" role="status">
+              <Loader2 aria-hidden className="size-4 animate-spin" />
+              Carregando as frotas do grupo…
+            </p>
+          ) : (
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-fg-secondary">
+              Não foi possível carregar as frotas deste grupo.
+              <Button type="button" variant="link" size="sm" onClick={onRetry}>
+                Tentar de novo
+              </Button>
+            </p>
+          )}
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Cartão da frota (o mesmo com ou sem agrupamento)
+// ---------------------------------------------------------------------------
 interface FleetCountItem {
   count: number;
   label: string;
@@ -416,16 +772,16 @@ function FleetMetric({ label, items, foot, testId }: { label: string; items: Fle
 const layoutText = (layout: TireVehicleLayout | null) =>
   layout
     ? `${layout.layoutName ?? "Sem layout cadastrado"} · ${LAYOUT_SOURCE_LABEL[layout.layoutSource] ?? layout.layoutSource}`
-    : "Sem veículo identificado: posições da fotografia";
+    : "Sem veículo identificado: posições dos dados Rodopar";
 
-function FleetCard({ group: g, dict, expanded, onToggle }: {
-  group: TireFleetGroup;
-  dict: Map<string, TirePositionInfo>;
+function FleetCard({ group: g, positions, expanded, onToggle }: {
+  group: FleetGroup;
+  positions: TirePositionInfo[];
   expanded: boolean;
   onToggle: () => void;
 }) {
   const st = FLEET_STATUS[g.status];
-  const bodyId = `tires-fleet-${g.key}`;
+  const bodyId = React.useId();
   const context = [g.operationName, placeText(g.cityName, g.stateUf), g.brCode, g.leaderName].filter(Boolean).join(" · ");
   return (
     <article
@@ -452,8 +808,19 @@ function FleetCard({ group: g, dict, expanded, onToggle }: {
               {st.label}
             </StatusBadge>
           </div>
-          <p className="text-caption text-fg-secondary">{context || "Sem operação na data da fotografia"}</p>
+          <p className="text-caption text-fg-secondary">{context || "Sem operação na data dos dados"}</p>
           {g.unitName ? <p className="text-caption text-fg-muted">Filial {g.unitName}</p> : null}
+          {g.conformPct !== undefined || g.nonconform !== undefined ? (
+            <p className="text-caption text-fg-secondary" data-testid="tires-base-fleet-conformity">
+              Conformidade geral <span className="font-semibold tabular-nums text-fg">{fmtPct(g.conformPct ?? null)}</span>
+              {g.nonconform != null ? (
+                <span className="tabular-nums text-fg-muted">
+                  {" · "}
+                  {fmtInt(g.nonconform)} {plural(g.nonconform, "pneu não conforme", "pneus não conformes")}
+                </span>
+              ) : null}
+            </p>
+          ) : null}
         </div>
 
         <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-4">
@@ -520,172 +887,51 @@ function FleetCard({ group: g, dict, expanded, onToggle }: {
 
       {expanded ? (
         <div id={bodyId} className="flex flex-col gap-4 border-t border-border-subtle bg-surface px-3 py-4 sm:px-4" data-testid="tires-base-fleet-body">
-          <FleetBody group={g} dict={dict} />
+          <FleetBody group={g} positions={positions} />
         </div>
       ) : null}
     </article>
   );
 }
 
-/** Diagrama + tabela do veículo: tocar num pneu destaca a linha correspondente. */
-function FleetBody({ group, dict }: { group: TireFleetGroup; dict: Map<string, TirePositionInfo> }) {
+/** Croqui + tabela do veículo: tocar numa posição abre o pneu e destaca a linha correspondente. */
+function FleetBody({ group: g, positions }: { group: FleetGroup; positions: TirePositionInfo[] }) {
   const [selected, setSelected] = React.useState<string | null>(null);
+  const name = g.licensePlate ?? g.fleetNumber ?? "veículo";
   return (
     <>
-      <FleetPositions group={group} dict={dict} selected={selected} onSelect={(code) => setSelected((s) => (s === code ? null : code))} />
-      <FleetTiresTable rows={group.tireRows} selected={selected} />
+      <div data-testid="tires-base-positions">
+        <VehicleCroqui
+          positions={positions}
+          layout={croquiLayout(g.layout)}
+          tires={g.tireRows}
+          selected={selected}
+          onSelectedChange={setSelected}
+          label={`Croqui dos pneus de ${name}: posições do veículo`}
+        />
+      </div>
+      <FleetTiresTable rows={g.tireRows} selected={selected} />
     </>
   );
 }
 
-const worstClass = (rows: TireRow[]): TreadClass =>
-  rows.map((r) => r.treadClass).sort((a, b) => TREAD_ORDER.indexOf(a) - TREAD_ORDER.indexOf(b))[0];
-
-function FleetPositions({ group: g, dict, selected, onSelect }: {
-  group: TireFleetGroup;
-  dict: Map<string, TirePositionInfo>;
-  selected: string | null;
-  onSelect: (code: string) => void;
-}) {
-
-  const { diagram, outside, noPosition, byCode } = React.useMemo(() => {
-    const byCode = new Map<string, TireRow[]>();
-    const noPosition: TireRow[] = [];
-    for (const r of g.tireRows) {
-      if (!r.positionCode) {
-        noPosition.push(r);
-        continue;
-      }
-      byCode.set(r.positionCode, [...(byCode.get(r.positionCode) ?? []), r]);
-    }
-    // Posições = layout do veículo ∪ posições ocupadas na fotografia.
-    const codes = new Set<string>([...(g.layout?.positionCodes ?? []), ...byCode.keys()]);
-    const diagram: AxlePosition[] = [];
-    const outside: string[] = [];
-    for (const code of codes) {
-      const p = dict.get(code);
-      if (p) diagram.push(p);
-      else outside.push(code);
-    }
-    const sortOf = (code: string) => byCode.get(code)?.[0]?.positionSort ?? 999;
-    outside.sort((a, b) => sortOf(a) - sortOf(b) || a.localeCompare(b));
-    return { diagram, outside, noPosition, byCode };
-  }, [g, dict]);
-
-  const state = (p: AxlePosition): AxleTireState => {
-    const rows = byCode.get(p.code) ?? [];
-    if (!rows.length) return { caption: <span className="block text-[0.625rem] text-fg-muted">sem pneu</span>, srText: "sem pneu" };
-    const cls = worstClass(rows);
-    const first = rows[0];
-    return {
-      tone: TREAD_TONE[cls],
-      caption: (
-        <>
-          <span className="block truncate font-semibold">{first.fireNumber}{rows.length > 1 ? ` +${rows.length - 1}` : ""}</span>
-          <span className="block truncate text-[0.625rem] text-fg-secondary">{first.treadMin == null ? "—" : fmtNum(first.treadMin)}</span>
-        </>
-      ),
-      srText: rows
-        .map((r) => `Nº Fogo ${r.fireNumber}, sulco mínimo ${fmtMm(r.treadMin)}, ${TREAD_LABEL[r.treadClass]}`)
-        .join("; "),
-    };
-  };
-
-  const noDiagram = diagram.length === 0;
-
+/** Conformidade geral (do banco) + motivos; "—" quando a linha não a traz (pneu fora de uso). */
+function ConformityCell({ row }: { row: CroquiTire }) {
+  if (row.overallConform == null) return <span className="text-fg-muted">—</span>;
+  const reasons = row.reasons ?? [];
   return (
-    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6" data-testid="tires-base-positions">
-      {noDiagram ? null : (
-        <AxleDiagram
-          positions={diagram}
-          state={state}
-          selected={selected}
-          onSelect={onSelect}
-          label={`Posições dos pneus de ${g.licensePlate ?? g.fleetNumber ?? "veículo"}`}
-          testIdPrefix={`tires-base-axle-${g.key}`}
-          className="shrink-0"
-        />
-      )}
-
-      <div className="flex min-w-0 flex-1 flex-col gap-3">
-        <div className="flex flex-col gap-1.5">
-          <p className="text-caption text-fg-secondary">
-            {noDiagram
-              ? "As posições deste veículo não estão no dicionário de posições: lista na ordem da fotografia."
-              : "Em cada pneu: código da posição, Nº Fogo e sulco mínimo (mm). A cor segue a classe do sulco; toque num pneu para destacá-lo na tabela."}
-          </p>
-          <ul className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-fg-secondary" aria-label="Legenda da classe do sulco">
-            {TREAD_ORDER.map((c) => (
-              <li key={c} className="inline-flex items-center gap-1">
-                <span aria-hidden className={cn("size-2.5 rounded-xs border", statusTone(TREAD_TONE[c]).softClassName)} />
-                {TREAD_LABEL[c]}
-              </li>
-            ))}
-            <li className="inline-flex items-center gap-1">
-              <span aria-hidden className="size-2.5 rounded-xs border border-border bg-surface-sunken" />
-              Sem pneu
-            </li>
-          </ul>
-          <p className="text-caption text-fg-muted">Layout: {layoutText(g.layout)}</p>
-        </div>
-
-        {noDiagram || outside.length ? (
-          <PositionList
-            title={noDiagram ? "Posições" : "Posições fora do dicionário"}
-            codes={noDiagram ? [...outside] : outside}
-            byCode={byCode}
-            testId="tires-base-positions-outside"
-          />
-        ) : null}
-        {noPosition.length ? (
-          <div className="flex flex-col gap-1" data-testid="tires-base-positions-none">
-            <p className="text-caption font-medium text-warning-soft-fg">Em uso sem posição informada</p>
-            <ul className="flex flex-wrap gap-2">
-              {noPosition.map((r) => (
-                <li key={r.tireId} className="flex items-center gap-1.5 rounded-sm border border-warning-border bg-warning-soft px-2 py-1 text-caption">
-                  <FireLink tireId={r.tireId} fireNumber={r.fireNumber} />
-                  <span className="tabular-nums text-fg-secondary">{fmtMm(r.treadMin)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-      </div>
-    </div>
+    <span className="flex flex-col items-start gap-0.5 leading-tight">
+      <ConformBadge value={row.overallConform} />
+      {reasons.length ? (
+        <span className="min-w-[10rem] max-w-[16rem] whitespace-normal text-fg-muted" data-testid="tires-reasons">
+          {reasons.map(reasonLabel).join("; ")}
+        </span>
+      ) : null}
+    </span>
   );
 }
 
-function PositionList({ title, codes, byCode, testId }: { title: string; codes: string[]; byCode: Map<string, TireRow[]>; testId: string }) {
-  return (
-    <div className="flex flex-col gap-1" data-testid={testId}>
-      <p className="text-caption font-medium text-fg-secondary">{title}</p>
-      <ul className="flex flex-col divide-y divide-border-subtle rounded-sm border border-border-subtle bg-surface-raised">
-        {codes.map((code) => {
-          const rows = byCode.get(code) ?? [];
-          return (
-            <li key={code} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2.5 py-1.5 text-caption">
-              <span className="min-w-14 font-semibold tabular-nums text-fg">{code}</span>
-              {rows.length ? (
-                rows.map((r) => (
-                  <span key={r.tireId} className="inline-flex items-center gap-1.5">
-                    <span className="text-fg-muted">{r.positionLabel ?? code}</span>
-                    <FireLink tireId={r.tireId} fireNumber={r.fireNumber} />
-                    <span className="tabular-nums">{fmtMm(r.treadMin)}</span>
-                    <TreadClassBadge value={r.treadClass} />
-                  </span>
-                ))
-              ) : (
-                <span className="text-fg-muted">sem pneu</span>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
-function FleetTiresTable({ rows, selected }: { rows: TireRow[]; selected: string | null }) {
+function FleetTiresTable({ rows, selected }: { rows: CroquiTire[]; selected: string | null }) {
   return (
     <TableContainer data-testid="tires-base-fleet-tires">
       <Table className="text-caption">
@@ -702,11 +948,13 @@ function FleetTiresTable({ rows, selected }: { rows: TireRow[]; selected: string
             <TableHead>PSI</TableHead>
             <TableHead>Medição</TableHead>
             <TableHead>Calibragem</TableHead>
+            <TableHead>Criticidade</TableHead>
+            <TableHead>Conformidade</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.length === 0 ? (
-            <TableEmpty colSpan={11} message="Nenhum pneu em uso neste veículo." />
+            <TableEmpty colSpan={13} message="Nenhum pneu em uso neste veículo." />
           ) : (
             rows.map((r) => (
               <TableRow
@@ -737,6 +985,8 @@ function FleetTiresTable({ rows, selected }: { rows: TireRow[]; selected: string
                 <TableCell className="whitespace-nowrap py-1.5"><PsiCell psi={r.psi} min={r.psiMin} max={r.psiMax} status={r.psiStatus} /></TableCell>
                 <TableCell className="whitespace-nowrap py-1.5"><DeadlineCell date={r.measurementDate} days={r.measurementDays} status={r.measurementStatus} compact /></TableCell>
                 <TableCell className="whitespace-nowrap py-1.5"><DeadlineCell date={r.calibrationDate} days={r.calibrationDays} status={r.calibrationStatus} compact /></TableCell>
+                <TableCell className="py-1.5"><CriticalityBadge value={criticalityOf(r)} /></TableCell>
+                <TableCell className="py-1.5"><ConformityCell row={r} /></TableCell>
               </TableRow>
             ))
           )}
@@ -762,12 +1012,12 @@ function RowsView({ data, ctx }: { data: TiresBaseRows; ctx: TiresPanelContext }
   return (
     <>
       <Section
-        title={fora ? "Resumo fora da frota" : "Resumo da fotografia"}
+        title={fora ? "Resumo fora da frota" : "Resumo dos dados"}
         testId="tires-base-summary"
         description={
           fora
-            ? "Pneus da fotografia que não estão em uso. Prazos de medição e calibragem só valem para pneus em uso."
-            : "Todos os pneus da fotografia no recorte. Prazos e PSI contam só os pneus em uso; KM Real negativo e divergência de sulco são problemas de qualidade do relatório."
+            ? "Pneus da base oficial que não estão em uso. Prazos de medição e calibragem só valem para pneus em uso."
+            : "Todos os pneus da base oficial no recorte. Prazos, PSI e conformidade contam só os pneus em uso; KM Real negativo e divergência de sulco são problemas de qualidade do relatório."
         }
       >
         <div className={cn("grid grid-cols-2 gap-3 sm:grid-cols-3", fora ? "lg:grid-cols-5" : "sm:grid-cols-4 2xl:grid-cols-8")}>
@@ -843,7 +1093,7 @@ function RowsView({ data, ctx }: { data: TiresBaseRows; ctx: TiresPanelContext }
       <Section
         title={fora ? "Pneus fora da frota" : "Pneus por Nº Fogo"}
         testId="tires-base-rows"
-        description="Clique no Nº Fogo para abrir a ficha 360° do pneu. A ordenação é feita no servidor sobre todo o recorte."
+        description="Clique no Nº Fogo para abrir a ficha 360° do pneu. A ordenação é feita no servidor sobre todo o recorte; criticidade, conformidade e motivos vêm do banco."
         actions={
           <span className="text-caption text-fg-muted tabular-nums">
             {fmtInt(data.total)} {plural(data.total, "pneu", "pneus")}
@@ -881,7 +1131,7 @@ function RowsView({ data, ctx }: { data: TiresBaseRows; ctx: TiresPanelContext }
         ) : null}
 
         <TireRowsTable
-          rows={data.rows}
+          rows={data.rows as CroquiTire[]}
           fora={fora}
           sort={sort}
           dir={dir}
@@ -898,7 +1148,7 @@ const STICKY_HEAD = "left-0 z-20! shadow-[inset_-1px_0_0_var(--color-border-subt
 const STICKY_CELL = "sticky left-0 z-[1] bg-inherit shadow-[inset_-1px_0_0_var(--color-border-subtle)]";
 
 function TireRowsTable({ rows, fora, sort, dir, onSort }: {
-  rows: TireRow[];
+  rows: CroquiTire[];
   fora: boolean;
   sort: string;
   dir: "asc" | "desc";
@@ -910,7 +1160,7 @@ function TireRowsTable({ rows, fora, sort, dir, onSort }: {
       {label}
     </TableHead>
   );
-  const cols = fora ? 11 : 12;
+  const cols = fora ? 11 : 13;
   return (
     <TableContainer stickyHeader className="max-h-[75vh]" data-testid="tires-base-table">
       <Table className="text-caption">
@@ -927,7 +1177,8 @@ function TireRowsTable({ rows, fora, sort, dir, onSort }: {
             {head("psi", "PSI", "min-w-[5.5rem]")}
             {head("calibration", "Calibragem", "min-w-[8.5rem]")}
             {head("km", "KM real", "min-w-[7.5rem]", true)}
-            {fora ? null : <TableHead>Severidade</TableHead>}
+            {fora ? null : <TableHead className="min-w-[7.5rem]">Criticidade</TableHead>}
+            {fora ? null : <TableHead className="min-w-[9rem]">Conformidade</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -994,7 +1245,11 @@ function TireRowsTable({ rows, fora, sort, dir, onSort }: {
                 <TableCell className="py-1.5"><DeadlineCell date={r.calibrationDate} days={r.calibrationDays} status={r.calibrationStatus} compact /></TableCell>
                 <TableCell numeric className="whitespace-nowrap py-1.5"><KmRealCell value={r.kmReal} /></TableCell>
                 {fora ? null : (
-                  <TableCell className="py-1.5"><SeverityBadge value={r.severity} /></TableCell>
+                  <>
+                    {/* criticidade e conformidade só se aplicam a pneus em uso */}
+                    <TableCell className="py-1.5"><CriticalityBadge value={r.canonicalStatus === "em_uso" ? criticalityOf(r) : null} /></TableCell>
+                    <TableCell className="py-1.5"><ConformityCell row={r} /></TableCell>
+                  </>
                 )}
               </TableRow>
             ))

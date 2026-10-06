@@ -30,8 +30,10 @@ export interface AxlePosition {
 }
 
 export interface AxleTireState {
-  /** Texto curto dentro do pneu (Nº Fogo, sulco…). */
+  /** Texto curto dentro do pneu (Nº Fogo…). */
   caption?: React.ReactNode;
+  /** Segunda linha curta (ex.: menor sulco). */
+  subcaption?: React.ReactNode;
   tone?: StatusTone | null;
   /** Indicador não cromático do estado (ícone, forma ou letra). */
   glyph?: React.ReactNode;
@@ -165,6 +167,9 @@ function Tire({
         <span className={cn("max-w-full truncate text-[0.625rem] leading-tight tabular-nums", state.empty ? "text-fg-muted" : "text-fg")}>
           {state.caption}
         </span>
+      ) : null}
+      {state?.subcaption != null ? (
+        <span className="max-w-full truncate text-[0.625rem] leading-tight tabular-nums text-fg-secondary">{state.subcaption}</span>
       ) : null}
       {interactive ? null : <span className="sr-only">{name}</span>}
     </Comp>

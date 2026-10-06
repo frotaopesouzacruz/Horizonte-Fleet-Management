@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { hasPermission, requireOrganization } from "@/lib/auth/session";
 import { loadTiresTab } from "@/lib/tires/loaders";
 import { getTiresFilterOptions } from "@/lib/tires/queries";
-import { TIRES_BASE_PATH, TIRES_PERMISSION_CODES, TIRES_TABS, tiresVisibleTabs, type TiresPerms, type TiresTab } from "@/lib/tires/types";
+import { TIRES_BASE_PATH, TIRES_PERMISSION_CODES, resolveTiresTab, tiresVisibleTabs, type TiresPerms } from "@/lib/tires/types";
 import { firstParam, parseTiresFilters, tiresFiltersPayload, type SearchParamsLike } from "@/lib/tires/url";
 import { TiresView } from "./tires-view";
 
@@ -15,9 +15,6 @@ export const metadata: Metadata = {
 
 /** A sincronização manual (Sincronizar agora) baixa e aplica a planilha: precisa de folga. */
 export const maxDuration = 300;
-
-/** Abas renomeadas: links antigos continuam abrindo a tela certa. */
-const LEGACY_TAB: Record<string, TiresTab> = { importacao: "sincronizacao" };
 
 /**
  * Gestão de Frota → Gestão de Pneus.
@@ -38,10 +35,7 @@ export default async function TiresPage({ searchParams }: { searchParams: Promis
   const tabs = tiresVisibleTabs(perms);
   if (tabs.length === 0) redirect("/sem-permissao");
 
-  const rawTab = firstParam(params, "aba");
-  const requested = (rawTab && LEGACY_TAB[rawTab]) || (rawTab as TiresTab | undefined);
-  const tab: TiresTab =
-    requested && (TIRES_TABS as readonly string[]).includes(requested) && tabs.includes(requested) ? requested : tabs[0];
+  const tab = resolveTiresTab(firstParam(params, "aba"), tabs);
   const filters = parseTiresFilters(params);
 
   const [options, loaded] = await Promise.all([

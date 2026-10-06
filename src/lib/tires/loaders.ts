@@ -138,7 +138,8 @@ export type TiresBaseData = TiresBase & {
   positions: TirePositionInfo[];
   /** "nenhum" desliga o agrupamento */
   groupBy: TiresGroupBy | "nenhum";
-  groups: TiresBaseGroups | null;
+  /** Resumo por grupo (null sem agrupamento). Nome próprio: `groups` já é a lista de frotas da página. */
+  groupSummary: TiresBaseGroups | null;
   openGroups: Record<string, TiresBaseFleet>;
 };
 
@@ -244,7 +245,7 @@ export async function loadTiresTab<T extends TiresTab>(
           ...base,
           positions,
           groupBy,
-          groups,
+          groupSummary: groups,
           openGroups: Object.fromEntries(opened.map(([k, r]) => [k, r as TiresBaseFleet])),
         } as TiresBaseData;
       },

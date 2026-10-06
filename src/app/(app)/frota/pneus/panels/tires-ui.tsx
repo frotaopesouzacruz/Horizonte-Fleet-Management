@@ -133,7 +133,8 @@ export function SubTabs<T extends string>({
     <Tabs appearance="container" value={value} onValueChange={(v) => ctx.navigate({ sub: v, pagina: null })} className="gap-0">
       <TabsList aria-label={label}>
         {items.map((it) => (
-          <TabsTrigger key={it.value} value={it.value} data-testid={`${testIdPrefix}-${it.value}`}>
+          // abas de navegação: o conteúdo vem do servidor fora do Radix, então não há painel para `aria-controls`
+          <TabsTrigger key={it.value} value={it.value} aria-controls={undefined} data-testid={`${testIdPrefix}-${it.value}`}>
             {it.label}
           </TabsTrigger>
         ))}
@@ -163,7 +164,7 @@ export function Section({
           <h2 id={headingId} className="text-h4 font-semibold text-fg">{title}</h2>
           {description ? <p className="max-w-[90ch] text-caption text-fg-muted">{description}</p> : null}
         </div>
-        {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
+        {actions ? <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{actions}</div> : null}
       </div>
       {children}
     </section>
@@ -268,7 +269,7 @@ export function PlateLink({ vehicleId, plate, fleetCode, testId, className }: {
   if (!vehicleId) return <span className={cn("font-semibold text-fg tabular-nums", className)}>{text}</span>;
   return (
     <Link
-      href={`${TIRES_BASE_PATH}?aba=base&veiculo=${vehicleId}`}
+      href={`${TIRES_BASE_PATH}?aba=base&agrupar=nenhum&veiculo=${vehicleId}`}
       className={cn("rounded-xs font-semibold text-fg tabular-nums underline-offset-2 hover:text-primary hover:underline hfm-focus-ring", className)}
       data-testid={testId}
       onClick={(e) => e.stopPropagation()}

@@ -22,11 +22,11 @@ import { cancelTireImport, confirmTireImport, validateTireImport } from "@/lib/t
 import {
   readRodoparFile, TIRE_IMPORT_STAGE_LABEL, uploadRodoparImport, type TireImportProgress, type TireImportStage,
 } from "@/lib/tires/import-client";
-import type { TiresTabData } from "@/lib/tires/loaders";
+import type { TiresSyncData } from "@/lib/tires/loaders";
 import { RODOPAR_FIELD_LABEL, RODOPAR_REQUIRED_COLUMNS, type RodoparRead } from "@/lib/tires/rodopar-sheet";
 import {
   BATCH_STATUS_LABEL, BATCH_STATUS_TONE, CHANGE_LABEL, ERROR_ISSUES, fmtInt, fmtMm, fmtNum, fmtPsi, formatDate, formatStamp,
-  issueCode, issueLabel, STATUS_LABEL, STATUS_ORDER, STATUS_TONE,
+  issueCode, issueLabel, modernTerms, STATUS_LABEL, STATUS_ORDER, STATUS_TONE,
   type CanonicalStatus, type ImportPreviewSection, type TireImportAbsentRow, type TireImportBatch, type TireImportHistory,
   type TireImportPreview, type TireImportPreviewRow,
 } from "@/lib/tires/types";
@@ -36,21 +36,33 @@ import {
 } from "./tires-ui";
 
 /**
- * Gestão de Pneus → Importação Rodopar.
+ * Gestão de Pneus → Sincronização Rodopar → Envio manual (contingência).
  *
- * LER (navegador) → VALIDAR → COMPARAR → PRÉVIA → CONFIRMAR → ATUALIZAR
- * FOTOGRAFIA → HISTÓRICO. O navegador só lê o XLSX e envia as células; toda
- * regra (Nº Fogo como texto, situação canônica, limites técnicos, frota,
+ * O fluxo normal é automático (planilha oficial do SharePoint, ver
+ * `sync-panel.tsx`); o envio manual do XLSX fica para quando a sincronização
+ * estiver indisponível e passa pelo MESMO pipeline:
+ *
+ * LER (navegador) → VALIDAR → COMPARAR → PRÉVIA → CONFIRMAR → ATUALIZAR OS
+ * DADOS OFICIAIS → HISTÓRICO. O navegador só lê o XLSX e envia as células;
+ * toda regra (Nº Fogo como texto, situação canônica, limites técnicos, frota,
  * comparação, ausentes, bloqueio) é das rotinas `tire_import_*`. A prévia é
  * lida no servidor (`?lote=&secao=&filtro=&pagina=`) e nada entra no cadastro
  * antes da confirmação, que revalida tudo numa única transação.
  */
 const TID = "tires-import";
-type ImportData = NonNullable<TiresTabData["importacao"]>;
+/** Recorte da aba Sincronização que o envio manual usa: histórico de lotes e a prévia aberta. */
+export type ImportPanelData = Pick<TiresSyncData, "history" | "preview" | "previewError">;
 type Nav = ReturnType<typeof useTiresLink>;
 
-export function ImportPanel({ data, ctx }: { data: TiresTabData["importacao"] | null; ctx: TiresPanelContext }) {
-  if (ctx.error) return <PanelError ctx={ctx} title="Não foi possível carregar a importação Rodopar." testId={`${TID}-error`} />;
+/** Lote como a rotina devolve: com a origem e a revisão do mesmo dia (v2). */
+type BatchV2 = TireImportBatch & {
+  sourceKind?: "upload" | "sharepoint" | null;
+  supersedesBatchId?: string | null;
+  supersededAt?: string | null;
+};
+
+export function ImportPanel({ data, ctx }: { data: ImportPanelData | null; ctx: TiresPanelContext }) {
+  if (ctx.error) return <PanelError ctx={ctx} title="Não foi possível carregar o envio manual." testId={`${TID}-error`} />;
   if (!data) {
     return (
       <PanelEmpty
@@ -128,7 +140,7 @@ const statusLabel = (s: string | null | undefined) => (s ? (STATUS_LABEL[s as Ca
 // ---------------------------------------------------------------------------
 // Conteúdo
 // ---------------------------------------------------------------------------
-function ImportContent({ data, ctx }: { data: ImportData; ctx: TiresPanelContext }) {
+function ImportContent({ data, ctx }: { data: ImportPanelData; ctx: TiresPanelContext }) {
   const { history, preview, previewError } = data;
   const link = useTiresLink(ctx);
   const [uploadStage, setUploadStage] = React.useState<TireImportStage | null>(null);
@@ -143,7 +155,7 @@ function ImportContent({ data, ctx }: { data: ImportData; ctx: TiresPanelContext
 
       {/* Celular e tablet (e quem não envia arquivos): as regras ficam num bloco expansível. */}
       <details
-        className={cn("group rounded-lg border border-border bg-surface-raised", canImport && "xl:hidden")}
+        className={cn("group/rules rounded-lg border border-border bg-surface-raised", canImport && "xl:hidden")}
         data-testid={`${TID}-rules-expandable`}
       >
         <summary className="flex cursor-pointer list-none items-center gap-3 rounded-lg px-4 py-3 hfm-focus-ring">
@@ -152,7 +164,7 @@ function ImportContent({ data, ctx }: { data: ImportData; ctx: TiresPanelContext
             <span className="text-body-sm font-semibold text-fg">Regras da importação</span>
             <span className="text-caption text-fg-muted">Nº Fogo, situação, data de referência, ausentes e arquivos repetidos</span>
           </span>
-          <ChevronRight className="ml-auto size-4 shrink-0 text-fg-muted transition-transform group-open:rotate-90" aria-hidden />
+          <ChevronRight className="ml-auto size-4 shrink-0 text-fg-muted transition-transform group-open/rules:rotate-90" aria-hidden />
         </summary>
         <div className="border-t border-border px-4 py-3">
           <RulesContent latest={history.latestReferenceDate} columns />
@@ -205,7 +217,13 @@ function ImportContent({ data, ctx }: { data: ImportData; ctx: TiresPanelContext
           />
           {/* Painel lateral: a altura é a do formulário; as regras rolam por dentro. */}
           <aside className="relative hidden min-h-0 xl:block" aria-labelledby={`${TID}-rules-title`} data-testid={`${TID}-rules`}>
-            <div className="flex flex-col gap-3 overflow-y-auto rounded-lg border border-border bg-surface-raised p-4 shadow-card xl:absolute xl:inset-0">
+            {/* rola por dentro no desktop: focável para quem navega pelo teclado (WCAG 2.1.1) */}
+            <div
+              tabIndex={0}
+              aria-labelledby={`${TID}-rules-title`}
+              role="region"
+              className="flex flex-col gap-3 overflow-y-auto rounded-lg border border-border bg-surface-raised p-4 shadow-card hfm-focus-ring xl:absolute xl:inset-0"
+            >
               <h2 id={`${TID}-rules-title`} className="flex items-center gap-2 text-h4 font-semibold text-fg">
                 <BookOpen className="size-4 text-fg-muted" aria-hidden />
                 Regras da importação
@@ -236,10 +254,10 @@ type StepState = "done" | "current" | "blocked" | "todo";
 const STEPS: { key: string; label: string; hint: string }[] = [
   { key: "ler", label: "Ler", hint: "XLSX lido no navegador" },
   { key: "validar", label: "Validar", hint: "Regras por linha, no banco" },
-  { key: "comparar", label: "Comparar", hint: "Com a fotografia anterior" },
+  { key: "comparar", label: "Comparar", hint: "Com os dados anteriores" },
   { key: "previa", label: "Prévia", hint: "Conferência paginada" },
   { key: "confirmar", label: "Confirmar", hint: "Uma única transação" },
-  { key: "fotografia", label: "Atualizar fotografia", hint: "Fotografia oficial e eventos" },
+  { key: "dados", label: "Atualizar os dados", hint: "Base oficial (Rodopar) e eventos" },
   { key: "historico", label: "Histórico", hint: "Lote registrado" },
 ];
 const STATE_LABEL: Record<StepState, string> = { done: "concluída", current: "em andamento", blocked: "bloqueada", todo: "pendente" };
@@ -328,12 +346,12 @@ function RulesContent({ latest, columns = false }: { latest: string | null; colu
         Ressolagem. Valor desconhecido vira Outro, com aviso. A coluna Condição (APROPRIADO/ALERTA/RECAPAR) é recomendação e não muda a situação.
       </Rule>
       <Rule title="Data de referência ≠ data de cadastro">
-        A data de referência é o dia que a fotografia representa — sugerida pela maior Data Última Alteração do arquivo. Não é a data de cadastro do
-        pneu no Rodopar nem a data do envio. Não pode ser futura e precisa ser posterior à última fotografia
+        A data de referência é o dia que os dados representam — sugerida pela maior Data Última Alteração do arquivo. Não é a data de cadastro do
+        pneu no Rodopar nem a data do envio. Não pode ser futura e precisa ser posterior aos últimos dados confirmados
         {latest ? <> ({formatDate(latest)})</> : null}.
       </Rule>
       <Rule title="Ausentes não são excluídos">
-        Pneu que estava na fotografia anterior e não veio no relatório fica no cadastro com a última fotografia conhecida e recebe o evento “Ausente no
+        Pneu que estava nos dados anteriores e não veio no relatório fica no cadastro com a última situação conhecida e recebe o evento “Ausente no
         relatório”. Se voltar, recebe “Voltou ao relatório”.
       </Rule>
       <Rule title="O mesmo arquivo não entra duas vezes">
@@ -344,7 +362,7 @@ function RulesContent({ latest, columns = false }: { latest: string | null; colu
         ausentes. Avisos não bloqueiam: o valor inválido é ignorado e o problema fica registrado.
       </Rule>
       <Rule title="Vistoria de campo não altera a base">
-        Só o Rodopar muda a fotografia oficial. Na confirmação, as vistorias pendentes de lançamento são conciliadas com a nova fotografia.
+        Só o Rodopar muda a base oficial (Rodopar). Na confirmação, as vistorias pendentes de lançamento são conciliadas com os novos dados.
       </Rule>
     </div>
   );
@@ -417,11 +435,11 @@ function UploadSection({
   };
 
   const dateError = !referenceDate
-    ? "Informe a data de referência da fotografia."
+    ? "Informe a data de referência dos dados."
     : referenceDate > today
       ? "A data de referência não pode ser futura."
       : latest && referenceDate <= latest
-        ? `Já existe fotografia confirmada em ${formatDate(latest)}. A data de referência precisa ser posterior.`
+        ? `Já existem dados confirmados em ${formatDate(latest)}. A data de referência precisa ser posterior.`
         : null;
   const ready = read.status === "ok" && read.data.missingRequired.length === 0 && read.data.rows.length > 0;
 
@@ -488,14 +506,14 @@ function UploadSection({
             {compact ? "Enviar outro relatório Rodopar 10" : "Enviar o relatório Rodopar 10"}
           </h2>
           <p className="max-w-[90ch] text-caption text-fg-muted">
-            O arquivo é lido no seu navegador; o banco valida, compara com a fotografia anterior e monta a prévia.{" "}
+            O arquivo é lido no seu navegador; o banco valida, compara com os dados anteriores e monta a prévia.{" "}
             <strong className="font-semibold text-fg-secondary">Nada é gravado no cadastro de pneus antes de você confirmar.</strong>
           </p>
         </div>
         {latest ? (
-          <Badge variant="neutral" appearance="outline" size="md">Última fotografia: {formatDate(latest)}</Badge>
+          <Badge variant="neutral" appearance="outline" size="md">Dados vigentes: {formatDate(latest)}</Badge>
         ) : (
-          <Badge variant="info" size="md">Nenhuma fotografia confirmada ainda</Badge>
+          <Badge variant="info" size="md">Nenhum dado confirmado ainda</Badge>
         )}
       </div>
 
@@ -509,7 +527,7 @@ function UploadSection({
             helperText={
               meta?.suggested_reference_date
                 ? `Sugerida: ${formatDate(meta.suggested_reference_date)} — maior data de atualização do arquivo (Data Última Alteração).`
-                : "O dia que a fotografia representa. Não é a data de cadastro do pneu."
+                : "O dia que os dados representam. Não é a data de cadastro do pneu."
             }
             disabled={busy}
           >
@@ -581,9 +599,9 @@ function UploadErrorAlert({ error, ctx }: { error: UploadError; ctx: TiresPanelC
       <Alert variant="warning" data-testid={`${TID}-duplicate`}>
         <AlertTitle>Este arquivo já foi importado</AlertTitle>
         <AlertDescription>
-          <p>{error.message}</p>
+          <p>{modernTerms(error.message)}</p>
           <p className="mt-1">
-            A importação é idempotente: o mesmo arquivo (mesma assinatura SHA-256) nunca vira duas fotografias. Para atualizar a base, exporte um relatório
+            A importação é idempotente: o mesmo arquivo (mesma assinatura SHA-256) nunca entra duas vezes. Para atualizar a base, exporte um relatório
             novo do Rodopar.
           </p>
         </AlertDescription>
@@ -593,10 +611,10 @@ function UploadErrorAlert({ error, ctx }: { error: UploadError; ctx: TiresPanelC
   if (error.code === "tire_reference_not_after_latest") {
     return (
       <Alert variant="warning" data-testid={`${TID}-reference-error`}>
-        <AlertTitle>A data de referência precisa ser posterior à última fotografia</AlertTitle>
+        <AlertTitle>A data de referência precisa ser posterior aos últimos dados confirmados</AlertTitle>
         <AlertDescription>
-          <p>{error.message}</p>
-          <p className="mt-1">Ajuste a data de referência e valide de novo. Uma fotografia confirmada não é substituída.</p>
+          <p>{modernTerms(error.message)}</p>
+          <p className="mt-1">Ajuste a data de referência e valide de novo. O envio manual não substitui dados já confirmados.</p>
         </AlertDescription>
       </Alert>
     );
@@ -605,7 +623,7 @@ function UploadErrorAlert({ error, ctx }: { error: UploadError; ctx: TiresPanelC
     <Alert variant="danger" data-testid={`${TID}-upload-error`}>
       <AlertTitle>Não foi possível validar o arquivo</AlertTitle>
       <AlertDescription>
-        <p>{error.message}</p>
+        <p>{modernTerms(error.message)}</p>
         <p className="mt-1 text-caption">Etapa: {TIRE_IMPORT_STAGE_LABEL[error.stage]}.</p>
         {error.batchId ? (
           <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -802,9 +820,9 @@ function PreviewSection({ preview, ctx, canImport }: { preview: TireImportPrevie
   const b = preview.batch;
   const counters = b.counters ?? {};
   const open = b.status === "staging" || b.status === "validated" || b.status === "blocked";
-  const blockReasons = counters.blockReasons?.length ? counters.blockReasons : b.blockReason ? [b.blockReason] : [];
+  const blockReasons = (counters.blockReasons?.length ? counters.blockReasons : b.blockReason ? [b.blockReason] : []).map(modernTerms);
   const sectionNav = (secao: ImportPreviewSection, filtro: string | null = null) => link({ secao, filtro });
-  const comparedWith = b.previousReferenceDate ? `com a fotografia de ${formatDate(b.previousReferenceDate)}` : "sem fotografia anterior (primeira carga)";
+  const comparedWith = b.previousReferenceDate ? `com os dados de ${formatDate(b.previousReferenceDate)}` : "sem dados anteriores (primeira carga)";
 
   return (
     <section
@@ -818,7 +836,7 @@ function PreviewSection({ preview, ctx, canImport }: { preview: TireImportPrevie
           <p className="text-caption font-semibold uppercase tracking-wide text-fg-muted">Prévia do lote</p>
           <h2 id={`${TID}-preview-title`} className="min-w-0 break-all text-h3 font-semibold text-fg">{b.fileName}</h2>
           <p className="text-body-sm text-fg-secondary">
-            Fotografia de <strong className="font-semibold text-fg">{formatDate(b.referenceDate)}</strong> · comparada {comparedWith} · enviada por{" "}
+            Dados de <strong className="font-semibold text-fg">{formatDate(b.referenceDate)}</strong> · comparados {comparedWith} · enviado por{" "}
             {b.createdByName ?? "—"} em {formatStamp(b.createdAt)}
           </p>
         </div>
@@ -834,7 +852,7 @@ function PreviewSection({ preview, ctx, canImport }: { preview: TireImportPrevie
 
       {b.status === "confirmed" ? (
         <Alert variant="success" data-testid={`${TID}-confirmed`}>
-          <AlertTitle>Fotografia oficial de {formatDate(b.referenceDate)}</AlertTitle>
+          <AlertTitle>Dados oficiais de {formatDate(b.referenceDate)}</AlertTitle>
           <AlertDescription>
             Confirmada por {b.confirmedByName ?? "—"} em {formatStamp(b.confirmedAt)}. Os números abaixo são os do lote aplicado.
           </AlertDescription>
@@ -842,12 +860,12 @@ function PreviewSection({ preview, ctx, canImport }: { preview: TireImportPrevie
       ) : b.status === "cancelled" ? (
         <Alert variant="neutral" data-testid={`${TID}-cancelled`}>
           <AlertTitle>Lote descartado em {formatStamp(b.cancelledAt)}</AlertTitle>
-          <AlertDescription>{b.cancelReason ? `Motivo: ${b.cancelReason}. ` : ""}Nenhuma linha deste lote entrou no cadastro.</AlertDescription>
+          <AlertDescription>{b.cancelReason ? `Motivo: ${modernTerms(b.cancelReason)}. ` : ""}Nenhuma linha deste lote entrou no cadastro.</AlertDescription>
         </Alert>
       ) : (
         <p className="flex items-start gap-2 rounded-md border border-info-border bg-info-soft px-3 py-2 text-body-sm text-info-soft-fg">
           <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
-          Nada foi gravado no cadastro de pneus: esta prévia vem da área de preparação do lote. Só a confirmação aplica a fotografia.
+          Nada foi gravado no cadastro de pneus: esta prévia vem da área de preparação do lote. Só a confirmação aplica os dados.
         </p>
       )}
 
@@ -879,7 +897,7 @@ function PreviewSection({ preview, ctx, canImport }: { preview: TireImportPrevie
         <h3 className="text-label font-semibold text-fg">Linhas do arquivo</h3>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <TiresKpi kpi="import-rows" label="Linhas lidas" value={fmtInt(b.totalRows)} nav={sectionNav("rows")} destination="ver todas as linhas" />
-          <TiresKpi kpi="import-valid" label="Válidas" value={fmtInt(b.validRows)} status="success" period="entram na fotografia" />
+          <TiresKpi kpi="import-valid" label="Válidas" value={fmtInt(b.validRows)} status="success" period="entram nos dados oficiais" />
           <TiresKpi
             kpi="import-warnings"
             label="Com aviso"
@@ -1003,7 +1021,7 @@ function StatusCounts({ counters }: { counters: Record<string, number> | undefin
 function ChangeCounts({ counters, nav }: { counters: Record<string, number> | undefined; nav: (key: string) => ReturnType<Nav> }) {
   const entries = counterEntries(counters).sort((a, b) => b.count - a.count);
   return (
-    <CountCard title="Mudanças por tipo" testId={`${TID}-change-counts`} empty={entries.length ? null : "Nenhuma mudança em relação à fotografia anterior."}>
+    <CountCard title="Mudanças por tipo" testId={`${TID}-change-counts`} empty={entries.length ? null : "Nenhuma mudança em relação aos dados anteriores."}>
       <ul className="flex flex-col divide-y divide-border-subtle">
         {entries.map((e) => (
           <CountLink key={e.code} nav={nav(e.code)} label={CHANGE_LABEL[e.code] ?? e.code} count={e.count} unit={plural(e.count, "pneu", "pneus")} />
@@ -1184,8 +1202,8 @@ function PreviewRows({ preview, ctx }: { preview: TireImportPreview; ctx: TiresP
         <Alert variant="neutral" className="py-2">
           <AlertDescription>
             {b.status === "confirmed"
-              ? "Pneus marcados como ausentes por esta fotografia: mantidos no cadastro com a última fotografia; não são excluídos."
-              : "Estavam na fotografia anterior e não vieram neste relatório. Cada um é mantido no cadastro com a última fotografia; não é excluído. Na confirmação recebe o evento “Ausente no relatório”."}
+              ? "Pneus marcados como ausentes por estes dados: mantidos no cadastro com a última situação conhecida; não são excluídos."
+              : "Estavam nos dados anteriores e não vieram neste relatório. Cada um é mantido no cadastro com a última situação conhecida; não é excluído. Na confirmação recebe o evento “Ausente no relatório”."}
           </AlertDescription>
         </Alert>
       ) : null}
@@ -1236,19 +1254,19 @@ function emptyDescription(section: ImportPreviewSection): string {
     case "issues":
       return "Todas as linhas passaram nas regras do banco. Confira as mudanças e os ausentes antes de confirmar.";
     case "changes":
-      return "Nenhum pneu mudou de situação, frota, posição, vida, medição, calibragem ou cadastro em relação à fotografia anterior.";
+      return "Nenhum pneu mudou de situação, frota, posição, vida, medição, calibragem ou cadastro em relação aos dados anteriores.";
     case "new":
       return "Todos os Nº Fogo do arquivo já existem no cadastro.";
     case "rows":
       return "O lote não tem linhas na área de preparação.";
     case "absent":
-      return "Todos os pneus da fotografia anterior vieram neste relatório.";
+      return "Todos os pneus dos dados anteriores vieram neste relatório.";
     case "reappeared":
       return "Nenhum pneu marcado como ausente voltou neste relatório.";
   }
 }
 
-/** "antes: …" quando o valor mudou em relação à fotografia anterior. */
+/** "antes: …" quando o valor mudou em relação aos dados anteriores. */
 function Prev({ show, children }: { show: boolean; children: React.ReactNode }) {
   if (!show) return null;
   return <span className="block whitespace-nowrap text-caption text-fg-muted">antes: {children}</span>;
@@ -1319,7 +1337,7 @@ function RowsTable({ rows, section }: { rows: TireImportPreviewRow[]; section: I
                           <span className={cn("font-semibold", i.severity === "error" ? "text-danger" : "text-warning-soft-fg")}>
                             {i.severity === "error" ? "Erro" : "Aviso"}:
                           </span>{" "}
-                          <span className="text-fg-secondary">{i.message}</span>
+                          <span className="text-fg-secondary">{modernTerms(i.message)}</span>
                         </li>
                       ))}
                     </ul>
@@ -1402,7 +1420,7 @@ function AbsentTable({ rows }: { rows: TireImportAbsentRow[] }) {
             <TableHead>Situação no cadastro</TableHead>
             <TableHead>Veículo</TableHead>
             <TableHead>Posição</TableHead>
-            <TableHead>Última fotografia</TableHead>
+            <TableHead>Últimos dados</TableHead>
             <TableHead>Marca / modelo</TableHead>
           </TableRow>
         </TableHeader>
@@ -1443,8 +1461,8 @@ function PreviewActions({ batch, ctx, blockReasons }: { batch: TireImportBatch; 
     setFailure(null);
     const r = await confirmTireImport(batch.id);
     if (!r.ok || !r.data) {
-      setFailure(r.error ?? "Não foi possível confirmar a fotografia.");
-      toast({ title: "A fotografia não foi confirmada", description: r.error, variant: "danger" });
+      setFailure(r.error ?? "Não foi possível confirmar os dados.");
+      toast({ title: "Os dados não foram confirmados", description: modernTerms(r.error), variant: "danger" });
       return;
     }
     const o = r.data;
@@ -1454,8 +1472,8 @@ function PreviewActions({ batch, ctx, blockReasons }: { batch: TireImportBatch; 
         ? `Vistorias conciliadas: ${fmtInt(rc.checked)} conferidas · ${fmtInt(rc.synced)} sincronizadas · ${fmtInt(rc.persistent)} com divergência persistente · ${fmtInt(rc.pending)} aguardando.`
         : "Nenhuma vistoria pendente de lançamento para conciliar.";
     toast({
-      title: `Fotografia de ${formatDate(o.referenceDate)} confirmada`,
-      description: `${fmtInt(o.snapshots)} ${plural(o.snapshots, "pneu na fotografia", "pneus na fotografia")} · ${fmtInt(o.newTires)} ${plural(o.newTires, "novo", "novos")} · ${fmtInt(o.events)} ${plural(o.events, "evento", "eventos")} · ${fmtInt(o.absent)} ${plural(o.absent, "ausente", "ausentes")}. ${recon}`,
+      title: `Dados de ${formatDate(o.referenceDate)} confirmados`,
+      description: `${fmtInt(o.snapshots)} ${plural(o.snapshots, "pneu nos dados", "pneus nos dados")} · ${fmtInt(o.newTires)} ${plural(o.newTires, "novo", "novos")} · ${fmtInt(o.events)} ${plural(o.events, "evento", "eventos")} · ${fmtInt(o.absent)} ${plural(o.absent, "ausente", "ausentes")}. ${recon}`,
       variant: "success",
       duration: 12000,
     });
@@ -1465,7 +1483,7 @@ function PreviewActions({ batch, ctx, blockReasons }: { batch: TireImportBatch; 
   const discard = async () => {
     const r = await cancelTireImport(batch.id, reason.trim() || null);
     if (!r.ok) {
-      toast({ title: "Não foi possível descartar o lote", description: r.error, variant: "danger" });
+      toast({ title: "Não foi possível descartar o lote", description: modernTerms(r.error), variant: "danger" });
       return;
     }
     toast({ title: "Lote descartado", description: "Nenhuma linha entrou no cadastro. O lote fica no histórico como descartado.", variant: "success" });
@@ -1478,7 +1496,7 @@ function PreviewActions({ batch, ctx, blockReasons }: { batch: TireImportBatch; 
     const r = await validateTireImport(batch.id);
     setRevalidating(false);
     if (!r.ok) {
-      toast({ title: "Não foi possível validar o lote", description: r.error, variant: "danger" });
+      toast({ title: "Não foi possível validar o lote", description: modernTerms(r.error), variant: "danger" });
       return;
     }
     toast({ title: "Lote validado", description: r.data ? BATCH_STATUS_LABEL[r.data.status] : undefined, variant: "success" });
@@ -1489,14 +1507,14 @@ function PreviewActions({ batch, ctx, blockReasons }: { batch: TireImportBatch; 
     <div className="flex flex-col gap-3 border-t border-border pt-4" data-testid={`${TID}-actions`}>
       {failure ? (
         <Alert variant="danger" data-testid={`${TID}-confirm-error`}>
-          <AlertTitle>A fotografia não foi confirmada</AlertTitle>
-          <AlertDescription>{failure} Nada foi aplicado: a confirmação é uma única transação.</AlertDescription>
+          <AlertTitle>Os dados não foram confirmados</AlertTitle>
+          <AlertDescription>{modernTerms(failure)} Nada foi aplicado: a confirmação é uma única transação.</AlertDescription>
         </Alert>
       ) : null}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <p className="text-caption text-fg-muted sm:mr-auto" data-testid={`${TID}-actions-note`}>
           {canConfirm
-            ? "Ao confirmar, o banco revalida o lote e aplica tudo numa única transação: cadastro, fotografia, eventos, ausentes e conciliação das vistorias."
+            ? "Ao confirmar, o banco revalida o lote e aplica tudo numa única transação: cadastro, dados oficiais, eventos, ausentes e conciliação das vistorias."
             : batch.status === "blocked"
               ? `Confirmação indisponível: ${blockReasons.join(" ") || "o lote tem inconsistências bloqueantes."}`
               : "O lote recebeu as linhas mas a validação não terminou. Valide de novo ou descarte."}
@@ -1526,25 +1544,25 @@ function PreviewActions({ batch, ctx, blockReasons }: { batch: TireImportBatch; 
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={`Confirmar a fotografia oficial de ${formatDate(batch.referenceDate)}?`}
+        title={`Confirmar os dados oficiais de ${formatDate(batch.referenceDate)}?`}
         description="O banco revalida o lote e aplica tudo numa única transação: ou tudo entra, ou nada muda."
-        confirmLabel="Confirmar e atualizar a fotografia"
+        confirmLabel="Confirmar e atualizar os dados"
         cancelLabel="Voltar à prévia"
         icon={<CheckCircle2 />}
         onConfirm={confirm}
       >
         <ul className="flex list-disc flex-col gap-1 pl-5 text-body-sm text-fg-secondary" data-testid={`${TID}-confirm-summary`}>
           <li>
-            Nova fotografia oficial com {fmtInt(batch.validRows)} {plural(batch.validRows, "pneu", "pneus")}: {fmtInt(batch.newTires)}{" "}
+            Nova base oficial (Rodopar) com {fmtInt(batch.validRows)} {plural(batch.validRows, "pneu", "pneus")}: {fmtInt(batch.newTires)}{" "}
             {plural(batch.newTires, "novo", "novos")}, {fmtInt(batch.updatedTires)} {plural(batch.updatedTires, "atualizado", "atualizados")} e{" "}
             {fmtInt(batch.unchangedTires)} sem mudança.
           </li>
           <li>Eventos de histórico para cada mudança: movimentação, posição, vida, medição, calibragem e situação.</li>
           <li>
             {fmtInt(batch.absentTires)} {plural(batch.absentTires, "pneu ausente é mantido", "pneus ausentes são mantidos")} no cadastro com a última
-            fotografia — nada é excluído.
+            situação conhecida — nada é excluído.
           </li>
-          <li>As vistorias pendentes de lançamento no Rodopar são conciliadas com a nova fotografia.</li>
+          <li>As vistorias pendentes de lançamento no Rodopar são conciliadas com os novos dados.</li>
           {batch.warningRows > 0 ? (
             <li>
               {fmtInt(batch.warningRows)} {plural(batch.warningRows, "linha com aviso entra", "linhas com aviso entram")}: valores inválidos são ignorados e
@@ -1602,7 +1620,7 @@ function HistorySection({ history, ctx, canOpen, openId }: { history: TireImport
       description={
         <>
           {shown < history.total ? `Os ${fmtInt(shown)} lotes mais recentes de ${fmtInt(history.total)}.` : `${fmtInt(history.total)} ${plural(history.total, "lote", "lotes")}.`}{" "}
-          {history.latestReferenceDate ? `Fotografia oficial vigente: ${formatDate(history.latestReferenceDate)}.` : "Nenhuma fotografia confirmada ainda."}
+          {history.latestReferenceDate ? `Dados oficiais vigentes: dados de ${formatDate(history.latestReferenceDate)}.` : "Nenhum dado confirmado ainda."}
           {canOpen ? " Clique num lote para abrir a prévia." : ""}
         </>
       }
@@ -1628,7 +1646,8 @@ function HistorySection({ history, ctx, canOpen, openId }: { history: TireImport
               </TableRow>
             </TableHeader>
             <TableBody>
-              {history.rows.map((b) => {
+              {history.rows.map((row) => {
+                const b = row as BatchV2;
                 const nav = link({ lote: b.id, secao: "issues", filtro: null });
                 return (
                   <TableRow
@@ -1661,8 +1680,18 @@ function HistorySection({ history, ctx, canOpen, openId }: { history: TireImport
                         {[b.sheetName ? `aba ${b.sheetName}` : null, fmtBytes(b.fileSize)].filter(Boolean).join(" · ")}
                       </span>
                       <span className="block truncate text-caption text-fg-muted" title={b.createdByName ?? undefined}>
-                        enviado {formatStamp(b.createdAt)} · {b.createdByName ?? "—"}
+                        {b.sourceKind === "sharepoint" ? "sincronizado" : "enviado"} {formatStamp(b.createdAt)} · {b.createdByName ?? "—"}
                       </span>
+                      {b.sourceKind ? (
+                        <span className="mt-0.5 flex flex-wrap gap-1">
+                          <Badge variant={b.sourceKind === "sharepoint" ? "info" : "neutral"} appearance="outline" size="sm">
+                            {b.sourceKind === "sharepoint" ? "SharePoint" : "Envio manual"}
+                          </Badge>
+                          {b.supersedesBatchId ? (
+                            <Badge variant="progress" appearance="outline" size="sm">Revisão do mesmo dia</Badge>
+                          ) : null}
+                        </span>
+                      ) : null}
                     </TableCell>
                     <TableCell className="whitespace-nowrap py-2 tabular-nums">
                       <span className="font-semibold text-fg">{formatDate(b.referenceDate)}</span>
@@ -1675,12 +1704,16 @@ function HistorySection({ history, ctx, canOpen, openId }: { history: TireImport
                           {formatStamp(b.confirmedAt)} · {b.confirmedByName ?? "—"}
                         </span>
                       ) : b.status === "cancelled" ? (
-                        <span className="mt-0.5 block text-caption text-fg-muted" title={b.cancelReason ?? undefined}>
+                        <span className="mt-0.5 block text-caption text-fg-muted" title={b.cancelReason ? modernTerms(b.cancelReason) : undefined}>
                           {formatStamp(b.cancelledAt)}
-                          {b.cancelReason ? ` · ${b.cancelReason}` : ""}
+                          {b.cancelReason ? ` · ${modernTerms(b.cancelReason)}` : ""}
                         </span>
                       ) : b.status === "blocked" && b.blockReason ? (
-                        <span className="mt-0.5 line-clamp-2 block text-caption text-danger" title={b.blockReason}>{b.blockReason}</span>
+                        <span className="mt-0.5 line-clamp-2 block text-caption text-danger" title={modernTerms(b.blockReason)}>{modernTerms(b.blockReason)}</span>
+                      ) : b.status === "superseded" ? (
+                        <span className="mt-0.5 block text-caption text-fg-muted">
+                          {b.supersededAt ? `em ${formatStamp(b.supersededAt)}` : "versão anterior do dia, arquivada"}
+                        </span>
                       ) : (
                         <span className="mt-0.5 block text-caption text-fg-muted">aguardando decisão</span>
                       )}

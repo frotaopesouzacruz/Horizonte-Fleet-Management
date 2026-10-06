@@ -15,12 +15,12 @@ import {
 } from "@/lib/tires/export-workbook";
 import {
   getTireInspectionsReceived,
-  getTiresAdherence,
   getTiresAudit,
+  getTiresAuditCenter,
   getTiresBase,
   getTiresEvents,
   getTiresFilterOptions,
-  getTiresQuality,
+  getTiresIndicator,
   getTiresSchedule,
 } from "@/lib/tires/queries";
 import { TIRES_PERMISSION_CODES } from "@/lib/tires/types";
@@ -73,9 +73,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const source: TiresExportSource = {
     base: (payload, view, sort, dir, limit, offset) => getTiresBase(orgId, payload, view, sort, dir, limit, offset),
-    adherence: (k, payload, pending, limit, offset) => getTiresAdherence(orgId, k, payload, pending, limit, offset),
+    indicator: (indicator, payload, status, limit, offset) => getTiresIndicator(orgId, indicator, payload, status, limit, offset),
     schedule: (payload, window, limit, offset) => getTiresSchedule(orgId, payload, window, limit, offset),
-    quality: (payload, issue, limit, offset) => getTiresQuality(orgId, payload, issue, limit, offset),
+    auditCenter: (payload, audit, limit, offset) =>
+      getTiresAuditCenter(orgId, payload, { ...audit, groupBy: "rule", limit, offset }),
     inspections: (filters, limit, offset) => getTireInspectionsReceived(orgId, filters, limit, offset),
     events: (filters, limit, offset) => getTiresEvents(orgId, filters, limit, offset),
     audit: (filters, limit, offset) => getTiresAudit(orgId, filters, limit, offset),

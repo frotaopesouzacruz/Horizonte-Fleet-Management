@@ -44,7 +44,7 @@ const TAB_OWNED_PARAMS = [
   "pagina", "ordem", "dir", "visao", "pendencia", "janela", "fase", "inspetor", "divergencia", "de", "ate", "sub", "registro",
   "servico", "status_manutencao", "problema", "evento", "acao", "lote", "secao", "filtro", "vistoria", "grupo", "prioridade",
   "agrupar", "abertos", "periodo", "indicador", "dimensao", "membro", "categoria", "regra", "gravidade", "achado", "execucoes",
-  "execucao",
+  "execucao", "perfil_por", "onde",
 ];
 
 /**
@@ -172,8 +172,8 @@ export function TiresView({ data }: { data: TiresViewData }) {
           <TabsContent value={tab}>
             {tab === "visao-geral" ? <OverviewPanel data={d as TiresTabData["visao-geral"] | null} ctx={ctx} /> : null}
             {tab === "base" ? <BasePanel data={d as TiresTabData["base"] | null} ctx={ctx} /> : null}
-            {tab === "medicao" ? <AdherencePanel kind="measurement" data={d as TiresTabData["medicao"] | null} ctx={ctx} /> : null}
-            {tab === "calibragem" ? <AdherencePanel kind="calibration" data={d as TiresTabData["calibragem"] | null} ctx={ctx} /> : null}
+            {tab === "medicao" ? <AdherencePanel tab="medicao" data={d as TiresTabData["medicao"] | null} ctx={ctx} /> : null}
+            {tab === "calibragem" ? <AdherencePanel tab="calibragem" data={d as TiresTabData["calibragem"] | null} ctx={ctx} /> : null}
             {tab === "cronograma" ? <SchedulePanel data={d as TiresTabData["cronograma"] | null} ctx={ctx} /> : null}
             {tab === "vistorias" ? <InspectionsPanel data={d as TiresTabData["vistorias"] | null} ctx={ctx} /> : null}
             {tab === "servicos" ? <ServicesPanel data={d as TiresTabData["servicos"] | null} ctx={ctx} /> : null}

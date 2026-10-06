@@ -176,8 +176,8 @@ function ProfileChart({
   ctx: TiresPanelContext;
   onFilter: (field: CrossField, key: string) => void;
 }) {
-  const [raw, setRaw] = useViewParam("perfil");
-  const dim = fromParam(PROFILE_PARAM, raw, "brand");
+  const [raw, setRaw] = useViewParam("perfil_por");
+  const dim = fromParam<ProfileDim>(PROFILE_PARAM, raw, "brand");
   const list: TireProfileItem[] = overview.profile?.[dim] ?? [];
   const field: CrossField = dim;
   const labelOf = (i: TireProfileItem) => {
@@ -240,7 +240,7 @@ function WhereChart({
   onFilter: (field: CrossField, key: string) => void;
 }) {
   const [raw, setRaw] = useViewParam("onde");
-  const dim = fromParam(WHERE_PARAM, raw, "operation");
+  const dim = fromParam<WhereDim>(WHERE_PARAM, raw, "operation");
   const list: TireWhereItem[] = overview.where?.[dim] ?? [];
   const field: CrossField = dim;
   const rows: BarRow[] = list.map((i) => {

@@ -18,12 +18,15 @@ import {
 } from "@/app/(app)/frota/km/relatorio/xlsx-kit";
 import {
   AUDIT_ACTION_LABEL,
-  BATCH_STATUS_LABEL,
-  BREAKDOWN_LABEL,
+  AUDIT_CATEGORY_LABEL,
+  AUDIT_SEVERITY_LABEL,
+  CAL_CONF_LABEL,
+  CRITICALITY_LABEL,
   DEADLINE_LABEL,
   ENRICHMENT_LABEL,
-  ERROR_ISSUES,
   EVENT_TONE,
+  INDICATOR_DIM_LABEL,
+  INDICATOR_LABEL,
   INSPECTION_STATUS_LABEL,
   LAYOUT_SOURCE_LABEL,
   PSI_LABEL,
@@ -35,26 +38,32 @@ import {
   TREAD_LABEL,
   eventTypeLabel,
   formatDate,
+  modernTerms,
+  issueCode,
   issueLabel,
+  reasonLabel,
+  type AuditCategory,
+  type AuditSeverity,
   type ScheduleWindow,
+  type TireAuditFinding,
   type TireAuditRow,
-  type TireBreakdownDim,
   type TireEventRow,
   type TireFilterOptions,
   type TireFleetGroup,
+  type TireIndicatorDim,
+  type TireIndicatorKey,
+  type TireIndicatorPendingRow,
   type TireInspectionRow,
-  type TirePendingRow,
-  type TireQualityRow,
   type TireRow,
   type TireScheduleRow,
-  type TiresAdherence,
+  type TiresAuditCenter,
   type TiresAuditList,
   type TiresBase,
   type TiresBaseView,
   type TiresEventsList,
   type TiresFilters,
+  type TiresIndicator,
   type TiresInspectionsReceived,
-  type TiresQuality,
   type TiresSchedule,
 } from "./types";
 import { firstParam, parseBaseSort, parseTiresFilters, splitList, tiresFiltersPayload, type SearchParamsLike, type TiresBaseSort } from "./url";
@@ -67,9 +76,9 @@ import { firstParam, parseBaseSort, parseTiresFilters, splitList, tiresFiltersPa
  * 2. `collectTiresExport` percorre TODAS as páginas das rotinas (500 por
  *    chamada, o teto delas) por meio de uma fonte injetada — a rota usa as
  *    consultas reais; a verificação usa os dados fixos da prévia.
- * 3. `buildTiresWorkbook` monta a aba Resumo (logo, fotografia, filtros em
- *    texto, indicadores da rotina com a explicação) e a aba de dados com uma
- *    linha por item.
+ * 3. `buildTiresWorkbook` monta a aba Resumo (logo, data dos dados, filtros
+ *    em texto, indicadores da rotina com a explicação) e a aba de dados com
+ *    uma linha por item.
  *
  * Nada é calculado aqui além de rótulos e formatação: prazos, classes, PSI,
  * severidade e contadores chegam prontos do banco. Sem custo/CPK. Nº Fogo,
@@ -90,7 +99,11 @@ type Filters = Record<string, Json>;
 // ---------------------------------------------------------------------------
 const BASE_VIEWS: TiresBaseView[] = ["frota", "fogo", "fora"];
 const WINDOWS: ScheduleWindow[] = ["todos", "vencidos", "hoje", "7d", "15d", "proximos", "sem_medicao", "sem_calibragem"];
-const PENDING = ["all", "vencido", "proximo", "sem_registro", "pressao", "sem_parametro"];
+/** Sub-visão (`?sub=`) → indicador do banco — o mesmo mapa do carregador de Medição e Calibragem. */
+const MEASUREMENT_SUB: Record<string, TireIndicatorKey> = { sulco: "tread", prazo: "measurement" };
+const CALIBRATION_SUB: Record<string, TireIndicatorKey> = { conformidade: "calibration_conformity", prazo: "calibration", psi: "psi" };
+/** Situação pedida na lista de pendências (código do banco, sem espaços) — o mesmo filtro do carregador. */
+const statusParam = (v: string | undefined) => (v && /^[a-z_]{3,40}$/.test(v) ? v : null);
 const isUuid = (v: string | undefined): v is string => !!v && /^[0-9a-f-]{36}$/i.test(v);
 const isIsoDate = (v: string | undefined): v is string => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
@@ -99,11 +112,19 @@ interface ReqBase {
 }
 export type TiresExportRequest =
   | (ReqBase & { kind: "base"; payload: Filters; view: TiresBaseView; sort: TiresBaseSort | null; dir: "asc" | "desc" })
-  | (ReqBase & { kind: "medicao" | "calibragem"; payload: Filters; pending: string })
+  | (ReqBase & { kind: "medicao" | "calibragem"; payload: Filters; sub: string; indicator: TireIndicatorKey; status: string | null })
   | (ReqBase & { kind: "cronograma"; payload: Filters; window: ScheduleWindow })
   | (ReqBase & { kind: "vistorias"; payload: Filters; fase: string | undefined })
   | (ReqBase & { kind: "historico"; payload: Filters; sub: "eventos" | "auditoria" })
-  | (ReqBase & { kind: "qualidade"; payload: Filters; issue: string | null });
+  | (ReqBase & { kind: "qualidade"; payload: Filters; audit: AuditExportFilters });
+
+/** Filtros próprios da Central de Auditoria (os mesmos da tela). */
+export interface AuditExportFilters {
+  category: string | null;
+  rule: string | null;
+  severity: string | null;
+  status: "aberta" | "resolvida" | "todas";
+}
 
 function pick(payload: Filters, keys: string[]): Filters {
   const out: Filters = {};
@@ -138,8 +159,10 @@ export function tiresExportRequest(
     }
     case "medicao":
     case "calibragem": {
-      const p = firstParam(params, "pendencia");
-      return { kind, filters, payload, pending: p && PENDING.includes(p) ? p : "all" };
+      const raw = firstParam(params, "sub");
+      const map = kind === "medicao" ? MEASUREMENT_SUB : CALIBRATION_SUB;
+      const sub = raw && map[raw] ? raw : kind === "medicao" ? "sulco" : "conformidade";
+      return { kind, filters, payload, sub, indicator: map[sub], status: statusParam(firstParam(params, "pendencia")) };
     }
     case "cronograma": {
       const w = firstParam(params, "janela") as ScheduleWindow | undefined;
@@ -172,8 +195,21 @@ export function tiresExportRequest(
       if (action) f.action = action;
       return { kind, filters, payload: f, sub };
     }
-    case "qualidade":
-      return { kind, filters, payload, issue: firstParam(params, "problema") ?? null };
+    case "qualidade": {
+      // espelho do carregador da Central: só operação, local, liderança, frota e busca
+      const st = firstParam(params, "achado");
+      return {
+        kind,
+        filters,
+        payload: pick(payload, ["operation_ids", "city_ids", "leader_ids", "vehicle_ids", "search"]),
+        audit: {
+          category: firstParam(params, "categoria") ?? null,
+          rule: firstParam(params, "regra") ?? null,
+          severity: firstParam(params, "gravidade") ?? null,
+          status: st === "resolvida" || st === "todas" ? st : "aberta",
+        },
+      };
+    }
   }
 }
 
@@ -188,7 +224,8 @@ export function tiresExportLogFilters(req: TiresExportRequest): Filters {
       break;
     case "medicao":
     case "calibragem":
-      out.pending = req.pending;
+      out.indicator = req.indicator;
+      if (req.status) out.status = req.status;
       break;
     case "cronograma":
       out.window = req.window;
@@ -197,7 +234,10 @@ export function tiresExportLogFilters(req: TiresExportRequest): Filters {
       out.sub = req.sub;
       break;
     case "qualidade":
-      if (req.issue) out.issue = req.issue;
+      if (req.audit.category) out.category = req.audit.category;
+      if (req.audit.rule) out.rule = req.audit.rule;
+      if (req.audit.severity) out.severity = req.audit.severity;
+      out.status = req.audit.status;
       break;
     default:
       break;
@@ -210,9 +250,9 @@ export function tiresExportLogFilters(req: TiresExportRequest): Filters {
 // ---------------------------------------------------------------------------
 export interface TiresExportSource {
   base(payload: Filters, view: TiresBaseView, sort: string | null, dir: "asc" | "desc", limit: number, offset: number): Promise<TiresBase>;
-  adherence(kind: "measurement" | "calibration", payload: Filters, pending: string, limit: number, offset: number): Promise<TiresAdherence>;
+  indicator(indicator: TireIndicatorKey, payload: Filters, status: string | null, limit: number, offset: number): Promise<TiresIndicator>;
   schedule(payload: Filters, window: ScheduleWindow, limit: number, offset: number): Promise<TiresSchedule>;
-  quality(payload: Filters, issue: string | null, limit: number, offset: number): Promise<TiresQuality>;
+  auditCenter(payload: Filters, audit: AuditExportFilters, limit: number, offset: number): Promise<TiresAuditCenter>;
   inspections(filters: Filters, limit: number, offset: number): Promise<TiresInspectionsReceived>;
   events(filters: Filters, limit: number, offset: number): Promise<TiresEventsList>;
   audit(filters: Filters, limit: number, offset: number): Promise<TiresAuditList>;
@@ -255,12 +295,12 @@ interface Read<P, R> {
 }
 export type TiresExportData =
   | ({ kind: "base"; req: Extract<TiresExportRequest, { kind: "base" }> } & Read<TiresBase, BaseItem>)
-  | ({ kind: "medicao" | "calibragem"; req: Extract<TiresExportRequest, { kind: "medicao" | "calibragem" }> } & Read<TiresAdherence, TirePendingRow>)
+  | ({ kind: "medicao" | "calibragem"; req: Extract<TiresExportRequest, { kind: "medicao" | "calibragem" }> } & Read<TiresIndicator, TireIndicatorPendingRow>)
   | ({ kind: "cronograma"; req: Extract<TiresExportRequest, { kind: "cronograma" }> } & Read<TiresSchedule, TireScheduleRow>)
   | ({ kind: "vistorias"; req: Extract<TiresExportRequest, { kind: "vistorias" }> } & Read<TiresInspectionsReceived, TireInspectionRow>)
   | ({ kind: "historico"; sub: "eventos"; req: Extract<TiresExportRequest, { kind: "historico" }> } & Read<TiresEventsList, TireEventRow>)
   | ({ kind: "historico"; sub: "auditoria"; req: Extract<TiresExportRequest, { kind: "historico" }> } & Read<TiresAuditList, TireAuditRow>)
-  | ({ kind: "qualidade"; req: Extract<TiresExportRequest, { kind: "qualidade" }> } & Read<TiresQuality, TireQualityRow>);
+  | ({ kind: "qualidade"; req: Extract<TiresExportRequest, { kind: "qualidade" }> } & Read<TiresAuditCenter, TireAuditFinding>);
 
 /** Lê o recorte inteiro do pedido (todas as páginas, sem teto). */
 export async function collectTiresExport(
@@ -290,9 +330,8 @@ export async function collectTiresExport(
     }
     case "medicao":
     case "calibragem": {
-      const kind = req.kind === "medicao" ? "measurement" : "calibration";
       const r = await readAllPages(
-        (l, o) => source.adherence(kind, req.payload, req.pending, l, o),
+        (l, o) => source.indicator(req.indicator, req.payload, req.status, l, o),
         (p) => p.pending,
         (p) => p.pendingTotal,
         limit,
@@ -316,26 +355,9 @@ export async function collectTiresExport(
       return { kind: "historico", sub: "auditoria", req, ...r };
     }
     case "qualidade": {
-      // Com um problema escolhido, só ele (como na aba); sem escolha, todos os
-      // problemas que a rotina listou, um a um — a lista completa.
-      const readIssue = (code: string) =>
-        readAllPages((l, o) => source.quality(req.payload, code, l, o), (p) => p.rows, (p) => p.issueTotal, limit);
-      if (req.issue) {
-        const r = await readIssue(req.issue);
-        return { kind: "qualidade", req, ...r };
-      }
-      // sem problema escolhido a rotina não devolve linhas: a 1ª chamada só traz a lista de problemas
-      const first = await source.quality(req.payload, null, 1, 0);
-      const rows: TireQualityRow[] = [];
-      let total = 0;
-      let complete = true;
-      for (const code of (first.issues ?? []).map((i) => i.code)) {
-        const r = await readIssue(code);
-        rows.push(...r.rows);
-        total += r.total;
-        complete &&= r.complete;
-      }
-      return { kind: "qualidade", req, first, rows, total, complete };
+      // os achados da Central com os filtros da tela (categoria, regra, gravidade, situação), todas as páginas
+      const r = await readAllPages((l, o) => source.auditCenter(req.payload, req.audit, l, o), (p) => p.rows, (p) => p.total, limit);
+      return { kind: "qualidade", req, ...r };
     }
   }
 }
@@ -417,9 +439,11 @@ function appliedGlobalKeys(req: TiresExportRequest): (keyof TiresFilters)[] {
     case "calibragem":
       return ALL_GLOBAL;
     case "cronograma":
-    case "qualidade":
-      // a rotina sempre lê a fotografia mais recente
+      // a rotina sempre lê os dados mais recentes
       return ALL_GLOBAL.filter((k) => k !== "reference");
+    case "qualidade":
+      // a Central avalia os dados mais recentes e aceita só estes recortes
+      return ["operation", "city", "leader", "vehicle", "q"];
     case "vistorias":
       return ["operation", "city", "br", "leader", "vehicle", "q"];
     case "historico":
@@ -504,14 +528,17 @@ const BASE_SORT_LABEL: Record<string, string> = {
   km: "KM real",
   operation: "Operação",
 };
-const PENDING_LABEL: Record<string, string> = {
-  all: "Todas as pendências",
-  vencido: "Vencidos",
-  proximo: "Próximos do vencimento",
-  sem_registro: "Sem registro",
-  pressao: "Pressão fora da faixa",
-  sem_parametro: "Sem parâmetro de PSI",
+/** Rótulo da situação de cada indicador (os códigos que `tires_indicator` devolve). */
+const INDICATOR_STATUS_LABEL: Record<TireIndicatorKey, Record<string, string>> = {
+  tread: TREAD_LABEL,
+  measurement: DEADLINE_LABEL,
+  calibration: DEADLINE_LABEL,
+  psi: PSI_LABEL,
+  calibration_conformity: CAL_CONF_LABEL,
+  overall: { conforme: "Conforme", nao_conforme: "Não conforme" },
 };
+const indicatorStatus = (indicator: TireIndicatorKey, code: string | null | undefined) =>
+  code ? (INDICATOR_STATUS_LABEL[indicator][code] ?? code) : null;
 const DIVERGENCE_FILTER_LABEL: Record<string, string> = { com: "Com divergência", sem: "Sem divergência", persistente: "Divergência persistente" };
 const FLEET_STATUS_LABEL: Record<TireFleetGroup["status"], string> = { critico: "Crítica", atencao: "Atenção", ok: "Sem pendência" };
 const EVENT_SOURCE_LABEL: Record<string, string> = { rodopar_import: "Importação Rodopar", system: "Sistema" };
@@ -545,7 +572,8 @@ function tabFilters(data: TiresExportData): FilterItem[] {
       break;
     case "medicao":
     case "calibragem":
-      push("Pendência", PENDING_LABEL[req.pending] ?? req.pending);
+      push("Indicador", INDICATOR_LABEL[req.indicator]);
+      push("Situação", req.status ? indicatorStatus(req.indicator, req.status) : "Todas as pendências");
       break;
     case "cronograma":
       push("Janela", SCHEDULE_WINDOW_LABEL[req.window]);
@@ -570,9 +598,15 @@ function tabFilters(data: TiresExportData): FilterItem[] {
       push("Data de referência", period(f.date_from, f.date_to));
       break;
     }
-    case "qualidade":
-      push("Problema", req.issue ? issueLabel(req.issue) : "Todos os problemas");
+    case "qualidade": {
+      const a = req.audit;
+      const rules = data.kind === "qualidade" ? data.first.rules : [];
+      push("Situação dos achados", AUDIT_STATUS_LABEL[a.status]);
+      push("Categoria", a.category ? label(AUDIT_CATEGORY_LABEL, a.category) : null);
+      push("Regra", a.rule ? (rules.find((r) => r.code === a.rule)?.title ?? a.rule) : null);
+      push("Gravidade", a.severity ? label(AUDIT_SEVERITY_LABEL, a.severity) : null);
       break;
+    }
   }
   return out;
 }
@@ -597,14 +631,14 @@ export function tiresExportFilters(data: TiresExportData, options: TireFilterOpt
 
 const filterLine = (items: FilterItem[]) => (items.length ? `Filtros: ${items.map((f) => `${f.label}: ${f.value}`).join(" · ")}` : "Filtros: nenhum");
 
-/** "Fotografia oficial Rodopar de dd/mm/aaaa (…) · prazos calculados em dd/mm/aaaa". */
+/** "Base oficial (Rodopar): dados de dd/mm/aaaa (…) · prazos calculados em dd/mm/aaaa". */
 function photoLine(data: TiresExportData, options: TireFilterOptions | null): string {
   const latest = options?.referenceDates?.[0]?.referenceDate ?? null;
   const snapshot = (ref: string | null | undefined, asOf: string | null | undefined, isLatest?: boolean) => {
-    if (!ref) return "Sem fotografia oficial Rodopar confirmada";
+    if (!ref) return "Sem dados confirmados na base oficial (Rodopar)";
     const latestFlag = isLatest ?? (latest ? ref === latest : undefined);
-    const tag = latestFlag === true ? " (a mais recente)" : latestFlag === false ? " (fotografia anterior — não é a mais recente)" : "";
-    return `Fotografia oficial Rodopar de ${formatDate(ref)}${tag}${asOf ? ` · prazos calculados em ${formatDate(asOf)}` : ""}`;
+    const tag = latestFlag === true ? " (os mais recentes)" : latestFlag === false ? " (dados anteriores — não são os mais recentes)" : "";
+    return `Base oficial (Rodopar): dados de ${formatDate(ref)}${tag}${asOf ? ` · prazos calculados em ${formatDate(asOf)}` : ""}`;
   };
   switch (data.kind) {
     case "base":
@@ -614,14 +648,18 @@ function photoLine(data: TiresExportData, options: TireFilterOptions | null): st
       return snapshot(data.first.empty ? null : data.first.referenceDate, data.first.asOf, data.first.isLatest);
     case "cronograma":
       return snapshot(data.first.empty ? null : data.first.referenceDate, data.first.asOf, true);
-    case "qualidade":
-      return snapshot(data.first.empty ? null : data.first.referenceDate, data.first.asOf, true);
+    case "qualidade": {
+      const scan = data.first.lastScan;
+      const ref = scan?.referenceDate ?? latest;
+      const scanned = scan ? ` · última varredura em ${stampText(scan.finishedAt ?? scan.startedAt)}` : " · nenhuma varredura registrada";
+      return `${ref ? `Auditoria da base oficial (Rodopar): dados de ${formatDate(ref)}` : "Auditoria da base oficial (Rodopar)"}${scanned}`;
+    }
     case "vistorias":
       return latest
-        ? `Fotografia oficial mais recente: ${formatDate(latest)} — as vistorias de campo não alteram a fotografia oficial`
-        : "Vistorias de campo — não alteram a fotografia oficial";
+        ? `Base oficial (Rodopar): dados de ${formatDate(latest)} — as vistorias de campo não alteram a base oficial`
+        : "Vistorias de campo — não alteram a base oficial (Rodopar)";
     case "historico":
-      return latest ? `Fotografia oficial mais recente: ${formatDate(latest)}` : "Histórico da Gestão de Pneus";
+      return latest ? `Base oficial (Rodopar): dados de ${formatDate(latest)}` : "Histórico da Gestão de Pneus";
   }
 }
 
@@ -841,8 +879,10 @@ const BASE_FLEET_SPECS: Spec<BaseItem>[] = [
 ];
 const BASE_ROW_SPECS: Spec<BaseItem>[] = TIRE_SPECS.map((s) => ({ ...s, value: (i: BaseItem) => s.value(i.tire) }));
 
-function pendingSpecs(kind: "medicao" | "calibragem"): Spec<TirePendingRow>[] {
-  const id: Spec<TirePendingRow>[] = [
+/** Colunas das pendências de um indicador (`tires_indicator`): identificação, situação e os campos do critério. */
+function indicatorSpecs(indicator: TireIndicatorKey): Spec<TireIndicatorPendingRow>[] {
+  type S = Spec<TireIndicatorPendingRow>;
+  const id: S[] = [
     { header: "Nº Fogo", width: 12, numFmt: NUMF.text, value: (r) => text(r.fireNumber) },
     { header: "Frota", width: 11, numFmt: NUMF.text, value: (r) => text(r.fleetNumber) },
     { header: "Placa", width: 11, numFmt: NUMF.text, value: (r) => text(r.licensePlate) },
@@ -850,33 +890,59 @@ function pendingSpecs(kind: "medicao" | "calibragem"): Spec<TirePendingRow>[] {
     { header: "Descrição da posição", width: 22, value: (r) => r.positionLabel },
     { header: "Operação", width: 24, value: (r) => r.operationName },
     { header: "Cidade/UF", width: 20, value: (r) => cityUf(r.cityName, r.stateUf) },
-    { header: "BR", width: 9, value: (r) => r.brCode },
     { header: "Liderança", width: 22, value: (r) => r.leaderName },
-    { header: "Filial", width: 18, value: (r) => r.unitName },
+    { header: "Tipo de equipamento", width: 20, value: (r) => r.vehicleTypeName },
+    { header: "Medida", width: 14, value: (r) => r.dimension },
+    { header: "Situação no indicador", width: 24, value: (r) => indicatorStatus(indicator, r.status) },
+    { header: "Criticidade", width: 13, value: (r) => label(CRITICALITY_LABEL, r.criticality) },
+    { header: "Motivos", width: 44, value: (r) => (r.reasons?.length ? r.reasons.map(reasonLabel).join("; ") : null) },
   ];
-  const what = kind === "medicao" ? "medição" : "calibragem";
-  const deadline: Spec<TirePendingRow>[] = [
-    { header: `Última ${what}`, width: 12, numFmt: NUM.date, value: (r) => excelDate(r.lastDate) },
-    { header: `Dias desde a ${what}`, width: 10, numFmt: NUM.int, value: (r) => r.days },
-    { header: `Prazo de ${what}`, width: 15, value: (r) => label(DEADLINE_LABEL, r.status) },
-    { header: "Vence em", width: 12, numFmt: NUM.date, value: (r) => excelDate(r.dueDate) },
-  ];
-  const tread: Spec<TirePendingRow>[] = [
+  const tread: S[] = [
     { header: "Sulco 1 (mm)", width: 9, numFmt: NUMF.mm, value: (r) => r.tread1 },
     { header: "Sulco 2 (mm)", width: 9, numFmt: NUMF.mm, value: (r) => r.tread2 },
     { header: "Sulco 3 (mm)", width: 9, numFmt: NUMF.mm, value: (r) => r.tread3 },
     { header: "Sulco 4 (mm)", width: 9, numFmt: NUMF.mm, value: (r) => r.tread4 },
     { header: "Menor sulco (mm)", width: 10, numFmt: NUMF.mm, value: (r) => r.treadMin },
     { header: "Classe do sulco", width: 15, value: (r) => label(TREAD_LABEL, r.treadClass) },
+    { header: "Sulco legal (mm)", width: 9, numFmt: NUMF.mm, value: (r) => r.legalTreadMm },
   ];
-  const psi: Spec<TirePendingRow>[] = [
+  const measurement: S[] = [
+    { header: "Data da medição", width: 12, numFmt: NUM.date, value: (r) => excelDate(r.measurementDate) },
+    { header: "Dias desde a medição", width: 10, numFmt: NUM.int, value: (r) => r.measurementDays },
+    { header: "Prazo de medição", width: 15, value: (r) => label(DEADLINE_LABEL, r.measurementStatus) },
+    { header: "Medição vence em", width: 12, numFmt: NUM.date, value: (r) => excelDate(r.measurementDueDate) },
+    { header: "Atraso da medição (dias)", width: 10, numFmt: NUM.int, value: (r) => r.measurementLate },
+  ];
+  const calibration: S[] = [
+    { header: "Data da calibragem", width: 12, numFmt: NUM.date, value: (r) => excelDate(r.calibrationDate) },
+    { header: "Dias desde a calibragem", width: 10, numFmt: NUM.int, value: (r) => r.calibrationDays },
+    { header: "Prazo de calibragem", width: 15, value: (r) => label(DEADLINE_LABEL, r.calibrationStatus) },
+    { header: "Calibragem vence em", width: 12, numFmt: NUM.date, value: (r) => excelDate(r.calibrationDueDate) },
+    { header: "Atraso da calibragem (dias)", width: 10, numFmt: NUM.int, value: (r) => r.calibrationLate },
+  ];
+  const psi: S[] = [
     { header: "PSI", width: 7, numFmt: NUMF.psi, value: (r) => r.psi },
     { header: "PSI mínimo", width: 8, numFmt: NUMF.psi, value: (r) => r.psiMin },
     { header: "PSI ideal", width: 8, numFmt: NUMF.psi, value: (r) => r.psiIdeal },
     { header: "PSI máximo", width: 8, numFmt: NUMF.psi, value: (r) => r.psiMax },
     { header: "Pressão", width: 15, value: (r) => label(PSI_LABEL, r.psiStatus) },
+    { header: "Desvio (PSI)", width: 9, numFmt: NUMF.psi, value: (r) => r.psiDev },
+    { header: "Desvio (% sobre o ideal)", width: 10, numFmt: NUM.pct, value: (r) => r.psiDevPct },
   ];
-  return kind === "medicao" ? [...id, ...deadline, ...tread] : [...id, ...deadline, ...psi, tread[4], tread[5]];
+  switch (indicator) {
+    case "tread":
+      return [...id, ...tread];
+    case "measurement":
+      return [...id, ...measurement, tread[4], tread[5]];
+    case "calibration":
+      return [...id, ...calibration, ...psi.slice(0, 5)];
+    case "psi":
+      return [...id, ...psi, calibration[0]];
+    case "calibration_conformity":
+      return [...id, ...calibration, ...psi];
+    default:
+      return [...id, ...tread, ...measurement, ...calibration, ...psi];
+  }
 }
 
 const SCHEDULE_SPECS: Spec<TireScheduleRow>[] = [
@@ -960,7 +1026,7 @@ const fieldText = (key: string, v: unknown) => (v == null || v === "" ? "—" : 
 
 /**
  * O que mudou no evento: "Menor sulco: 4,69 mm → 4,09 mm · PSI: 70 → 72".
- * Sem estado anterior (primeira fotografia), o retrato principal do pneu.
+ * Sem estado anterior (primeira carga dos dados), o retrato principal do pneu.
  */
 function eventChanges(e: TireEventRow): string | null {
   const prev = e.previous && typeof e.previous === "object" ? (e.previous as Record<string, unknown>) : null;
@@ -1024,44 +1090,52 @@ const AUDIT_SPECS: Spec<TireAuditRow>[] = [
   { header: "Responsável", width: 30, value: (r) => r.actorName },
 ];
 
-function qualityDetail(r: TireQualityRow): string | null {
-  if (!r.detail) return null;
-  if (r.code === "ausente_ultima_importacao") return `Ausente desde ${formatDate(r.detail)}`;
-  if (r.code === "sem_parametro_psi") return `Dimensão: ${r.detail}`;
-  if (r.code === "posicao_fora_layout") return `Posições do layout: ${r.detail}`;
-  return r.detail;
-}
-const QUALITY_SPECS: Spec<TireQualityRow>[] = [
-  { header: "Problema", width: 40, value: (r) => issueLabel(r.code) },
-  { header: "Bloqueia importação", width: 11, value: (r) => ERROR_ISSUES.has(r.code) },
+/** Situação pedida na Central de Auditoria (filtro `achado`). */
+const AUDIT_STATUS_LABEL: Record<AuditExportFilters["status"], string> = {
+  aberta: "Abertas",
+  resolvida: "Resolvidas",
+  todas: "Todas (abertas e resolvidas)",
+};
+const AUDIT_SEVERITY_ORDER: AuditSeverity[] = ["critica", "alta", "media", "baixa"];
+
+/** Achados da Central de Auditoria: uma linha por achado, com regra, onde, valores e histórico. */
+const AUDIT_FINDING_SPECS: Spec<TireAuditFinding>[] = [
+  { header: "Gravidade", width: 10, value: (r) => label(AUDIT_SEVERITY_LABEL, r.severity) },
+  { header: "Regra", width: 34, value: (r) => r.ruleTitle },
+  { header: "Código da regra", width: 22, numFmt: NUMF.text, value: (r) => text(r.ruleCode) },
+  { header: "Categoria", width: 16, value: (r) => label(AUDIT_CATEGORY_LABEL, r.category) },
+  { header: "Situação", width: 11, value: (r) => (r.status === "resolvida" ? "Resolvida" : "Aberta") },
   { header: "Nº Fogo", width: 12, numFmt: NUMF.text, value: (r) => text(r.fireNumber) },
   { header: "Frota", width: 11, numFmt: NUMF.text, value: (r) => text(r.fleetNumber) },
   { header: "Placa", width: 11, numFmt: NUMF.text, value: (r) => text(r.licensePlate) },
   { header: "Posição", width: 9, numFmt: NUMF.text, value: (r) => text(r.positionCode) },
-  { header: "Detalhe", width: 50, value: (r) => qualityDetail(r) },
+  { header: "Operação", width: 24, value: (r) => r.operationName },
+  { header: "Local de operação", width: 22, value: (r) => r.cityLabel },
+  { header: "Liderança", width: 22, value: (r) => r.leaderName },
+  { header: "Campo", width: 18, value: (r) => r.field },
+  { header: "Valor encontrado", width: 20, numFmt: NUMF.text, value: (r) => text(r.foundValue) },
+  { header: "Valor esperado", width: 22, value: (r) => r.expectedValue },
+  { header: "Detalhe", width: 50, value: (r) => (r.detail ? modernTerms(r.detail) : null) },
+  { header: "Primeira detecção (dados de)", width: 13, numFmt: NUM.date, value: (r) => excelDate(r.firstReferenceDate) },
+  { header: "Última detecção (dados de)", width: 13, numFmt: NUM.date, value: (r) => excelDate(r.lastReferenceDate) },
+  { header: "Detectado pela 1ª vez em", width: 16, numFmt: NUM.stamp, value: (r) => stamp(r.firstSeenAt) },
+  { header: "Detectado pela última vez em", width: 16, numFmt: NUM.stamp, value: (r) => stamp(r.lastSeenAt) },
+  { header: "Ocorrências", width: 10, numFmt: NUM.int, value: (r) => r.occurrences },
+  { header: "Reaberturas", width: 10, numFmt: NUM.int, value: (r) => r.reopenedCount },
+  { header: "Resolvido em", width: 16, numFmt: NUM.stamp, value: (r) => stamp(r.resolvedAt) },
 ];
 
 // ---------------------------------------------------------------------------
 // 6. Montagem por tipo
 // ---------------------------------------------------------------------------
 const NOTE_PHOTO =
-  "A base é a fotografia oficial do Rodopar 10 confirmada na importação. Vistorias de campo não alteram esta base: só uma nova fotografia do Rodopar muda os números.";
+  "A base é a base oficial (Rodopar) — a planilha Rodopar 10 confirmada pela sincronização ou pelo envio manual. Vistorias de campo não alteram esta base: só novos dados do Rodopar mudam os números.";
 const NOTE_EMPTY = "Células vazias nas abas de dados significam valor não registrado (nunca zero por omissão). No Resumo, — indica valor indisponível.";
 const NOTE_PSI = "\"Sem parâmetro\" de PSI significa que não há regra de pressão para o tipo/dimensão/posição: nunca conta como pressão adequada.";
 const NOTE_SCOPE = "O escopo segue as suas permissões (organização, operação e veículos visíveis); os filtros do navegador não ampliam esse escopo.";
 
 const pct = NUM.pct;
 const int = NUM.int;
-
-const BREAKDOWN_EMPTY: Record<TireBreakdownDim, string> = {
-  operation: "Sem operação",
-  state: "Sem UF",
-  city: "Sem local",
-  br: "Sem BR",
-  unit: "Sem filial",
-  leader: "Sem liderança",
-  vehicleType: "Sem tipo de equipamento",
-};
 
 function deadlineNote(okDays: number | null | undefined, warningDays: number | null | undefined, what: string): string | null {
   if (okDays == null || warningDays == null) return null;
@@ -1087,7 +1161,7 @@ function buildBase(data: Extract<TiresExportData, { kind: "base" }>): Built {
   if (view === "frota" && !first.empty && "summary" in first && first.view === "frota") {
     const s = first.summary;
     indicators.push(
-      { label: "Frotas no recorte", value: s.fleets, help: "Veículos/frotas com pneus em uso na fotografia, dentro dos filtros." },
+      { label: "Frotas no recorte", value: s.fleets, help: "Veículos/frotas com pneus em uso nos dados, dentro dos filtros." },
       { label: "Frotas críticas", value: s.critical, help: "Pelo menos um pneu com sulco crítico ou abaixo do legal, ou com medição vencida." },
       { label: "Frotas em atenção", value: s.attention, help: "Sulco em atenção, PSI fora da faixa, calibragem vencida ou medição/calibragem sem registro (sem item crítico)." },
       { label: "Frotas sem pendência", value: s.ok, help: "Nenhum dos critérios acima." },
@@ -1096,7 +1170,7 @@ function buildBase(data: Extract<TiresExportData, { kind: "base" }>): Built {
   } else if (!first.empty && "summary" in first && first.view !== "frota") {
     const s = first.summary;
     indicators.push(
-      { label: "Pneus no recorte", value: s.total, help: view === "fora" ? "Pneus fora de uso (estoque, ressolagem, descarte, baixa…) na fotografia." : "Todos os pneus da fotografia, dentro dos filtros." },
+      { label: "Pneus no recorte", value: s.total, help: view === "fora" ? "Pneus fora de uso (estoque, ressolagem, descarte, baixa…) nos dados." : "Todos os pneus dos dados, dentro dos filtros." },
       { label: "Em uso", value: s.inUse, help: "Pneus com situação Em uso." },
       { label: "Medição vencida", value: s.measurementOverdue, help: "Pneus em uso com a última medição além do prazo." },
       { label: "Medição próxima do vencimento", value: s.measurementDueSoon, help: "Pneus em uso dentro da janela de aviso." },
@@ -1136,99 +1210,158 @@ function buildBase(data: Extract<TiresExportData, { kind: "base" }>): Built {
   };
 }
 
-function buildAdherence(data: Extract<TiresExportData, { kind: "medicao" | "calibragem" }>): Built {
-  const cal = data.kind === "calibragem";
-  const what = cal ? "calibragem" : "medição";
+const NOTE_SOURCE =
+  "A base são os dados oficiais do Rodopar, sincronizados do SharePoint. Vistorias de campo não alteram esta base: só um novo dado do Rodopar muda os números.";
+const DIM_ORDER: TireIndicatorDim[] = ["operation", "city", "leader", "vehicleType", "dimension"];
+
+/** Definição de cada indicador, com os números da regra vigente (nada fixo aqui). */
+function indicatorDefinition(data: Extract<TiresExportData, { kind: "medicao" | "calibragem" }>): string | null {
+  const first = data.first;
+  if (first.empty || !first.parameters) return null;
+  const p = first.parameters;
+  switch (data.req.indicator) {
+    case "tread":
+      return `Sulco OK = menor sulco acima de ${p.treadCriticalMm} mm (limite crítico) e acima do sulco legal da regra do pneu; até ${p.treadAttentionMm} mm fica em atenção, ainda conforme. Sem medição não conta como OK.`;
+    case "measurement":
+      return `${deadlineNote(p.measurementOkDays, p.measurementWarningDays, "medição")} Prazo OK = em dia ou próximo do vencimento.`;
+    case "calibration":
+      return `${deadlineNote(p.calibrationOkDays, p.calibrationWarningDays, "calibragem")} Prazo OK = em dia ou próximo do vencimento. Prazo em dia não garante pressão certa: veja Calibragem: prazo + PSI.`;
+    case "psi":
+      return "PSI OK = leitura da última calibragem dentro da faixa mín.–máx. da regra mais específica (tipo de equipamento × medida × posição × eixo). Sem regra = sem parâmetro: não avaliado, e nunca conta como adequado.";
+    case "calibration_conformity":
+      return `Conforme = prazo de calibragem OK (até ${p.calibrationWarningDays} dias desde a última calibragem) E PSI dentro da faixa da regra. Calibragem feita no prazo com pressão inadequada NÃO é saudável: conta como não conforme.`;
+    default:
+      return null;
+  }
+}
+
+function buildIndicator(data: Extract<TiresExportData, { kind: "medicao" | "calibragem" }>): Built {
+  const indicator = data.req.indicator;
+  const name = INDICATOR_LABEL[indicator];
   const first = data.first;
   const k = first.empty ? null : first.kpis;
+  const d = first.empty ? null : first.details;
   const rows = data.rows;
+  const late = indicator === "measurement" || indicator === "calibration";
+  const psiDev = indicator === "psi" || indicator === "calibration_conformity";
+  const specific: Indicator[] = !d
+    ? []
+    : indicator === "tread"
+      ? [
+          { label: "Sulco médio (mm)", value: d.avg, fmt: NUMF.mm, help: "Média do menor sulco dos pneus em uso." },
+          { label: "Mediana (mm)", value: d.median, fmt: NUMF.mm, help: "Metade dos pneus abaixo deste valor." },
+          { label: "Menor sulco (mm)", value: d.min, fmt: NUMF.mm, help: "O pneu mais gasto do recorte." },
+          { label: "Divergências de MM", value: d.divergent, help: "Menor MM informado difere do medido." },
+        ]
+      : late
+        ? [
+            { label: "Vencem em 7 dias", value: d.due7d, help: "Vencimento entre hoje e os próximos 7 dias." },
+            { label: "Vencem em 15 dias", value: d.due15d, help: "Vencimento entre hoje e os próximos 15 dias." },
+            { label: "Maior atraso (dias)", value: d.maxLate, help: "Maior número de dias além do prazo, entre os vencidos." },
+            { label: "Atraso médio (dias)", value: d.avgLate, fmt: NUM.km, help: "Média dos dias além do prazo, entre os vencidos." },
+            ...(indicator === "calibration" && d.onTimeBadPsi != null
+              ? [{ label: "No prazo, mas PSI inadequado", value: d.onTimeBadPsi, help: "Calibrados no prazo com pressão fora da faixa, sem parâmetro ou sem leitura: não é saudável." }]
+              : []),
+          ]
+        : indicator === "psi"
+          ? [
+              { label: "Desvio médio (%)", value: d.avgDevPct, fmt: pct, help: "Quanto o PSI passou do limite da faixa, em % sobre o ideal (média dos fora da faixa)." },
+              { label: "Combinações sem regra", value: d.ruleGaps, help: "Tipo × medida × posição com pneus sem regra de PSI (sem parâmetro)." },
+            ]
+          : indicator === "calibration_conformity"
+            ? [
+                { label: "No prazo, mas PSI inadequado", value: d.onTimeBadPsi, help: "Calibrados no prazo com pressão inadequada: NÃO é saudável, conta como não conforme." },
+                { label: "PSI OK, prazo vencido", value: d.lateGoodPsi, help: "Pressão certa, mas calibragem fora do prazo." },
+                { label: "Prazo e PSI fora", value: d.lateBadPsi, help: "Calibragem fora do prazo e pressão inadequada." },
+              ]
+            : [];
+  const distribution: XCell[][] = Object.entries(first.distribution ?? {}).map(([code, n]) => {
+    return [indicatorStatus(indicator, issueCode(code)), n];
+  });
   const indicators: Indicator[] = k
     ? [
-        { label: "Pneus em uso elegíveis", value: k.eligible, help: "Pneus em uso na fotografia, dentro dos filtros." },
-        { label: `Com registro de ${what}`, value: k.withRecord, help: `Pneus em uso com data de ${what} no Rodopar.` },
-        { label: "Em dia", value: k.emDia, help: "Dentro do prazo." },
-        { label: "Próximo do vencimento", value: k.proximo, help: "Na janela de aviso, antes de vencer." },
-        { label: "Vencido", value: k.vencido, help: "Além do prazo." },
-        { label: "Sem registro", value: k.semRegistro, help: `Sem data de ${what}: fica fora da aderência e reduz a cobertura.` },
-        { label: "Cobertura", value: k.coveragePct, fmt: pct, help: "Pneus com registro ÷ pneus elegíveis." },
-        { label: "Aderência", value: k.adherencePct, fmt: pct, help: "(Em dia + Próximo) ÷ (Em dia + Próximo + Vencido); sem registro não entra na conta." },
-        ...(cal
-          ? [
-              { label: "PSI adequada", value: k.psiAdequate, help: "Dentro da faixa mínima–máxima da regra aplicável." },
-              { label: "PSI abaixo do mínimo", value: k.psiLow, help: "Abaixo do mínimo da regra." },
-              { label: "PSI acima do máximo", value: k.psiHigh, help: "Acima do máximo da regra." },
-              { label: "Sem parâmetro de PSI", value: k.psiNoRule, help: "Sem regra de pressão para o tipo/dimensão/posição — nunca conta como adequada." },
-              { label: "Sem calibragem", value: k.psiMissing, help: "Sem leitura de PSI no Rodopar." },
-              { label: "Pressão adequada", value: k.pressureAdequatePct, fmt: pct, help: "Adequada ÷ (Adequada + Abaixo + Acima); sem parâmetro e sem calibragem ficam fora da conta." },
-            ]
-          : []),
-        { label: "Sulco crítico ou abaixo do legal", value: k.treadCritical, help: "Pneus em uso com classe Crítico ou Abaixo do legal." },
-        { label: "Sulco em atenção", value: k.treadAttention, help: "Pneus em uso com classe Atenção." },
-        { label: "Pendências exportadas", value: first.pendingTotal, help: `Pneus fora do prazo em dia${cal ? " ou com PSI fora da faixa/sem parâmetro" : ""}, no filtro de pendência escolhido (linhas da aba Pendências).` },
+        { label: "Conformidade", value: k.pct, fmt: pct, help: "Pneus conformes ÷ pneus em uso no recorte, pela regra centralizada no banco." },
+        { label: "Pneus em uso (base)", value: k.base, help: "Pneus em uso nos dados, dentro dos filtros." },
+        { label: "Conformes", value: k.ok, help: `Pneus dentro da regra de ${name}.` },
+        { label: "Não conformes", value: k.nok, help: "Pneus fora da regra; são as pendências." },
+        { label: "Críticos", value: k.critical, help: "Pela regra do banco: os casos mais graves do indicador." },
+        { label: "Frotas afetadas", value: k.fleetsAffected, help: "Frotas com ao menos um pneu não conforme." },
+        ...specific,
+        { label: "Pendências exportadas", value: first.pendingTotal, help: "Pneus não conformes na situação escolhida (linhas da aba Pendências), do pior para o melhor." },
       ]
-    : [{ label: "Fotografia", value: null, help: "Nenhuma fotografia oficial Rodopar confirmada para o recorte." }];
+    : [{ label: "Dados", value: null, help: "Nenhum dado oficial do Rodopar confirmado para o recorte." }];
   const notes = [
-    NOTE_PHOTO,
-    deadlineNote(first.parameters?.okDays, first.parameters?.warningDays, what),
-    `A aba Pendências traz só os pneus pendentes (pneus em dia${cal ? " e com PSI adequada" : ""} não entram), na ordem da tela: mais dias sem ${what} primeiro.`,
-    `Linhas destacadas: ${what} vencida${cal ? " ou PSI abaixo do mínimo" : " ou sulco crítico/abaixo do legal"}.`,
-    cal ? NOTE_PSI : null,
+    NOTE_SOURCE,
+    indicatorDefinition(data),
+    "A aba Pendências traz só os pneus não conformes deste indicador, na ordem da tela (do pior para o melhor). Linhas destacadas: criticidade Crítica.",
+    indicator === "psi" || indicator === "calibration_conformity" || indicator === "calibration" ? NOTE_PSI : null,
     NOTE_EMPTY,
     NOTE_SCOPE,
     incompleteNote(data),
   ].filter((n): n is string => Boolean(n));
-  const specs = pendingSpecs(data.kind);
-  const dims: TireBreakdownDim[] = ["operation", "state", "city", "br", "unit", "leader", "vehicleType"];
+  const specs = indicatorSpecs(indicator);
   const breakdownRows: XCell[][] = [];
-  for (const d of dims) {
-    for (const b of first.breakdowns?.[d] ?? []) {
-      breakdownRows.push([BREAKDOWN_LABEL[d], b.name ?? BREAKDOWN_EMPTY[d], b.total, b.emDia, b.proximo, b.vencido, b.semRegistro, b.coveragePct, b.adherencePct]);
+  for (const dim of DIM_ORDER) {
+    for (const b of first.breakdowns?.[dim] ?? []) {
+      breakdownRows.push([
+        INDICATOR_DIM_LABEL[dim], b.label, b.total, b.ok, b.nok, b.pct, b.critical,
+        ...(late ? [b.avgLate, b.maxLate] : []),
+        ...(psiDev ? [b.avgPsiDevPct] : []),
+        ...(indicator === "tread" ? [b.avgTread] : []),
+      ]);
     }
   }
   return {
-    spec: { title: cal ? "Aderência de calibragem (PSI)" : "Aderência de medição (MM)", indicators, notes },
+    spec: {
+      title: `${data.kind === "medicao" ? "Aderência MM" : "Aderência calibragem"} — ${name}`,
+      indicators,
+      tables: [{ title: "Distribuição por situação", cols: [{ header: "Situação" }, { header: "Pneus", numFmt: int }], rows: distribution }],
+      notes,
+    },
     sheets: (wb, context) => {
-      dataSheet(wb, "Pendências", `Pendências de ${what}`, context, colsOf(specs), rowsOf(specs, rows), {
+      dataSheet(wb, "Pendências", `Pendências — ${name}`, context, colsOf(specs), rowsOf(specs, rows), {
         freezeCols: 1,
-        highlight: (i) => {
-          const r = rows[i];
-          if (!r) return false;
-          return r.status === "vencido" || (cal ? r.psiStatus === "baixa" : r.treadClass === "abaixo_legal" || r.treadClass === "critico");
-        },
-        note: `Uma linha por pneu pendente. Linhas destacadas: ${what} vencida${cal ? " ou PSI abaixo do mínimo" : " ou sulco crítico/abaixo do legal"}.`,
+        highlight: (i) => rows[i]?.criticality === "critico",
+        note: "Uma linha por pneu não conforme. Linhas destacadas: criticidade Crítica. Nº Fogo, frota e placa em texto, como no Rodopar.",
       });
       dataSheet(
         wb,
-        "Por recorte",
-        `Aderência de ${what} por recorte`,
+        "Onde estão os desvios",
+        `${name} por recorte`,
         context,
         [
           { header: "Recorte", width: 20 },
           { header: "Nome", width: 30 },
           { header: "Pneus", width: 9, numFmt: int },
-          { header: "Em dia", width: 9, numFmt: int },
-          { header: "Próximo", width: 9, numFmt: int },
-          { header: "Vencido", width: 9, numFmt: int },
-          { header: "Sem registro", width: 10, numFmt: int },
-          { header: "Cobertura (%)", width: 11, numFmt: pct },
-          { header: "Aderência (%)", width: 11, numFmt: pct },
+          { header: "Conformes", width: 10, numFmt: int },
+          { header: "Não conformes", width: 10, numFmt: int },
+          { header: "Conformidade (%)", width: 12, numFmt: pct },
+          { header: "Críticos", width: 9, numFmt: int },
+          ...(late
+            ? [
+                { header: "Atraso médio (dias)", width: 11, numFmt: NUM.km },
+                { header: "Atraso máximo (dias)", width: 11, numFmt: int },
+              ]
+            : []),
+          ...(psiDev ? [{ header: "Desvio médio PSI (%)", width: 11, numFmt: pct }] : []),
+          ...(indicator === "tread" ? [{ header: "MM médio", width: 10, numFmt: NUMF.mm }] : []),
         ],
         breakdownRows,
-        { note: "Quebras calculadas pela rotina sobre todos os pneus em uso elegíveis (não só os pendentes)." },
+        { note: "Quebras calculadas pela rotina sobre todos os pneus em uso do recorte (não só os pendentes), do pior percentual para o melhor." },
       );
-      if (cal && first.gaps?.length) {
+      if (indicator === "psi" && d?.gaps?.length) {
         dataSheet(
           wb,
           "Sem parâmetro PSI",
-          "Pneus sem regra de PSI aplicável",
+          "Combinações sem regra de PSI",
           context,
           [
             { header: "Tipo de equipamento", width: 24 },
-            { header: "Dimensão", width: 16 },
+            { header: "Medida", width: 16 },
             { header: "Posição", width: 10, numFmt: NUMF.text },
             { header: "Pneus", width: 9, numFmt: int },
           ],
-          first.gaps.map((g) => [g.vehicleTypeName ?? "Sem tipo", g.dimension, text(g.positionCode), g.tires]),
+          d.gaps.map((g) => [g.vehicleTypeName ?? "Sem tipo", g.dimension, text(g.positionCode), g.tires]),
           { note: "Cadastre a regra em Parâmetros › Regras de PSI. Sem regra, a pressão aparece como Sem parâmetro — nunca como adequada." },
         );
       }
@@ -1244,7 +1377,7 @@ function buildSchedule(data: Extract<TiresExportData, { kind: "cronograma" }>): 
   const indicators: Indicator[] =
     k && a
       ? [
-          { label: "Frotas no cronograma", value: k.units, help: "Frotas com pneus em uso na fotografia mais recente, dentro dos filtros." },
+          { label: "Frotas no cronograma", value: k.units, help: "Frotas com pneus em uso nos dados mais recentes, dentro dos filtros." },
           { label: "Medição vencida", value: k.measurementOverdue, help: "Frotas cujo pneu mais atrasado já passou do prazo de medição." },
           { label: "Medição próxima do vencimento", value: k.measurementDueSoon, help: "Frotas na janela de aviso de medição." },
           { label: "Sem medição", value: k.measurementMissing, help: "Frotas com algum pneu em uso sem data de medição." },
@@ -1257,7 +1390,7 @@ function buildSchedule(data: Extract<TiresExportData, { kind: "cronograma" }>): 
           { label: "Agenda: próximos 15 dias", value: a.proximos15, help: "Frotas com vencimento entre hoje e 15 dias." },
           { label: "Frotas exportadas", value: first.total, help: "Frotas na janela escolhida (linhas da aba Cronograma)." },
         ]
-      : [{ label: "Fotografia", value: null, help: "Nenhuma fotografia oficial Rodopar confirmada." }];
+      : [{ label: "Dados", value: null, help: "Nenhum dado confirmado na base oficial (Rodopar)." }];
   const p = first.empty ? null : first.parameters;
   const notes = [
     NOTE_PHOTO,
@@ -1297,8 +1430,8 @@ function buildInspections(data: Extract<TiresExportData, { kind: "vistorias" }>)
         { label: "Revisão acima do SLA", value: k.reviewOverSla, help: `Pendentes de revisão há mais de ${k.reviewSlaDays} dia(s).` },
         { label: "Pendentes de lançamento no Rodopar", value: k.pendenteRodopar, help: "Aprovadas, aguardando o lançamento no Rodopar." },
         { label: "Lançamento acima do SLA", value: k.rodoparOverSla, help: `Aprovadas há mais de ${k.rodoparSyncSlaDays} dia(s) sem chegar ao Rodopar.` },
-        { label: "Divergência persistente", value: k.persistent, help: "Aprovadas cuja leitura não bateu com a fotografia seguinte." },
-        { label: "Sincronizadas com o Rodopar", value: k.sincronizadoRodopar, help: "A fotografia oficial já reflete a leitura de campo." },
+        { label: "Divergência persistente", value: k.persistent, help: "Aprovadas cuja leitura não bateu com os dados seguintes do Rodopar." },
+        { label: "Sincronizadas com o Rodopar", value: k.sincronizadoRodopar, help: "A base oficial (Rodopar) já reflete a leitura de campo." },
         { label: "Retornadas por divergência", value: k.retornarDivergencia, help: "Devolvidas ao inspetor para nova medição." },
         { label: "Substituídas", value: k.substituida, help: "Trocadas por uma nova medição (reenvio)." },
         { label: "Tempo médio de revisão (h)", value: k.avgReviewHours, fmt: "#,##0.0", help: "Média de horas entre envio e revisão nos últimos 90 dias." },
@@ -1306,7 +1439,7 @@ function buildInspections(data: Extract<TiresExportData, { kind: "vistorias" }>)
       ]
     : [];
   const notes = [
-    "Vistoria de campo ≠ fotografia oficial: a vistoria nunca altera a base de pneus. Depois de aprovada, a leitura precisa ser lançada no Rodopar e só chega à base na próxima importação.",
+    "Vistoria de campo ≠ base oficial (Rodopar): a vistoria nunca altera a base de pneus. Depois de aprovada, a leitura precisa ser lançada no Rodopar e só chega à base na próxima sincronização.",
     "Os indicadores de situação contam todo o escopo visível; a aba Vistorias segue os filtros (padrão: só pendentes de revisão).",
     "Linhas destacadas: vistorias com posição divergente, divergência persistente ou retornadas por divergência.",
     NOTE_EMPTY,
@@ -1322,7 +1455,7 @@ function buildInspections(data: Extract<TiresExportData, { kind: "vistorias" }>)
           const r = rows[i];
           return !!r && (r.positionsDivergent > 0 || r.persistentDivergence || r.status === "retornar_divergencia");
         },
-        note: "Uma linha por vistoria. Linhas destacadas: com divergência. A vistoria não altera a fotografia oficial.",
+        note: "Uma linha por vistoria. Linhas destacadas: com divergência. A vistoria não altera a base oficial (Rodopar).",
       }),
   };
 }
@@ -1332,10 +1465,10 @@ function buildHistory(data: Extract<TiresExportData, { kind: "historico" }>): Bu
     const rows = data.rows;
     const counts = Object.entries(data.first.counts ?? {}).sort((a, b) => b[1] - a[1]);
     const indicators: Indicator[] = [
-      { label: "Eventos no recorte", value: data.first.total, help: "Movimentações e mudanças detectadas entre fotografias oficiais, nos filtros (linhas da aba Eventos)." },
+      { label: "Eventos no recorte", value: data.first.total, help: "Movimentações e mudanças detectadas entre os dados oficiais de datas diferentes, nos filtros (linhas da aba Eventos)." },
     ];
     const notes = [
-      "Os eventos nascem da comparação entre fotografias oficiais do Rodopar confirmadas na importação (troca de posição, mudança de vida, medição, calibragem, retirada, ausência…).",
+      "Os eventos nascem da comparação entre os dados oficiais do Rodopar de cada data confirmada (troca de posição, mudança de vida, medição, calibragem, retirada, ausência…).",
       "Linhas destacadas: descarte/baixa e ausência no relatório.",
       NOTE_EMPTY,
       NOTE_SCOPE,
@@ -1387,52 +1520,87 @@ function buildHistory(data: Extract<TiresExportData, { kind: "historico" }>): Bu
   };
 }
 
-function buildQuality(data: Extract<TiresExportData, { kind: "qualidade" }>): Built {
+function buildAudit(data: Extract<TiresExportData, { kind: "qualidade" }>): Built {
   const first = data.first;
   const rows = data.rows;
-  const b = first.empty ? null : first.lastBatch;
-  const indicators: Indicator[] = first.empty
-    ? [{ label: "Fotografia", value: null, help: "Nenhuma fotografia oficial Rodopar confirmada." }]
-    : [
-        { label: "Pneus na fotografia", value: first.totalTires, help: "Pneus da fotografia mais recente, dentro dos filtros." },
-        { label: "Pneus com inconsistência do Rodopar", value: first.tiresWithRodoparIssue, help: "Pneus com pelo menos um alerta gravado na importação." },
-        { label: "Índice de qualidade", value: first.qualityScore, fmt: pct, help: "Pneus sem inconsistência do Rodopar ÷ pneus na fotografia." },
-        { label: "Ocorrências exportadas", value: data.total, help: "Linhas da aba Inconsistências (uma por ocorrência)." },
-        ...(b
-          ? [
-              { label: "Linhas no último lote de importação", value: b.totalRows, help: `Arquivo ${b.fileName} · fotografia de ${formatDate(b.referenceDate)} · ${label(BATCH_STATUS_LABEL, b.status)}.` },
-              { label: "Linhas com erro no último lote", value: b.errorRows, help: "Erros impedem a confirmação do lote." },
-              { label: "Linhas com aviso no último lote", value: b.warningRows, help: "Avisos não bloqueiam, mas aparecem aqui." },
-            ]
-          : []),
-      ];
+  const k = first.kpis;
+  const a = data.req.audit;
+  const scan = first.lastScan;
+  const indicators: Indicator[] = [
+    { label: "Inconsistências abertas", value: k.open, help: "Achados abertos com os filtros globais aplicados (operação, local, liderança, frota e busca)." },
+    { label: "Registros afetados", value: k.records, help: "Pneus, frotas ou itens distintos com pelo menos um achado aberto." },
+    { label: "Pneus afetados", value: k.tiresAffected, help: "Pneus distintos com pelo menos um achado aberto." },
+    { label: "Frotas afetadas", value: k.vehiclesAffected, help: "Frotas distintas com pelo menos um achado aberto." },
+    { label: "% da base com inconsistência", value: k.pctBase, fmt: pct, help: `Pneus afetados ÷ ${fmtDec(first.totalTires)} pneus nos dados atuais da base oficial (Rodopar).` },
+    { label: "Críticas", value: k.critical, help: "Achados abertos de gravidade crítica (bloqueiam ou distorcem os indicadores)." },
+    { label: "Altas", value: k.high, help: "Achados abertos de gravidade alta." },
+    { label: "Novas em 7 dias", value: k.new7d, help: "Achados abertos detectados pela primeira vez nos últimos 7 dias." },
+    { label: "Resolvidas em 30 dias", value: k.resolved30d, help: "Achados que a varredura deu como resolvidos nos últimos 30 dias (corrigidos na origem)." },
+    { label: "Reabertas", value: k.reopened, help: "Achados abertos que já tinham sido resolvidos e voltaram." },
+    {
+      label: "Achados exportados",
+      value: data.total,
+      help: `Linhas da aba Achados: situação ${AUDIT_STATUS_LABEL[a.status].toLowerCase()}${a.category || a.rule || a.severity ? ", com a categoria/regra/gravidade escolhidas" : ""}.`,
+    },
+  ];
   const notes = [
-    "Inconsistências do relatório Rodopar (gravadas na importação) e lacunas de configuração do HFM (regra de PSI, layout de posições). Corrija na origem: o HFM não altera o dado do Rodopar.",
-    data.req.issue ? "A aba Inconsistências traz só o problema escolhido na tela." : "A aba Inconsistências traz todos os problemas listados, um após o outro.",
-    "Linhas destacadas: problemas que bloqueiam a importação.",
+    "A Central de Auditoria aplica as regras do banco à base oficial (Rodopar) a cada confirmação dos dados, na agenda diária e sob demanda. A auditoria não corrige nada: a correção é feita na origem (planilha/Rodopar, Cadastro de Frotas ou Parâmetros) e a próxima varredura resolve o achado.",
+    scan
+      ? `Última varredura: ${stampText(scan.finishedAt ?? scan.startedAt)}${scan.referenceDate ? ` sobre os dados de ${formatDate(scan.referenceDate)}` : ""} — ${fmtDec(scan.opened)} novos, ${fmtDec(scan.resolved)} resolvidos, ${fmtDec(scan.openTotal)} abertos ao final.`
+      : "Nenhuma varredura registrada ainda.",
+    "Os indicadores contam os achados abertos com os filtros globais; categoria, regra, gravidade e situação filtram só a aba Achados.",
+    "Datas de detecção \"(dados de)\" são as datas dos dados em que a regra apontou o problema; os carimbos \"detectado em\" são os momentos das varreduras.",
+    "Linhas destacadas: gravidade crítica ou alta.",
     NOTE_EMPTY,
     NOTE_SCOPE,
     incompleteNote(data),
   ].filter((n): n is string => Boolean(n));
+  const byCategory = (Object.keys(AUDIT_CATEGORY_LABEL) as AuditCategory[]).map((c) => [AUDIT_CATEGORY_LABEL[c], k.byCategory?.[c] ?? 0] as XCell[]);
+  const bySeverity = AUDIT_SEVERITY_ORDER.map((sv) => [AUDIT_SEVERITY_LABEL[sv], k.bySeverity?.[sv] ?? 0] as XCell[]);
   return {
     spec: {
-      title: "Qualidade de dados dos pneus",
+      title: "Auditoria dos dados de pneus",
       indicators,
       tables: [
-        {
-          title: "Problemas encontrados",
-          cols: [{ header: "Problema" }, { header: "Ocorrências", numFmt: int }, { header: "Pneus distintos", numFmt: int }],
-          rows: (first.issues ?? []).map((i) => [issueLabel(i.code), i.count, i.tires]),
-        },
+        { title: "Achados abertos por categoria", cols: [{ header: "Categoria" }, { header: "Achados abertos", numFmt: int }], rows: byCategory },
+        { title: "Achados abertos por gravidade", cols: [{ header: "Gravidade" }, { header: "Achados abertos", numFmt: int }], rows: bySeverity },
       ],
       notes,
     },
-    sheets: (wb, context) =>
-      dataSheet(wb, "Inconsistências", "Inconsistências de dados", context, colsOf(QUALITY_SPECS), rowsOf(QUALITY_SPECS, rows), {
-        freezeCols: 1,
-        highlight: (i) => ERROR_ISSUES.has(rows[i]?.code ?? ""),
-        note: "Uma linha por ocorrência. Linhas destacadas: problemas que bloqueiam a importação.",
-      }),
+    sheets: (wb, context) => {
+      dataSheet(wb, "Achados", "Achados da auditoria dos dados", context, colsOf(AUDIT_FINDING_SPECS), rowsOf(AUDIT_FINDING_SPECS, rows), {
+        freezeCols: 2,
+        highlight: (i) => rows[i]?.severity === "critica" || rows[i]?.severity === "alta",
+        note: "Uma linha por achado, do mais grave para o mais leve. Linhas destacadas: gravidade crítica ou alta. Nº Fogo, frota e placa em texto, exatamente como no Rodopar.",
+      });
+      dataSheet(
+        wb,
+        "Regras",
+        "Regras da auditoria",
+        context,
+        [
+          { header: "Regra", width: 34 },
+          { header: "Código", width: 22, numFmt: NUMF.text },
+          { header: "Categoria", width: 16 },
+          { header: "Gravidade", width: 10 },
+          { header: "Campo", width: 18 },
+          { header: "Valor esperado", width: 26 },
+          { header: "Descrição", width: 70 },
+          { header: "Achados abertos", width: 10, numFmt: int },
+        ],
+        first.rules.map((r) => [
+          r.title,
+          r.code,
+          label(AUDIT_CATEGORY_LABEL, r.category),
+          label(AUDIT_SEVERITY_LABEL, r.severity),
+          r.field,
+          r.expected,
+          r.description,
+          r.open,
+        ]),
+        { note: "Catálogo das regras ativas (definidas no banco). Achados abertos com os filtros globais." },
+      );
+    },
   };
 }
 
@@ -1445,7 +1613,7 @@ export function buildTiresWorkbook(data: TiresExportData, meta: TiresExportMeta)
       break;
     case "medicao":
     case "calibragem":
-      built = buildAdherence(data);
+      built = buildIndicator(data);
       break;
     case "cronograma":
       built = buildSchedule(data);
@@ -1457,7 +1625,7 @@ export function buildTiresWorkbook(data: TiresExportData, meta: TiresExportMeta)
       built = buildHistory(data);
       break;
     case "qualidade":
-      built = buildQuality(data);
+      built = buildAudit(data);
       break;
   }
 

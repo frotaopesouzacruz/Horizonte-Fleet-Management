@@ -90,6 +90,17 @@ export const TIRES_PERMISSION_CODES: Record<keyof TiresPerms, string> = {
   appExecute: "applications.tires.execute",
 };
 
+/** Abas renomeadas: links antigos continuam abrindo a tela certa. */
+export const TIRES_LEGACY_TAB: Record<string, TiresTab> = { importacao: "sincronizacao" };
+
+/** Aba pedida na URL (inclusive nome antigo) → aba visível; sem permissão cai na primeira visível. */
+export function resolveTiresTab(raw: string | undefined, visible: TiresTab[]): TiresTab {
+  const requested = (raw && TIRES_LEGACY_TAB[raw]) || raw;
+  return requested && (TIRES_TABS as readonly string[]).includes(requested) && visible.includes(requested as TiresTab)
+    ? (requested as TiresTab)
+    : visible[0];
+}
+
 export function tiresVisibleTabs(p: TiresPerms): TiresTab[] {
   const out: TiresTab[] = [];
   if (p.dashboard) out.push("visao-geral");
@@ -1323,6 +1334,10 @@ export interface TireImportBatch {
   counters: TireImportCounters;
   reconciliation: { checked?: number; synced?: number; persistent?: number; pending?: number };
   blockReason: string | null;
+  /** origem do lote: sincronização do SharePoint ou envio manual (contingência) */
+  sourceKind?: "sharepoint" | "upload" | null;
+  /** revisão do mesmo dia: lote substituído por este */
+  supersedesBatchId?: string | null;
   createdByName: string | null;
   createdAt: string;
   validatedAt: string | null;
@@ -2307,6 +2322,9 @@ export interface TireAuditScan {
   refreshed: number;
   resolved: number;
   openTotal: number;
+  /** achados que voltaram a abrir nesta varredura */
+  reopened?: number;
+  errorMessage?: string | null;
   requestedByName: string | null;
 }
 export interface TiresAuditCenter {

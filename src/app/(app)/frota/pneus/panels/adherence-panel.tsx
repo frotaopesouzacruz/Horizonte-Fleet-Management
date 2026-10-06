@@ -3,131 +3,71 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  CalendarCheck, CalendarClock, CalendarX, CircleCheck, CircleSlash, ClipboardList, Gauge, History, Layers, Percent,
-  Ruler, Settings2, ThermometerSnowflake, ThermometerSun, TriangleAlert, Truck, Upload,
+  CalendarClock, CircleCheck, ClipboardList, Gauge, History, OctagonAlert, Percent, Ruler, ThermometerSun, TriangleAlert, Truck,
+  CloudDownload,
 } from "lucide-react";
-import { cn } from "@/lib/cn";
 import { Alert, AlertDescription, AlertTitle } from "@/components/feedback/alert";
 import { InsightCard } from "@/components/feedback/insight-card";
-import { ChartLegend } from "@/components/charts";
-import { Badge } from "@/components/ui/badge";
+import { ChartCard } from "@/components/charts";
 import { Button } from "@/components/ui/button";
-import { SegmentedControl } from "@/components/ui/segmented-control";
+import { MetricStrip, type MetricStripItem } from "@/components/ui/kpi-card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { NativeSelect } from "@/components/governance/selects";
+import type { TiresIndicatorData } from "@/lib/tires/loaders";
 import {
-  BREAKDOWN_LABEL, DEADLINE_SHORT, DEADLINE_TONE, PSI_LABEL, PSI_TONE, TIRES_FILTER_PARAM, TREAD_LABEL, TREAD_TONE,
-  fmt1, fmtDays, fmtInt, fmtMm, fmtNum, fmtPct, formatDate, plural,
-  type DeadlineStatus, type PsiStatus, type TireBreakdownDim, type TireBreakdownItem, type TirePendingRow,
-  type TiresAdherence, type TiresFilters, type TiresTone,
+  INDICATOR_LABEL, fmt1, fmtDays, fmtInt, fmtMm, fmtNum, formatDate, plural,
+  type TireIndicatorKey, type TiresIndicator,
 } from "@/lib/tires/types";
 import type { TiresPanelContext } from "../shared";
+import { PanelEmpty, PanelError, Section, SubTabs, chartColorOf, useTiresLink, type TiresNavLink } from "./tires-ui";
+import { CalibrationMatrix, Columns, StatusBars, type ColumnItem } from "./indicator/charts";
+import { BreakdownSection } from "./indicator/breakdown";
+import { IndicatorKpi } from "./indicator/kpi";
 import {
-  ExportButton, FireLink, PanelEmpty, PanelError, PlateLink, Section, TiresKpi, TiresPagination, useTiresLink, useViewParam,
-  type TiresNavLink,
-} from "./tires-ui";
+  INDICATOR_SUBS, fmtDaysAvg, statusCount, statusEntries,
+  type IndicatorTab,
+} from "./indicator/model";
+import { PENDING_ANCHOR, PendingSection } from "./indicator/pending";
+import { TrendSection } from "./indicator/trend";
 
 /**
- * Gestão de Pneus → Aderência MM e Aderência calibragem.
+ * Gestão de Pneus → Aderência MM e Aderência calibragem: visões gerenciais,
+ * uma por indicador (Sulco, Prazo de medição | Calibragem: prazo + PSI, Prazo
+ * de calibragem, Pressão), todas com o mesmo esqueleto — definição, cartões,
+ * distribuição, onde estão os desvios, evolução semanal e pendências.
  *
- * Tudo vem pronto de `tires_adherence` sobre os pneus EM USO da fotografia
- * oficial (Rodopar 10): contagens por prazo, cobertura, aderência, pressão,
- * quebras por dimensão, ranking de veículos, lacunas de regra de PSI e a
- * página de pendências. A tela só formata e liga cada número à lista que o
- * explica — não recalcula prazo, classe de sulco nem situação de pressão.
+ * Tudo vem de `tires_indicator` (e da série semanal de `tires_kpi_history`):
+ * o que é conforme, críticos, quebras e pendências são decididos no banco. A
+ * tela só apresenta e liga cada número à lista que o explica.
  */
-type Kind = "measurement" | "calibration";
-type PendingFilter = "all" | "vencido" | "proximo" | "sem_registro" | "pressao" | "sem_parametro";
-
-const WORDS: Record<Kind, { slug: "medicao" | "calibragem"; noun: string; title: string; missing: string }> = {
-  measurement: { slug: "medicao", noun: "medição", title: "Aderência de medição (MM)", missing: "Sem medição" },
-  calibration: { slug: "calibragem", noun: "calibragem", title: "Aderência de calibragem", missing: "Sem calibragem" },
-};
-
-const PENDING_OPTIONS: Record<Kind, PendingFilter[]> = {
-  measurement: ["all", "vencido", "proximo", "sem_registro"],
-  calibration: ["all", "vencido", "proximo", "sem_registro", "pressao", "sem_parametro"],
-};
-
-const PENDING_LABEL: Record<PendingFilter, string> = {
-  all: "Todas",
-  vencido: "Vencidos",
-  proximo: "Próximos",
-  sem_registro: "Sem registro",
-  pressao: "Pressão fora da faixa",
-  sem_parametro: "Sem parâmetro",
-};
-
-const KPI_STATUS: Record<TiresTone, "success" | "warning" | "danger" | "info" | "neutral" | "progress"> = {
-  success: "success",
-  warning: "warning",
-  danger: "danger",
-  info: "info",
-  neutral: "neutral",
-  pending: "neutral",
-  progress: "progress",
-};
-
-/** Filtro global da tela que corresponde a cada dimensão de quebra (ids canônicos). */
-const DIM_FILTER: Record<TireBreakdownDim, keyof TiresFilters> = {
-  operation: "operation",
-  state: "state",
-  city: "city",
-  br: "br",
-  unit: "unit",
-  leader: "leader",
-  vehicleType: "vehicleType",
-};
-
-const DIM_EMPTY: Record<TireBreakdownDim, string> = {
-  operation: "Sem operação",
-  state: "Sem estado",
-  city: "Sem local",
-  br: "Sem BR",
-  unit: "Sem filial",
-  leader: "Sem liderança",
-  vehicleType: "Sem tipo",
-};
-
-const DIM_ORDER = Object.keys(BREAKDOWN_LABEL) as TireBreakdownDim[];
-
-/** Cores das fatias (tokens do kit de gráficos; o texto ao lado leva o rótulo). */
-const SEGMENTS: { key: DeadlineStatus; field: keyof Pick<TireBreakdownItem, "emDia" | "proximo" | "vencido" | "semRegistro">; bar: string; color: string }[] = [
-  { key: "em_dia", field: "emDia", bar: "bg-chart-success", color: "var(--chart-success)" },
-  { key: "proximo", field: "proximo", bar: "bg-chart-warning", color: "var(--chart-warning)" },
-  { key: "vencido", field: "vencido", bar: "bg-chart-danger", color: "var(--chart-danger)" },
-  { key: "sem_registro", field: "semRegistro", bar: "bg-chart-neutral", color: "var(--chart-neutral)" },
-];
-
-export function AdherencePanel({ kind, data, ctx }: { kind: Kind; data: TiresAdherence | null; ctx: TiresPanelContext }) {
-  const w = WORDS[kind];
+export function AdherencePanel({ tab, data, ctx }: { tab: IndicatorTab; data: TiresIndicatorData | null; ctx: TiresPanelContext }) {
+  const noun = tab === "medicao" ? "medição" : "calibragem";
   if (ctx.error) {
-    return <PanelError ctx={ctx} title={`Não foi possível carregar a aderência de ${w.noun}.`} testId={`tires-${w.slug}-error`} />;
+    return <PanelError ctx={ctx} title={`Não foi possível carregar os indicadores de ${noun}.`} testId="tires-indicator-error" />;
   }
   if (!data) {
     return (
       <PanelEmpty
         icon={<ClipboardList />}
-        title={`Sem dados de aderência de ${w.noun}`}
+        title={`Sem dados dos indicadores de ${noun}`}
         description="A rotina não devolveu resultado. Recarregue a página."
-        testId={`tires-${w.slug}-empty`}
+        testId="tires-indicator-empty"
       />
     );
   }
-  if (data.empty) {
+  if (data.indicator.empty) {
     return (
       <PanelEmpty
-        icon={<Upload />}
-        title="Nenhuma fotografia importada"
-        description={`A aderência de ${w.noun} é calculada sobre a fotografia oficial importada do Rodopar 10. Assim que a primeira planilha for confirmada, os prazos aparecem aqui.`}
-        testId={`tires-${w.slug}-empty`}
+        icon={<CloudDownload />}
+        title="Nenhum dado oficial carregado"
+        description={`Os indicadores de ${noun} são calculados sobre a base oficial (Rodopar), sincronizada do SharePoint. Assim que os primeiros dados forem confirmados, eles aparecem aqui.`}
+        testId="tires-indicator-empty"
         action={
           ctx.perms.import ? (
             <Button asChild size="sm" variant="primary">
-              <Link href={`${ctx.basePath}?aba=importacao`}>
-                <Upload aria-hidden />
-                Importar fotografia
+              <Link href={`${ctx.basePath}?aba=sincronizacao`}>
+                <CloudDownload aria-hidden />
+                Abrir a sincronização
               </Link>
             </Button>
           ) : undefined
@@ -135,816 +75,509 @@ export function AdherencePanel({ kind, data, ctx }: { kind: Kind; data: TiresAdh
       />
     );
   }
-  return <AdherenceContent kind={kind} data={data} ctx={ctx} />;
+  return <IndicatorView tab={tab} data={data} ctx={ctx} />;
 }
 
-function AdherenceContent({ kind, data, ctx }: { kind: Kind; data: TiresAdherence; ctx: TiresPanelContext }) {
-  const w = WORDS[kind];
-  const cal = kind === "calibration";
-  const k = data.kpis;
-  const p = data.parameters;
-  const link = useTiresLink(ctx);
-  const pendingId = `tires-${w.slug}-pendencias`;
+/** Nome alternativo (o contrato novo é por aba + indicador). */
+export const IndicatorPanel = AdherencePanel;
 
-  /** Leva à lista de pendências já filtrada e rola até ela. */
-  const toPending = (value: PendingFilter): TiresNavLink => {
-    const l = link({ pendencia: value === "all" ? null : value });
-    return {
-      href: `${l.href}#${pendingId}`,
-      onClick: (event) => {
-        l.onClick?.(event);
-        if (event.defaultPrevented) document.getElementById(pendingId)?.scrollIntoView({ behavior: "smooth", block: "start" });
-      },
-    };
-  };
+function IndicatorView({ tab, data, ctx }: { tab: IndicatorTab; data: TiresIndicatorData; ctx: TiresPanelContext }) {
+  const ind = data.indicator;
+  const subs = INDICATOR_SUBS[tab];
+  const sub = (subs.find((s) => s.value === data.sub) ?? subs.find((s) => s.indicator === ind.indicator) ?? subs[0]).value;
+  const link = useTiresLink(ctx);
+
+  // Trocar de sub-visão também limpa a situação filtrada (os códigos mudam de um indicador para outro).
+  const subCtx = React.useMemo<TiresPanelContext>(
+    () => ({ ...ctx, navigate: (patch) => ctx.navigate({ ...patch, pendencia: null }) }),
+    [ctx],
+  );
+
+  /** Leva à lista de pendências já filtrada pela situação e rola até ela. */
+  const toPending = React.useCallback(
+    (code: string | null): TiresNavLink => {
+      const l = link({ pendencia: code });
+      return {
+        href: `${l.href}#${PENDING_ANCHOR}`,
+        onClick: (event) => {
+          l.onClick?.(event);
+          if (event.defaultPrevented) document.getElementById(PENDING_ANCHOR)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        },
+      };
+    },
+    [link],
+  );
 
   return (
-    <div className="flex flex-col gap-6" data-testid={`tires-${w.slug}`}>
-      <p className="text-body-sm text-fg-muted" data-testid={`tires-${w.slug}-period`}>
-        Fotografia oficial de <span className="font-medium text-fg-secondary tabular-nums">{formatDate(data.referenceDate)}</span> ·{" "}
-        {fmtInt(k.eligible)} {plural(k.eligible, "pneu em uso no recorte", "pneus em uso no recorte")} · dias contados até{" "}
-        <span className="tabular-nums">{formatDate(data.asOf)}</span>
-      </p>
+    <div className="flex flex-col gap-6" data-testid="tires-indicator" data-indicator={ind.indicator} data-sub={sub}>
+      <div className="flex flex-col gap-3">
+        <SubTabs
+          ctx={subCtx}
+          value={sub}
+          items={subs.map((s) => ({ value: s.value, label: s.label }))}
+          label={tab === "medicao" ? "Indicadores de medição" : "Indicadores de calibragem"}
+          testIdPrefix="tires-indicator-sub"
+        />
+        <p className="text-body-sm text-fg-muted" data-testid="tires-indicator-period">
+          <span className="font-medium text-fg-secondary">{INDICATOR_LABEL[ind.indicator]}</span> · dados de{" "}
+          <span className="font-medium text-fg-secondary tabular-nums">{formatDate(ind.referenceDate)}</span> · {fmtInt(ind.kpis.base)}{" "}
+          {plural(ind.kpis.base, "pneu em uso no recorte", "pneus em uso no recorte")} · dias contados até{" "}
+          <span className="tabular-nums">{formatDate(ind.asOf)}</span>
+        </p>
+      </div>
 
-      {!data.isLatest ? (
+      {!ind.isLatest ? (
         <Alert
           variant="warning"
           icon={<History />}
-          data-testid={`tires-${w.slug}-historical`}
+          data-testid="tires-indicator-historical"
           action={
             <Button asChild size="sm" variant="outline">
-              <a {...link({ foto: null })}>Ver a fotografia mais recente</a>
+              <a {...link({ data: null, foto: null, pendencia: null })}>Ver os dados mais recentes</a>
             </Button>
           }
         >
-          <AlertTitle>Fotografia histórica</AlertTitle>
+          <AlertTitle>Consulta a dados anteriores</AlertTitle>
           <AlertDescription>
-            Você está vendo a fotografia de {formatDate(data.referenceDate)}, que não é a mais recente. Dias e prazos são contados até a
-            data dela ({formatDate(data.asOf)}), como estavam naquele dia — não até hoje.
+            Você está vendo os dados de {formatDate(ind.referenceDate)}, que não são os mais recentes. Dias e prazos são contados até{" "}
+            {formatDate(ind.asOf)}, como estavam naquele dia.
           </AlertDescription>
         </Alert>
       ) : null}
 
-      {/* ------------------------------------------------------------ Prazo */}
-      <Section
-        title={`Prazo de ${w.noun}`}
-        testId={`tires-${w.slug}-kpis`}
-        description={`Elegíveis são os pneus em uso. Cobertura: pneus com registro de ${w.noun} sobre os elegíveis. Aderência: em dia e próximos sobre os pneus com registro — quem nunca teve ${w.noun} fica fora da aderência e pesa na cobertura.`}
-      >
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <TiresKpi
-            kpi={`${w.slug}-aderencia`}
-            label="Aderência ao prazo"
-            value={k.adherencePct == null ? "—" : fmt1(k.adherencePct)}
-            unit={k.adherencePct == null ? undefined : "%"}
-            period={k.adherencePct == null ? "nenhum pneu com registro" : "em dia + próximo, sobre com registro"}
-            status="primary"
-            icon={<Percent />}
-          />
-          <TiresKpi
-            kpi={`${w.slug}-cobertura`}
-            label="Cobertura"
-            value={k.coveragePct == null ? "—" : fmt1(k.coveragePct)}
-            unit={k.coveragePct == null ? undefined : "%"}
-            period={`${fmtInt(k.withRecord)} de ${fmtInt(k.eligible)} com registro`}
-            status="primary"
-            icon={<Gauge />}
-          />
-          <TiresKpi
-            kpi={`${w.slug}-elegiveis`}
-            label="Elegíveis"
-            value={fmtInt(k.eligible)}
-            unit={plural(k.eligible, "pneu", "pneus")}
-            period="em uso na fotografia"
-            icon={<Truck />}
-          />
-          <TiresKpi
-            kpi={`${w.slug}-com-registro`}
-            label={`Com registro de ${w.noun}`}
-            value={fmtInt(k.withRecord)}
-            unit={plural(k.withRecord, "pneu", "pneus")}
-            period={`têm data de ${w.noun}`}
-            icon={<ClipboardList />}
-          />
-          <TiresKpi
-            kpi={`${w.slug}-em-dia`}
-            label="Em dia"
-            value={fmtInt(k.emDia)}
-            period={`até ${fmtDays(p.okDays)}`}
-            status={k.emDia > 0 ? "success" : undefined}
-            icon={<CalendarCheck />}
-          />
-          <TiresKpi
-            kpi={`${w.slug}-proximo`}
-            label="Próximo do vencimento"
-            value={fmtInt(k.proximo)}
-            period={`${fmtInt(p.okDays + 1)} a ${fmtDays(p.warningDays)}`}
-            status={k.proximo > 0 ? "warning" : undefined}
-            icon={<CalendarClock />}
-            nav={toPending("proximo")}
-            destination="Ver as pendências próximas do vencimento"
-          />
-          <TiresKpi
-            kpi={`${w.slug}-vencido`}
-            label="Vencido"
-            value={fmtInt(k.vencido)}
-            period={`acima de ${fmtDays(p.warningDays)}`}
-            status={k.vencido > 0 ? "danger" : undefined}
-            icon={<CalendarX />}
-            nav={toPending("vencido")}
-            destination="Ver as pendências vencidas"
-          />
-          <TiresKpi
-            kpi={`${w.slug}-sem-registro`}
-            label={w.missing}
-            value={fmtInt(k.semRegistro)}
-            period={`nenhuma data de ${w.noun}`}
-            status={k.semRegistro > 0 ? "neutral" : undefined}
-            icon={<CircleSlash />}
-            nav={toPending("sem_registro")}
-            destination={`Ver as pendências ${w.missing.toLowerCase()}`}
-          />
-        </div>
-      </Section>
+      <DefinitionNote ind={ind} tab={tab} ctx={ctx} />
 
-      {cal ? <PressureKpis data={data} toPending={toPending} /> : <TreadKpis data={data} ctx={ctx} />}
+      <KpiRow ind={ind} toPending={toPending} />
+      <SupportStrip ind={ind} />
 
-      <RuleNote kind={kind} data={data} />
+      <DistributionSection ind={ind} toPending={toPending} />
+      {ind.indicator === "psi" && (ind.details.gaps?.length ?? 0) > 0 ? <RuleGaps ind={ind} toPending={toPending} /> : null}
 
-      <BreakdownSection kind={kind} data={data} ctx={ctx} />
+      <BreakdownSection ind={ind} ctx={ctx} />
 
-      <RankingSection kind={kind} data={data} />
+      {ctx.perms.dashboard ? <TrendSection indicator={ind.indicator} history={data.history} ctx={ctx} /> : null}
 
-      {cal ? <GapsSection data={data} ctx={ctx} toPending={toPending} /> : null}
-
-      <PendingSection kind={kind} data={data} ctx={ctx} id={pendingId} />
+      <PendingSection ind={ind} tab={tab} sub={sub} ctx={ctx} />
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Indicadores complementares
+// Definição (com os números da regra vigente)
 // ---------------------------------------------------------------------------
-function TreadKpis({ data, ctx }: { data: TiresAdherence; ctx: TiresPanelContext }) {
+function DefinitionNote({ ind, tab, ctx }: { ind: TiresIndicator; tab: IndicatorTab; ctx: TiresPanelContext }) {
+  const p = ind.parameters;
   const link = useTiresLink(ctx);
-  const k = data.kpis;
-  const toBase = (sulco: string) =>
-    ctx.perms.base ? link({ aba: "base", sulco, pendencia: null, grupo: null }) : null;
-  return (
-    <Section
-      title="Sulco dos pneus em uso"
-      testId="tires-medicao-tread"
-      description="Classe do menor sulco pela regra vigente. Crítico inclui os pneus abaixo do sulco legal."
-    >
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <TiresKpi
-          kpi="medicao-sulco-critico"
-          label="Sulco crítico"
-          value={fmtInt(k.treadCritical)}
-          unit={plural(k.treadCritical, "pneu", "pneus")}
-          period={`${TREAD_LABEL.abaixo_legal.toLowerCase()} ou ${TREAD_LABEL.critico.toLowerCase()}`}
-          status={k.treadCritical > 0 ? "danger" : undefined}
-          icon={<Ruler />}
-          nav={toBase("abaixo_legal,critico")}
-          destination="Abrir a Base geral filtrada por sulco crítico"
-        />
-        <TiresKpi
-          kpi="medicao-sulco-atencao"
-          label="Sulco em atenção"
-          value={fmtInt(k.treadAttention)}
-          unit={plural(k.treadAttention, "pneu", "pneus")}
-          period="acompanhar na próxima medição"
-          status={k.treadAttention > 0 ? "warning" : undefined}
-          icon={<TriangleAlert />}
-          nav={toBase("atencao")}
-          destination="Abrir a Base geral filtrada por sulco em atenção"
-        />
-      </div>
-    </Section>
-  );
-}
+  const days = (n: number) => fmtDays(n);
+  const strong = (t: React.ReactNode) => <strong className="font-semibold text-fg">{t}</strong>;
+  let body: React.ReactNode;
+  let extra: React.ReactNode = null;
 
-function PressureKpis({ data, toPending }: { data: TiresAdherence; toPending: (v: PendingFilter) => TiresNavLink }) {
-  const k = data.kpis;
-  return (
-    <Section
-      title="Pressão (PSI)"
-      testId="tires-calibragem-psi"
-      description="PSI lido na última calibragem contra a faixa da regra vigente (tipo × dimensão × posição). Pressão adequada considera só os pneus avaliados: sem parâmetro e sem calibragem ficam fora — e nunca contam como adequados."
-    >
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-        <TiresKpi
-          kpi="calibragem-pressao-adequada"
-          label="Pressão adequada"
-          value={k.pressureAdequatePct == null ? "—" : fmt1(k.pressureAdequatePct)}
-          unit={k.pressureAdequatePct == null ? undefined : "%"}
-          period={k.pressureAdequatePct == null ? "nenhum pneu avaliado" : "dos pneus avaliados (com regra e PSI)"}
-          status="primary"
-          icon={<Percent />}
-        />
-        <TiresKpi
-          kpi="calibragem-psi-adequada"
-          label={PSI_LABEL.adequada}
-          value={fmtInt(k.psiAdequate)}
-          period="dentro da faixa mín.–máx."
-          status={k.psiAdequate > 0 ? "success" : undefined}
-          icon={<CircleCheck />}
-        />
-        <TiresKpi
-          kpi="calibragem-psi-baixa"
-          label={PSI_LABEL.baixa}
-          value={fmtInt(k.psiLow)}
-          period="PSI abaixo da faixa"
-          status={k.psiLow > 0 ? KPI_STATUS[PSI_TONE.baixa] : undefined}
-          icon={<ThermometerSnowflake />}
-          nav={toPending("pressao")}
-          destination="Ver as pendências de pressão fora da faixa"
-        />
-        <TiresKpi
-          kpi="calibragem-psi-excesso"
-          label={PSI_LABEL.excesso}
-          value={fmtInt(k.psiHigh)}
-          period="PSI acima da faixa"
-          status={k.psiHigh > 0 ? KPI_STATUS[PSI_TONE.excesso] : undefined}
-          icon={<ThermometerSun />}
-          nav={toPending("pressao")}
-          destination="Ver as pendências de pressão fora da faixa"
-        />
-        <TiresKpi
-          kpi="calibragem-psi-sem-parametro"
-          label={PSI_LABEL.sem_parametro}
-          value={fmtInt(k.psiNoRule)}
-          period={k.psiNoRule > 0 ? <NoRuleBadge>Não avaliada</NoRuleBadge> : "sem regra de PSI vigente"}
-          status={k.psiNoRule > 0 ? "highlight" : undefined}
-          icon={<Settings2 />}
-          nav={toPending("sem_parametro")}
-          destination="Ver os pneus sem parâmetro de PSI"
-        />
-        <TiresKpi
-          kpi="calibragem-psi-sem-calibragem"
-          label={PSI_LABEL.sem_calibragem}
-          value={fmtInt(k.psiMissing)}
-          period="sem PSI registrado"
-          icon={<CircleSlash />}
-          nav={toPending("sem_registro")}
-          destination="Ver as pendências sem calibragem"
-        />
-      </div>
-    </Section>
-  );
-}
+  switch (ind.indicator) {
+    case "tread":
+      body = (
+        <>
+          {strong("Sulco OK")} = menor sulco acima de {fmtMm(p.treadCriticalMm)} (limite crítico) e acima do sulco legal da regra do pneu. Até{" "}
+          {fmtMm(p.treadCriticalMm)} é crítico; acima disso e até {fmtMm(p.treadAttentionMm)}, atenção — ainda conforme, mas no radar. Sem
+          medição não conta como OK.
+        </>
+      );
+      break;
+    case "measurement":
+    case "calibration": {
+      const cal = ind.indicator === "calibration";
+      const ok = cal ? p.calibrationOkDays : p.measurementOkDays;
+      const warn = cal ? p.calibrationWarningDays : p.measurementWarningDays;
+      const noun = cal ? "calibragem" : "medição";
+      body = (
+        <>
+          {strong("Prazo OK")} = em dia (até {days(ok)} desde a última {noun}) ou próximo do vencimento (até {days(warn)}). Acima de {days(warn)}{" "}
+          está vencido; sem data de {noun}, sem registro — os dois são não conformes. Atraso = dias que passaram do limite de {days(warn)}.
+        </>
+      );
+      if (cal && ind.details.onTimeBadPsi != null) {
+        const toConf = link({ sub: "conformidade", pendencia: null });
+        extra = (
+          <p className="mt-1">
+            Prazo em dia não garante pressão certa: {strong(`${fmtInt(ind.details.onTimeBadPsi)} ${plural(ind.details.onTimeBadPsi, "pneu está", "pneus estão")}`)}{" "}
+            no prazo com PSI inadequado.{" "}
+            <a href={toConf.href} onClick={toConf.onClick} className="rounded-xs font-medium text-link underline-offset-2 hover:text-link-hover hover:underline hfm-focus-ring">
+              Ver em Calibragem: prazo + PSI
+            </a>
+          </p>
+        );
+      }
+      break;
+    }
+    case "psi":
+      body = (
+        <>
+          {strong("PSI OK")} = leitura da última calibragem dentro da faixa mín.–máx. da regra mais específica (tipo de equipamento × medida ×
+          posição × eixo). Sem regra = {strong("sem parâmetro")}: não avaliado, e nunca conta como adequado. Sem leitura = sem calibragem.
+          Desvio = quanto o PSI passou do limite da faixa, em % sobre o ideal.
+        </>
+      );
+      break;
+    case "calibration_conformity":
+      body = (
+        <>
+          {strong("Conforme")} = prazo de calibragem OK (até {days(p.calibrationWarningDays)} desde a última calibragem) {strong("e")} PSI dentro
+          da faixa da regra. {strong("Calibragem feita no prazo com pressão inadequada não é saudável")}: o pneu conta como não conforme. PSI sem
+          parâmetro ou sem leitura também é inadequado.
+        </>
+      );
+      break;
+    default:
+      body = <>{INDICATOR_LABEL[ind.indicator]}: regra centralizada no banco.</>;
+  }
 
-/** "Sem parâmetro" tem destaque próprio: nunca se confunde com adequada nem com sem calibragem. */
-function NoRuleBadge({ children }: { children: React.ReactNode }) {
   return (
-    <Badge variant="highlight" size="sm" icon={<Settings2 />}>
-      {children}
-    </Badge>
-  );
-}
-
-function RuleNote({ kind, data }: { kind: Kind; data: TiresAdherence }) {
-  const w = WORDS[kind];
-  const p = data.parameters;
-  return (
-    <InsightCard tone="info" label="Regra vigente" compact data-testid={`tires-${w.slug}-rule`}>
-      Até {fmtDays(p.okDays)} desde a última {w.noun} o pneu está <strong>em dia</strong>; até {fmtDays(p.warningDays)}, <strong>próximo do vencimento</strong>;
-      acima disso, <strong>vencido</strong>; sem data, <strong>sem registro</strong>. O vencimento é a data da última {w.noun} mais{" "}
-      {fmtDays(p.warningDays)}.
-      {kind === "calibration"
-        ? " A pressão é comparada à faixa da regra de PSI vigente; sem regra, o pneu fica como sem parâmetro e não é avaliado."
-        : ""}{" "}
-      Os números vêm da fotografia oficial do Rodopar 10; vistorias de campo não alteram a base — só contam depois de lançadas no Rodopar e
-      importadas numa nova fotografia.
-      {!data.isLatest ? ` Nesta fotografia histórica, os dias são contados até ${formatDate(data.asOf)}.` : ""}
+    <InsightCard tone="info" label={`Definição · ${tab === "medicao" ? "Aderência MM" : "Aderência calibragem"}`} compact data-testid="tires-indicator-definition">
+      <p>{body}</p>
+      {extra}
     </InsightCard>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Quebras por dimensão
+// Cartões
 // ---------------------------------------------------------------------------
-function BreakdownSection({ kind, data, ctx }: { kind: Kind; data: TiresAdherence; ctx: TiresPanelContext }) {
-  const w = WORDS[kind];
-  const link = useTiresLink(ctx);
-  const [grupo, setGrupo] = useViewParam("grupo");
-  const dims = DIM_ORDER.filter((d) => (data.breakdowns[d]?.length ?? 0) > 0);
-  const dim = grupo && (dims as string[]).includes(grupo) ? (grupo as TireBreakdownDim) : dims[0];
-  const items = dim ? data.breakdowns[dim] ?? [] : [];
-  const selectId = React.useId();
-  const filterKey = dim ? DIM_FILTER[dim] : null;
-  const filterParam = filterKey ? TIRES_FILTER_PARAM[filterKey] : null;
-  const activeFilter = filterKey ? ctx.filters[filterKey] : undefined;
+const CRITICAL_TEXT: Record<TireIndicatorKey, (ind: TiresIndicator) => string> = {
+  tread: (ind) => `sulco até ${fmtMm(ind.parameters.treadCriticalMm)} ou abaixo do legal`,
+  measurement: () => "medição vencida",
+  calibration: () => "calibragem vencida",
+  psi: () => "PSI abaixo ou acima da faixa",
+  calibration_conformity: () => "pneus com severidade crítica",
+  overall: () => "pneus com severidade crítica",
+};
 
+function KpiRow({ ind, toPending }: { ind: TiresIndicator; toPending: (code: string | null) => TiresNavLink }) {
+  const k = ind.kpis;
+  const d = ind.details;
   return (
-    <Section
-      title={dim ? `Aderência por ${BREAKDOWN_LABEL[dim].toLowerCase()}` : "Aderência por grupo"}
-      testId={`tires-${w.slug}-breakdown`}
-      description={`Os pneus em uso de cada grupo pelo prazo de ${w.noun}, com cobertura e aderência calculadas no banco. Clique no nome de um grupo para filtrar a tela por ele.`}
-      actions={
-        dims.length > 1 ? (
-          <div className="flex items-center gap-2">
-            <label htmlFor={selectId} className="whitespace-nowrap text-caption text-fg-muted">
-              Agrupar por
-            </label>
-            <NativeSelect
-              id={selectId}
-              fieldSize="sm"
-              value={dim}
-              onChange={(e) => setGrupo(e.target.value === dims[0] ? null : e.target.value)}
-              className="min-w-[11rem]"
-              data-testid={`tires-${w.slug}-breakdown-dim`}
-            >
-              {dims.map((d) => (
-                <option key={d} value={d}>
-                  {BREAKDOWN_LABEL[d]}
-                </option>
-              ))}
-            </NativeSelect>
-          </div>
-        ) : undefined
-      }
-    >
-      {!dim || items.length === 0 ? (
-        <PanelEmpty
-          icon={<Layers />}
-          title="Nenhum grupo no recorte"
-          description="Nenhum pneu em uso corresponde aos filtros. Ajuste ou limpe os filtros da tela."
-          testId={`tires-${w.slug}-breakdown-empty`}
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6" data-testid="tires-indicator-kpis">
+      <IndicatorKpi
+        testId="tires-indicator-kpi-pct"
+        label="Conformidade"
+        value={k.pct == null ? "—" : fmt1(k.pct)}
+        unit={k.pct == null ? undefined : "%"}
+        period={k.base > 0 ? `${fmtInt(k.ok)} de ${fmtInt(k.base)} pneus em uso` : "nenhum pneu em uso no recorte"}
+        status="primary"
+        icon={<Percent />}
+      />
+      <IndicatorKpi
+        testId="tires-indicator-kpi-ok"
+        label="Conformes"
+        value={fmtInt(k.ok)}
+        unit={plural(k.ok, "pneu", "pneus")}
+        period="dentro da regra deste indicador"
+        status={k.ok > 0 ? "success" : undefined}
+        icon={<CircleCheck />}
+      />
+      <IndicatorKpi
+        testId="tires-indicator-kpi-nok"
+        label="Não conformes"
+        value={fmtInt(k.nok)}
+        unit={plural(k.nok, "pneu", "pneus")}
+        period={k.nok > 0 ? "ver a lista de pendências" : "nenhuma pendência"}
+        status={k.nok > 0 ? "danger" : undefined}
+        icon={<TriangleAlert />}
+        nav={k.nok > 0 ? toPending(null) : null}
+        destination="Ir para a lista de pendências"
+      />
+      <IndicatorKpi
+        testId="tires-indicator-kpi-critical"
+        label="Críticos"
+        value={fmtInt(k.critical)}
+        unit={plural(k.critical, "pneu", "pneus")}
+        period={CRITICAL_TEXT[ind.indicator](ind)}
+        status={k.critical > 0 ? "danger" : undefined}
+        icon={<OctagonAlert />}
+      />
+      <IndicatorKpi
+        testId="tires-indicator-kpi-fleets"
+        label="Frotas afetadas"
+        value={fmtInt(k.fleetsAffected)}
+        unit={plural(k.fleetsAffected, "frota", "frotas")}
+        period="com ao menos um pneu não conforme"
+        status={k.fleetsAffected > 0 ? "warning" : undefined}
+        icon={<Truck />}
+      />
+      {ind.indicator === "tread" ? (
+        <IndicatorKpi
+          testId="tires-indicator-kpi-below-legal"
+          label="Abaixo do legal"
+          value={fmtInt(statusCount(ind, "abaixo_legal"))}
+          unit={plural(statusCount(ind, "abaixo_legal"), "pneu", "pneus")}
+          period="sulco no ou abaixo do legal da regra"
+          status={statusCount(ind, "abaixo_legal") > 0 ? "danger" : undefined}
+          icon={<Ruler />}
+          nav={statusCount(ind, "abaixo_legal") > 0 ? toPending("abaixo_legal") : null}
+          destination="Ver os pneus abaixo do sulco legal"
         />
-      ) : (
-        <div className="flex flex-col gap-2">
-          <ChartLegend
-            items={SEGMENTS.map((s) => ({ key: s.key, label: DEADLINE_SHORT[s.key], color: s.color }))}
-          />
-          <TableContainer stickyHeader maxHeight={480} data-testid={`tires-${w.slug}-breakdown-table`}>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{BREAKDOWN_LABEL[dim]}</TableHead>
-                  <TableHead numeric>Pneus</TableHead>
-                  <TableHead className="min-w-40">Distribuição do prazo</TableHead>
-                  <TableHead numeric>{DEADLINE_SHORT.em_dia}</TableHead>
-                  <TableHead numeric>{DEADLINE_SHORT.proximo}</TableHead>
-                  <TableHead numeric>{DEADLINE_SHORT.vencido}</TableHead>
-                  <TableHead numeric>{DEADLINE_SHORT.sem_registro}</TableHead>
-                  <TableHead numeric>Cobertura</TableHead>
-                  <TableHead numeric>Aderência</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.map((item, i) => {
-                  const name = item.name ?? DIM_EMPTY[dim];
-                  const canFilter = item.id != null && filterParam != null && activeFilter !== item.id;
-                  const nav = canFilter ? link({ [filterParam as string]: item.id, pendencia: null }) : null;
-                  return (
-                    <TableRow key={item.id ?? `none-${i}`} className="h-10" data-testid={`tires-${w.slug}-breakdown-row`}>
-                      <TableCell className="max-w-[16rem] py-1.5">
-                        {nav ? (
-                          <a
-                            href={nav.href}
-                            onClick={nav.onClick}
-                            className="rounded-xs font-medium text-fg underline-offset-2 hover:text-primary hover:underline hfm-focus-ring"
-                          >
-                            {name}
-                            <span className="sr-only"> — filtrar a tela por este grupo</span>
-                          </a>
-                        ) : (
-                          <span className={cn("font-medium", item.name ? "text-fg" : "text-fg-muted")}>{name}</span>
-                        )}
-                      </TableCell>
-                      <TableCell numeric className="py-1.5 font-semibold">{fmtInt(item.total)}</TableCell>
-                      <TableCell className="py-1.5">
-                        <ShareBar item={item} name={name} />
-                      </TableCell>
-                      <TableCell numeric className={cn("py-1.5", item.emDia === 0 && "text-fg-muted")}>{fmtInt(item.emDia)}</TableCell>
-                      <TableCell numeric className={cn("py-1.5", item.proximo === 0 && "text-fg-muted")}>{fmtInt(item.proximo)}</TableCell>
-                      <TableCell numeric className={cn("py-1.5", item.vencido === 0 ? "text-fg-muted" : "font-semibold text-danger-soft-fg")}>
-                        {fmtInt(item.vencido)}
-                      </TableCell>
-                      <TableCell numeric className={cn("py-1.5", item.semRegistro === 0 && "text-fg-muted")}>{fmtInt(item.semRegistro)}</TableCell>
-                      <TableCell numeric className="py-1.5">{fmtPct(item.coveragePct)}</TableCell>
-                      <TableCell numeric className="py-1.5 font-semibold">{fmtPct(item.adherencePct)}</TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </div>
-      )}
-    </Section>
+      ) : ind.indicator === "measurement" || ind.indicator === "calibration" ? (
+        <IndicatorKpi
+          testId="tires-indicator-kpi-due7d"
+          label="Vencem em 7 dias"
+          value={fmtInt(d.due7d)}
+          unit={plural(d.due7d, "pneu", "pneus")}
+          period={`em 15 dias: ${fmtInt(d.due15d)}`}
+          status={(d.due7d ?? 0) > 0 ? "warning" : undefined}
+          icon={<CalendarClock />}
+        />
+      ) : ind.indicator === "psi" ? (
+        <IndicatorKpi
+          testId="tires-indicator-kpi-psi-dev"
+          label="Desvio médio"
+          value={d.avgDevPct == null ? "—" : fmt1(d.avgDevPct)}
+          unit={d.avgDevPct == null ? undefined : "%"}
+          period={d.avgDevPct == null ? "nenhum pneu fora da faixa" : "além do limite da faixa, sobre o ideal"}
+          status={d.avgDevPct != null ? "warning" : undefined}
+          icon={<Gauge />}
+        />
+      ) : ind.indicator === "calibration_conformity" ? (
+        <IndicatorKpi
+          testId="tires-oncall-bad-psi"
+          label="No prazo, mas PSI inadequado"
+          value={fmtInt(d.onTimeBadPsi)}
+          unit={plural(d.onTimeBadPsi, "pneu", "pneus")}
+          period="calibrado no prazo com pressão fora: não é saudável"
+          badge={
+            <StatusBadge status="danger" size="sm">
+              Não conforme
+            </StatusBadge>
+          }
+          status={(d.onTimeBadPsi ?? 0) > 0 ? "danger" : "neutral"}
+          icon={<ThermometerSun />}
+          nav={(d.onTimeBadPsi ?? 0) > 0 ? toPending("prazo_ok_psi_inadequado") : null}
+          destination="Ver os pneus no prazo com PSI inadequado"
+        />
+      ) : null}
+    </div>
   );
 }
 
-/** Barra 100% empilhada (em dia · próximo · vencido · sem registro); os números ficam na própria linha. */
-function ShareBar({ item, name }: { item: TireBreakdownItem; name: string }) {
-  const parts = SEGMENTS.filter((s) => item[s.field] > 0);
-  const label = `${name}: ${SEGMENTS.map((s) => `${fmtInt(item[s.field])} ${DEADLINE_SHORT[s.key].toLowerCase()}`).join(", ")}`;
+/** Números de apoio, abaixo dos cartões: o segundo nível da leitura. */
+function SupportStrip({ ind }: { ind: TiresIndicator }) {
+  const d = ind.details;
+  const p = ind.parameters;
+  let items: MetricStripItem[] = [];
+  let cols: string | undefined;
+  switch (ind.indicator) {
+    case "tread":
+      items = [
+        { key: "avg", label: "Sulco médio", value: fmtMm(d.avg), hint: "menor sulco dos pneus em uso" },
+        { key: "median", label: "Mediana", value: fmtMm(d.median), hint: "metade dos pneus abaixo deste valor" },
+        { key: "min", label: "Menor sulco", value: fmtMm(d.min), hint: "o pneu mais gasto do recorte" },
+        { key: "divergent", label: "Divergências de MM", value: fmtInt(d.divergent), hint: "menor MM informado difere do medido" },
+      ];
+      break;
+    case "measurement":
+    case "calibration": {
+      const warn = ind.indicator === "calibration" ? p.calibrationWarningDays : p.measurementWarningDays;
+      items = [
+        { key: "missing", label: "Sem registro", value: fmtInt(statusCount(ind, "sem_registro")), hint: "sem data no Rodopar" },
+        { key: "due15d", label: "Vencem em 15 dias", value: fmtInt(d.due15d), hint: "vencimento a partir de hoje" },
+        { key: "maxLate", label: "Maior atraso", value: fmtDays(d.maxLate), hint: `além do prazo de ${fmtDays(warn)}` },
+        { key: "avgLate", label: "Atraso médio", value: fmtDaysAvg(d.avgLate), hint: "entre os vencidos" },
+      ];
+      break;
+    }
+    case "psi":
+      items = [
+        { key: "low", label: "Abaixo da faixa", value: fmtInt(statusCount(ind, "baixa")), hint: "PSI menor que o mínimo" },
+        { key: "high", label: "Acima da faixa", value: fmtInt(statusCount(ind, "excesso")), hint: "PSI maior que o máximo" },
+        { key: "norule", label: "Sem parâmetro", value: fmtInt(statusCount(ind, "sem_parametro")), hint: "não avaliado — nunca conta como adequado" },
+        { key: "gaps", label: "Combinações sem regra", value: fmtInt(d.ruleGaps), hint: "tipo × medida × posição sem regra de PSI" },
+      ];
+      break;
+    case "calibration_conformity":
+      cols = "md:grid-cols-2";
+      items = [
+        { key: "lateGood", label: "PSI OK, prazo vencido", value: fmtInt(d.lateGoodPsi), hint: "pressão certa, mas calibragem fora do prazo" },
+        { key: "lateBad", label: "Prazo e PSI fora", value: fmtInt(d.lateBadPsi), hint: "calibragem vencida e pressão inadequada" },
+      ];
+      break;
+    default:
+      return null;
+  }
   return (
-    <div role="img" aria-label={label} className="flex h-3 w-full min-w-32 gap-0.5 overflow-hidden rounded-xs bg-surface-sunken">
-      {parts.map((s) => (
-        <span key={s.key} className={cn("h-full min-w-0.5", s.bar)} style={{ flexGrow: item[s.field], flexBasis: 0 }} />
-      ))}
+    <div data-testid="tires-indicator-details">
+      <MetricStrip items={items} ariaLabel={`Detalhes de ${INDICATOR_LABEL[ind.indicator]}`} className={cols} />
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Ranking de veículos
+// Distribuição
 // ---------------------------------------------------------------------------
-function RankingSection({ kind, data }: { kind: Kind; data: TiresAdherence }) {
-  const w = WORDS[kind];
-  const rows = data.ranking;
+function DistributionSection({ ind, toPending }: { ind: TiresIndicator; toPending: (code: string | null) => TiresNavLink }) {
+  const entries = statusEntries(ind);
+  const active = ind.status || null;
   return (
     <Section
-      title="Veículos com maior atraso"
-      testId={`tires-${w.slug}-ranking`}
-      description={`Até 20 veículos com pneu vencido ou sem registro de ${w.noun}, do maior atraso para o menor (sem registro primeiro). A placa abre a Base geral com os pneus do veículo.`}
+      title="Distribuição"
+      testId="tires-indicator-distribution"
+      description={`Os ${fmtInt(ind.kpis.base)} pneus em uso por situação neste indicador. Clique numa situação não conforme para filtrar as pendências.`}
     >
-      {rows.length === 0 ? (
-        <PanelEmpty
-          icon={<Truck />}
-          title="Nenhum veículo com pneu vencido ou sem registro"
-          description={`Todos os veículos do recorte têm a ${w.noun} dos pneus em dia ou próxima do vencimento.`}
-          testId={`tires-${w.slug}-ranking-empty`}
-        />
-      ) : (
-        <TableContainer data-testid={`tires-${w.slug}-ranking-table`}>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead numeric className="w-10">#</TableHead>
-                <TableHead>Veículo</TableHead>
-                <TableHead>Operação / local</TableHead>
-                <TableHead numeric>Pneus</TableHead>
-                <TableHead numeric>Vencidos</TableHead>
-                <TableHead numeric>Sem registro</TableHead>
-                <TableHead numeric>Maior atraso</TableHead>
-                <TableHead numeric>Aderência</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((r, i) => (
-                <TableRow key={r.vehicleId ?? `${r.fleetNumber ?? "?"}-${i}`} className="h-10" data-testid={`tires-${w.slug}-ranking-row`}>
-                  <TableCell numeric className="py-1.5 text-fg-muted">{i + 1}</TableCell>
-                  <TableCell className="whitespace-nowrap py-1.5">
-                    <PlateLink vehicleId={r.vehicleId} plate={r.licensePlate} fleetCode={r.fleetNumber} testId={`tires-${w.slug}-ranking-plate`} />
-                  </TableCell>
-                  <TableCell className="py-1.5">
-                    <Place operation={r.operationName} city={r.cityName} />
-                  </TableCell>
-                  <TableCell numeric className="py-1.5">{fmtInt(r.tires)}</TableCell>
-                  <TableCell numeric className={cn("py-1.5", r.overdue > 0 ? "font-semibold text-danger-soft-fg" : "text-fg-muted")}>
-                    {fmtInt(r.overdue)}
-                  </TableCell>
-                  <TableCell numeric className={cn("py-1.5", r.missing === 0 && "text-fg-muted")}>{fmtInt(r.missing)}</TableCell>
-                  <TableCell numeric className="whitespace-nowrap py-1.5 font-semibold">
-                    {r.worstDays == null ? <span className="font-normal text-fg-muted">sem registro</span> : fmtDays(r.worstDays)}
-                  </TableCell>
-                  <TableCell numeric className="py-1.5">{fmtPct(r.adherencePct)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ChartCard title="Por situação" description="Quantidade e % sobre os pneus em uso">
+          <StatusBars entries={entries} base={ind.kpis.base} active={active} linkFor={toPending} testId="tires-indicator-status-bars" />
+        </ChartCard>
+        <SpecificChart ind={ind} entries={entries} active={active} toPending={toPending} />
+      </div>
     </Section>
   );
 }
 
-function Place({ operation, city, uf }: { operation: string | null; city: string | null; uf?: string | null }) {
-  const local = [city, uf].filter(Boolean).join("/");
-  return (
-    <span className="flex min-w-0 flex-col leading-tight">
-      <span className={cn("truncate", operation ? "text-fg-secondary" : "text-fg-muted")}>{operation ?? "Sem operação"}</span>
-      {local ? <span className="truncate text-caption text-fg-muted">{local}</span> : null}
-    </span>
-  );
+function SpecificChart({
+  ind, entries, active, toPending,
+}: {
+  ind: TiresIndicator;
+  entries: ReturnType<typeof statusEntries>;
+  active: string | null;
+  toPending: (code: string | null) => TiresNavLink;
+}) {
+  const d = ind.details;
+  const p = ind.parameters;
+  switch (ind.indicator) {
+    case "tread": {
+      const counts = new Map((d.histogram ?? []).map((h) => [h.bucket, h.count]));
+      const items: ColumnItem[] = Array.from({ length: 17 }, (_, b) => ({
+        key: String(b),
+        label: b === 16 ? "16+" : String(b),
+        count: counts.get(b) ?? 0,
+        tone: b < p.treadCriticalMm ? "danger" : b < p.treadAttentionMm ? "warning" : "success",
+      }));
+      const total = items.reduce((a, i) => a + i.count, 0);
+      return (
+        <ChartCard
+          title="Menor sulco (mm)"
+          description="Pneus por faixa de 1 mm do menor sulco (16 = 16 mm ou mais). As linhas marcam os limites da regra."
+          empty={total === 0 ? "Nenhum pneu com medição de sulco no recorte." : undefined}
+          data-testid="tires-indicator-histogram"
+        >
+          <Columns
+            items={items}
+            markers={[
+              { at: p.treadCriticalMm, label: fmtMm(p.treadCriticalMm) },
+              { at: p.treadAttentionMm, label: fmtMm(p.treadAttentionMm) },
+            ]}
+            legend={[
+              { key: "crit", label: `Crítico: até ${fmtMm(p.treadCriticalMm)}`, color: chartColorOf("danger") },
+              { key: "att", label: `Atenção: até ${fmtMm(p.treadAttentionMm)}`, color: chartColorOf("warning") },
+              { key: "ok", label: `Adequado: acima de ${fmtMm(p.treadAttentionMm)}`, color: chartColorOf("success") },
+              { key: "lim", label: "Limites da regra", color: "var(--chart-target)", shape: "dashed" },
+            ]}
+            caption={`Pneus em uso por menor sulco, em faixas de 1 mm. Limite crítico ${fmtNum(p.treadCriticalMm)} mm, atenção ${fmtNum(p.treadAttentionMm)} mm.`}
+          />
+        </ChartCard>
+      );
+    }
+    case "measurement":
+    case "calibration": {
+      const warn = ind.indicator === "calibration" ? p.calibrationWarningDays : p.measurementWarningDays;
+      const items: ColumnItem[] = (d.lateBuckets ?? []).map((b) => ({
+        key: b.bucket,
+        label: b.bucket.replace("-", "–"),
+        count: b.count,
+        tone: "danger",
+      }));
+      const total = items.reduce((a, i) => a + i.count, 0);
+      return (
+        <ChartCard
+          title="Dias de atraso"
+          description={`Pneus vencidos por dias além do prazo de ${fmtDays(warn)}.`}
+          empty={total === 0 ? "Nenhum pneu com prazo vencido no recorte." : undefined}
+          data-testid="tires-indicator-late"
+        >
+          <Columns items={items} caption={`Pneus vencidos por faixa de dias de atraso (além de ${fmtDays(warn)}).`} />
+        </ChartCard>
+      );
+    }
+    case "psi": {
+      const items: ColumnItem[] = (d.deviationBuckets ?? []).map((b) => ({
+        key: `${b.side}-${b.bucket}`,
+        label: b.bucket.replace(/-/g, "−"),
+        count: b.count,
+        tone: b.side === "below" ? "danger" : b.side === "above" ? "warning" : "success",
+        band: b.side === "ok",
+      }));
+      return (
+        <ChartCard
+          title="Desvio em relação à faixa"
+          description="Pneus pelo desvio do PSI, em % sobre o ideal. Sem parâmetro e sem calibragem não têm desvio e ficam fora."
+          empty={items.length === 0 ? "Sem leituras de PSI no recorte." : undefined}
+          data-testid="tires-indicator-deviation"
+        >
+          <Columns
+            items={items}
+            legend={[
+              { key: "below", label: "Abaixo da faixa", color: chartColorOf("danger") },
+              { key: "ok", label: "Na faixa", color: chartColorOf("success") },
+              { key: "above", label: "Acima da faixa", color: chartColorOf("warning") },
+            ]}
+            caption="Pneus em uso pelo desvio do PSI em relação à faixa da regra: abaixo, na faixa e acima."
+          />
+        </ChartCard>
+      );
+    }
+    case "calibration_conformity":
+      return (
+        <ChartCard
+          title="Prazo × PSI"
+          description="Os quatro cenários da calibragem. PSI inadequado inclui fora da faixa, sem parâmetro e sem leitura."
+          data-testid="tires-indicator-matrix"
+        >
+          <CalibrationMatrix entries={entries} base={ind.kpis.base} active={active} linkFor={toPending} />
+        </ChartCard>
+      );
+    default:
+      return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Lacunas de regra de PSI (só calibragem)
+// Combinações sem regra de PSI
 // ---------------------------------------------------------------------------
-function GapsSection({ data, ctx, toPending }: { data: TiresAdherence; ctx: TiresPanelContext; toPending: (v: PendingFilter) => TiresNavLink }) {
-  const gaps = data.gaps;
-  const pending = toPending("sem_parametro");
+function RuleGaps({ ind, toPending }: { ind: TiresIndicator; toPending: (code: string | null) => TiresNavLink }) {
+  const gaps = ind.details.gaps ?? [];
+  const nav = toPending("sem_parametro");
   return (
     <Section
-      title="Lacunas de regra de PSI"
-      testId="tires-calibragem-gaps"
-      description="Combinações de tipo de equipamento × dimensão × posição com pneus calibrados e sem regra de pressão vigente. Esses pneus ficam como “Sem parâmetro”: a pressão não é avaliada e nunca conta como adequada."
+      title="Combinações sem regra de PSI"
+      testId="tires-indicator-gaps"
+      description="Tipo de equipamento × medida × posição com pneus calibrados e sem regra de pressão. Esses pneus ficam como “Sem parâmetro”: não são avaliados e nunca contam como adequados."
       actions={
-        gaps.length > 0 ? (
-          <>
-            <Button asChild size="sm" variant="outline">
-              <a href={pending.href} onClick={pending.onClick} data-testid="tires-calibragem-gaps-pending">
-                Ver os pneus
-              </a>
-            </Button>
-            {ctx.perms.parameters ? (
-              <Button asChild size="sm" variant="secondary">
-                <Link href={`${ctx.basePath}?aba=parametros&sub=psi`} data-testid="tires-calibragem-gaps-rules">
-                  <Settings2 aria-hidden />
-                  Cadastrar regras de PSI
-                </Link>
-              </Button>
-            ) : null}
-          </>
-        ) : undefined
+        <Button asChild size="sm" variant="outline">
+          <a href={nav.href} onClick={nav.onClick}>
+            Ver os pneus
+          </a>
+        </Button>
       }
     >
-      {gaps.length === 0 ? (
-        <InsightCard tone="success" label="Cobertura de regras" compact data-testid="tires-calibragem-gaps-empty">
-          Nenhum pneu calibrado do recorte ficou sem regra de PSI vigente.
-        </InsightCard>
-      ) : (
-        <TableContainer stickyHeader maxHeight={360} data-testid="tires-calibragem-gaps-table">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Tipo de equipamento</TableHead>
-                <TableHead>Dimensão</TableHead>
-                <TableHead>Posição</TableHead>
-                <TableHead numeric>Pneus sem parâmetro</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {gaps.map((g, i) => (
-                <TableRow
-                  key={`${g.vehicleTypeId ?? "-"}|${g.dimensionKey ?? "-"}|${g.positionCode ?? "-"}|${i}`}
-                  className="h-10"
-                  data-testid="tires-calibragem-gap-row"
-                >
-                  <TableCell className={cn("py-1.5", g.vehicleTypeName ? "text-fg" : "text-fg-muted")}>{g.vehicleTypeName ?? "Sem tipo"}</TableCell>
-                  <TableCell className={cn("whitespace-nowrap py-1.5 tabular-nums", g.dimension || g.dimensionKey ? "text-fg-secondary" : "text-fg-muted")}>
-                    {g.dimension ?? g.dimensionKey ?? "Sem dimensão"}
-                  </TableCell>
-                  <TableCell className={cn("whitespace-nowrap py-1.5", g.positionCode ? "text-fg-secondary" : "text-fg-muted")}>{g.positionCode ?? "Sem posição"}</TableCell>
-                  <TableCell numeric className="py-1.5 font-semibold">{fmtInt(g.tires)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
-    </Section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Pendências (paginadas no servidor)
-// ---------------------------------------------------------------------------
-function PendingSection({ kind, data, ctx, id }: { kind: Kind; data: TiresAdherence; ctx: TiresPanelContext; id: string }) {
-  const w = WORDS[kind];
-  const cal = kind === "calibration";
-  const k = data.kpis;
-  const options = PENDING_OPTIONS[kind];
-  const raw = ctx.params.pendencia as PendingFilter | undefined;
-  const value: PendingFilter = raw && options.includes(raw) ? raw : "all";
-  const counts: Partial<Record<PendingFilter, number>> = {
-    vencido: k.vencido,
-    proximo: k.proximo,
-    sem_registro: k.semRegistro,
-    ...(cal ? { pressao: k.psiLow + k.psiHigh, sem_parametro: k.psiNoRule } : {}),
-  };
-
-  return (
-    <div id={id} className="scroll-mt-4">
-      <Section
-        title="Pendências"
-        testId={`tires-${w.slug}-pending`}
-        description={
-          <span>
-            {fmtInt(data.pendingTotal)} {plural(data.pendingTotal, "pneu", "pneus")}
-            {value === "all"
-              ? cal
-                ? " fora do prazo de calibragem, com pressão fora da faixa ou sem parâmetro de PSI"
-                : " com medição vencida, próxima do vencimento ou sem registro"
-              : ` em “${PENDING_LABEL[value]}”`}
-            , do maior atraso para o menor. Nº Fogo abre a ficha do pneu; a placa, a Base geral do veículo.
-          </span>
-        }
-        actions={<ExportButton ctx={ctx} kind={w.slug} extra={{ pendencia: value === "all" ? null : value }} />}
-      >
-        <SegmentedControl<PendingFilter>
-          aria-label="Tipo de pendência"
-          value={value}
-          wrap
-          disabled={ctx.pending}
-          onValueChange={(v) => ctx.navigate({ pendencia: v === "all" ? null : v, pagina: null })}
-          data-testid={`tires-${w.slug}-pending-filter`}
-          options={options.map((o) => ({
-            value: o,
-            "data-testid": `tires-${w.slug}-pending-${o}`,
-            label: (
-              <>
-                {o === "sem_parametro" ? <Settings2 aria-hidden /> : null}
-                {PENDING_LABEL[o]}
-                {counts[o] != null ? <span className="tabular-nums text-fg-muted">{fmtInt(counts[o])}</span> : null}
-              </>
-            ),
-          }))}
-        />
-
-        {data.pending.length === 0 ? (
-          <PanelEmpty
-            icon={<CalendarCheck />}
-            title={value === "all" ? "Nenhuma pendência no recorte" : `Nenhum pneu em “${PENDING_LABEL[value]}”`}
-            description={
-              value === "all"
-                ? cal
-                  ? "Todos os pneus em uso estão com a calibragem em dia e a pressão avaliada dentro da faixa."
-                  : "Todos os pneus em uso estão com a medição em dia."
-                : "Escolha outro tipo de pendência ou ajuste os filtros da tela."
-            }
-            testId={`tires-${w.slug}-pending-empty`}
-          />
-        ) : cal ? (
-          <CalibrationTable rows={data.pending} />
-        ) : (
-          <MeasurementTable rows={data.pending} />
-        )}
-
-        <TiresPagination
-          ctx={ctx}
-          total={data.pendingTotal}
-          limit={data.limit}
-          label={`Paginação das pendências de ${w.noun}`}
-          testId={`tires-${w.slug}-pagination`}
-        />
-      </Section>
-    </div>
-  );
-}
-
-function DeadlineBadge({ status }: { status: DeadlineStatus }) {
-  return (
-    <StatusBadge status={DEADLINE_TONE[status]} size="sm">
-      {DEADLINE_SHORT[status]}
-    </StatusBadge>
-  );
-}
-
-function PsiBadge({ status }: { status: PsiStatus }) {
-  if (status === "sem_parametro") return <NoRuleBadge>{PSI_LABEL.sem_parametro}</NoRuleBadge>;
-  return (
-    <StatusBadge status={PSI_TONE[status]} size="sm">
-      {PSI_LABEL[status]}
-    </StatusBadge>
-  );
-}
-
-/** Colunas iniciais das duas listas: pneu, veículo e posição. */
-function LeadCells({ row, slug }: { row: TirePendingRow; slug: string }) {
-  const position = row.positionLabel ?? row.positionCode;
-  return (
-    <>
-      <TableCell className="whitespace-nowrap py-1.5">
-        <FireLink tireId={row.tireId} fireNumber={row.fireNumber} testId={`tires-${slug}-pending-fire`} />
-      </TableCell>
-      <TableCell className="whitespace-nowrap py-1.5">
-        <PlateLink vehicleId={row.vehicleId} plate={row.licensePlate} fleetCode={row.fleetNumber} testId={`tires-${slug}-pending-plate`} />
-      </TableCell>
-      <TableCell className="py-1.5">
-        <span className="flex flex-col leading-tight">
-          <span className={cn("whitespace-nowrap", position ? "text-fg-secondary" : "text-fg-muted")}>{position ?? "—"}</span>
-          {row.positionLabel && row.positionCode && row.positionLabel !== row.positionCode ? (
-            <span className="text-caption text-fg-muted">{row.positionCode}</span>
-          ) : null}
-        </span>
-      </TableCell>
-    </>
-  );
-}
-
-/** Prazo (situação + vencimento) e a última data com os dias desde ela. */
-function DeadlineCells({ row }: { row: TirePendingRow }) {
-  return (
-    <>
-      <TableCell className="whitespace-nowrap py-1.5">
-        <span className="flex flex-col items-start gap-0.5">
-          <DeadlineBadge status={row.status} />
-          {row.dueDate ? (
-            <span className="text-caption text-fg-muted tabular-nums">
-              {row.status === "vencido" ? "venceu" : "vence"} {formatDate(row.dueDate)}
-            </span>
-          ) : null}
-        </span>
-      </TableCell>
-      <TableCell className="whitespace-nowrap py-1.5">
-        {row.lastDate ? (
-          <span className="flex flex-col leading-tight">
-            <span className="tabular-nums">{formatDate(row.lastDate)}</span>
-            <span className={cn("text-caption tabular-nums", row.status === "vencido" ? "font-semibold text-danger-soft-fg" : "text-fg-muted")}>
-              {row.days == null ? "" : `há ${fmtDays(row.days)}`}
-            </span>
-          </span>
-        ) : (
-          <span className="text-fg-muted">sem registro</span>
-        )}
-      </TableCell>
-    </>
-  );
-}
-
-function PlaceCell({ row }: { row: TirePendingRow }) {
-  return (
-    <TableCell className="max-w-[14rem] py-1.5">
-      <Place operation={row.operationName} city={row.cityName} uf={row.stateUf} />
-    </TableCell>
-  );
-}
-
-function MeasurementTable({ rows }: { rows: TirePendingRow[] }) {
-  return (
-    <TableContainer stickyHeader className="max-h-[70vh]" data-testid="tires-medicao-pending-table">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Nº Fogo</TableHead>
-            <TableHead>Veículo</TableHead>
-            <TableHead>Posição</TableHead>
-            <TableHead>Prazo</TableHead>
-            <TableHead>Última medição</TableHead>
-            <TableHead>Menor sulco</TableHead>
-            {[1, 2, 3, 4].map((n) => (
-              <TableHead key={n} numeric className="px-2">
-                <abbr title={`Sulco ${n} (mm)`} className="no-underline">S{n}</abbr>
-              </TableHead>
-            ))}
-            <TableHead>Operação / local</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map((r) => (
-            <TableRow key={r.tireId} className="h-11" data-testid="tires-medicao-pending-row" data-status={r.status}>
-              <LeadCells row={r} slug="medicao" />
-              <DeadlineCells row={r} />
-              <TableCell className="whitespace-nowrap py-1.5">
-                <span className="flex flex-col items-start gap-0.5">
-                  <span className="font-semibold tabular-nums">{fmtMm(r.treadMin)}</span>
-                  <StatusBadge status={TREAD_TONE[r.treadClass]} size="sm">
-                    {TREAD_LABEL[r.treadClass]}
-                  </StatusBadge>
-                </span>
-              </TableCell>
-              {[r.tread1, r.tread2, r.tread3, r.tread4].map((v, i) => (
-                <TableCell key={i} numeric className="px-2 py-1.5 text-fg-secondary">{fmtNum(v)}</TableCell>
-              ))}
-              <PlaceCell row={r} />
+      <TableContainer stickyHeader maxHeight={320}>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Tipo de equipamento</TableHead>
+              <TableHead>Medida</TableHead>
+              <TableHead>Posição</TableHead>
+              <TableHead numeric>Pneus sem parâmetro</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
-  );
-}
-
-function CalibrationTable({ rows }: { rows: TirePendingRow[] }) {
-  return (
-    <TableContainer stickyHeader className="max-h-[70vh]" data-testid="tires-calibragem-pending-table">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Nº Fogo</TableHead>
-            <TableHead>Veículo</TableHead>
-            <TableHead>Posição</TableHead>
-            <TableHead>Prazo</TableHead>
-            <TableHead>Última calibragem</TableHead>
-            <TableHead>Pressão</TableHead>
-            <TableHead numeric>PSI lido</TableHead>
-            <TableHead numeric>Mín. · ideal · máx.</TableHead>
-            <TableHead>Operação / local</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map((r) => {
-            const hasRule = r.psiMin != null || r.psiIdeal != null || r.psiMax != null;
-            const out = r.psiStatus === "baixa" || r.psiStatus === "excesso";
-            return (
-              <TableRow key={r.tireId} className="h-11" data-testid="tires-calibragem-pending-row" data-status={r.status} data-psi={r.psiStatus}>
-                <LeadCells row={r} slug="calibragem" />
-                <DeadlineCells row={r} />
-                <TableCell className="py-1.5">
-                  <PsiBadge status={r.psiStatus} />
-                </TableCell>
-                <TableCell numeric className={cn("py-1.5 font-semibold", out && "text-danger-soft-fg")}>{fmtNum(r.psi)}</TableCell>
-                <TableCell numeric className="whitespace-nowrap py-1.5 text-fg-secondary">
-                  {hasRule ? (
-                    <>
-                      {fmtNum(r.psiMin)} · <span className="font-medium text-fg">{fmtNum(r.psiIdeal)}</span> · {fmtNum(r.psiMax)}
-                    </>
-                  ) : (
-                    <span className="text-fg-muted">sem regra</span>
-                  )}
-                </TableCell>
-                <PlaceCell row={r} />
+          </TableHeader>
+          <TableBody>
+            {gaps.map((g, i) => (
+              <TableRow key={`${g.vehicleTypeName ?? "-"}|${g.dimension ?? "-"}|${g.positionCode ?? "-"}|${i}`} className="h-10" data-testid="tires-indicator-gap-row">
+                <TableCell className={g.vehicleTypeName ? "py-1.5 text-fg" : "py-1.5 text-fg-muted"}>{g.vehicleTypeName ?? "Sem tipo"}</TableCell>
+                <TableCell className={g.dimension ? "py-1.5 tabular-nums text-fg-secondary" : "py-1.5 text-fg-muted"}>{g.dimension ?? "Sem medida"}</TableCell>
+                <TableCell className={g.positionCode ? "py-1.5 text-fg-secondary" : "py-1.5 text-fg-muted"}>{g.positionCode ?? "Sem posição"}</TableCell>
+                <TableCell numeric className="py-1.5 font-semibold">{fmtInt(g.tires)}</TableCell>
               </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </TableContainer>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Section>
   );
 }

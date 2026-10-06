@@ -27,6 +27,7 @@ export function EvolutionSummary({ data, ctx }: { data: TiresKpiHistory; ctx: Ti
   const worse = count("piorando");
   const stable = count("estavel");
   const scope = data.scoped ? "soma das suas operações" : "Geral";
+  const volumes = data.summary.filter((s) => s.higherIsBetter == null).map((s) => s.label.toLowerCase());
   const head = (label: string, key: string | null) => (
     <>
       {label}
@@ -44,7 +45,8 @@ export function EvolutionSummary({ data, ctx }: { data: TiresKpiHistory; ctx: Ti
       description={
         <>
           Último período capturado comparado ao anterior, para todos os indicadores ({scope}). Estável: variação menor que{" "}
-          {String(STABLE_PP).replace(".", ",")} p.p. nos percentuais ou nenhuma nas quantidades. Volumes (pneus em uso, total) não têm tendência.
+          {String(STABLE_PP).replace(".", ",")} p.p. nos percentuais ou nenhuma nas quantidades.
+          {volumes.length ? ` Volumes (${volumes.join(", ")}) não têm tendência: só a variação.` : null}
         </>
       }
       actions={

@@ -8,25 +8,15 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { ErrorState } from "@/components/feedback/error-state";
 import { LoadingState } from "@/components/feedback/loading-state";
-import { AxleDiagram, type AxlePosition } from "@/components/tires/axle-diagram";
+import { VehicleCroqui, croquiLayout } from "@/components/tires/vehicle-croqui";
 import { loadVehicleTireSummary } from "@/lib/tires/actions";
 import {
-  DEADLINE_SHORT,
-  DEADLINE_TONE,
   INSPECTION_STATUS_LABEL,
   INSPECTION_STATUS_TONE,
   LAYOUT_SOURCE_LABEL,
-  PSI_LABEL,
-  PSI_TONE,
-  SEVERITY_TONE,
   TIRES_BASE_PATH,
-  TREAD_LABEL,
-  TREAD_TONE,
   fmtInt,
-  fmtMm,
-  fmtPsi,
   formatDate,
-  type TireRow,
   type TireVehicleSummary,
 } from "@/lib/tires/types";
 
@@ -34,9 +24,9 @@ import {
  * Pneus de um veículo — a aba "Pneus" do Cadastro de Frotas.
  *
  * CONSULTA à rotina `tires_vehicle_summary` (pelo id do veículo, nunca pela
- * placa): a fotografia oficial mais recente do Rodopar, posição a posição no
- * diagrama de eixos (montado do dicionário de posições), e as últimas
- * vistorias de campo. Tratar é na Gestão de Pneus, que abre daqui.
+ * placa): a base oficial (Rodopar) mais recente, posição a posição no croqui
+ * do veículo (`VehicleCroqui`, montado do layout e do dicionário de posições)
+ * e as últimas vistorias de campo. Tratar é na Gestão de Pneus, que abre daqui.
  */
 export function VehicleTires({ vehicleId }: { vehicleId: string }) {
   const [attempt, setAttempt] = React.useState(0);
@@ -46,7 +36,6 @@ export function VehicleTires({ vehicleId }: { vehicleId: string }) {
     data: TireVehicleSummary | null;
     error: string | null;
   } | null>(null);
-  const [selected, setSelected] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -66,11 +55,8 @@ export function VehicleTires({ vehicleId }: { vehicleId: string }) {
 
   const current = state && state.id === vehicleId && state.attempt === attempt ? state : null;
   const tires = React.useMemo(() => current?.data?.tires ?? [], [current]);
-  const byPosition = React.useMemo(() => {
-    const map = new Map<string, TireRow>();
-    for (const t of tires) if (t.positionCode) map.set(t.positionCode, t);
-    return map;
-  }, [tires]);
+  const positions = React.useMemo(() => current?.data?.positions ?? [], [current]);
+  const layout = React.useMemo(() => croquiLayout(current?.data?.layout), [current]);
 
   if (!current) return <LoadingState label="Carregando pneus do veículo…" />;
   if (current.error) {
@@ -85,16 +71,17 @@ export function VehicleTires({ vehicleId }: { vehicleId: string }) {
   }
 
   const data = current.data;
-  const baseHref = `${TIRES_BASE_PATH}?aba=base&veiculo=${vehicleId}`;
+  // sem agrupamento: a única frota do recorte já abre com o croqui
+  const baseHref = `${TIRES_BASE_PATH}?aba=base&veiculo=${vehicleId}&agrupar=nenhum`;
   if (!data || data.empty) {
     return (
       <EmptyState
         size="sm"
-        title={data?.empty ? "Ainda não há fotografia de pneus" : "Veículo fora do seu escopo de pneus"}
+        title={data?.empty ? "Ainda não há dados de pneus" : "Veículo fora do seu escopo de pneus"}
         description={
           data?.empty
-            ? "A Gestão de Pneus ainda não recebeu uma importação Rodopar 10 confirmada."
-            : "Este veículo não está na fotografia de pneus visível para você."
+            ? "A Gestão de Pneus ainda não recebeu a base oficial (Rodopar)."
+            : "Este veículo não está nos dados de pneus visíveis para você."
         }
         action={
           <Button asChild size="sm" variant="secondary" trailingIcon={<ArrowUpRight />}>
@@ -105,75 +92,29 @@ export function VehicleTires({ vehicleId }: { vehicleId: string }) {
     );
   }
 
-  const positions: AxlePosition[] = (data.positions ?? []).map((p) => ({ ...p }));
-  const known = new Set(positions.map((p) => p.code));
-  const unplaced = tires.filter((t) => !t.positionCode || !known.has(t.positionCode));
-  const chosen = selected ? byPosition.get(selected) ?? null : null;
   const inspections = data.inspections ?? [];
 
   return (
     <div className="flex flex-col gap-4" data-testid="vehicle-tires">
       <p className="text-caption text-fg-muted">
-        Fotografia oficial Rodopar de {formatDate(data.referenceDate)}
+        Base oficial (Rodopar), dados de {formatDate(data.referenceDate)}
         {data.layout ? ` · ${data.layout.layoutName ?? "layout"} (${LAYOUT_SOURCE_LABEL[data.layout.layoutSource] ?? data.layout.layoutSource})` : ""}
         {` · ${fmtInt(tires.length)} ${tires.length === 1 ? "pneu" : "pneus"}`}
       </p>
 
-      {positions.length ? (
-        <AxleDiagram
+      {positions.length || tires.length ? (
+        <VehicleCroqui
           positions={positions}
+          positionsScope="vehicle"
+          layout={layout}
+          tires={tires}
           size="sm"
-          label="Pneus por posição"
-          selected={selected}
-          onSelect={(code) => setSelected((s) => (s === code ? null : code))}
-          testIdPrefix="vehicle-tire"
-          state={(p) => {
-            const t = byPosition.get(p.code);
-            if (!t) return { caption: "vazio", tone: null, srText: "sem pneu na fotografia" };
-            return {
-              caption: t.fireNumber,
-              tone: SEVERITY_TONE[t.severity],
-              srText: `Nº Fogo ${t.fireNumber}, sulco ${fmtMm(t.treadMin)}, ${TREAD_LABEL[t.treadClass]}`,
-            };
-          }}
+          label="Croqui dos pneus do veículo: posições"
+          className="md:flex-col md:items-stretch"
         />
-      ) : null}
-
-      {chosen ? (
-        <dl className="grid grid-cols-2 gap-3 rounded-md border border-border bg-surface p-3 sm:grid-cols-4" data-testid="vehicle-tire-detail">
-          <Fact label={`Posição ${chosen.positionCode ?? ""}`}>
-            <Link href={`${TIRES_BASE_PATH}/${chosen.tireId}`} className="font-semibold text-fg underline-offset-2 hover:text-primary hover:underline">
-              {chosen.fireNumber}
-            </Link>
-          </Fact>
-          <Fact label="Sulco mínimo">
-            <span className="flex flex-wrap items-center gap-1.5">
-              {fmtMm(chosen.treadMin)}
-              <StatusBadge status={TREAD_TONE[chosen.treadClass]} size="sm">{TREAD_LABEL[chosen.treadClass]}</StatusBadge>
-            </span>
-          </Fact>
-          <Fact label="Pressão">
-            <span className="flex flex-wrap items-center gap-1.5">
-              {fmtPsi(chosen.psi)}
-              <StatusBadge status={PSI_TONE[chosen.psiStatus]} size="sm">{PSI_LABEL[chosen.psiStatus]}</StatusBadge>
-            </span>
-          </Fact>
-          <Fact label="Medição · calibragem">
-            <span className="flex flex-wrap items-center gap-1.5">
-              <StatusBadge status={DEADLINE_TONE[chosen.measurementStatus]} size="sm">MM {DEADLINE_SHORT[chosen.measurementStatus]}</StatusBadge>
-              <StatusBadge status={DEADLINE_TONE[chosen.calibrationStatus]} size="sm">PSI {DEADLINE_SHORT[chosen.calibrationStatus]}</StatusBadge>
-            </span>
-          </Fact>
-        </dl>
-      ) : positions.length ? (
-        <p className="text-caption text-fg-muted">Toque num pneu do diagrama para ver sulco, pressão e prazos.</p>
-      ) : null}
-
-      {unplaced.length ? (
-        <p className="text-caption text-fg-muted">
-          Fora do layout: {unplaced.map((t) => `${t.fireNumber}${t.positionCode ? ` (${t.positionCode})` : ""}`).join(", ")}
-        </p>
-      ) : null}
+      ) : (
+        <p className="text-caption text-fg-muted">Nenhum pneu em uso neste veículo nos dados atuais.</p>
+      )}
 
       <section aria-labelledby="vehicle-tires-inspections" className="flex flex-col gap-2">
         <h3 id="vehicle-tires-inspections" className="text-label font-semibold text-fg">
@@ -195,7 +136,7 @@ export function VehicleTires({ vehicleId }: { vehicleId: string }) {
         ) : (
           <p className="text-caption text-fg-muted">Nenhuma vistoria de pneus recebida para este veículo.</p>
         )}
-        <p className="text-caption text-fg-muted">A vistoria de campo não altera a fotografia oficial: ela é revisada e conciliada com o próximo Rodopar.</p>
+        <p className="text-caption text-fg-muted">A vistoria de campo não altera a base oficial: ela é revisada e conciliada com o próximo Rodopar.</p>
       </section>
 
       <div>
@@ -209,11 +150,3 @@ export function VehicleTires({ vehicleId }: { vehicleId: string }) {
   );
 }
 
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex min-w-0 flex-col gap-0.5">
-      <dt className="text-caption text-fg-muted">{label}</dt>
-      <dd className="text-body-sm font-medium tabular-nums text-fg">{children}</dd>
-    </div>
-  );
-}

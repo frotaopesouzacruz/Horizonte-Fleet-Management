@@ -50,7 +50,7 @@ const lastRun = () =>
     DB,
     "select to_jsonb(r) - 'log' from public.tire_sync_runs r order by started_at desc limit 1;",
   );
-const sync = (graph: GraphFileSource | null, trigger: "manual" | "agendada" | "reprocessamento" = "manual", reprocessOf: string | null = null, claims = ADMIN) =>
+const sync = (graph: GraphFileSource | null, trigger: "manual" | "agendada" | "reprocessamento" = "manual", reprocessOf: string | null = null, claims: Record<string, unknown> = ADMIN) =>
   runTireSync({ rpc: pgRpc(DB, claims), organizationId: ORG, graph }, trigger, reprocessOf);
 
 /** Linhas do arquivo a partir dos dados confirmados de 05/10, com a "data da última alteração" escolhida. */

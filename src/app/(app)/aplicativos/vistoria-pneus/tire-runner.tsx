@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
-import { StatusBadge, statusTone, type StatusTone } from "@/components/ui/status-badge";
+import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
 import { Progress } from "@/components/feedback/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/feedback/alert";
 import { EmptyState } from "@/components/feedback/empty-state";
@@ -28,7 +28,8 @@ import { ErrorState } from "@/components/feedback/error-state";
 import { LoadingState } from "@/components/feedback/loading-state";
 import { useConfirm } from "@/components/feedback/confirm-dialog";
 import { useToast } from "@/components/feedback/toast";
-import { AxleDiagram, buildAxleRows, type AxleTireState } from "@/components/tires/axle-diagram";
+import { axleOrder } from "@/components/tires/axle-diagram";
+import { VehicleCroqui } from "@/components/tires/vehicle-croqui";
 import type { Result, TireAppSubmitInput } from "@/lib/tires/app-actions";
 import {
   fmtInt,
@@ -67,12 +68,13 @@ import {
  *
  * LEITURA CEGA: do servidor chegam só o veículo e as posições a verificar
  * (`tire_inspection_positions`). Nenhum Nº Fogo esperado, sulco, PSI, data ou
- * situação da fotografia oficial passa por aqui — nem antes, nem durante, nem
- * depois do envio. A comparação é feita no banco, e a vistoria não altera a
- * fotografia oficial: segue para revisão e é conciliada com o próximo Rodopar.
+ * situação da base oficial (Rodopar) passa por aqui — nem antes, nem durante,
+ * nem depois do envio. A comparação é feita no banco, e a vistoria não altera
+ * a base oficial: segue para revisão e é conciliada com o próximo Rodopar.
  *
- * O diagrama de eixos vem do dicionário de posições (`AxleDiagram`), e a
- * navegação "Anterior/Próxima" segue a ordem dele (`buildAxleRows`). As
+ * O croqui do veículo é o mesmo da Gestão de Pneus (`VehicleCroqui`), em modo
+ * "leitura cega": só posições e o estado da medição feita no aparelho. A
+ * navegação "Anterior/Próxima" segue a ordem do desenho (`axleOrder`). As
  * leituras ficam em rascunho no aparelho a cada tecla; o envio reutiliza a
  * mesma `clientSubmissionId` em todas as tentativas.
  */
@@ -174,8 +176,7 @@ function reconcile(stored: TireDraft, data: TireAppPositions, parentId: string |
 }
 
 function diagramOrder(positions: TirePositionInfo[]): string[] {
-  const { axles, extras } = buildAxleRows(positions);
-  return [...axles.flatMap((row) => [...row.left, ...row.right]), ...extras].map((p) => p.code);
+  return axleOrder(positions);
 }
 
 function vehicleLine(v: DraftVehicle | null | undefined): string {
@@ -555,7 +556,7 @@ export function TireRunner({ start, context, scope, loaders, onBack, onDone }: T
           variant="panel"
           icon={<ClipboardCheck />}
           title="Nenhuma posição para verificar"
-          description="Este veículo não tem layout de eixos cadastrado nem pneus em uso na fotografia oficial. Fale com a equipe de Gestão de Pneus."
+          description="Este veículo não tem layout de eixos cadastrado nem pneus em uso na base oficial. Fale com a equipe de Gestão de Pneus."
           action={
             <Button variant="secondary" onClick={onBack}>
               Escolher outro veículo
@@ -646,7 +647,7 @@ export function TireRunner({ start, context, scope, loaders, onBack, onDone }: T
             </p>
             <p className="flex items-start gap-2">
               <ClipboardCheck className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
-              <span>A vistoria não altera a fotografia oficial: segue para revisão e é conciliada com o próximo Rodopar.</span>
+              <span>A vistoria não altera a base oficial: segue para revisão e é conciliada com o próximo Rodopar.</span>
             </p>
           </div>
         </div>
@@ -782,7 +783,7 @@ export function TireRunner({ start, context, scope, loaders, onBack, onDone }: T
 
         <Alert variant="info" icon={<EyeOff />}>
           <AlertDescription>
-            Leitura cega: depois do envio, a equipe compara as suas leituras com a base oficial. A vistoria não altera a fotografia oficial — segue para
+            Leitura cega: depois do envio, a equipe compara as suas leituras com a base oficial. A vistoria não altera a base oficial — segue para
             revisão e é conciliada com o próximo Rodopar.
           </AlertDescription>
         </Alert>
@@ -824,14 +825,6 @@ export function TireRunner({ start, context, scope, loaders, onBack, onDone }: T
   };
   const treadErrors = TREAD_FIELDS.flatMap((f, i) => (showError(f) ? [`S${i + 1}: ${check?.errors[f]}`] : []));
   const isLast = currentIndex === order.length - 1;
-
-  const tireState = (p: { code: string }): AxleTireState => {
-    const s = checks[p.code]?.state ?? "empty";
-    if (s === "complete") return { tone: "success", caption: "✓", srText: "medida completa" };
-    if (s === "partial") return { tone: "warning", caption: "Parcial", srText: "medida parcial" };
-    if (s === "invalid") return { tone: "danger", caption: "Erro", srText: "leitura com erro, a corrigir" };
-    return { tone: null, srText: "pendente" };
-  };
 
   return (
     <Screen wide>
@@ -881,22 +874,16 @@ export function TireRunner({ start, context, scope, loaders, onBack, onDone }: T
             </h3>
             {data.layout.name ? <span className="text-caption text-fg-muted">{data.layout.name}</span> : null}
           </div>
-          <AxleDiagram
+          <VehicleCroqui
+            mode="blind"
             positions={data.positions}
-            state={tireState}
+            layout={{ source: data.layout.source, name: data.layout.name }}
+            readingState={(code) => checks[code]?.state ?? "empty"}
             selected={current}
             onSelect={(code) => goTo(code)}
             label={`Posições de ${plate}: toque para medir`}
             testIdPrefix="tires-app-tire"
           />
-          <ul className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-caption text-fg-muted" aria-label="Legenda">
-            {(["complete", "partial", "invalid", "empty"] as ReadingState[]).map((s) => (
-              <li key={s} className="flex items-center gap-1.5">
-                <span aria-hidden className={cn("inline-block size-3 rounded-sm border-2", s === "empty" ? "border-border bg-surface-sunken" : statusTone(STATE_TONE[s]).softClassName)} />
-                {s === "complete" ? "✓ Completa" : STATE_LABEL[s]}
-              </li>
-            ))}
-          </ul>
         </section>
 
         {position && current ? (

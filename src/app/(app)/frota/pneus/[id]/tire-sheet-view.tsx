@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowLeft, Camera, ClipboardCheck, History, Recycle, Wrench } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ChevronDown, ChevronUp, ClipboardCheck, Database, History, Recycle, Wrench } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { PageContent, PageHeader, PageHeaderContext } from "@/components/layout/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/feedback/alert";
@@ -17,13 +17,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { LoadingState } from "@/components/feedback/loading-state";
+import { VehicleCroqui, croquiLayout } from "@/components/tires/vehicle-croqui";
+import { loadVehicleTireSummary } from "@/lib/tires/actions";
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   CONFIDENCE_LABEL, DEADLINE_LABEL, DEADLINE_TONE, DIVERGENCE_LABEL, DIVERGENCE_TONE, ENRICHMENT_LABEL, EVENT_TONE,
   INSPECTION_STATUS_SHORT, INSPECTION_STATUS_TONE, LAYOUT_SOURCE_LABEL, PSI_LABEL, PSI_TONE, RESOLUTION_LABEL, STATUS_LABEL, SYNC_LABEL,
   SYNC_TONE, eventTypeLabel, fmtDays, fmtInt, fmtKm, fmtMm, fmtNum, fmtPsi, formatDate, formatStamp, issueLabel, type CanonicalStatus,
-  type DeadlineStatus, type TireRow, type TireSheet,
+  type DeadlineStatus, type TireRow, type TireSheet, type TireVehicleSummary,
 } from "@/lib/tires/types";
 import { Fact, PlateLink, plural } from "../panels/tires-ui";
 import { KmRealCell, SeverityBadge, TireStatusBadge, TreadClassBadge, fmtRodoparStamp } from "../panels/base-panel";
@@ -31,11 +34,12 @@ import { KmRealCell, SeverityBadge, TireStatusBadge, TreadClassBadge, fmtRodopar
 /**
  * Ficha 360° de um pneu (Nº Fogo).
  *
- * Tudo vem da rotina `tire_sheet`: o cadastro do pneu, a avaliação da última
- * fotografia em que ele aparece (sulco, PSI e prazos pela regra vigente), os
- * campos brutos do Rodopar, as fotografias anteriores, os eventos derivados
- * das importações, os consertos e as vistorias de campo. A tela só apresenta —
- * e a vistoria de campo nunca altera a fotografia oficial.
+ * Tudo vem da rotina `tire_sheet`: o cadastro do pneu, a avaliação na última
+ * data dos dados em que ele aparece (sulco, PSI e prazos pela regra vigente),
+ * os campos brutos do Rodopar, as datas anteriores, os eventos derivados das
+ * importações, os consertos e as vistorias de campo. O croqui do veículo
+ * (`VehicleCroqui`) é lido sob demanda (`tires_vehicle_summary`). A tela só
+ * apresenta — e a vistoria de campo nunca altera a base oficial (Rodopar).
  */
 export function TireSheetView({ sheet, basePath }: { sheet: TireSheet; basePath: string }) {
   const { tire, current, rodopar } = sheet;
@@ -59,11 +63,11 @@ export function TireSheetView({ sheet, basePath }: { sheet: TireSheet; basePath:
             {current ? <SeverityBadge value={current.severity} size="md" withLabel /> : null}
           </span>
         }
-        description="Ficha 360° do pneu: estado na fotografia oficial do Rodopar, dados brutos do relatório, linha do tempo, fotografias anteriores, consertos e vistorias de campo."
+        description="Ficha 360° do pneu: situação atual na base oficial (Rodopar), croqui do veículo, dados brutos do relatório, linha do tempo, histórico de dados, consertos e vistorias de campo."
         context={
           <>
-            <PageHeaderContext label="Última fotografia">{formatDate(tire.lastReferenceDate)}</PageHeaderContext>
-            <PageHeaderContext label="Primeira fotografia">{formatDate(tire.firstReferenceDate)}</PageHeaderContext>
+            <PageHeaderContext label="Últimos dados">{formatDate(tire.lastReferenceDate)}</PageHeaderContext>
+            <PageHeaderContext label="Primeiros dados">{formatDate(tire.firstReferenceDate)}</PageHeaderContext>
             {current?.licensePlate || current?.fleetNumber ? (
               <PageHeaderContext label="Veículo">
                 {[current.licensePlate, current.fleetNumber].filter(Boolean).join(" · ")}
@@ -85,10 +89,10 @@ export function TireSheetView({ sheet, basePath }: { sheet: TireSheet; basePath:
       <PageContent className="flex flex-col gap-5">
         {absent || outdated ? (
           <Alert variant="warning" data-testid="tires-sheet-absent-alert">
-            <AlertTitle>{absent ? `Ausente do Rodopar desde ${formatDate(tire.absentSince)}` : "Fora da fotografia mais recente"}</AlertTitle>
+            <AlertTitle>{absent ? `Ausente do Rodopar desde ${formatDate(tire.absentSince)}` : "Fora dos dados mais recentes"}</AlertTitle>
             <AlertDescription>
-              Os dados abaixo são da última fotografia em que o pneu apareceu ({formatDate(tire.lastReferenceDate)})
-              {outdated ? `; a fotografia oficial mais recente é de ${formatDate(sheet.latestReferenceDate)}` : ""}.
+              Os dados abaixo são da última data em que o pneu apareceu ({formatDate(tire.lastReferenceDate)})
+              {outdated ? `; a base oficial (Rodopar) mais recente é de ${formatDate(sheet.latestReferenceDate)}` : ""}.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -99,7 +103,7 @@ export function TireSheetView({ sheet, basePath }: { sheet: TireSheet; basePath:
             <AlertDescription>
               O pneu atende ao critério de alerta de ressolagem dos Parâmetros vigentes
               {current.rodoparCondition ? ` (condição no Rodopar: ${current.rodoparCondition})` : ""}. É um alerta operacional para
-              avaliação: não muda a situação do pneu nem a fotografia oficial.
+              avaliação: não muda a situação do pneu nem a base oficial.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -138,7 +142,7 @@ export function TireSheetView({ sheet, basePath }: { sheet: TireSheet; basePath:
               </dl>
             </Panel>
 
-            <Panel title="Dados do Rodopar" meta={`fotografia de ${formatDate(rodopar.referenceDate)}`} data-testid="tires-sheet-rodopar">
+            <Panel title="Dados do Rodopar" meta={`dados de ${formatDate(rodopar.referenceDate)}`} data-testid="tires-sheet-rodopar">
               <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
                 <Fact label="Situação (bruta)">{rodopar.rodoparStatusRaw ?? "—"}</Fact>
                 <Fact label="Status">{rodopar.rodoparStatusLabel ?? "—"}</Fact>
@@ -165,13 +169,23 @@ export function TireSheetView({ sheet, basePath }: { sheet: TireSheet; basePath:
           </div>
         </div>
 
+        {current?.vehicleId ? (
+          <VehiclePositions
+            vehicleId={current.vehicleId}
+            vehicleName={[current.licensePlate, current.fleetNumber].filter(Boolean).join(" · ") || "veículo"}
+            positionCode={current.positionCode}
+            tireId={tire.id}
+            referenceDate={current.referenceDate}
+          />
+        ) : null}
+
         <Tabs defaultValue="timeline" className="flex flex-col gap-4">
           <TabsList aria-label="Histórico do pneu">
             <TabsTrigger value="timeline" count={sheet.events.length} data-testid="tires-sheet-tab-timeline">
               Linha do tempo
             </TabsTrigger>
             <TabsTrigger value="snapshots" count={sheet.snapshots.length} data-testid="tires-sheet-tab-snapshots">
-              Fotografias
+              Histórico de dados
             </TabsTrigger>
             <TabsTrigger value="repairs" count={sheet.repairs.length} data-testid="tires-sheet-tab-repairs">
               Consertos
@@ -247,6 +261,99 @@ export function TireSheetError({ message, basePath }: { message: string; basePat
 }
 
 // ---------------------------------------------------------------------------
+// Pneus e posições do veículo (croqui, lido sob demanda)
+// ---------------------------------------------------------------------------
+type VehicleLoad =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "done"; data: TireVehicleSummary | null }
+  | { status: "error"; error: string };
+
+function VehiclePositions({ vehicleId, vehicleName, positionCode, tireId, referenceDate }: {
+  vehicleId: string;
+  vehicleName: string;
+  positionCode: string | null;
+  tireId: string;
+  referenceDate: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [load, setLoad] = React.useState<VehicleLoad>({ status: "idle" });
+  const bodyId = React.useId();
+
+  const fetchSummary = () => {
+    setLoad({ status: "loading" });
+    loadVehicleTireSummary(vehicleId).then(
+      (r) => setLoad(r.ok ? { status: "done", data: r.data ?? null } : { status: "error", error: r.error ?? "Não foi possível ler os pneus do veículo." }),
+      () => setLoad({ status: "error", error: "Não foi possível falar com o servidor. Verifique a conexão e tente de novo." }),
+    );
+  };
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    if (next && (load.status === "idle" || load.status === "error")) fetchSummary();
+  };
+
+  const data = load.status === "done" ? load.data : null;
+  const tires = data?.tires ?? [];
+  // abre já no pneu desta ficha, se ele ainda estiver nessa posição nos dados do veículo
+  const here = positionCode && tires.some((t) => t.tireId === tireId && t.positionCode === positionCode) ? positionCode : null;
+
+  return (
+    <Panel
+      title="Pneus e posições do veículo"
+      meta={vehicleName}
+      data-testid="tires-sheet-vehicle"
+      actions={
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          onClick={toggle}
+          trailingIcon={open ? <ChevronUp aria-hidden /> : <ChevronDown aria-hidden />}
+          data-testid="tires-sheet-croqui-toggle"
+        >
+          {open ? "Ocultar" : "Ver pneus e posições"}
+        </Button>
+      }
+    >
+      {open ? (
+        <div id={bodyId} className="flex flex-col gap-3">
+          {load.status === "loading" || load.status === "idle" ? (
+            <LoadingState label="Carregando pneus do veículo…" />
+          ) : load.status === "error" ? (
+            <ErrorState variant="inline" title="Não foi possível ler os pneus do veículo" description={load.error} onRetry={fetchSummary} />
+          ) : !data || data.empty ? (
+            <p className="text-caption text-fg-muted">Este veículo não está nos dados de pneus visíveis para você.</p>
+          ) : (
+            <>
+              <p className="text-caption text-fg-muted">
+                Situação atual do veículo na base oficial (Rodopar), dados de {formatDate(data.referenceDate)}
+                {data.referenceDate && data.referenceDate !== referenceDate ? ` · esta ficha mostra o pneu nos dados de ${formatDate(referenceDate)}` : ""}.
+                {here ? " O pneu desta ficha já vem selecionado." : ""}
+              </p>
+              <VehicleCroqui
+                positions={data.positions ?? []}
+                positionsScope="vehicle"
+                layout={croquiLayout(data.layout)}
+                tires={tires}
+                defaultSelected={here}
+                label={`Croqui dos pneus de ${vehicleName}: posições`}
+              />
+            </>
+          )}
+        </div>
+      ) : (
+        <p id={bodyId} className="text-caption text-fg-muted">
+          Croqui do veículo visto de cima, com cada posição, o Nº Fogo montado e a criticidade{positionCode ? `; este pneu está na posição ${positionCode}` : ""}.
+        </p>
+      )}
+    </Panel>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Estado atual
 // ---------------------------------------------------------------------------
 function SubBlock({ title, children, className, testId }: { title: string; children: React.ReactNode; className?: string; testId?: string }) {
@@ -287,8 +394,8 @@ function CurrentPanel({ sheet, className }: { sheet: TireSheet; className?: stri
       <Panel title="Estado atual" className={className} data-testid="tires-sheet-current">
         <EmptyState
           size="sm"
-          title="Sem avaliação na fotografia"
-          description="A rotina não devolveu a avaliação deste pneu na última fotografia em que ele aparece."
+          title="Sem avaliação nos dados"
+          description="A rotina não devolveu a avaliação deste pneu na última data em que ele aparece nos dados."
         />
       </Panel>
     );
@@ -297,7 +404,7 @@ function CurrentPanel({ sheet, className }: { sheet: TireSheet; className?: stri
   const context = [c.operationName, c.cityName ? `${c.cityName}${c.stateUf ? `/${c.stateUf}` : ""}` : c.stateUf, c.brCode].filter(Boolean).join(" · ");
   const flags = c.qualityFlags ?? [];
   return (
-    <Panel title="Estado atual" meta={`fotografia de ${formatDate(c.referenceDate)}`} className={className} data-testid="tires-sheet-current">
+    <Panel title="Estado atual" meta={`dados de ${formatDate(c.referenceDate)}`} className={className} data-testid="tires-sheet-current">
       <div className="flex flex-col gap-4">
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
           <Fact label="Veículo">
@@ -532,7 +639,7 @@ function Timeline({ events }: { events: TireSheet["events"] }) {
                   {eventTypeLabel(e.eventType)}
                 </StatusBadge>
                 <span className="text-caption tabular-nums text-fg-muted">
-                  Fotografia de {formatDate(e.referenceDate)} · {SOURCE_LABEL[e.source] ?? e.source}
+                  Dados de {formatDate(e.referenceDate)} · {SOURCE_LABEL[e.source] ?? e.source}
                 </span>
               </div>
               {changes.length ? (
@@ -563,12 +670,12 @@ function Timeline({ events }: { events: TireSheet["events"] }) {
 }
 
 // ---------------------------------------------------------------------------
-// Fotografias
+// Histórico de dados (cada data dos dados Rodopar em que o pneu aparece)
 // ---------------------------------------------------------------------------
 function Snapshots({ snapshots }: { snapshots: TireSheet["snapshots"] }) {
   if (snapshots.length === 0) {
     return (
-      <EmptyState variant="panel" size="sm" icon={<Camera />} title="Nenhuma fotografia" description="As fotografias do Rodopar em que o pneu aparece ficam aqui." />
+      <EmptyState variant="panel" size="sm" icon={<Database />} title="Nenhum dado anterior" description="As datas dos dados Rodopar em que o pneu aparece ficam aqui." />
     );
   }
   const chrono = [...snapshots].reverse();
@@ -583,10 +690,10 @@ function Snapshots({ snapshots }: { snapshots: TireSheet["snapshots"] }) {
             values={chrono.map((s) => s.treadMin)}
             width={180}
             height={40}
-            ariaLabel={`Sulco mínimo nas fotografias: de ${fmtMm(first.treadMin)} em ${formatDate(first.referenceDate)} a ${fmtMm(last.treadMin)} em ${formatDate(last.referenceDate)}`}
+            ariaLabel={`Sulco mínimo ao longo dos dados: de ${fmtMm(first.treadMin)} em ${formatDate(first.referenceDate)} a ${fmtMm(last.treadMin)} em ${formatDate(last.referenceDate)}`}
           />
           <p className="text-caption text-fg-secondary">
-            Sulco mínimo nas fotografias:{" "}
+            Sulco mínimo ao longo dos dados:{" "}
             <span className="font-medium tabular-nums text-fg">{fmtMm(first.treadMin)}</span> em {formatDate(first.referenceDate)} →{" "}
             <span className="font-medium tabular-nums text-fg">{fmtMm(last.treadMin)}</span> em {formatDate(last.referenceDate)}
           </p>
@@ -596,7 +703,7 @@ function Snapshots({ snapshots }: { snapshots: TireSheet["snapshots"] }) {
         <Table className="text-caption">
           <TableHeader>
             <TableRow>
-              <TableHead>Fotografia</TableHead>
+              <TableHead>Data dos dados</TableHead>
               <TableHead>Situação</TableHead>
               <TableHead>Veículo</TableHead>
               <TableHead>Posição</TableHead>
@@ -726,7 +833,7 @@ function Inspections({ inspections, fireNumber, basePath }: { inspections: TireS
     <div className="flex flex-col gap-3" data-testid="tires-sheet-inspections">
       <Alert variant="info">
         <AlertDescription>
-          Vistoria de campo é leitura cega feita no aplicativo e nunca altera a fotografia oficial do Rodopar. A conciliação mostra se a
+          Vistoria de campo é leitura cega feita no aplicativo e nunca altera a base oficial (Rodopar). A conciliação mostra se a
           medição já chegou ao Rodopar numa importação posterior.
         </AlertDescription>
       </Alert>

@@ -4,7 +4,7 @@ import { TiresView } from "@/app/(app)/frota/pneus/tires-view";
 import { loadTiresTab } from "@/lib/tires/loaders";
 import { getTiresFilterOptions } from "@/lib/tires/queries";
 import { tiresFixtureStore } from "@/lib/tires/rpc";
-import { TIRES_PERMISSION_CODES, TIRES_TABS, tiresVisibleTabs, type TiresPerms, type TiresTab } from "@/lib/tires/types";
+import { TIRES_PERMISSION_CODES, resolveTiresTab, tiresVisibleTabs, type TiresPerms } from "@/lib/tires/types";
 import { firstParam, parseTiresFilters, tiresFiltersPayload, type SearchParamsLike } from "@/lib/tires/url";
 import { tiresPreviewResolver } from "./preview-data";
 
@@ -37,8 +37,7 @@ export default async function PreviewTiresPage({ searchParams }: { searchParams:
     Object.entries(TIRES_PERMISSION_CODES).map(([key, code]) => [key, granted.includes(code)]),
   ) as unknown as TiresPerms;
   const tabs = tiresVisibleTabs(perms);
-  const requested = firstParam(params, "aba") as TiresTab | undefined;
-  const tab: TiresTab = requested && (TIRES_TABS as readonly string[]).includes(requested) && tabs.includes(requested) ? requested : tabs[0];
+  const tab = resolveTiresTab(firstParam(params, "aba"), tabs);
   const filters = parseTiresFilters(params);
   const orgId = "00000000-0000-0000-0000-000000000000";
 

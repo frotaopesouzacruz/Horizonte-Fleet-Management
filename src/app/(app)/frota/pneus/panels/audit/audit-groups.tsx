@@ -52,7 +52,7 @@ export function AuditGroups({ data, ctx }: { data: TiresAuditCenter; ctx: TiresP
     <Section
       title={`Inconsistências abertas por ${what}`}
       description={`Contagem dos achados abertos com os filtros globais${data.filters.category || data.filters.severity ? ", a categoria e a gravidade escolhidas" : ""}. ${hint}`}
-      testId={`${TID}-groups-section`}
+      testId={`${TID}-groups`}
       actions={
         <label className="flex items-center gap-2">
           <span className="text-caption font-medium whitespace-nowrap text-fg-secondary">Agrupar por</span>
@@ -81,7 +81,7 @@ export function AuditGroups({ data, ctx }: { data: TiresAuditCenter; ctx: TiresP
           testId={`${TID}-groups-empty`}
         />
       ) : (
-        <TableContainer stickyHeader maxHeight={440} data-testid={`${TID}-groups`} data-group-by={groupBy}>
+        <TableContainer stickyHeader maxHeight={440} data-testid={`${TID}-groups-table`} data-group-by={groupBy}>
           <Table>
             <TableHeader>
               <TableRow>
@@ -134,7 +134,7 @@ export function AuditGroups({ data, ctx }: { data: TiresAuditCenter; ctx: TiresP
                           <span className="min-w-0 font-medium text-fg">
                             {name}
                             {g.key === "—" ? (
-                              <span className="block text-caption font-normal text-fg-muted">sem cadastro — corrija no Cadastro de Frotas</span>
+                              <span className="block text-caption font-normal text-fg-muted">cadastro ausente — sem filtro global para este grupo</span>
                             ) : null}
                           </span>
                         )}

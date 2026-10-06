@@ -1,7 +1,6 @@
 "use client";
 
 import { CheckCircle2, X } from "lucide-react";
-import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -43,25 +42,25 @@ export function AuditFindings({ data, ctx }: { data: TiresAuditCenter; ctx: Tire
           datas dos dados em que a regra apontou o problema.
         </>
       }
-      actions={
-        <>
-          <SegmentedControl
-            aria-label="Situação dos achados"
-            value={f.status}
-            disabled={ctx.pending}
-            onValueChange={(v) => ctx.navigate({ achado: v === "aberta" ? null : v, pagina: null })}
-            options={STATUS_OPTIONS.map((s) => ({ value: s, label: AUDIT_STATUS_LABEL[s], "data-testid": `${TID}-status-${s}` }))}
-            data-testid={`${TID}-status`}
-          />
-          <ExportButton
-            ctx={ctx}
-            kind="qualidade"
-            extra={{ categoria: f.category, regra: f.rule, gravidade: f.severity, achado: f.status === "aberta" ? null : f.status }}
-            testId={`${TID}-export`}
-          />
-        </>
-      }
     >
+      <div className="flex flex-wrap items-center justify-between gap-2" data-testid={`${TID}-toolbar`}>
+        <SegmentedControl
+          aria-label="Situação dos achados"
+          value={f.status}
+          disabled={ctx.pending}
+          onValueChange={(v) => ctx.navigate({ achado: v === "aberta" ? null : v, pagina: null })}
+          options={STATUS_OPTIONS.map((s) => ({ value: s, label: AUDIT_STATUS_LABEL[s], "data-testid": `${TID}-status-${s}` }))}
+          data-testid={`${TID}-status`}
+        />
+        <ExportButton
+          ctx={ctx}
+          kind="qualidade"
+          extra={{ categoria: f.category, regra: f.rule, gravidade: f.severity, achado: f.status === "aberta" ? null : f.status }}
+          label="Exportar achados (XLSX)"
+          testId={`${TID}-export`}
+        />
+      </div>
+
       {chips.length ? (
         <div className="flex flex-wrap items-center gap-2" data-testid={`${TID}-active-filters`}>
           <span className="text-caption text-fg-muted">Filtrando a lista por:</span>
@@ -75,7 +74,7 @@ export function AuditFindings({ data, ctx }: { data: TiresAuditCenter; ctx: Tire
                 className="inline-flex items-center gap-1 rounded-sm border border-border-emphasis/70 bg-primary-soft px-2 py-0.5 text-caption font-medium text-primary-soft-fg hover:border-primary hfm-focus-ring"
                 data-testid={`${TID}-filter-chip`}
               >
-                <span className="text-fg-muted">{c.label}:</span> {c.value}
+                <span className="font-normal">{c.label}:</span> {c.value}
                 <X className="size-3" aria-hidden />
                 <span className="sr-only"> — remover este filtro</span>
               </a>
@@ -210,7 +209,7 @@ function FindingRow({ row: r }: { row: TireAuditFinding }) {
           {r.status === "resolvida" ? "Resolvida" : "Aberta"}
         </StatusBadge>
         {r.status === "resolvida" ? (
-          <span className={cn("mt-0.5 block text-caption text-fg-muted tabular-nums")}>em {formatStamp(r.resolvedAt)}</span>
+          <span className="mt-0.5 block text-caption text-fg-muted tabular-nums">em {formatStamp(r.resolvedAt)}</span>
         ) : null}
       </TableCell>
     </TableRow>
