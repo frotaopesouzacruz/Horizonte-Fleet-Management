@@ -1,5 +1,5 @@
 import { clsx, type ClassValue } from "clsx";
-import { extendTailwindMerge } from "tailwind-merge";
+import { extendTailwindMerge, validators } from "tailwind-merge";
 
 /**
  * The product uses a named typographic scale (`text-body`, `text-h1`, …) instead
@@ -40,7 +40,10 @@ const FONT_SIZES = [
 const twMerge = extendTailwindMerge({
   override: {
     classGroups: {
-      "font-size": [{ text: [...FONT_SIZES] }],
+      // Tamanhos arbitrários (`text-[0.625rem]`) também são tamanho: sem eles
+      // aqui, o merge os arquivava como cor e os descartava ao lado de
+      // `text-fg-muted` — o texto voltava para 16px.
+      "font-size": [{ text: [...FONT_SIZES, validators.isArbitraryLength, validators.isArbitraryVariableLength] }],
     },
   },
 });

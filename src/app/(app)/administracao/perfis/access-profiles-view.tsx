@@ -91,6 +91,7 @@ const MODULE_LABELS: Record<string, string> = {
   mtsr: "Gestão de MTSR",
   applications: "Aplicativos",
   km: "Gestão de KM Rodado",
+  tires: "Gestão de Pneus",
 };
 
 const moduleLabel = (module: string) => MODULE_LABELS[module] ?? module;

@@ -234,6 +234,15 @@ export const navigation: NavGroup[] = [
         icon: Route,
         permission: "km.view",
       },
+      {
+        // Gestão de Pneus: fotografia oficial do Rodopar 10 (base geral,
+        // aderência de medição e calibragem, cronograma), vistorias de campo
+        // recebidas, serviços e qualidade. Saiu de "Módulos futuros".
+        label: "Gestão de Pneus",
+        href: "/frota/pneus",
+        icon: CircleDot,
+        permission: "tires.view",
+      },
     ],
   },
   {
@@ -324,13 +333,20 @@ export const navigation: NavGroup[] = [
         icon: ShieldCheck,
         permission: "applications.view",
       },
+      {
+        // Leitura cega por posição do diagrama de eixos; não altera a base
+        // oficial (vai para revisão e conciliação com o próximo Rodopar).
+        label: "Vistoria de Pneus",
+        href: "/aplicativos/vistoria-pneus",
+        icon: CircleDot,
+        permission: "applications.view",
+      },
     ],
   },
   {
     id: "future",
     label: "Módulos futuros",
     items: [
-      { label: "Pneus", href: "/pneus", icon: CircleDot, planned: true },
       { label: "Abastecimento", href: "/abastecimento", icon: Fuel, planned: true },
       { label: "Multas", href: "/multas", icon: ShieldAlert, planned: true },
       { label: "Relatórios", href: "/relatorios", icon: BarChart3, planned: true },

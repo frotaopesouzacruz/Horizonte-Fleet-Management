@@ -50,6 +50,7 @@ import type { VehicleBrHistory, VehicleBrRow } from "@/lib/governance/brs";
 import { VehicleMaintenanceHistory } from "@/components/maintenance/vehicle-maintenance-history";
 import { VehicleActionPlans } from "@/components/action-plans/vehicle-action-plans";
 import { VehicleMtsr } from "@/components/mtsr/vehicle-mtsr";
+import { VehicleTires } from "@/components/tires/vehicle-tires";
 import { useOperationGeography } from "./use-operation-geography";
 import { formatDate, formatPlate } from "./fleet-view";
 
@@ -142,6 +143,8 @@ export function VehicleDetailDrawer({
   const canViewActionPlans = can("action_plans.view");
   // Segurança › Gestão de MTSR: situação do veículo (a tratativa é na ficha MTSR).
   const canViewMtsr = can("mtsr.view");
+  // Gestão de Frota › Gestão de Pneus: fotografia oficial do veículo (consulta).
+  const canViewTires = can("tires.view");
 
   /**
    * The Fidelização tab loads only when it is first shown for this vehicle
@@ -251,6 +254,7 @@ export function VehicleDetailDrawer({
                 {canViewMaintenance ? <TabsTrigger value="manutencao">Manutenção</TabsTrigger> : null}
                 {canViewActionPlans ? <TabsTrigger value="planos-acao">Planos de ação</TabsTrigger> : null}
                 {canViewMtsr ? <TabsTrigger value="mtsr">MTSR</TabsTrigger> : null}
+                {canViewTires ? <TabsTrigger value="pneus">Pneus</TabsTrigger> : null}
                 <TabsTrigger value="historico">Histórico</TabsTrigger>
               </TabsList>
 
@@ -391,6 +395,14 @@ export function VehicleDetailDrawer({
               {canViewMtsr && vehicleId ? (
                 <TabsContent value="mtsr" className="flex flex-col gap-4">
                   <VehicleMtsr vehicleId={vehicleId} />
+                </TabsContent>
+              ) : null}
+
+              {/* ------------------------------------------------ pneus ---- */}
+              {/* Consulta pelo id do veículo; tratar é na Gestão de Pneus. */}
+              {canViewTires && vehicleId ? (
+                <TabsContent value="pneus" className="flex flex-col gap-4">
+                  <VehicleTires vehicleId={vehicleId} />
                 </TabsContent>
               ) : null}
 
