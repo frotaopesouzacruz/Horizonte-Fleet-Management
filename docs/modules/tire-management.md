@@ -94,8 +94,8 @@ nunca como 0.
 ## 3. Telas (abas pela permissão)
 
 O cabeçalho (título, abas, filtros e a origem dos dados — "Dados de dd/mm" e
-"Atualizado … · SharePoint/envio manual") fica **fixo ao rolar** (a partir de
-tablets; no celular rola com a página) e fica enxuto quando fixado.
+"Atualizado … · SharePoint/envio manual") segue o padrão das demais telas do
+sistema e rola com a página.
 
 | Aba | Permissão | Conteúdo |
 |---|---|---|

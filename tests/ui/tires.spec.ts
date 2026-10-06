@@ -9,7 +9,7 @@ import AxeBuilder from "@axe-core/playwright";
  * gravadas em fixtures (dados gerados numa base local a partir do Rodopar 10
  * real, capturas semanais de KPI, varredura da auditoria e execuções de
  * sincronização pelas próprias rotinas). O que se prova aqui é a
- * APRESENTAÇÃO: abas por permissão, cabeçalho fixo, filtros em cascata,
+ * APRESENTAÇÃO: abas por permissão, filtros em cascata,
  * seções recolhíveis, agrupamentos, croqui, evolução, auditoria e
  * sincronização, sem zero de fachada e sem o termo antigo "fotografia". As
  * regras (conformidade, prazos, PSI por regra, capturas imutáveis,
@@ -115,32 +115,23 @@ test.describe("gestão de pneus", () => {
     expect(await page.getByTestId("tires-param-save").count()).toBe(0);
   });
 
-  test("cabeçalho fixo: título, abas e filtros ficam visíveis ao rolar (desktop) e o título compacta", async ({ page }) => {
+  test("o cabeçalho segue o padrão do sistema: rola com a página, sem ficar preso", async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 800 });
     await page.goto(`${PREVIEW}?aba=visao-geral`);
-    const header = page.getByTestId("tires-sticky-header");
-    await expect(header).toBeVisible();
-    await expect(header).not.toHaveAttribute("data-stuck", /.*/);
+    const title = page.getByRole("heading", { name: "Gestão de Pneus", level: 1 });
+    await expect(title).toBeInViewport();
+    expect(
+      await title.evaluate((el) => {
+        for (let n: Element | null = el; n && n !== document.body; n = n.parentElement) {
+          if (["sticky", "fixed"].includes(getComputedStyle(n).position)) return n.getAttribute("data-slot") ?? n.tagName;
+        }
+        return null;
+      }),
+      "nenhum contêiner do título fica preso",
+    ).toBeNull();
     await page.mouse.wheel(0, 1600);
-    await expect(header).toHaveAttribute("data-stuck", "true");
-    const box = await header.boundingBox();
-    // preso logo abaixo da barra superior (--topbar-height, em px)
-    const topbarPx = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--topbar-height")) || 0);
-    expect(box, "cabeçalho na tela").not.toBeNull();
-    expect(Math.abs((box?.y ?? -999) - topbarPx)).toBeLessThanOrEqual(2);
-    await expect(header.getByRole("heading", { name: "Gestão de Pneus", level: 1 })).toBeInViewport();
-    await expect(header.getByTestId("tires-tab-base")).toBeInViewport();
-    await expect(header.getByTestId("tires-filter-operation")).toBeInViewport();
-    // o conteúdo passa por baixo: o cabeçalho fica acima na pilha
-    const z = await header.evaluate((el) => Number(getComputedStyle(el).zIndex));
-    expect(z).toBeGreaterThan(0);
-  });
-
-  test("no celular o cabeçalho não fica preso (não rouba a altura da tela)", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`${PREVIEW}?aba=visao-geral`);
-    const header = page.getByTestId("tires-sticky-header");
-    expect(await header.evaluate((el) => getComputedStyle(el).position)).not.toBe("sticky");
+    await expect(title).not.toBeInViewport();
+    await expect(page.getByTestId("tires-filter-operation")).not.toBeInViewport();
   });
 
   test("filtros em cascata: Operação → Local → Liderança, chips e limpar", async ({ page }) => {

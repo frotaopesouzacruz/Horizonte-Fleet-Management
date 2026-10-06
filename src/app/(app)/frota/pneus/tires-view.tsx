@@ -54,7 +54,7 @@ const TAB_OWNED_PARAMS = [
  * SharePoint sincronizada para `tire_daily_snapshots`), avaliada no banco. O
  * estado vive na URL (aba, filtros, página, gaveta); a tela não decide nada —
  * cada ação chama uma rotina do banco, que confere permissão e escopo e grava
- * a trilha. O cabeçalho (título, abas e filtros) fica fixo ao rolar.
+ * a trilha.
  */
 export function TiresView({ data }: { data: TiresViewData }) {
   const router = useRouter();
@@ -92,17 +92,6 @@ export function TiresView({ data }: { data: TiresViewData }) {
   const d = data.tabData as TiresTabData[TiresTab] | null;
   const filterFields = FILTERED[tab];
 
-  // cabeçalho fixo: ao rolar, fica enxuto (sem descrição) e ganha borda
-  const sentinel = React.useRef<HTMLDivElement>(null);
-  const [stuck, setStuck] = React.useState(false);
-  React.useEffect(() => {
-    const el = sentinel.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
-    const io = new IntersectionObserver(([entry]) => setStuck(!entry.isIntersecting), { rootMargin: "-56px 0px 0px 0px" });
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-
   const current = data.options?.referenceDates[0] ?? null;
   const shown = data.filters.reference
     ? data.options?.referenceDates.find((r) => r.referenceDate === data.filters.reference) ?? null
@@ -116,17 +105,9 @@ export function TiresView({ data }: { data: TiresViewData }) {
 
   return (
     <Tabs value={tab} onValueChange={switchTab} className="gap-0" data-testid="tires-view">
-      <div ref={sentinel} aria-hidden className="h-0" />
-      <div
-        data-slot="sticky-page-header"
-        data-stuck={stuck || undefined}
-        data-testid="tires-sticky-header"
-        className="bg-background/95 transition-shadow duration-(--duration-base) supports-[backdrop-filter]:bg-background/85 supports-[backdrop-filter]:backdrop-blur md:sticky md:top-(--topbar-height) md:z-(--z-page-header) data-[stuck]:border-b data-[stuck]:border-border data-[stuck]:shadow-sm"
-      >
       <PageHeader
         eyebrow="Gestão de Frota"
         title="Gestão de Pneus"
-        compact={stuck}
         description="Pneus em uso, saúde do sulco, pressão e prazos de medição e calibragem a partir da base oficial Rodopar (SharePoint), com conformidade, evolução dos indicadores, auditoria dos dados e vistorias de campo."
         context={
           shown ? (
@@ -165,7 +146,6 @@ export function TiresView({ data }: { data: TiresViewData }) {
           ) : undefined
         }
       />
-      </div>
 
       <PageContent className="flex flex-col gap-5">
         <div aria-busy={pending} className={pending ? "opacity-70 transition-opacity" : "transition-opacity"}>

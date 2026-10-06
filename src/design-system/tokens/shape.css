@@ -95,8 +95,6 @@
      estivesse aberto na página; então pôr o menu acima do modal não cria o
      problema inverso. O toast continua por cima de tudo, porque ele avisa sobre
      o que acabou de acontecer inclusive dentro de um modal. */
-  /* cabeçalho de página fixo (abas + filtros): abaixo da topbar e de tudo que sobrepõe */
-  --z-page-header: 15;
   --z-topbar: 20;
   --z-sidebar: 30;
   --z-overlay: 50;
