@@ -67,7 +67,7 @@ export function PositionsSection({ catalog, canManage, onDone }: { catalog: Tire
       {unknown.length > 0 ? (
         <Alert variant="warning" data-testid="tires-position-unknown">
           <AlertTitle>
-            {fmtInt(unknown.length)} {unknown.length === 1 ? "código de posição da fotografia sem cadastro" : "códigos de posição da fotografia sem cadastro"}
+            {fmtInt(unknown.length)} {unknown.length === 1 ? "código de posição dos dados atuais sem cadastro" : "códigos de posição dos dados atuais sem cadastro"}
           </AlertTitle>
           <AlertDescription>
             <span className="block">Sem cadastro, a posição não entra no diagrama nem nas regras por eixo.</span>
@@ -90,7 +90,7 @@ export function PositionsSection({ catalog, canManage, onDone }: { catalog: Tire
       {inactiveInUse.length > 0 ? (
         <Alert variant="warning" data-testid="tires-position-inactive-in-use">
           <AlertDescription>
-            Posições inativas com pneus na fotografia: {inactiveInUse.map((p) => `${p.code} (${fmtInt(observed.get(p.code))})`).join(", ")}.
+            Posições inativas com pneus nos dados atuais: {inactiveInUse.map((p) => `${p.code} (${fmtInt(observed.get(p.code))})`).join(", ")}.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -105,7 +105,7 @@ export function PositionsSection({ catalog, canManage, onDone }: { catalog: Tire
                 <h3 className="text-card-title font-semibold text-fg">Esquema com todas as posições ativas</h3>
                 <p className="text-body-sm text-fg-muted">
                   Desenhado só com o dicionário: eixos da frente para trás, rodado duplo com externo por fora, estepe e posições de centro à parte. O número em
-                  cada pneu é a quantidade de pneus nessa posição na fotografia{catalog.latestReferenceDate ? ` de ${formatDate(catalog.latestReferenceDate)}` : ""}.
+                  cada pneu é a quantidade de pneus nessa posição nos dados{catalog.latestReferenceDate ? ` de ${formatDate(catalog.latestReferenceDate)}` : " atuais"}.
                 </p>
                 {canManage ? <p className="text-body-sm text-fg-muted">Toque num pneu para editar a posição.</p> : null}
                 <dl className="mt-1 grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4 lg:grid-cols-2">
@@ -129,7 +129,7 @@ export function PositionsSection({ catalog, canManage, onDone }: { catalog: Tire
                     label="Todas as posições ativas"
                     state={(a) => {
                       const n = observed.get(a.code);
-                      return { caption: n == null ? "—" : fmtInt(n), srText: n == null ? "sem pneus na fotografia" : `${fmtInt(n)} pneus na fotografia` };
+                      return { caption: n == null ? "—" : fmtInt(n), srText: n == null ? "sem pneus nos dados atuais" : `${fmtInt(n)} pneus nos dados atuais` };
                     }}
                     onSelect={canManage ? (code) => setEditing({ position: byCode.get(code) ?? null }) : undefined}
                     testIdPrefix="tires-position-tire"
@@ -149,7 +149,7 @@ export function PositionsSection({ catalog, canManage, onDone }: { catalog: Tire
                   <TableHead>Rótulo</TableHead>
                   <TableHead>Eixo</TableHead>
                   <TableHead>Lado · rodado</TableHead>
-                  <TableHead numeric>Pneus na fotografia</TableHead>
+                  <TableHead numeric>Pneus nos dados atuais</TableHead>
                   <TableHead numeric>Layouts</TableHead>
                   <TableHead>Situação</TableHead>
                   {canManage ? <TableHead><span className="sr-only">Ações</span></TableHead> : null}
@@ -378,7 +378,7 @@ function PositionDialog({
                     {inLayouts.length > 0
                       ? `Está em ${fmtInt(inLayouts.length)} ${inLayouts.length === 1 ? "layout" : "layouts"} (${inLayouts.join(", ")}): esses layouts só poderão ser salvos de novo sem ela. `
                       : ""}
-                    {tiresHere > 0 ? `${fmtInt(tiresHere)} ${tiresHere === 1 ? "pneu está" : "pneus estão"} nesta posição na fotografia.` : ""}
+                    {tiresHere > 0 ? `${fmtInt(tiresHere)} ${tiresHere === 1 ? "pneu está" : "pneus estão"} nesta posição nos dados atuais.` : ""}
                   </AlertDescription>
                 </Alert>
               ) : null}

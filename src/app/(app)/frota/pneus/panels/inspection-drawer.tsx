@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { transitionTireInspection, type Result } from "@/lib/tires/actions";
 import {
   DIVERGENCE_LABEL, DIVERGENCE_TONE, fmtInt, fmtMm, fmtNum, formatDate, formatStamp, INSPECTION_STATUS_LABEL, INSPECTION_STATUS_TONE,
-  LAYOUT_SOURCE_LABEL, SYNC_LABEL, SYNC_TONE,
+  LAYOUT_SOURCE_LABEL, modernTerms, SYNC_LABEL, SYNC_TONE,
   type DivergenceType, type InspectionStatus, type TireInspectionDetail, type TireInspectionItem,
 } from "@/lib/tires/types";
 import type { TiresPanelContext } from "../shared";
@@ -31,7 +31,7 @@ import { Fact, FireLink, PlateLink, plural, ReasonDialog } from "./tires-ui";
  * congelada no envio e as divergências calculadas pelo banco. As decisões
  * oferecidas são exatamente as que a rotina devolve em `transitions` (com
  * `canReview`); `tire_inspection_transition` confere permissão, escopo e
- * regra de estado e grava a trilha. Nada aqui altera a fotografia oficial.
+ * regra de estado e grava a trilha. Nada aqui altera a base oficial (Rodopar).
  */
 export function InspectionDrawer({
   openId, loading, detail, detailError, onClose, onOpen, ctx,
@@ -157,7 +157,7 @@ const DECISIONS: Partial<Record<InspectionStatus, Decision>> = {
     required: false,
     title: (p) => `Aprovar a vistoria ${p}?`,
     description:
-      "As leituras foram conferidas e devem ser lançadas no Rodopar. A base geral de pneus NÃO muda agora: a próxima importação do Rodopar concilia cada posição e a vistoria passa a sincronizada quando os valores chegarem.",
+      "As leituras foram conferidas e devem ser lançadas no Rodopar. A base geral de pneus NÃO muda agora: a próxima sincronização do Rodopar concilia cada posição e a vistoria passa a sincronizada quando os valores chegarem.",
     confirmLabel: "Aprovar",
     success: "Vistoria aprovada — aguardando lançamento no Rodopar",
     testId: "tires-inspection-approve",
@@ -170,7 +170,7 @@ const DECISIONS: Partial<Record<InspectionStatus, Decision>> = {
     required: true,
     title: (p) => `Retornar a vistoria ${p} para nova medição?`,
     description:
-      "A vistoria volta ao campo com o motivo e a liderança responsável pela operação é alertada. Uma nova medição do veículo substitui esta. Nada muda na fotografia oficial.",
+      "A vistoria volta ao campo com o motivo e a liderança responsável pela operação é alertada. Uma nova medição do veículo substitui esta. Nada muda na base oficial (Rodopar).",
     confirmLabel: "Retornar para nova medição",
     success: "Vistoria retornada para nova medição — liderança alertada",
     testId: "tires-inspection-return",
@@ -184,7 +184,7 @@ const DECISIONS: Partial<Record<InspectionStatus, Decision>> = {
     title: (p) => `Confirmar manualmente o lançamento da vistoria ${p}?`,
     description: (
       <>
-        A sincronização normal é <strong>automática</strong>: a próxima importação do Rodopar confere cada posição e encerra a vistoria. Use a
+        A sincronização normal é <strong>automática</strong>: a próxima sincronização do Rodopar confere cada posição e encerra a vistoria. Use a
         confirmação manual só como exceção, quando o lançamento já foi verificado no Rodopar por outro meio. Informe como o lançamento foi
         confirmado — fica na trilha de auditoria.
       </>
@@ -221,7 +221,7 @@ const genericDecision = (to: InspectionStatus): Decision => ({
   testId: `tires-inspection-to-${to}`,
 });
 
-const SOURCE_LABEL: Record<string, string> = { user: "Usuário", import: "Importação Rodopar", system: "Sistema" };
+const SOURCE_LABEL: Record<string, string> = { user: "Usuário", import: "Sincronização Rodopar", system: "Sistema" };
 
 // ---------------------------------------------------------------------------
 // Conteúdo
@@ -266,7 +266,7 @@ function DrawerInner({
         <Alert variant="info" icon={<Info />} data-testid="tires-inspection-blind-note">
           <AlertTitle>Leitura cega de campo</AlertTitle>
           <AlertDescription>
-            A vistoria não altera a fotografia oficial; a conciliação acontece na próxima importação do Rodopar.
+            A vistoria não altera a base oficial (Rodopar); a conciliação acontece na próxima sincronização do Rodopar.
           </AlertDescription>
         </Alert>
 
@@ -294,8 +294,8 @@ function DrawerInner({
             {d.startedAt ? <Fact label="Iniciada em">{formatStamp(d.startedAt)}</Fact> : null}
             <Fact label="Realizada em">{formatStamp(d.inspectedAt)}</Fact>
             <Fact label="Enviada em">{formatStamp(d.submittedAt)}</Fact>
-            <Fact label="Fotografia de referência">
-              {d.referenceSnapshotDate ? `Rodopar de ${formatDate(d.referenceSnapshotDate)}` : "Sem fotografia oficial"}
+            <Fact label="Dados de referência">
+              {d.referenceSnapshotDate ? `Rodopar de ${formatDate(d.referenceSnapshotDate)}` : "Sem dados oficiais"}
             </Fact>
             <Fact label="Origem do layout">{LAYOUT_SOURCE_LABEL[d.layoutSource] ?? d.layoutSource}</Fact>
           </dl>
@@ -320,7 +320,7 @@ function DrawerInner({
               {d.syncedBatchId && ctx.perms.import ? (
                 <Fact label="Lote que sincronizou">
                   <Link
-                    href={`${ctx.basePath}?aba=importacao&lote=${d.syncedBatchId}`}
+                    href={`${ctx.basePath}?aba=sincronizacao&lote=${d.syncedBatchId}`}
                     className="rounded-xs text-link underline-offset-2 hover:underline hfm-focus-ring"
                   >
                     Abrir o lote
@@ -379,7 +379,7 @@ function DrawerInner({
           <div className="flex flex-col gap-1">
             <h3 id="tires-insp-items" className="text-h4 font-semibold text-fg">Posições: leitura × referência Rodopar</h3>
             <p className="text-caption text-fg-muted">
-              Referência oficial congelada no envio (fotografia de {formatDate(d.referenceSnapshotDate)}). Divergências calculadas pelo banco com as
+              Referência oficial congelada no envio (dados de {formatDate(d.referenceSnapshotDate)}). Divergências calculadas pelo banco com as
               tolerâncias vigentes. Sulcos em mm.
             </p>
           </div>
@@ -640,7 +640,7 @@ function ItemCard({ item }: { item: TireInspectionItem }) {
               <StatusBadge status={DIVERGENCE_TONE[div.type] ?? "neutral"} size="sm" className="shrink-0">
                 {DIVERGENCE_LABEL[div.type] ?? div.type}
               </StatusBadge>
-              <span className="min-w-0 text-fg-secondary">{div.detail}</span>
+              <span className="min-w-0 text-fg-secondary">{modernTerms(div.detail)}</span>
             </li>
           ))}
         </ul>
@@ -654,7 +654,7 @@ function ItemCard({ item }: { item: TireInspectionItem }) {
           {item.observation}
         </p>
       ) : null}
-      {item.syncNote ? <p className="text-caption text-fg-muted">Conciliação: {item.syncNote}</p> : null}
+      {item.syncNote ? <p className="text-caption text-fg-muted">Conciliação: {modernTerms(item.syncNote)}</p> : null}
     </li>
   );
 }
@@ -668,7 +668,7 @@ function syncSummary(r: Record<string, unknown> | null | undefined): string | nu
     return `Lançamento confirmado manualmente${note}`;
   }
   const parts: string[] = [];
-  if (typeof r.referenceDate === "string") parts.push(`Fotografia Rodopar de ${formatDate(r.referenceDate)}`);
+  if (typeof r.referenceDate === "string") parts.push(`Dados Rodopar de ${formatDate(r.referenceDate)}`);
   const synced = n("synced");
   const persistent = n("persistent");
   const pending = n("pending");

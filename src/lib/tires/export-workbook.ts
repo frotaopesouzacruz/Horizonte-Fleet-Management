@@ -380,19 +380,19 @@ export interface FilterItem {
 }
 
 const GLOBAL_LABEL: Record<keyof TiresFilters, string> = {
-  reference: "Fotografia",
+  reference: "Data dos dados",
   operation: "Operação",
   state: "UF",
-  city: "Local",
+  city: "Local de operação",
   br: "BR",
   leader: "Liderança",
   unit: "Filial",
   vehicleType: "Tipo de equipamento",
-  vehicle: "Veículo",
+  vehicle: "Frota",
   status: "Situação do pneu",
-  brand: "Marca",
+  brand: "Fabricante",
   model: "Modelo",
-  dimension: "Dimensão",
+  dimension: "Medida",
   life: "Vida",
   position: "Posição",
   tread: "Sulco",
@@ -402,6 +402,9 @@ const GLOBAL_LABEL: Record<keyof TiresFilters, string> = {
   severity: "Severidade",
   quality: "Qualidade",
   retread: "Ressolagem",
+  conformity: "Conformidade geral",
+  calConformity: "Conformidade de calibragem",
+  missing: "Sem operação/local/liderança",
   q: "Busca",
 };
 const ALL_GLOBAL = Object.keys(TIRES_FILTER_PARAM) as (keyof TiresFilters)[];

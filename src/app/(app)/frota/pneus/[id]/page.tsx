@@ -8,7 +8,7 @@ import { TireSheetError, TireSheetView } from "./tire-sheet-view";
 export const metadata: Metadata = {
   title: "Ficha do pneu",
   description:
-    "Ficha 360° do pneu: estado na fotografia oficial do Rodopar, dados brutos do relatório, linha do tempo, fotografias, consertos e vistorias de campo.",
+    "Ficha 360° do pneu: situação atual na base oficial (Rodopar), dados brutos do relatório, linha do tempo, dados por data, consertos e vistorias de campo.",
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -17,8 +17,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * Gestão de Frota › Gestão de Pneus › Ficha do pneu.
  *
  * A rota confere `tires.view`; a rotina `tire_sheet` roda sob o cliente da
- * própria pessoa (RLS e escopo pelo veículo/operação da última fotografia do
- * pneu). Pneu inexistente e pneu fora do escopo recebem a mesma resposta
+ * própria pessoa (RLS e escopo pelo veículo/operação dos dados mais recentes
+ * do pneu). Pneu inexistente e pneu fora do escopo recebem a mesma resposta
  * (404): confirmar que um Nº Fogo existe já é informação sobre a frota.
  */
 export default async function TireSheetPage({ params }: { params: Promise<{ id: string }> }) {

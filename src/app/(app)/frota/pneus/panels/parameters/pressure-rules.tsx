@@ -110,7 +110,7 @@ export function PressureRulesSection({ catalog, canManage, onDone }: { catalog: 
       {gaps.length > 0 ? (
         <Alert variant="danger" data-testid="tires-psi-gaps">
           <AlertTitle>
-            {fmtInt(gaps.length)} {gaps.length === 1 ? "dimensão da fotografia sem nenhuma regra vigente" : "dimensões da fotografia sem nenhuma regra vigente"} ·{" "}
+            {fmtInt(gaps.length)} {gaps.length === 1 ? "dimensão dos dados atuais sem nenhuma regra vigente" : "dimensões dos dados atuais sem nenhuma regra vigente"} ·{" "}
             {fmtInt(gapTires)} {gapTires === 1 ? "pneu" : "pneus"}
           </AlertTitle>
           <AlertDescription>
@@ -121,11 +121,11 @@ export function PressureRulesSection({ catalog, canManage, onDone }: { catalog: 
 
       <Card data-testid="tires-psi-coverage">
         <CardHeader
-          title="Cobertura das dimensões da fotografia"
+          title="Cobertura das dimensões dos dados atuais"
           description={
             catalog.latestReferenceDate
-              ? `Dimensões presentes na fotografia de ${formatDate(catalog.latestReferenceDate)}. Coberta = há regra vigente hoje para todos os tipos e posições daquela dimensão.`
-              : "Nenhuma fotografia confirmada ainda: não há dimensões observadas."
+              ? `Dimensões presentes nos dados de ${formatDate(catalog.latestReferenceDate)}. Coberta = há regra vigente hoje para todos os tipos e posições daquela dimensão.`
+              : "Nenhum dado oficial confirmado ainda: não há dimensões observadas."
           }
         />
         <CardContent>
@@ -552,7 +552,7 @@ function RuleDialog({
               ? "Campo vazio vale para todos. A regra mais específica vence quando mais de uma se aplica ao pneu."
               : state.mode === "edit"
                 ? "Corrige esta regra (os valores anteriores ficam na trilha de auditoria). Para mudar valores a partir de uma data mantendo o histórico, use “Nova vigência”."
-                : `Encerra a regra atual (${scopeSummary}) na véspera da data escolhida e abre uma nova com os valores abaixo. As fotografias anteriores continuam avaliadas com a regra antiga.`}
+                : `Encerra a regra atual (${scopeSummary}) na véspera da data escolhida e abre uma nova com os valores abaixo. Os dados anteriores continuam avaliados com a regra antiga.`}
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="flex flex-col gap-5">
@@ -573,14 +573,14 @@ function RuleDialog({
                       ))}
                     </NativeSelect>
                   </FormField>
-                  <FormField label="Dimensão" helperText="Entre parênteses, pneus na fotografia mais recente.">
+                  <FormField label="Dimensão" helperText="Entre parênteses, pneus nos dados mais recentes.">
                     <NativeSelect value={form.dimensionChoice} onChange={(e) => set("dimensionChoice", e.target.value)} data-testid="tires-psi-dimension">
                       <option value="">Todas as dimensões</option>
                       {dimensionOptions.map((d) => {
                         const n = observedTires.get(d.key);
                         return (
                           <option key={d.key} value={d.key}>
-                            {d.label} ({n == null ? "sem pneus na fotografia" : `${fmtInt(n)} ${n === 1 ? "pneu" : "pneus"}`})
+                            {d.label} ({n == null ? "sem pneus nos dados atuais" : `${fmtInt(n)} ${n === 1 ? "pneu" : "pneus"}`})
                           </option>
                         );
                       })}

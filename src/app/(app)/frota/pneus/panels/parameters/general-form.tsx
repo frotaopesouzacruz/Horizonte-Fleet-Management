@@ -22,7 +22,7 @@ import { dayBefore, numberError, numberText, parseNumber, useParamAction, type N
  * VIGENTES do banco — nenhum número fixo na tela. Salvar envia só o que mudou
  * e a rotina `tire_save_parameters` versiona: no mesmo dia corrige a versão de
  * hoje; em outro dia encerra a vigente ontem e abre uma nova a partir de hoje.
- * Fotografias de datas anteriores seguem avaliadas com a versão da sua data.
+ * Dados de datas anteriores seguem avaliados com a versão da sua data.
  */
 type NumKey =
   | "measurementOkDays" | "measurementWarningDays" | "calibrationOkDays" | "calibrationWarningDays"
@@ -88,35 +88,35 @@ const GROUPS: GroupDef[] = [
   {
     id: "importacao",
     layout: "list",
-    title: "Validação da importação",
+    title: "Validação dos dados recebidos",
     description: "Limites técnicos do arquivo do Rodopar 10 e do aplicativo de vistoria: valor fora deles é tratado como erro de digitação, não como leitura.",
     fields: [
       { key: "maxValidTreadMm", label: "Sulco máximo válido", short: "Sulco máximo válido", unit: "mm", ...MM(999.99) },
       { key: "maxValidPsi", label: "PSI máximo válido", short: "PSI máximo válido", unit: "PSI", ...MM(9999.99) },
-      { key: "futureDateToleranceDays", label: "Tolerância de data futura", short: "Tolerância de data futura", unit: "dias", ...DAYS(0, 30), help: "Datas de medição/calibragem além disso, à frente da data da fotografia, são erro." },
+      { key: "futureDateToleranceDays", label: "Tolerância de data futura", short: "Tolerância de data futura", unit: "dias", ...DAYS(0, 30), help: "Datas de medição/calibragem além disso, à frente da data dos dados, são erro." },
       { key: "treadMinDivergenceToleranceMm", label: "Tolerância menor sulco informado × calculado", short: "Tolerância menor sulco", unit: "mm", ...MM(99.99, false), help: "Diferença aceita entre o menor sulco do Rodopar e o menor dos sulcos 1 a 4." },
-      { key: "staleUpdateDays", label: "Atualização desatualizada após", short: "Desatualizado após", unit: "dias", ...DAYS(1, 3650), help: "Pneu sem nova medição ou calibragem há mais tempo que isso é apontado na qualidade de dados." },
+      { key: "staleUpdateDays", label: "Atualização desatualizada após", short: "Desatualizado após", unit: "dias", ...DAYS(1, 3650), help: "Pneu sem nova medição ou calibragem há mais tempo que isso é apontado na Auditoria dos dados." },
     ],
   },
   {
     id: "vistorias",
     layout: "list",
     title: "Vistorias de campo",
-    description: "Comparação cega da vistoria com a fotografia oficial (a vistoria nunca altera a base) e os prazos de tratamento.",
+    description: "Comparação cega da vistoria com a base oficial (Rodopar) — a vistoria nunca altera a base — e os prazos de tratamento.",
     fields: [
       { key: "inspectionTreadToleranceMm", label: "Tolerância de sulco", short: "Tolerância sulco (vistoria)", unit: "mm", ...MM(99.99, false) },
       { key: "inspectionPsiTolerance", label: "Tolerância de PSI", short: "Tolerância PSI (vistoria)", unit: "PSI", ...MM(999.99, false) },
       { key: "reviewSlaDays", label: "SLA de revisão", short: "SLA de revisão", unit: "dias", ...DAYS(0, 365), help: "Prazo para revisar uma vistoria recebida." },
-      { key: "rodoparSyncSlaDays", label: "SLA de sincronização com o Rodopar", short: "SLA de sincronização", unit: "dias", ...DAYS(0, 365), help: "Prazo para a correção aparecer numa fotografia importada." },
+      { key: "rodoparSyncSlaDays", label: "SLA de sincronização com o Rodopar", short: "SLA de sincronização", unit: "dias", ...DAYS(0, 365), help: "Prazo para a correção aparecer nos dados sincronizados do Rodopar." },
     ],
   },
   {
     id: "consertos",
     layout: "list",
     title: "Consertos",
-    description: "Ao registrar um conserto pelo Nº Fogo, o veículo é resolvido pela fotografia mais próxima da data do serviço.",
+    description: "Ao registrar um conserto pelo Nº Fogo, o veículo é resolvido pelos dados do Rodopar mais próximos da data do serviço.",
     fields: [
-      { key: "repairResolutionMaxAgeDays", label: "Idade máxima da fotografia", short: "Idade máx. da fotografia (consertos)", unit: "dias", ...DAYS(1, 365), help: "Fotografia mais antiga que isso, em relação à data do serviço, não resolve o veículo do conserto." },
+      { key: "repairResolutionMaxAgeDays", label: "Idade máxima dos dados", short: "Idade máx. dos dados (consertos)", unit: "dias", ...DAYS(1, 365), help: "Dados mais antigos que isso, em relação à data do serviço, não resolvem o veículo do conserto." },
     ],
   },
 ];
@@ -330,7 +330,7 @@ function ParametersForm({ catalog, canManage, onDone }: { catalog: TiresCatalog;
                 {sameDay
                   ? "Esta versão começou hoje: salvar corrige esta mesma versão (a anterior não muda)."
                   : `Salvar encerra esta versão em ${formatDate(dayBefore(catalog.today))} e abre uma nova a partir de hoje (${formatDate(catalog.today)}).`}{" "}
-                Fotografias de datas anteriores continuam avaliadas com a versão vigente na sua data.
+                Dados de datas anteriores continuam avaliados com a versão vigente na sua data.
               </span>
             ) : null}
           </AlertDescription>

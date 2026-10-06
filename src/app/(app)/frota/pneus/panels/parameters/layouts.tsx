@@ -37,7 +37,7 @@ export function LayoutsSection({ catalog, canManage, onDone }: { catalog: TiresC
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-[100ch] text-body-sm text-fg-muted">
           {fmtInt(layouts.length)} {layouts.length === 1 ? "layout" : "layouts"}. O layout define quais posições o veículo tem: a vistoria pede exatamente essas
-          posições e a qualidade aponta posição sem pneu ou pneu fora do layout.
+          posições e a Auditoria dos dados aponta posição sem pneu ou pneu fora do layout.
         </p>
         {canManage ? (
           <Button size="sm" variant="primary" leadingIcon={<Plus />} onClick={() => setEditing({ layout: null })} data-testid="tires-layout-new">
@@ -50,7 +50,7 @@ export function LayoutsSection({ catalog, canManage, onDone }: { catalog: TiresC
         <PanelEmpty
           icon={<LayoutGrid />}
           title="Nenhum layout cadastrado"
-          description="Sem layout, o veículo usa as posições em que há pneus na fotografia."
+          description="Sem layout, o veículo usa as posições em que há pneus nos dados atuais."
           testId="tires-layout-empty"
         />
       ) : (

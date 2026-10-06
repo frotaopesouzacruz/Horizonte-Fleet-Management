@@ -33,7 +33,7 @@ const APP_KEYS = (key: string) =>
  *     revisor — destaque na lista de frotas, nota na medição e "Refazer";
  *   - `falha`: o primeiro envio "chega" ao banco mas a resposta se perde; o
  *     reenvio usa a mesma chave e recebe o mesmo protocolo (`duplicate`);
- *   - `sem-foto`: nenhuma fotografia oficial importada ainda;
+ *   - `sem-foto`: a base oficial (Rodopar) ainda não recebeu nenhum dado;
  *   - `indisponivel`: aplicativo inativo na organização.
  */
 export default async function TiresAppPreviewPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {

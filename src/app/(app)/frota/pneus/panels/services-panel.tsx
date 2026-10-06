@@ -26,7 +26,7 @@ import {
   OPEN_STATUSES, STATUS_LABEL as MAINTENANCE_STATUS_LABEL, STATUS_TONE as MAINTENANCE_STATUS_TONE, typeLabel, type MaintenanceStatus,
 } from "@/lib/maintenance/types";
 import {
-  CONFIDENCE_LABEL, fmt1, fmtInt, formatDate, formatStamp, RESOLUTION_LABEL, SERVICE_KIND_LABEL, STATUS_LABEL, TIRES_FILTER_PARAM,
+  CONFIDENCE_LABEL, fmt1, fmtInt, formatDate, formatStamp, modernTerms, RESOLUTION_LABEL, SERVICE_KIND_LABEL, STATUS_LABEL, TIRES_FILTER_PARAM,
   type RepairResolution, type ServiceKind, type TireFilterOptions, type TireMaintenanceServiceRow, type TireRepairRow,
   type TireRepairSuggestion, type TiresMaintenanceServices, type TiresRepairsList,
 } from "@/lib/tires/types";
@@ -39,7 +39,7 @@ import {
  * Gestão de Pneus → Serviços.
  *
  * Consertos: registro por Nº Fogo; o veículo da data do serviço é resolvido
- * pelo banco (fotografia da data → fotografia anterior → movimentação →
+ * pelo banco (dados da data → dados anteriores → movimentação →
  * não resolvido; nunca a placa atual). Troca manual exige motivo; cancelar
  * exige motivo e nada é apagado. Sem custo nem valor nesta etapa.
  *
@@ -163,7 +163,7 @@ function RepairsSection({ list, ctx }: { list: TiresRepairsList; ctx: TiresPanel
     <Section
       title="Consertos por Nº Fogo"
       testId={`${TID}-repairs`}
-      description="O veículo de cada conserto é o da data do serviço, resolvido pela fotografia oficial (nunca a placa atual). Consertos não alteram a fotografia nem têm valor nesta etapa."
+      description="O veículo de cada conserto é o da data do serviço, resolvido pela base oficial (Rodopar) daquela data (nunca a placa atual). Consertos não alteram a base oficial nem têm valor nesta etapa."
       actions={
         canManage ? (
           <Button size="sm" leadingIcon={<Plus />} onClick={() => setEditing({ repair: null })} data-testid={`${TID}-repair-new`}>
@@ -180,7 +180,7 @@ function RepairsSection({ list, ctx }: { list: TiresRepairsList; ctx: TiresPanel
           label="Sem veículo resolvido"
           value={fmtInt(k.unresolved)}
           status={k.unresolved > 0 ? "warning" : undefined}
-          period="sem fotografia em uso na data"
+          period="sem dados do pneu em uso na data"
         />
         <TiresKpi kpi="repairs-manual" label="Veículo informado manualmente" value={fmtInt(k.manual)} period="com motivo registrado" />
         <div className="col-span-2 flex min-w-0 flex-col gap-1.5 rounded-lg border border-border bg-surface-raised px-3.5 py-3 shadow-card lg:col-span-1" data-testid="tires-kpi-repairs-types">
@@ -243,7 +243,7 @@ function RepairsSection({ list, ctx }: { list: TiresRepairsList; ctx: TiresPanel
           description={
             anyFilter
               ? "Nenhum conserto corresponde aos filtros. Ajuste o período, a situação ou a busca."
-              : "Nenhum conserto registrado ainda. Registre pelo Nº Fogo: o veículo da data é resolvido pela fotografia oficial."
+              : "Nenhum conserto registrado ainda. Registre pelo Nº Fogo: o veículo da data é resolvido pela base oficial (Rodopar)."
           }
           testId={`${TID}-repairs-none`}
           action={
@@ -277,7 +277,7 @@ function RepairsSection({ list, ctx }: { list: TiresRepairsList; ctx: TiresPanel
               {list.rows.map((r) => {
                 const resolutionNote = [
                   confidenceLabel(r.resolutionConfidence) ? `confiança ${confidenceLabel(r.resolutionConfidence)?.toLowerCase()}` : null,
-                  r.resolutionReferenceDate ? `fotografia de ${formatDate(r.resolutionReferenceDate)}` : null,
+                  r.resolutionReferenceDate ? `dados de ${formatDate(r.resolutionReferenceDate)}` : null,
                 ]
                   .filter(Boolean)
                   .join(" · ");
@@ -432,7 +432,7 @@ function RepairDialog({
           if (alive) setResolved({ key, result });
         },
         () => {
-          if (alive) setResolved({ key, result: { ok: false, error: "A conexão com o servidor caiu ao consultar a fotografia." } });
+          if (alive) setResolved({ key, result: { ok: false, error: "A conexão com o servidor caiu ao consultar a base oficial." } });
         },
       );
     }, 400);
@@ -573,7 +573,7 @@ function RepairDialog({
           <div className="flex flex-col gap-3 rounded-md border border-border p-3">
             <SwitchField
               label="Informar outro veículo"
-              description="Use só quando a fotografia não reflete onde o pneu estava. A troca fica registrada com o motivo."
+              description="Use só quando os dados do Rodopar não refletem onde o pneu estava. A troca fica registrada com o motivo."
               checked={override}
               onCheckedChange={(v) => {
                 setOverride(v);
@@ -650,14 +650,14 @@ function SuggestionCard({ resolution }: { resolution: Resolution }) {
   if (resolution === "loading") {
     return (
       <div className={cn(frame, "border-border bg-surface-sunken text-fg-muted")} aria-live="polite" data-testid={`${TID}-repair-suggestion`} data-state="loading">
-        Consultando a fotografia oficial…
+        Consultando a base oficial (Rodopar)…
       </div>
     );
   }
   if (!resolution.ok || !resolution.data) {
     return (
       <div className={cn(frame, "border-danger-border bg-danger-soft text-danger-soft-fg")} aria-live="polite" data-testid={`${TID}-repair-suggestion`} data-state="error">
-        <span className="font-semibold">Não foi possível consultar a fotografia.</span>
+        <span className="font-semibold">Não foi possível consultar a base oficial.</span>
         <span>{resolution.error ?? "Tente de novo."} O banco resolve o veículo de novo ao salvar.</span>
       </div>
     );
@@ -667,7 +667,7 @@ function SuggestionCard({ resolution }: { resolution: Resolution }) {
     return (
       <div className={cn(frame, "border-warning-border bg-warning-soft text-warning-soft-fg")} aria-live="polite" data-testid={`${TID}-repair-suggestion`} data-state="not-found">
         <span className="font-semibold">Nº Fogo não encontrado no cadastro de pneus.</span>
-        <span>Confira o número exatamente como no Rodopar. Só pneus que já vieram numa fotografia podem receber conserto.</span>
+        <span>Confira o número exatamente como no Rodopar. Só pneus que já vieram nos dados do Rodopar podem receber conserto.</span>
       </div>
     );
   }
@@ -677,7 +677,7 @@ function SuggestionCard({ resolution }: { resolution: Resolution }) {
   const source =
     s?.resolution === "event"
       ? `segundo a movimentação registrada em ${formatDate(s.referenceDate)}`
-      : `segundo a fotografia de ${formatDate(s?.referenceDate)}`;
+      : `segundo os dados de ${formatDate(s?.referenceDate)}`;
   return (
     <div
       className={cn(frame, resolved ? "border-info-border bg-info-soft text-info-soft-fg" : "border-warning-border bg-warning-soft text-warning-soft-fg")}
@@ -697,7 +697,7 @@ function SuggestionCard({ resolution }: { resolution: Resolution }) {
         </span>
       ) : (
         <span>
-          <strong className="font-semibold">Veículo não resolvido na data.</strong> {s?.message ?? ""} Informe o veículo manualmente se souber onde o pneu estava.
+          <strong className="font-semibold">Veículo não resolvido na data.</strong> {modernTerms(s?.message)} Informe o veículo manualmente se souber onde o pneu estava.
         </span>
       )}
       {s ? (
@@ -706,7 +706,7 @@ function SuggestionCard({ resolution }: { resolution: Resolution }) {
           {confidenceLabel(s.confidence) ? (
             <Badge variant="neutral" appearance="outline" size="sm">Confiança {confidenceLabel(s.confidence)?.toLowerCase()}</Badge>
           ) : null}
-          {resolved && s.message ? <span className="text-caption">{s.message}</span> : null}
+          {resolved && s.message ? <span className="text-caption">{modernTerms(s.message)}</span> : null}
         </span>
       ) : null}
     </div>

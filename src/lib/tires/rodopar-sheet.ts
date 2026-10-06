@@ -8,7 +8,7 @@ import type { Cell, Workbook, Worksheet } from "exceljs";
  * Colunas calculadas fora da janela (à esquerda de N.Fogo) são ignoradas e
  * listadas; cabeçalhos desconhecidos dentro da janela também são listados,
  * nunca inventados. Tipagem, limites técnicos, situação canônica, frota,
- * comparação com a fotografia anterior e tudo o mais é decidido no banco
+ * comparação com os dados anteriores e tudo o mais é decidido no banco
  * (`tire_import_*`) — nada daqui é confiado.
  *
  * Regras de fidelidade:

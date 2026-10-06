@@ -19,12 +19,13 @@ export const TIRES_TABS = [
   "base",
   "medicao",
   "calibragem",
+  "evolucao",
   "cronograma",
   "vistorias",
   "servicos",
   "qualidade",
   "historico",
-  "importacao",
+  "sincronizacao",
   "parametros",
 ] as const;
 export type TiresTab = (typeof TIRES_TABS)[number];
@@ -34,12 +35,13 @@ export const TIRES_TAB_LABEL: Record<TiresTab, string> = {
   base: "Base geral",
   medicao: "Aderência MM",
   calibragem: "Aderência calibragem",
+  evolucao: "Evolução dos indicadores",
   cronograma: "Cronograma",
   vistorias: "Vistorias recebidas",
   servicos: "Serviços",
-  qualidade: "Qualidade de dados",
+  qualidade: "Auditoria dos dados",
   historico: "Histórico",
-  importacao: "Importação Rodopar",
+  sincronizacao: "Sincronização Rodopar",
   parametros: "Parâmetros",
 };
 
@@ -94,12 +96,13 @@ export function tiresVisibleTabs(p: TiresPerms): TiresTab[] {
   if (p.base) out.push("base");
   if (p.measurement) out.push("medicao");
   if (p.calibration) out.push("calibragem");
+  if (p.dashboard) out.push("evolucao");
   if (p.schedule) out.push("cronograma");
   if (p.view) out.push("vistorias");
   if (p.servicesView) out.push("servicos");
   if (p.quality) out.push("qualidade");
   if (p.history || p.audit) out.push("historico");
-  if (p.import || p.audit) out.push("importacao");
+  if (p.import || p.audit) out.push("sincronizacao");
   if (p.view) out.push("parametros");
   return out;
 }
@@ -130,11 +133,17 @@ export interface TiresFilters {
   severity?: string;
   quality?: string;
   retread?: string;
+  /** Conformidade Geral dos Pneus: "conforme" | "nao_conforme" (drill-down dos cartões) */
+  conformity?: string;
+  /** Conformidade Geral de Calibragem: "conforme" | "nao_conforme" */
+  calConformity?: string;
+  /** Grupos "sem operação/local/liderança": lista de "operacao", "local", "lideranca" */
+  missing?: string;
   q?: string;
 }
 
 export const TIRES_FILTER_PARAM: Record<keyof TiresFilters, string> = {
-  reference: "foto",
+  reference: "data",
   operation: "operacao",
   state: "uf",
   city: "local",
@@ -156,8 +165,13 @@ export const TIRES_FILTER_PARAM: Record<keyof TiresFilters, string> = {
   severity: "severidade",
   quality: "qualidade",
   retread: "ressolagem",
+  conformity: "conformidade",
+  calConformity: "conf_calibragem",
+  missing: "sem",
   q: "q",
 };
+/** Links antigos usavam `foto` para a data dos dados. */
+export const TIRES_LEGACY_PARAM: Partial<Record<keyof TiresFilters, string>> = { reference: "foto" };
 
 export type TiresNavigate = (patch: Record<string, string | null>) => void;
 
@@ -327,7 +341,7 @@ export const SYNC_TONE: Record<SyncStatus, TiresTone> = {
 };
 
 export const EVENT_TYPE_LABEL: Record<string, string> = {
-  TIRE_CREATED: "Primeira fotografia",
+  TIRE_CREATED: "Primeiro registro",
   TIRE_IMPORTED: "Cadastro atualizado",
   TIRE_MOVED: "Movimentado para outra frota",
   TIRE_POSITION_CHANGED: "Troca de posição",
@@ -373,7 +387,7 @@ export const ISSUE_LABEL: Record<string, string> = {
   psi_invalido: "PSI fora do limite técnico",
   numero_formatado_como_data: "Número gravado como data no Rodopar",
   data_invalida: "Data inválida",
-  data_futura: "Data posterior à fotografia",
+  data_futura: "Data posterior à data de referência",
   km_rodado_invalido: "KM rodado inválido",
   km_real_negativo: "KM Real negativo",
   vida_invalida: "Nº da vida inválido",
@@ -399,13 +413,14 @@ export const issueCode = (code: string) => code.replace(/[A-Z]/g, (c) => `_${c.t
 export const issueLabel = (code: string) => ISSUE_LABEL[code] ?? ISSUE_LABEL[issueCode(code)] ?? code;
 export const ERROR_ISSUES = new Set(["fogo_ausente", "fogo_invalido", "fogo_duplicado", "colisao_posicao"]);
 
-export type ImportBatchStatus = "staging" | "validated" | "blocked" | "confirmed" | "cancelled";
+export type ImportBatchStatus = "staging" | "validated" | "blocked" | "confirmed" | "cancelled" | "superseded";
 export const BATCH_STATUS_LABEL: Record<ImportBatchStatus, string> = {
   staging: "Recebendo linhas",
   validated: "Validado — pronto para confirmar",
   blocked: "Bloqueado",
-  confirmed: "Confirmado (fotografia oficial)",
+  confirmed: "Confirmado (dados oficiais)",
   cancelled: "Descartado",
+  superseded: "Substituído por revisão do mesmo dia",
 };
 export const BATCH_STATUS_TONE: Record<ImportBatchStatus, TiresTone> = {
   staging: "pending",
@@ -413,6 +428,7 @@ export const BATCH_STATUS_TONE: Record<ImportBatchStatus, TiresTone> = {
   blocked: "danger",
   confirmed: "success",
   cancelled: "neutral",
+  superseded: "neutral",
 };
 
 export const CHANGE_LABEL: Record<string, string> = {
@@ -427,8 +443,8 @@ export const CHANGE_LABEL: Record<string, string> = {
 
 export type RepairResolution = "snapshot_exact" | "snapshot_previous" | "event" | "manual" | "unresolved";
 export const RESOLUTION_LABEL: Record<RepairResolution, string> = {
-  snapshot_exact: "Fotografia da própria data",
-  snapshot_previous: "Fotografia anterior",
+  snapshot_exact: "Dados Rodopar da própria data",
+  snapshot_previous: "Dados Rodopar anteriores",
   event: "Movimentação registrada",
   manual: "Informado manualmente",
   unresolved: "Veículo não resolvido",
@@ -452,7 +468,7 @@ export const LAYOUT_SOURCE_LABEL: Record<string, string> = {
   vehicle: "Configuração do veículo",
   vehicle_type: "Padrão do tipo de equipamento",
   inferred: "Inferido pelas posições em uso",
-  snapshot: "Posições da fotografia (sem layout cadastrado)",
+  snapshot: "Posições dos dados Rodopar (sem layout cadastrado)",
 };
 
 // ---------------------------------------------------------------------------
@@ -561,7 +577,7 @@ export interface TiresCatalog {
 }
 
 // ---------------------------------------------------------------------------
-// Linha avaliada da fotografia (private.tire_rows)
+// Linha avaliada dos dados (private.tire_rows)
 // ---------------------------------------------------------------------------
 export interface TireRow {
   snapshotId: string;
@@ -780,7 +796,7 @@ export interface TireOverview {
 }
 
 export interface TireFilterOptions {
-  referenceDates: { referenceDate: string; fileName: string; confirmedAt: string; batchId: string }[];
+  referenceDates: { referenceDate: string; fileName: string; confirmedAt: string; batchId: string; sourceKind?: "upload" | "sharepoint" }[];
   operations: { id: string; name: string }[];
   states: { id: number; uf: string }[];
   cities: { id: number; name: string; stateId: number; uf: string }[];
@@ -788,9 +804,14 @@ export interface TireFilterOptions {
   leaders: { id: string; name: string }[];
   units: { id: string; name: string }[];
   vehicleTypes: { id: string; name: string }[];
-  vehicles: { id: string; plate: string | null; fleet: string | null }[];
+  vehicles: {
+    id: string; plate: string | null; fleet: string | null;
+    operationId?: string | null; cityId?: number | null; leaderId?: string | null; vehicleTypeId?: string | null;
+  }[];
+  /** Combinações reais (operação, local, liderança, tipo) para a cascata dos filtros. */
+  combos?: { operationId: string | null; cityId: number | null; leaderId: string | null; vehicleTypeId: string | null }[];
   brands: string[];
-  models: string[];
+  models: { value: string; brand: string | null }[];
   dimensions: { key: string; label: string }[];
   lives: number[];
   positions: { code: string; label: string }[];
@@ -1748,3 +1769,696 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   service_kind: "Serviço da Manutenção",
   export: "Exportação",
 };
+
+// ===========================================================================
+// Evolução do módulo (v2): conformidade centralizada, Prioridades agrupadas,
+// indicadores gerenciais, Base Geral agrupada, histórico de KPIs, Central de
+// Auditoria dos Dados e Sincronização com o SharePoint. As definições moram no
+// banco (private.tire_*_ok / tire_overall_conform); a tela só apresenta.
+// ===========================================================================
+
+/** Agrupamentos gerenciais (Prioridades, Base Geral por Frota, Auditoria). */
+export type TiresGroupBy = "operation" | "city" | "leader";
+export const GROUP_BY_LABEL: Record<TiresGroupBy, string> = {
+  operation: "Operação",
+  city: "Local de Operação",
+  leader: "Liderança",
+};
+export const GROUP_BY_PARAM: Record<TiresGroupBy, string> = { operation: "operacao", city: "local", leader: "lideranca" };
+export const parseGroupBy = (v: string | undefined | null): TiresGroupBy =>
+  v === "local" ? "city" : v === "lideranca" ? "leader" : "operation";
+
+export type Criticality = "critico" | "alto" | "medio" | "baixo" | "ok";
+export const CRITICALITY_LABEL: Record<Criticality, string> = {
+  critico: "Crítico",
+  alto: "Alto",
+  medio: "Médio",
+  baixo: "Baixo",
+  ok: "Sem pendência",
+};
+export const CRITICALITY_TONE: Record<Criticality, TiresTone> = {
+  critico: "danger",
+  alto: "warning",
+  medio: "info",
+  baixo: "neutral",
+  ok: "success",
+};
+
+/** Motivos de não conformidade (códigos devolvidos pelo banco). */
+export const REASON_LABEL: Record<string, string> = {
+  sulco_abaixo_legal: "Sulco abaixo do legal",
+  sulco_critico: "Sulco crítico",
+  sulco_sem_medicao: "Sem medição de sulco",
+  medicao_vencida: "Medição vencida",
+  medicao_sem_registro: "Sem registro de medição",
+  calibragem_vencida: "Calibragem vencida",
+  calibragem_sem_registro: "Sem registro de calibragem",
+  psi_baixa: "PSI abaixo do mínimo",
+  psi_excesso: "PSI acima do máximo",
+  psi_sem_parametro: "Sem parâmetro de PSI",
+  psi_sem_leitura: "Sem leitura de PSI",
+};
+/** O banco devolve os códigos em snake (lista) ou camel (chaves de objeto). */
+export const reasonLabel = (code: string) => REASON_LABEL[code] ?? REASON_LABEL[issueCode(code)] ?? code;
+
+export interface TireConformityBlock {
+  ok: number;
+  nok: number;
+  pct: number | null;
+}
+
+export interface TireConformity {
+  base: number;
+  tread: TireConformityBlock;
+  measurement: TireConformityBlock;
+  calibration: TireConformityBlock;
+  psi: TireConformityBlock;
+  calibrationConformity: TireConformityBlock & { onTimeBadPsi: number; lateGoodPsi: number; lateBadPsi: number };
+  overall: TireConformityBlock & { oneFailure: number; twoFailures: number; threePlusFailures: number };
+  /** chaves camelizadas dos códigos de REASON_LABEL */
+  reasons: Record<string, number>;
+  criticality: Record<Criticality, number>;
+}
+
+export interface TireOverviewV2Kpis {
+  total: number;
+  emUso: number;
+  foraDaFrota: number;
+  estoque: number;
+  disponiveis: number;
+  emManutencao: number;
+  ressolagem: number;
+  descartado: number;
+  baixado: number;
+  outro: number;
+  inUseWithoutVehicle: number;
+  fleets: number;
+  fleetsCompliant: number;
+  fleetsWithCritical: number;
+  belowLegal: number;
+  critical: number;
+  attention: number;
+  treadUnknown: number;
+  measurementOk: number;
+  measurementDueSoon: number;
+  measurementOverdue: number;
+  measurementMissing: number;
+  calibrationOk: number;
+  calibrationDueSoon: number;
+  calibrationOverdue: number;
+  calibrationMissing: number;
+  psiAdequate: number;
+  psiLow: number;
+  psiHigh: number;
+  psiNoRule: number;
+  psiMissing: number;
+  retreadAlerts: number;
+  qualityIssueTires: number;
+  stale: number;
+  treadAvg: number | null;
+  treadMedian: number | null;
+  movements30d: number;
+  lifeChanges30d: number;
+  absent: number;
+  pctEmUso: number | null;
+  pctEstoque: number | null;
+  measurementCoveragePct: number | null;
+  calibrationCoveragePct: number | null;
+  measurementAdherencePct: number | null;
+  calibrationAdherencePct: number | null;
+  pressureAdequatePct: number | null;
+  qualityScore: number | null;
+  psiRuleGaps: number;
+  inspections: { pendingReview: number; pendingRodopar: number; pendingRodoparOverSla: number; returned: number; persistent: number };
+}
+
+export interface TireProfileItem {
+  key: string;
+  label?: string;
+  count: number;
+  inUse?: number;
+}
+export interface TireWhereItem {
+  /** id do grupo ("—" = sem) */
+  key: string;
+  label: string;
+  count: number;
+  conform: number;
+  critical: number;
+}
+
+/** Origem dos dados exibidos (substitui a antiga "fotografia"). */
+export interface TireDataSource {
+  batchId: string;
+  fileName: string;
+  confirmedAt: string;
+  confirmedByName: string | null;
+  totalRows: number;
+  referenceDate: string;
+  sourceKind: "upload" | "sharepoint";
+  sameDayRevision: boolean;
+}
+
+export interface TireOverviewV2 {
+  empty: boolean;
+  today: string;
+  asOf?: string;
+  referenceDate: string | null;
+  latestReferenceDate?: string | null;
+  previousReferenceDate?: string | null;
+  isLatest?: boolean;
+  source?: TireDataSource | null;
+  parameters?: {
+    measurementOkDays: number; measurementWarningDays: number; calibrationOkDays: number; calibrationWarningDays: number;
+    treadCriticalMm: number; treadAttentionMm: number; staleUpdateDays: number;
+  };
+  kpis?: TireOverviewV2Kpis;
+  conformity?: TireConformity;
+  profile?: { status: TireProfileItem[]; brand: TireProfileItem[]; model: TireProfileItem[]; dimension: TireProfileItem[]; life: TireProfileItem[] };
+  where?: { operation: TireWhereItem[]; city: TireWhereItem[]; leader: TireWhereItem[]; vehicleType: TireWhereItem[] };
+  health?: { treadClass: TireDistItem[]; measurementStatus: TireDistItem[]; calibrationStatus: TireDistItem[]; psiStatus: TireDistItem[] };
+  insights?: TireInsight[];
+}
+
+export interface TirePriorityGroup {
+  id: string | null;
+  key: string;
+  label: string;
+  tires: number;
+  fleets: number;
+  nonconform: number;
+  conformPct: number | null;
+  level: Criticality;
+  critico: number;
+  alto: number;
+  medio: number;
+  baixo: number;
+  treadCritical: number;
+  belowLegal: number;
+  measurementOverdue: number;
+  measurementMissing: number;
+  calibrationOverdue: number;
+  calibrationMissing: number;
+  psiOut: number;
+  psiNoRule: number;
+  multiFailures: number;
+}
+export interface TirePriorityTire {
+  tireId: string;
+  fireNumber: string;
+  vehicleId: string | null;
+  licensePlate: string | null;
+  fleetNumber: string | null;
+  positionCode: string | null;
+  positionLabel: string | null;
+  operationName: string | null;
+  cityName: string | null;
+  stateUf: string | null;
+  leaderName: string | null;
+  treadMin: number | null;
+  treadClass: TreadClass;
+  measurementStatus: DeadlineStatus;
+  measurementDays: number | null;
+  calibrationStatus: DeadlineStatus;
+  calibrationDays: number | null;
+  psi: number | null;
+  psiMin: number | null;
+  psiMax: number | null;
+  psiStatus: PsiStatus;
+  severity: Severity;
+  criticality: Criticality;
+  severityScore: number;
+  reasons: string[];
+}
+export interface TiresPriorities {
+  empty?: boolean;
+  referenceDate: string;
+  asOf: string;
+  groupBy: TiresGroupBy;
+  summary: { groups: number; tires: number; critico: number; alto: number; medio: number; baixo: number };
+  groups: TirePriorityGroup[];
+  groupId: string | null;
+  tiresTotal: number;
+  tires: TirePriorityTire[];
+  limit: number;
+  offset: number;
+}
+
+export type TireIndicatorKey = "tread" | "measurement" | "calibration" | "psi" | "calibration_conformity" | "overall";
+export const INDICATOR_LABEL: Record<TireIndicatorKey, string> = {
+  tread: "Sulco (MM)",
+  measurement: "Prazo de medição",
+  calibration: "Prazo de calibragem",
+  psi: "Pressão (PSI)",
+  calibration_conformity: "Conformidade Geral de Calibragem",
+  overall: "Conformidade Geral dos Pneus",
+};
+/** Situações da distribuição de "Conformidade de calibragem" (prazo × PSI). */
+export const CAL_CONF_LABEL: Record<string, string> = {
+  conforme: "Prazo e PSI OK",
+  prazo_ok_psi_inadequado: "No prazo, PSI inadequado",
+  psi_ok_prazo_vencido: "PSI OK, prazo vencido",
+  prazo_e_psi: "Prazo e PSI fora",
+  nao_conforme: "Não conforme",
+};
+
+export interface TireIndicatorBreakdownItem {
+  id: string | null;
+  label: string;
+  total: number;
+  ok: number;
+  nok: number;
+  pct: number | null;
+  critical: number;
+  outOfRange: number;
+  warning: number;
+  missing: number;
+  avgLate: number | null;
+  maxLate: number | null;
+  avgPsiDevPct: number | null;
+  avgTread: number | null;
+}
+export type TireIndicatorDim = "operation" | "city" | "leader" | "vehicleType" | "dimension";
+export const INDICATOR_DIM_LABEL: Record<TireIndicatorDim, string> = {
+  operation: "Operação",
+  city: "Local de Operação",
+  leader: "Liderança",
+  vehicleType: "Tipo de equipamento",
+  dimension: "Perfil (medida)",
+};
+
+export interface TireIndicatorPendingRow {
+  tireId: string;
+  fireNumber: string;
+  vehicleId: string | null;
+  licensePlate: string | null;
+  fleetNumber: string | null;
+  positionCode: string | null;
+  positionLabel: string | null;
+  positionSort: number;
+  operationName: string | null;
+  cityName: string | null;
+  stateUf: string | null;
+  leaderName: string | null;
+  vehicleTypeName: string | null;
+  brand: string | null;
+  model: string | null;
+  dimension: string | null;
+  treadMin: number | null;
+  tread1: number | null;
+  tread2: number | null;
+  tread3: number | null;
+  tread4: number | null;
+  treadClass: TreadClass;
+  legalTreadMm: number | null;
+  measurementDate: string | null;
+  measurementDays: number | null;
+  measurementStatus: DeadlineStatus;
+  measurementDueDate: string | null;
+  measurementLate: number | null;
+  calibrationDate: string | null;
+  calibrationDays: number | null;
+  calibrationStatus: DeadlineStatus;
+  calibrationDueDate: string | null;
+  calibrationLate: number | null;
+  psi: number | null;
+  psiMin: number | null;
+  psiIdeal: number | null;
+  psiMax: number | null;
+  psiStatus: PsiStatus;
+  psiDev: number | null;
+  psiDevPct: number | null;
+  /** situação no indicador (classe do sulco, prazo, PSI ou combinação) */
+  status: string;
+  reasons: string[];
+  severity: Severity;
+  criticality: Criticality;
+}
+
+export interface TiresIndicator {
+  empty?: boolean;
+  indicator: TireIndicatorKey;
+  referenceDate: string;
+  asOf: string;
+  isLatest: boolean;
+  today: string;
+  parameters: {
+    measurementOkDays: number; measurementWarningDays: number; calibrationOkDays: number; calibrationWarningDays: number;
+    treadCriticalMm: number; treadAttentionMm: number;
+  };
+  kpis: { base: number; ok: number; nok: number; pct: number | null; critical: number; fleetsAffected: number };
+  /** contagem por situação (chaves camelizadas: emDia, proximo, abaixoLegal…) */
+  distribution: Record<string, number>;
+  details: {
+    // sulco
+    avg?: number | null; median?: number | null; min?: number | null; divergent?: number; retreadAlerts?: number;
+    histogram?: { bucket: number; count: number }[];
+    // prazos
+    avgDays?: number | null; maxLate?: number | null; avgLate?: number | null; due7d?: number; due15d?: number;
+    lateBuckets?: { bucket: string; count: number }[]; onTimeBadPsi?: number;
+    // PSI
+    avgDevPct?: number | null; ruleGaps?: number;
+    deviationBuckets?: { bucket: string; side: "below" | "ok" | "above"; count: number }[];
+    gaps?: { vehicleTypeName: string | null; dimension: string | null; positionCode: string | null; tires: number }[];
+    // combinações
+    lateGoodPsi?: number; lateBadPsi?: number;
+    reasons?: Record<string, number>;
+    failures?: Record<string, number>;
+  };
+  breakdowns: Partial<Record<TireIndicatorDim, TireIndicatorBreakdownItem[]>>;
+  status: string | null;
+  pendingTotal: number;
+  pending: TireIndicatorPendingRow[];
+  limit: number;
+  offset: number;
+}
+
+export interface TireBaseGroup {
+  id: string | null;
+  key: string;
+  label: string;
+  fleets: number;
+  tires: number;
+  nonconform: number;
+  conformPct: number | null;
+  critical: number;
+  attention: number;
+  ok: number;
+}
+export interface TiresBaseGroups {
+  empty?: boolean;
+  referenceDate: string;
+  asOf: string;
+  groupBy: TiresGroupBy;
+  groups: TireBaseGroup[];
+}
+
+// ---------------------------------------------------------------------------
+// Histórico de KPIs (Evolução dos indicadores)
+// ---------------------------------------------------------------------------
+export type KpiIndicator =
+  | "overall_conformity" | "calibration_conformity" | "tread_conformity" | "measurement_deadline" | "calibration_deadline"
+  | "psi_conformity" | "data_quality" | "tires_in_use" | "tires_total" | "tread_critical" | "measurement_overdue"
+  | "calibration_overdue" | "psi_out" | "critical_tires";
+export type KpiDimension = "geral" | "operation" | "city" | "leader" | "vehicle_type" | "dimension";
+export const KPI_DIMENSION_LABEL: Record<KpiDimension, string> = {
+  geral: "Geral",
+  operation: "Operação",
+  city: "Local de Operação",
+  leader: "Liderança",
+  vehicle_type: "Tipo de equipamento",
+  dimension: "Perfil (medida)",
+};
+export type KpiPeriod = "semana" | "mes";
+
+export interface KpiCatalogItem {
+  indicator: KpiIndicator;
+  label: string;
+  kind: "pct" | "qty";
+  /** null = neutro (volume) */
+  higherIsBetter: boolean | null;
+}
+export interface KpiSeriesPoint {
+  runId: string;
+  periodKey: string;
+  competence: string;
+  slotAt: string;
+  sourceReferenceDate: string | null;
+  numerator: number | null;
+  denominator: number | null;
+  percentage: number | null;
+  quantity: number | null;
+}
+export interface KpiRun {
+  id: string;
+  trigger: "agendada" | "reprocessamento";
+  periodKind: "dia" | "semana" | "mes";
+  periodKey: string;
+  slotAt: string;
+  competence: string;
+  status: "em_andamento" | "concluida" | "falhou" | "ignorada";
+  startedAt: string;
+  finishedAt: string | null;
+  executedLate: boolean;
+  sourceReferenceDate: string | null;
+  tiresTotal: number | null;
+  tiresInUse: number | null;
+  valuesCount: number;
+  errorMessage: string | null;
+  requestedByName: string | null;
+}
+export interface KpiSchedule {
+  id: string;
+  isActive: boolean;
+  frequency: "daily" | "weekly" | "monthly";
+  weekday: number;
+  monthDay: number;
+  runTime: string;
+  timezone: string;
+  catchUpDays: number;
+  lastSlotAt: string | null;
+  nextSlotAt: string | null;
+}
+export interface TiresKpiHistory {
+  period: KpiPeriod;
+  indicator: KpiIndicator;
+  dimension: KpiDimension;
+  dimensionId: string | null;
+  label: string;
+  kind: "pct" | "qty";
+  higherIsBetter: boolean | null;
+  scoped: boolean;
+  schedule: KpiSchedule | null;
+  catalog: KpiCatalogItem[];
+  series: KpiSeriesPoint[];
+  members: { id: string; label: string; current: number | null; previous: number | null; delta: number | null }[];
+  summary: (KpiCatalogItem & { current: number | null; previous: number | null })[];
+  runs: KpiRun[];
+}
+
+// ---------------------------------------------------------------------------
+// Central de Auditoria dos Dados
+// ---------------------------------------------------------------------------
+export type AuditCategory =
+  | "cadastro" | "duplicidade" | "relacionamento" | "localizacao" | "posicao" | "medicao" | "calibragem" | "datas" | "configuracao" | "historico";
+export const AUDIT_CATEGORY_LABEL: Record<AuditCategory, string> = {
+  cadastro: "Cadastro",
+  duplicidade: "Duplicidade",
+  relacionamento: "Relacionamento",
+  localizacao: "Localização",
+  posicao: "Posição e eixo",
+  medicao: "Medição",
+  calibragem: "Calibragem",
+  datas: "Datas",
+  configuracao: "Configuração",
+  historico: "Histórico",
+};
+export type AuditSeverity = "critica" | "alta" | "media" | "baixa";
+export const AUDIT_SEVERITY_LABEL: Record<AuditSeverity, string> = { critica: "Crítica", alta: "Alta", media: "Média", baixa: "Baixa" };
+export const AUDIT_SEVERITY_TONE: Record<AuditSeverity, TiresTone> = { critica: "danger", alta: "warning", media: "info", baixa: "neutral" };
+export type AuditGroupBy = "rule" | "category" | "severity" | "operation" | "city" | "leader";
+
+export interface TireAuditRule {
+  code: string;
+  category: AuditCategory;
+  severity: AuditSeverity;
+  title: string;
+  description: string;
+  field: string | null;
+  expected: string | null;
+  open: number;
+}
+export interface TireAuditFinding {
+  id: string;
+  ruleCode: string;
+  ruleTitle: string;
+  category: AuditCategory;
+  severity: AuditSeverity;
+  status: "aberta" | "resolvida";
+  tireId: string | null;
+  fireNumber: string | null;
+  vehicleId: string | null;
+  licensePlate: string | null;
+  fleetNumber: string | null;
+  positionCode: string | null;
+  operationName: string | null;
+  cityLabel: string | null;
+  leaderName: string | null;
+  field: string | null;
+  foundValue: string | null;
+  expectedValue: string | null;
+  detail: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  resolvedAt: string | null;
+  firstReferenceDate: string | null;
+  lastReferenceDate: string | null;
+  occurrences: number;
+  reopenedCount: number;
+}
+export interface TireAuditScan {
+  id: string;
+  trigger: "confirmacao" | "agendada" | "manual";
+  referenceDate: string | null;
+  status: "em_andamento" | "concluida" | "falhou";
+  startedAt: string;
+  finishedAt: string | null;
+  opened: number;
+  refreshed: number;
+  resolved: number;
+  openTotal: number;
+  requestedByName: string | null;
+}
+export interface TiresAuditCenter {
+  lastScan: TireAuditScan | null;
+  totalTires: number;
+  kpis: {
+    open: number; records: number; tiresAffected: number; vehiclesAffected: number; pctBase: number | null; critical: number; high: number;
+    new7d: number; resolved30d: number; reopened: number; byCategory: Partial<Record<AuditCategory, number>>; bySeverity: Partial<Record<AuditSeverity, number>>;
+  };
+  rules: TireAuditRule[];
+  groupBy: AuditGroupBy;
+  groups: { key: string; label: string; findings: number; records: number; critica: number; alta: number; media: number; baixa: number }[];
+  filters: { category: string | null; rule: string | null; severity: string | null; status: "aberta" | "resolvida" | "todas" };
+  total: number;
+  rows: TireAuditFinding[];
+  limit: number;
+  offset: number;
+}
+
+// ---------------------------------------------------------------------------
+// Sincronização com a fonte oficial (SharePoint)
+// ---------------------------------------------------------------------------
+export type SyncRunStatus = "em_andamento" | "concluida" | "concluida_com_avisos" | "sem_alteracao" | "bloqueada" | "falhou";
+export const SYNC_RUN_STATUS_LABEL: Record<SyncRunStatus, string> = {
+  em_andamento: "Em andamento",
+  concluida: "Concluída",
+  concluida_com_avisos: "Concluída com avisos",
+  sem_alteracao: "Sem alteração",
+  bloqueada: "Bloqueada",
+  falhou: "Falhou",
+};
+export const SYNC_RUN_STATUS_TONE: Record<SyncRunStatus, TiresTone> = {
+  em_andamento: "progress",
+  concluida: "success",
+  concluida_com_avisos: "warning",
+  sem_alteracao: "neutral",
+  bloqueada: "warning",
+  falhou: "danger",
+};
+export const SYNC_TRIGGER_LABEL: Record<string, string> = { agendada: "Agendada", manual: "Manual", reprocessamento: "Reprocessamento" };
+export const SYNC_STEP_LABEL: Record<string, string> = {
+  conectando: "Conectando",
+  localizando: "Localizando o arquivo",
+  baixando: "Baixando",
+  lendo: "Lendo a planilha",
+  validando_estrutura: "Conferindo a estrutura",
+  enviando: "Enviando as linhas",
+  validando: "Validando e comparando",
+  confirmando: "Aplicando os dados",
+  finalizado: "Finalizado",
+};
+export interface TireSyncSource {
+  id: string;
+  code: string;
+  name: string;
+  provider: string;
+  siteHostname: string;
+  sitePath: string;
+  driveName: string;
+  filePath: string;
+  webUrl: string | null;
+  isActive: boolean;
+  minIntervalMinutes: number;
+  scheduleLabel: string;
+  lastEtag: string | null;
+  lastFileModifiedAt: string | null;
+  lastFileHash: string | null;
+  lastAttemptAt: string | null;
+  lastSuccessAt: string | null;
+  lastChangeAt: string | null;
+  lastStatus: SyncRunStatus | null;
+  lastError: string | null;
+  lastRunId: string | null;
+  consecutiveFailures: number;
+  updatedAt: string;
+}
+export interface TireSyncLogEntry {
+  at: string;
+  level: "info" | "warning" | "error";
+  step: string;
+  message: string;
+}
+export interface TireSyncRun {
+  id: string;
+  trigger: "agendada" | "manual" | "reprocessamento";
+  status: SyncRunStatus;
+  step: string;
+  requestedByName: string | null;
+  reprocessOf: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+  fileName: string | null;
+  fileWebUrl: string | null;
+  fileEtag: string | null;
+  fileLastModified: string | null;
+  fileSize: number | null;
+  fileHash: string | null;
+  referenceDate: string | null;
+  batchId: string | null;
+  sameDayRevision: boolean;
+  structure: { rows?: number; recognizedColumns?: string[]; unrecognizedColumns?: string[]; missingColumns?: string[]; sheetName?: string; error?: string };
+  counters: Partial<Record<"rows" | "valid" | "warnings" | "errors" | "new" | "updated" | "unchanged" | "absent" | "reappeared" | "snapshots" | "events" | "removedInRevision", number>>;
+  errorCode: string | null;
+  errorMessage: string | null;
+  log?: TireSyncLogEntry[];
+}
+export interface TiresSyncOverview {
+  source: TireSyncSource | null;
+  latestReferenceDate: string | null;
+  today: string;
+  currentBatch: {
+    id: string; fileName: string; referenceDate: string; sourceKind: "upload" | "sharepoint"; confirmedAt: string; confirmedByName: string | null;
+    totalRows: number; warningRows: number; newTires: number; updatedTires: number; unchangedTires: number; absentTires: number;
+    reappearedTires: number; supersedesBatchId: string | null; syncRunId: string | null;
+  } | null;
+  openBatch: {
+    id: string; fileName: string; referenceDate: string; status: ImportBatchStatus; sourceKind: "upload" | "sharepoint"; blockReason: string | null;
+    createdAt: string; errorRows: number; warningRows: number; totalRows: number;
+  } | null;
+  running: TireSyncRun | null;
+  stats30d: { runs: number; succeeded: number; unchanged: number; blocked: number; failed: number };
+  total: number;
+  runs: TireSyncRun[];
+  limit: number;
+  offset: number;
+}
+
+export interface TiresDefinitions {
+  parameters: {
+    measurementOkDays: number; measurementWarningDays: number; calibrationOkDays: number; calibrationWarningDays: number;
+    treadCriticalMm: number; treadAttentionMm: number; effectiveFrom: string;
+  };
+  definitions: { key: string; label: string; text: string }[];
+}
+
+/**
+ * Textos gravados antes da mudança de linguagem (trilha de auditoria,
+ * mensagens de lotes antigos) ainda dizem "fotografia". O registro não é
+ * reescrito — só a apresentação usa o termo atual.
+ */
+export function modernTerms(text: string | null | undefined): string {
+  if (!text) return text ?? "";
+  return text
+    .replace(/fotografias oficiais/gi, "dados oficiais")
+    .replace(/(nova )?fotografia oficial( do Rodopar)?/gi, "base oficial (Rodopar)")
+    .replace(/Fotografia Rodopar de (\S+) confirmada/g, "Dados Rodopar de $1 confirmados")
+    .replace(/fotografia Rodopar/gi, "dados Rodopar")
+    .replace(/fotografia anterior/gi, "dados anteriores")
+    .replace(/posterior à fotografia/gi, "posterior à data de referência")
+    .replace(/última fotografia conhecida/gi, "última situação conhecida")
+    .replace(/da fotografia/gi, "dos dados")
+    .replace(/na fotografia/gi, "nos dados")
+    .replace(/fotografias/gi, "dados")
+    .replace(/fotografia/gi, "dados");
+}

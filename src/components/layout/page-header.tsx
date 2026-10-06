@@ -29,6 +29,11 @@ export interface PageHeaderProps extends Omit<React.HTMLAttributes<HTMLDivElemen
    * Pequenos itens abaixo da descrição — use `PageHeaderContext`.
    */
   context?: React.ReactNode;
+  /**
+   * Versão enxuta para cabeçalho fixo já rolado: esconde eyebrow, descrição e
+   * contexto e reduz os espaços — título, abas e filtros continuam à mão.
+   */
+  compact?: boolean;
 }
 
 /**
@@ -52,6 +57,7 @@ export function PageHeader({
   meta,
   eyebrow,
   context,
+  compact = false,
   className,
   ...props
 }: PageHeaderProps) {
@@ -60,28 +66,30 @@ export function PageHeader({
     <div
       data-slot="page-header"
       className={cn(
-        "flex flex-col gap-4 bg-surface-header px-4 pt-5 sm:px-6 sm:pt-6",
-        tabs && !tabsOnTop ? "pb-0" : "pb-4",
+        "flex flex-col bg-surface-header px-4 sm:px-6",
+        compact ? "gap-2 pt-2.5 sm:pt-3" : "gap-4 pt-5 sm:pt-6",
+        tabs && !tabsOnTop ? "pb-0" : compact ? "pb-2.5" : "pb-4",
         className,
       )}
+      data-compact={compact || undefined}
       {...props}
     >
       {breadcrumb ? <div className="-mb-2">{breadcrumb}</div> : null}
 
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
-          {eyebrow && !breadcrumb ? (
+          {eyebrow && !breadcrumb && !compact ? (
             <p className="mb-1.5 flex items-center gap-2 text-overline font-semibold uppercase text-primary-soft-fg">
               <span aria-hidden className="h-3 w-0.5 rounded-full bg-highlight" />
               {eyebrow}
             </p>
           ) : null}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <h1 className="truncate text-page-title font-semibold text-fg">{title}</h1>
+            <h1 className={cn("truncate font-semibold text-fg", compact ? "text-section-title" : "text-page-title")}>{title}</h1>
             {meta}
           </div>
-          {description ? <p className="mt-1.5 max-w-3xl text-body-sm text-fg-secondary">{description}</p> : null}
-          {context ? <div className="mt-2.5 flex flex-wrap items-center gap-2">{context}</div> : null}
+          {description && !compact ? <p className="mt-1.5 max-w-3xl text-body-sm text-fg-secondary">{description}</p> : null}
+          {context && !compact ? <div className="mt-2.5 flex flex-wrap items-center gap-2">{context}</div> : null}
         </div>
 
         {primaryAction || secondaryActions ? (

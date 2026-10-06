@@ -8,15 +8,21 @@ import {
   getTireInspectionsReceived,
   getTireMaintenanceServices,
   getTireRepairs,
-  getTiresAdherence,
   getTiresAudit,
+  getTiresAuditCenter,
   getTiresBase,
+  getTiresBaseGroups,
   getTiresCatalog,
   getTiresEvents,
+  getTiresIndicator,
+  getTiresKpiHistory,
   getTiresOverview,
   getTirePositions,
-  getTiresQuality,
+  getTiresPriorities,
   getTiresSchedule,
+  getTiresSyncOverview,
+  getTireKpiSchedule,
+  getTireSyncSource,
 } from "./queries";
 import type {
   ImportPreviewSection,
@@ -24,9 +30,8 @@ import type {
   TireImportHistory,
   TireImportPreview,
   TireInspectionDetail,
-  TireOverview,
+  TireOverviewV2,
   TirePositionInfo,
-  TiresAdherence,
   TiresAuditList,
   TiresBase,
   TiresBaseView,
@@ -36,11 +41,26 @@ import type {
   TiresInspectionsReceived,
   TiresMaintenanceServices,
   TiresPerms,
-  TiresQuality,
   TiresRepairsList,
   TiresSchedule,
   TiresTab,
+  AuditGroupBy,
+  KpiDimension,
+  KpiIndicator,
+  KpiPeriod,
+  KpiSchedule,
+  TireIndicatorKey,
+  TireSyncSource,
+  TiresAuditCenter,
+  TiresBaseFleet,
+  TiresBaseGroups,
+  TiresGroupBy,
+  TiresIndicator,
+  TiresKpiHistory,
+  TiresPriorities,
+  TiresSyncOverview,
 } from "./types";
+import { parseGroupBy } from "./types";
 import { firstParam, parseBaseSort, parsePage, splitList, type SearchParamsLike } from "./url";
 
 /** O que cada carregador de aba recebe do servidor. */
@@ -69,36 +89,89 @@ export interface TiresHistoryData {
   audit: TiresAuditList | null;
 }
 
-export interface TiresImportData {
+/** Sincronização Rodopar: estado da fonte oficial + histórico de lotes (envio manual = contingência). */
+export interface TiresSyncData {
+  sync: TiresSyncOverview | null;
+  /** Falha ao ler a sincronização (sem permissão de leitura ou erro): o histórico de lotes segue. */
+  syncError: string | null;
   history: TireImportHistory;
   preview: TireImportPreview | null;
   /** Falha ao abrir o lote pedido em `?lote=` (o histórico continua visível). */
   previewError: string | null;
 }
 
+/** Visão Geral + Prioridades agrupadas (`?prioridade=operacao|local|lideranca`, `?grupo=` abre o grupo). */
+export interface TiresOverviewData {
+  overview: TireOverviewV2;
+  priorities: TiresPriorities | null;
+  prioritiesError: string | null;
+}
+
+/** Sub-visões das Aderências (cada uma é um indicador centralizado no banco). */
+export type TiresMeasurementSub = "sulco" | "prazo";
+export type TiresCalibrationSub = "conformidade" | "prazo" | "psi";
+export const MEASUREMENT_SUB_INDICATOR: Record<TiresMeasurementSub, TireIndicatorKey> = { sulco: "tread", prazo: "measurement" };
+export const CALIBRATION_SUB_INDICATOR: Record<TiresCalibrationSub, TireIndicatorKey> = {
+  conformidade: "calibration_conformity",
+  prazo: "calibration",
+  psi: "psi",
+};
+/** Indicador do histórico semanal correspondente a cada indicador gerencial. */
+export const INDICATOR_KPI: Record<TireIndicatorKey, KpiIndicator> = {
+  tread: "tread_conformity",
+  measurement: "measurement_deadline",
+  calibration: "calibration_deadline",
+  psi: "psi_conformity",
+  calibration_conformity: "calibration_conformity",
+  overall: "overall_conformity",
+};
+
+export interface TiresIndicatorData<S extends string = string> {
+  sub: S;
+  indicator: TiresIndicator;
+  /** Série semanal do indicador (Geral) para a evolução no próprio painel; null sem histórico/permite falhar. */
+  history: TiresKpiHistory | null;
+}
+
+/** Base Geral + grupos (Por Frota agrupada) + frotas dos grupos abertos (`?abertos=k1,k2`). */
+export type TiresBaseData = TiresBase & {
+  positions: TirePositionInfo[];
+  /** "nenhum" desliga o agrupamento */
+  groupBy: TiresGroupBy | "nenhum";
+  groups: TiresBaseGroups | null;
+  openGroups: Record<string, TiresBaseFleet>;
+};
+
+export type TiresParametersData = TiresCatalog & { syncSource: TireSyncSource | null; kpiSchedule: KpiSchedule | null };
+
 /** Vistorias recebidas + a vistoria aberta na gaveta (`?vistoria=`), lida no servidor. */
 export type TiresInspectionsData = TiresInspectionsReceived & { detail: TireInspectionDetail | null; detailError: string | null };
 
-/** Base geral + o dicionário de posições (para montar o diagrama de eixos de cada frota). */
-export type TiresBaseData = TiresBase & { positions: TirePositionInfo[] };
-
 export interface TiresTabData {
-  "visao-geral": TireOverview;
+  "visao-geral": TiresOverviewData;
   base: TiresBaseData;
-  medicao: TiresAdherence;
-  calibragem: TiresAdherence;
+  medicao: TiresIndicatorData<TiresMeasurementSub>;
+  calibragem: TiresIndicatorData<TiresCalibrationSub>;
+  evolucao: TiresKpiHistory;
   cronograma: TiresSchedule;
   vistorias: TiresInspectionsData;
   servicos: TiresServicesData;
-  qualidade: TiresQuality;
+  qualidade: TiresAuditCenter;
   historico: TiresHistoryData;
-  importacao: TiresImportData;
-  parametros: TiresCatalog;
+  sincronizacao: TiresSyncData;
+  parametros: TiresParametersData;
 }
 
 const BASE_VIEWS: TiresBaseView[] = ["frota", "fogo", "fora"];
 const WINDOWS: ScheduleWindow[] = ["todos", "vencidos", "hoje", "7d", "15d", "proximos", "sem_medicao", "sem_calibragem"];
-const PENDING = ["all", "vencido", "proximo", "sem_registro", "pressao", "sem_parametro"];
+const KPI_INDICATORS: KpiIndicator[] = [
+  "overall_conformity", "calibration_conformity", "tread_conformity", "measurement_deadline", "calibration_deadline", "psi_conformity",
+  "data_quality", "tires_in_use", "tires_total", "tread_critical", "measurement_overdue", "calibration_overdue", "psi_out", "critical_tires",
+];
+const KPI_DIMENSIONS: KpiDimension[] = ["geral", "operation", "city", "leader", "vehicle_type", "dimension"];
+const AUDIT_GROUPS: AuditGroupBy[] = ["rule", "category", "severity", "operation", "city", "leader"];
+/** Situação pedida na lista de pendências de um indicador (código do banco, sem espaços). */
+const statusParam = (v: string | undefined) => (v && /^[a-z_]{3,40}$/.test(v) ? v : null);
 const SECTIONS: ImportPreviewSection[] = ["issues", "changes", "new", "rows", "absent", "reappeared"];
 const isUuid = (v: string | undefined): v is string => !!v && /^[0-9a-f-]{36}$/i.test(v);
 
@@ -126,27 +199,88 @@ export async function loadTiresTab<T extends TiresTab>(
 ): Promise<{ data: TiresTabData[T] | null; error: string | null }> {
   try {
     const loaders: { [K in TiresTab]: (c: TiresLoadContext) => Promise<TiresTabData[K]> } = {
-      "visao-geral": (c) => getTiresOverview(c.organizationId, c.payload),
+      "visao-geral": async (c) => {
+        const groupBy = parseGroupBy(firstParam(c.params, "prioridade"));
+        const group = firstParam(c.params, "grupo") ?? null;
+        const { limit, offset } = parsePage(c.params, "pagina", 25);
+        const [overview, priorities] = await Promise.all([
+          getTiresOverview(c.organizationId, c.payload),
+          getTiresPriorities(c.organizationId, c.payload, groupBy, group, limit, offset).then(
+            (p) => ({ p, e: null as string | null }),
+            (e: unknown) => ({ p: null, e: e instanceof Error ? e.message : String(e) }),
+          ),
+        ]);
+        return { overview, priorities: priorities.p, prioritiesError: priorities.e };
+      },
       base: async (c) => {
         const v = firstParam(c.params, "visao") as TiresBaseView | undefined;
         const view = v && BASE_VIEWS.includes(v) ? v : "frota";
         const { sort, dir } = parseBaseSort(c.params);
+        const rawGroup = firstParam(c.params, "agrupar");
+        const groupBy: TiresGroupBy | "nenhum" = view !== "frota" || rawGroup === "nenhum" ? "nenhum" : parseGroupBy(rawGroup);
         const { limit, offset } = parsePage(c.params, "pagina", view === "frota" ? 25 : 50);
-        const [base, positions] = await Promise.all([
-          getTiresBase(c.organizationId, c.payload, view, sort, dir, limit, offset),
+        const open = splitList(firstParam(c.params, "abertos")).slice(0, 6);
+        const groupPayload = (key: string): Record<string, Json> => {
+          if (groupBy === "nenhum") return c.payload;
+          const missing = groupBy === "operation" ? "operation" : groupBy === "city" ? "city" : "leader";
+          if (key === "—") return { ...c.payload, null_dims: [missing] };
+          const k = groupBy === "operation" ? "operation_ids" : groupBy === "city" ? "city_ids" : "leader_ids";
+          return { ...c.payload, [k]: [groupBy === "city" ? Number(key) : key] };
+        };
+        const [base, positions, groups, opened] = await Promise.all([
+          groupBy === "nenhum"
+            ? getTiresBase(c.organizationId, c.payload, view, sort, dir, limit, offset)
+            : // agrupado: a página traz só o resumo; as frotas vêm por grupo aberto
+              getTiresBase(c.organizationId, c.payload, view, sort, dir, 1, 0),
           view === "frota" ? getTirePositions(c.organizationId) : Promise.resolve([]),
+          groupBy === "nenhum" ? Promise.resolve(null) : getTiresBaseGroups(c.organizationId, c.payload, groupBy),
+          Promise.all(
+            groupBy === "nenhum"
+              ? []
+              : open.map((key) => getTiresBase(c.organizationId, groupPayload(key), "frota", sort, dir, 50, 0).then((r) => [key, r] as const)),
+          ),
         ]);
-        return { ...base, positions };
+        return {
+          ...base,
+          positions,
+          groupBy,
+          groups,
+          openGroups: Object.fromEntries(opened.map(([k, r]) => [k, r as TiresBaseFleet])),
+        } as TiresBaseData;
       },
-      medicao: (c) => {
-        const p = firstParam(c.params, "pendencia");
+      medicao: async (c) => {
+        const sub = firstParam(c.params, "sub") === "prazo" ? "prazo" : "sulco";
+        const indicator = MEASUREMENT_SUB_INDICATOR[sub];
         const { limit, offset } = parsePage(c.params, "pagina", 50);
-        return getTiresAdherence(c.organizationId, "measurement", c.payload, p && PENDING.includes(p) ? p : "all", limit, offset);
+        const [data, history] = await Promise.all([
+          getTiresIndicator(c.organizationId, indicator, c.payload, statusParam(firstParam(c.params, "pendencia")), limit, offset),
+          c.perms.dashboard ? getTiresKpiHistory(c.organizationId, "semana", INDICATOR_KPI[indicator]).catch(() => null) : Promise.resolve(null),
+        ]);
+        return { sub, indicator: data, history };
       },
-      calibragem: (c) => {
-        const p = firstParam(c.params, "pendencia");
+      calibragem: async (c) => {
+        const raw = firstParam(c.params, "sub");
+        const sub = raw === "prazo" || raw === "psi" ? raw : "conformidade";
+        const indicator = CALIBRATION_SUB_INDICATOR[sub];
         const { limit, offset } = parsePage(c.params, "pagina", 50);
-        return getTiresAdherence(c.organizationId, "calibration", c.payload, p && PENDING.includes(p) ? p : "all", limit, offset);
+        const [data, history] = await Promise.all([
+          getTiresIndicator(c.organizationId, indicator, c.payload, statusParam(firstParam(c.params, "pendencia")), limit, offset),
+          c.perms.dashboard ? getTiresKpiHistory(c.organizationId, "semana", INDICATOR_KPI[indicator]).catch(() => null) : Promise.resolve(null),
+        ]);
+        return { sub, indicator: data, history };
+      },
+      evolucao: (c) => {
+        const period: KpiPeriod = firstParam(c.params, "periodo") === "mes" ? "mes" : "semana";
+        const ind = firstParam(c.params, "indicador") as KpiIndicator | undefined;
+        const dim = firstParam(c.params, "dimensao") as KpiDimension | undefined;
+        const member = firstParam(c.params, "membro") ?? null;
+        return getTiresKpiHistory(
+          c.organizationId,
+          period,
+          ind && KPI_INDICATORS.includes(ind) ? ind : "overall_conformity",
+          dim && KPI_DIMENSIONS.includes(dim) ? dim : "geral",
+          member,
+        );
       },
       cronograma: (c) => {
         const w = firstParam(c.params, "janela") as ScheduleWindow | undefined;
@@ -194,7 +328,17 @@ export async function loadTiresTab<T extends TiresTab>(
       },
       qualidade: (c) => {
         const { limit, offset } = parsePage(c.params, "pagina", 50);
-        return getTiresQuality(c.organizationId, c.payload, firstParam(c.params, "problema") ?? null, limit, offset);
+        const g = firstParam(c.params, "agrupar") as AuditGroupBy | undefined;
+        const st = firstParam(c.params, "achado");
+        return getTiresAuditCenter(c.organizationId, pick(c.payload, ["operation_ids", "city_ids", "leader_ids", "vehicle_ids", "search"]), {
+          category: firstParam(c.params, "categoria") ?? null,
+          rule: firstParam(c.params, "regra") ?? null,
+          severity: firstParam(c.params, "gravidade") ?? null,
+          status: st === "resolvida" || st === "todas" ? st : "aberta",
+          groupBy: g && AUDIT_GROUPS.includes(g) ? g : "rule",
+          limit,
+          offset,
+        });
       },
       historico: async (c) => {
         const sub: TiresHistorySub =
@@ -212,11 +356,16 @@ export async function loadTiresTab<T extends TiresTab>(
         if (action) f.action = action;
         return { sub, events: null, audit: await getTiresAudit(c.organizationId, f, limit, offset) };
       },
-      importacao: async (c) => {
+      sincronizacao: async (c) => {
         const batchId = firstParam(c.params, "lote");
         const s = firstParam(c.params, "secao") as ImportPreviewSection | undefined;
         const { limit, offset } = parsePage(c.params, "pagina", 50);
-        const [history, preview] = await Promise.all([
+        const runsPage = parsePage(c.params, "execucoes", 20);
+        const [sync, history, preview] = await Promise.all([
+          getTiresSyncOverview(c.organizationId, runsPage.limit, runsPage.offset).then(
+            (d) => ({ d, e: null as string | null }),
+            (e: unknown) => ({ d: null, e: e instanceof Error ? e.message : String(e) }),
+          ),
           getTireImportHistory(c.organizationId, 20, 0),
           isUuid(batchId) && c.perms.import
             ? getTireImportPreview(c.organizationId, batchId, s && SECTIONS.includes(s) ? s : "issues", firstParam(c.params, "filtro") ?? null, limit, offset).then(
@@ -226,9 +375,16 @@ export async function loadTiresTab<T extends TiresTab>(
             : Promise.resolve({ p: null, e: null as string | null }),
         ]);
         // um lote inexistente ou fora do alcance não derruba a aba: o histórico segue
-        return { history, preview: preview.p, previewError: preview.e };
+        return { sync: sync.d, syncError: sync.e, history, preview: preview.p, previewError: preview.e };
       },
-      parametros: (c) => getTiresCatalog(c.organizationId),
+      parametros: async (c) => {
+        const [catalog, syncSource, kpiSchedule] = await Promise.all([
+          getTiresCatalog(c.organizationId),
+          getTireSyncSource(c.organizationId).catch(() => null),
+          getTireKpiSchedule(c.organizationId).catch(() => null),
+        ]);
+        return { ...catalog, syncSource, kpiSchedule };
+      },
     };
     return { data: (await loaders[tab](ctx)) as TiresTabData[T], error: null };
   } catch (error) {

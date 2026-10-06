@@ -18,6 +18,7 @@ import {
   INSPECTION_STATUS_LABEL,
   INSPECTION_STATUS_SHORT,
   INSPECTION_STATUS_TONE,
+  modernTerms,
   plural,
   type InspectionStatus,
   type TireMyInspectionDetail,
@@ -29,7 +30,7 @@ import { AppBar, Screen, type RunnerParent } from "./tire-runner";
 
 /**
  * "Minhas vistorias": o que a pessoa enviou, a situação de cada envio e as
- * PRÓPRIAS leituras. Nada da fotografia oficial aparece aqui — nem a
+ * PRÓPRIAS leituras. Nada da base oficial (Rodopar) aparece aqui — nem a
  * comparação: a rotina `tire_my_inspection_detail` devolve os tipos de
  * divergência quando a vistoria volta para o campo, mas a tela mostra apenas a
  * nota do revisor, para não viciar a nova medição (leitura cega).
@@ -75,7 +76,7 @@ export function MyTireInspections({
   onRedo,
 }: {
   loaders: HistoryLoaders;
-  /** Refazer exige o aplicativo disponível (ativo e com fotografia oficial). */
+  /** Refazer exige o aplicativo disponível (ativo e com dados oficiais do Rodopar). */
   canRedo: boolean;
   onBack: () => void;
   onOpen: (id: string) => void;
@@ -198,11 +199,11 @@ const STATUS_NOTE: Partial<Record<InspectionStatus, { variant: "info" | "success
   },
   pendente_rodopar: {
     variant: "info",
-    text: "Revisada pela equipe e aguardando lançamento no Rodopar. A base oficial só muda com a próxima importação.",
+    text: "Revisada pela equipe e aguardando lançamento no Rodopar. A base oficial só muda com a próxima sincronização.",
   },
   sincronizado_rodopar: {
     variant: "success",
-    text: "As leituras desta vistoria chegaram ao Rodopar na importação mais recente.",
+    text: "As leituras desta vistoria chegaram ao Rodopar na sincronização mais recente.",
   },
   substituida: {
     variant: "neutral",
@@ -377,7 +378,7 @@ function DetailBody({ detail: d, canRedo, onRedo }: { detail: TireMyInspectionDe
                 <span className="min-w-0 flex-1">
                   <span className="block text-body-sm font-medium text-fg">{statusLabel(h.toStatus)}</span>
                   <span className="block text-caption text-fg-muted">{formatStamp(h.createdAt)}</span>
-                  {h.reason?.trim() ? <span className="mt-0.5 block text-caption text-fg-secondary">{h.reason}</span> : null}
+                  {h.reason?.trim() ? <span className="mt-0.5 block text-caption text-fg-secondary">{modernTerms(h.reason)}</span> : null}
                 </span>
               </li>
             ))}

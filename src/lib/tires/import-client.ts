@@ -7,7 +7,7 @@ import type { TireImportBatch } from "./types";
  * Importação oficial Rodopar 10 vista da tela:
  *
  *   LER (navegador) → enviar em partes (staging) → VALIDAR/COMPARAR (banco)
- *   → PRÉVIA (paginada, no banco) → CONFIRMAR (uma transação) → fotografia
+ *   → PRÉVIA (paginada, no banco) → CONFIRMAR (uma transação) → dados oficiais
  *
  * Este módulo só lê o arquivo, fatia, repete e informa o andamento. Nada é
  * gravado no cadastro de pneus antes da confirmação: o envio vai para a
@@ -26,7 +26,7 @@ export type TireImportProgressHandler = (progress: TireImportProgress | null) =>
 export const TIRE_IMPORT_STAGE_LABEL: Record<TireImportStage, string> = {
   reading: "Lendo o arquivo",
   sending: "Enviando as linhas",
-  validating: "Validando e comparando com a fotografia anterior",
+  validating: "Validando e comparando com os dados anteriores",
 };
 
 const readCache = new WeakMap<File, Promise<{ ok: true; data: RodoparRead } | { ok: false; error: string }>>();
@@ -86,7 +86,7 @@ export async function uploadRodoparImport(
   onProgress?: TireImportProgressHandler,
 ): Promise<TireUploadResult> {
   if (!file) return { ok: false, error: "Selecione o relatório Rodopar 10 (XLSX).", stage: "reading" };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(referenceDate)) return { ok: false, error: "Informe a data de referência da fotografia.", stage: "reading" };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(referenceDate)) return { ok: false, error: "Informe a data de referência dos dados.", stage: "reading" };
   let batchId: string | null = null;
   try {
     onProgress?.({ stage: "reading", done: 0, total: 0 });

@@ -158,7 +158,7 @@ export interface ImportConfirmOutcome {
 }
 
 export async function confirmTireImport(batchId: string): Promise<Result<ImportConfirmOutcome>> {
-  const r = await call<ImportConfirmOutcome>("tires.import", "tire_import_confirm", { p_batch_id: batchId }, "Não foi possível confirmar a fotografia.");
+  const r = await call<ImportConfirmOutcome>("tires.import", "tire_import_confirm", { p_batch_id: batchId }, "Não foi possível confirmar os dados.");
   if (r.ok) {
     refresh();
     revalidatePath(TIRES_APP_PATH);
@@ -358,6 +358,127 @@ export async function setVehicleTireLayout(vehicleId: string, layoutId: string |
 
 export async function saveTireServiceKind(serviceId: string, kind: string, active: boolean): Promise<Result<unknown>> {
   const r = await call("tires.parameters.manage", "tire_save_service_kind", { p_service_id: serviceId, p_kind: kind, p_active: active }, "Não foi possível salvar o vínculo do serviço.");
+  if (r.ok) refresh();
+  return r;
+}
+
+// ---------------------------------------------------------------------------
+// Sincronização com a fonte oficial (SharePoint), indicadores e auditoria
+// ---------------------------------------------------------------------------
+export interface SyncNowOutcome {
+  status: string;
+  runId: string | null;
+  message: string;
+  errorCode?: string | null;
+  referenceDate?: string | null;
+  sameDayRevision?: boolean;
+}
+
+async function runSync(trigger: "manual" | "reprocessamento", reprocessOf: string | null): Promise<Result<SyncNowOutcome>> {
+  const ctx = await resolveOrganization("tires.import");
+  if (!ctx) return { ok: false, error: NO_ACCESS };
+  const supabase = await createClient();
+  try {
+    // o cliente da própria pessoa: permissão conferida no banco e autoria nos registros
+    const { runSyncAs } = await import("./sync/server");
+    const outcome = await runSyncAs(supabase, ctx.organization.organizationId, trigger, reprocessOf);
+    refresh();
+    revalidatePath(TIRES_APP_PATH);
+    const ok = ["concluida", "concluida_com_avisos", "sem_alteracao"].includes(outcome.status);
+    return {
+      ok,
+      error: ok ? undefined : outcome.message,
+      code: outcome.errorCode ?? null,
+      data: {
+        status: outcome.status,
+        runId: outcome.runId,
+        message: outcome.message,
+        errorCode: outcome.errorCode ?? null,
+        referenceDate: outcome.referenceDate ?? null,
+        sameDayRevision: outcome.sameDayRevision ?? false,
+      },
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Não foi possível sincronizar agora." };
+  }
+}
+
+/** "Sincronizar agora": busca a planilha oficial no SharePoint e aplica pelo pipeline oficial. */
+export async function syncTiresNow(): Promise<Result<SyncNowOutcome>> {
+  return runSync("manual", null);
+}
+
+/** Reprocessamento controlado: baixa e revalida mesmo sem mudança de versão (fica registrado como tal). */
+export async function reprocessTireSync(runId: string): Promise<Result<SyncNowOutcome>> {
+  return runSync("reprocessamento", runId);
+}
+
+export async function saveTireSyncSource(payload: {
+  siteHostname: string;
+  sitePath: string;
+  driveName: string;
+  filePath: string;
+  webUrl?: string | null;
+  isActive: boolean;
+  minIntervalMinutes: number;
+}): Promise<Result<unknown>> {
+  const r = await call(
+    "tires.parameters.manage",
+    "tire_sync_save_source",
+    {
+      p_payload: {
+        site_hostname: payload.siteHostname,
+        site_path: payload.sitePath,
+        drive_name: payload.driveName,
+        file_path: payload.filePath,
+        web_url: payload.webUrl ?? null,
+        is_active: payload.isActive,
+        min_interval_minutes: payload.minIntervalMinutes,
+      },
+    },
+    "Não foi possível salvar a fonte oficial.",
+  );
+  if (r.ok) refresh();
+  return r;
+}
+
+export async function saveTireKpiSchedule(payload: {
+  isActive: boolean;
+  frequency: "daily" | "weekly" | "monthly";
+  weekday: number;
+  monthDay: number;
+  runTime: string;
+  catchUpDays: number;
+}): Promise<Result<unknown>> {
+  const r = await call(
+    "tires.parameters.manage",
+    "tire_kpi_schedule_save",
+    {
+      p_payload: {
+        is_active: payload.isActive,
+        frequency: payload.frequency,
+        weekday: payload.weekday,
+        month_day: payload.monthDay,
+        run_time: payload.runTime,
+        catch_up_days: payload.catchUpDays,
+      },
+    },
+    "Não foi possível salvar a agenda dos indicadores.",
+  );
+  if (r.ok) refresh();
+  return r;
+}
+
+/** Reprocessa uma captura de indicadores que falhou ou foi ignorada (nunca uma concluída). */
+export async function reprocessTireKpi(runId: string): Promise<Result<unknown>> {
+  const r = await call("tires.parameters.manage", "tire_kpi_reprocess", { p_run_id: runId }, "Não foi possível reprocessar a captura.");
+  if (r.ok) refresh();
+  return r;
+}
+
+/** Varredura sob demanda da Central de Auditoria dos Dados. */
+export async function rescanTireAudit(): Promise<Result<{ opened: number; resolved: number; openTotal: number }>> {
+  const r = await call<{ opened: number; resolved: number; openTotal: number }>(null, "tire_audit_rescan", {}, "Não foi possível reexecutar a auditoria.");
   if (r.ok) refresh();
   return r;
 }

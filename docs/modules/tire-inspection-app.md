@@ -9,9 +9,9 @@ padrão dos demais aplicativos do HFM) · Rotinas:
 O aplicativo de campo da Gestão de Pneus (`/frota/pneus`, documentada em
 [`tire-management.md`](./tire-management.md)). Quem está ao lado do veículo
 mede cada posição — Nº Fogo lido, sulcos 1–4 e PSI — e envia. O envio recebe um
-**protocolo** e vai para **revisão**. **A vistoria nunca altera a fotografia
+**protocolo** e vai para **revisão**. **A vistoria nunca altera a base
 oficial do Rodopar**: ela é revisada, lançada no Rodopar pela equipe e
-conciliada automaticamente na próxima importação.
+conciliada automaticamente na próxima sincronização.
 
 ---
 
@@ -20,7 +20,7 @@ conciliada automaticamente na próxima importação.
 Antes e durante a medição o vistoriador vê **somente as posições do veículo**
 (código, rótulo, eixo, lado e rodado — o diagrama de eixos). Nenhuma rotina do
 aplicativo devolve Nº Fogo esperado, sulcos, PSI, datas, marca ou status da
-fotografia oficial (`tire_inspection_positions`). A comparação é feita **no
+base oficial (`tire_inspection_positions`). A comparação é feita **no
 servidor**, no envio, e o resultado não é mostrado ao vistoriador; depois da
 revisão ele vê apenas a situação e a nota do revisor.
 
@@ -28,9 +28,9 @@ revisão ele vê apenas a situação e a nota do revisor.
 
 | Etapa | O que acontece |
 |---|---|
-| Início | Contexto (`tire_inspection_context`): aplicativo ativo, vistoriador, limites técnicos vigentes, existência de fotografia oficial, contadores de vistorias pendentes e retornadas. |
+| Início | Contexto (`tire_inspection_context`): aplicativo ativo, vistoriador, limites técnicos vigentes, existência de dados oficiais, contadores de vistorias pendentes e retornadas. |
 | Frota | `tire_inspection_vehicles(search)`: frotas **ativas**, no escopo da pessoa, com operação vigente e operação/tipo habilitados para o aplicativo (elegibilidade App × Operação × Tipo). A busca é no servidor. Frota com vistoria retornada aparece destacada. |
-| Medição | Diagrama de eixos montado do **dicionário de posições** (grupo/índice do eixo, lado, rodado, ordem) e do layout do veículo (próprio → do tipo → inferido da fotografia) — sem desenho fixo por tipo. Por posição: Nº Fogo lido (texto), sulcos 1–4 (mm, aceita vírgula), PSI, observação. Rascunho automático no aparelho. |
+| Medição | Diagrama de eixos montado do **dicionário de posições** (grupo/índice do eixo, lado, rodado, ordem) e do layout do veículo (próprio → do tipo → inferido dos dados Rodopar) — o MESMO croqui da Base Geral (`src/components/tires`), em modo de leitura cega — sem desenho fixo por tipo. Por posição: Nº Fogo lido (texto), sulcos 1–4 (mm, aceita vírgula), PSI, observação. Rascunho automático no aparelho. |
 | Revisão | Posições medidas × não medidas (medição incompleta é permitida e vira `MEDICAO_INCOMPLETA`), observação geral (≤ 1.000). |
 | Envio | `tire_inspection_submit`: idempotente pela chave `client_submission_id` gerada no aparelho (reenvio após falha de rede devolve o mesmo protocolo). Protocolo `PNEU-AAAA-NNNNNN`. |
 | Minhas vistorias | `tire_my_inspections` / `tire_my_inspection_detail`: situação, nota do revisor e as próprias leituras. Vistoria retornada → "Refazer medição" (nova vistoria com `parent_inspection_id`; a anterior vira `substituida`). |
@@ -42,17 +42,17 @@ por posição ≤ 500.
 
 ## 3. Comparação no servidor
 
-Contra a fotografia oficial mais recente, posição a posição, com as tolerâncias
+Contra a base oficial (Rodopar) mais recente, posição a posição, com as tolerâncias
 vigentes (`inspection_tread_tolerance_mm`, `inspection_psi_tolerance` — em
 Parâmetros, nunca no código):
 
 | Divergência | Quando |
 |---|---|
-| `SEM_REFERENCIA` | A fotografia não tem pneu em uso nessa posição. |
-| `PNEU_DIFERENTE` | Nº Fogo lido ≠ Nº Fogo da fotografia. |
+| `SEM_REFERENCIA` | A base oficial não tem pneu em uso nessa posição. |
+| `PNEU_DIFERENTE` | Nº Fogo lido ≠ Nº Fogo da base oficial. |
 | `SULCO_DIVERGENTE` | Algum sulco lido difere do oficial além da tolerância. |
 | `PSI_DIVERGENTE` | PSI lido difere do oficial além da tolerância. |
-| `POSICAO_NAO_ENCONTRADA` | O Nº Fogo lido está, na fotografia oficial, em outra posição/veículo. |
+| `POSICAO_NAO_ENCONTRADA` | O Nº Fogo lido está, na base oficial, em outra posição/veículo. |
 | `MEDICAO_INCOMPLETA` | Posição sem leitura, ou leitura sem Nº Fogo, algum sulco ou PSI. |
 
 ## 4. Revisão (Gestão de Pneus › Vistorias recebidas)
@@ -77,9 +77,9 @@ retornar_divergencia ◄──────┘        (motivo obrigatório; alert
 
 ## 5. Conciliação com o Rodopar
 
-Na confirmação de cada importação (`private.tire_reconcile_inspections`), as
-vistorias `pendente_rodopar` são comparadas, item a item, com a nova
-fotografia:
+Na confirmação de cada sincronização/importação (`private.tire_reconcile_inspections`), as
+vistorias `pendente_rodopar` são comparadas, item a item, com os novos
+dados oficiais:
 
 - todos os itens medidos batem (Nº Fogo, sulcos e PSI dentro da tolerância) →
   `sincronizado_rodopar` automaticamente (histórico com origem *import*);
@@ -87,11 +87,11 @@ fotografia:
   os valores continuam diferentes, ou o Nº Fogo continua diferente →
   **divergência persistente** (`tires.inspection.persistent_divergence` no
   outbox, alerta à liderança);
-- ainda não lançado (datas da fotografia anteriores à vistoria) → segue
+- ainda não lançado (datas da base oficial anteriores à vistoria) → segue
   pendente.
 
 Cada item guarda `sync_status` (pending, synced, persistent, not_applicable),
-o snapshot que o conciliou e a nota.
+a linha de dados que o conciliou e a nota.
 
 ## 6. Segurança
 

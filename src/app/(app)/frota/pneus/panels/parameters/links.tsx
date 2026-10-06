@@ -24,7 +24,7 @@ import { normalizeText, useParamAction } from "./param-ui";
 /**
  * Parâmetros → Vínculos. Qual layout cada tipo de equipamento usa por padrão
  * e as exceções por veículo (com motivo). Sem layout, o veículo usa as
- * posições em que há pneus na fotografia (inferido).
+ * posições em que há pneus nos dados atuais (inferido).
  */
 const NONE = "";
 const REASON_MAX = 300;
@@ -85,7 +85,7 @@ export function LinksSection({
               <PanelEmpty
                 icon={<Link2 />}
                 title="Nenhuma exceção por veículo"
-                description="Todos os veículos usam o layout padrão do seu tipo de equipamento (ou as posições da fotografia, quando o tipo não tem layout)."
+                description="Todos os veículos usam o layout padrão do seu tipo de equipamento (ou as posições dos dados atuais, quando o tipo não tem layout)."
                 testId="tires-links-vehicles-empty"
               />
             </div>
@@ -161,7 +161,7 @@ export function LinksSection({
         open={removing != null}
         onOpenChange={(o) => (!o ? setRemoving(null) : undefined)}
         title={`Remover a exceção de ${removing ? vehicleName(removing.fleetCode, removing.licensePlate) : ""}`}
-        description="O veículo volta a usar o layout padrão do seu tipo de equipamento (ou as posições da fotografia, se o tipo não tiver layout)."
+        description="O veículo volta a usar o layout padrão do seu tipo de equipamento (ou as posições dos dados atuais, se o tipo não tiver layout)."
         confirmLabel="Remover exceção"
         destructive
         onConfirm={(reason) => setVehicleTireLayout(removing!.vehicleId, null, reason)}
@@ -194,7 +194,7 @@ function TypeLayouts({
     const layoutName = value ? layoutsById.get(value)?.name : null;
     const ok = await run(`type:${typeId}`, () => setVehicleTypeTireLayout(typeId, value || null), {
       success: `Layout padrão de ${typeName} atualizado`,
-      successDescription: layoutName ? `Agora: ${layoutName}.` : "Agora sem layout: posições inferidas da fotografia.",
+      successDescription: layoutName ? `Agora: ${layoutName}.` : "Agora sem layout: posições inferidas dos dados atuais.",
       failure: "Não foi possível vincular o layout ao tipo",
     });
     if (!ok) {
@@ -210,7 +210,7 @@ function TypeLayouts({
     <Card data-testid="tires-links-types">
       <CardHeader
         title="Layout padrão por tipo de equipamento"
-        description="Usado pela vistoria e pela qualidade para saber quais posições o veículo tem. “Sem layout” = posições inferidas da fotografia (onde há pneu montado)."
+        description="Usado pela vistoria e pela Auditoria dos dados para saber quais posições o veículo tem. “Sem layout” = posições inferidas dos dados atuais (onde há pneu montado)."
       />
       <CardContent className="px-0 pb-0">
         {rows.length === 0 ? (
@@ -248,7 +248,7 @@ function TypeLayouts({
                               aria-label={`Layout padrão de ${t.vehicleTypeName}`}
                               data-testid="tires-links-type-select"
                             >
-                              <option value={NONE}>Sem layout — inferido da fotografia</option>
+                              <option value={NONE}>Sem layout — inferido dos dados atuais</option>
                               {options.map((l) => (
                                 <option key={l.id} value={l.id}>
                                   {l.name}
@@ -261,7 +261,7 @@ function TypeLayouts({
                         ) : layout ? (
                           layout.name
                         ) : (
-                          <span className="text-fg-muted">Sem layout — inferido da fotografia</span>
+                          <span className="text-fg-muted">Sem layout — inferido dos dados atuais</span>
                         )}
                       </TableCell>
                       <TableCell numeric>{layout ? fmtInt(layout.positionCodes.length) : "—"}</TableCell>

@@ -13,7 +13,7 @@ import { NativeSelect } from "@/components/governance/selects";
 import type { TiresHistorySub, TiresTabData } from "@/lib/tires/loaders";
 import {
   AUDIT_ACTION_LABEL, AXLE_LABEL, CONFIDENCE_LABEL, EVENT_TONE, EVENT_TYPES, eventTypeLabel, fmtInt, fmtMm, fmtNum, fmtPsi, formatDate,
-  formatStamp, INSPECTION_STATUS_LABEL, LAYOUT_SOURCE_LABEL, RESOLUTION_LABEL, SERVICE_KIND_LABEL, SIDE_LABEL, SLOT_LABEL, STATUS_LABEL,
+  formatStamp, INSPECTION_STATUS_LABEL, LAYOUT_SOURCE_LABEL, modernTerms, RESOLUTION_LABEL, SERVICE_KIND_LABEL, SIDE_LABEL, SLOT_LABEL, STATUS_LABEL,
   TIRES_TAB_LABEL, type TireAuditRow, type TireEventRow, type TiresAuditList, type TiresEventsList,
 } from "@/lib/tires/types";
 import type { TiresPanelContext } from "../shared";
@@ -25,7 +25,7 @@ import {
  * Gestão de Pneus → Histórico.
  *
  * Duas trilhas, cada uma com a sua permissão: os eventos de cada pneu que a
- * importação do Rodopar registrou ao comparar fotografias
+ * sincronização do Rodopar registrou ao comparar os dados de cada data
  * (`tires_events_list`) e a auditoria das ações das pessoas no módulo
  * (`tires_audit_list`). As rotinas filtram e paginam; a tela traduz tipos,
  * ações e valores para texto legível — nunca JSON cru.
@@ -114,7 +114,7 @@ function useExpanded() {
 // ---------------------------------------------------------------------------
 // Eventos dos pneus
 // ---------------------------------------------------------------------------
-const SOURCE_LABEL: Record<string, string> = { rodopar_import: "Importação Rodopar", system: "Sistema" };
+const SOURCE_LABEL: Record<string, string> = { rodopar_import: "Sincronização Rodopar", system: "Sistema" };
 
 function EventsView({ data, ctx }: { data: TiresEventsList; ctx: TiresPanelContext }) {
   const [expanded, toggle] = useExpanded();
@@ -134,7 +134,7 @@ function EventsView({ data, ctx }: { data: TiresEventsList; ctx: TiresPanelConte
   return (
     <div className="flex flex-col gap-4" data-testid="tires-history-events">
       <p className="text-caption text-fg-muted">
-        Cada evento nasce da comparação de uma fotografia oficial do Rodopar com a anterior do mesmo pneu. A vistoria de campo não gera evento.
+        Cada evento nasce da comparação dos dados oficiais do Rodopar de uma data com os dados anteriores do mesmo pneu. A vistoria de campo não gera evento.
       </p>
 
       <div className="flex flex-col gap-1">
@@ -198,7 +198,7 @@ function EventsView({ data, ctx }: { data: TiresEventsList; ctx: TiresPanelConte
           description={
             anyFilter
               ? "Nenhum evento corresponde ao tipo, ao período, ao veículo ou à busca."
-              : "Os eventos aparecem a partir da segunda fotografia importada do Rodopar."
+              : "Os eventos aparecem a partir da segunda data de dados recebida do Rodopar."
           }
           testId="tires-history-events-empty"
         />
@@ -262,7 +262,7 @@ function EventsView({ data, ctx }: { data: TiresEventsList; ctx: TiresPanelConte
                         {ev.importBatchId ? (
                           batchLinks ? (
                             <Link
-                              href={`${ctx.basePath}?aba=importacao&lote=${ev.importBatchId}`}
+                              href={`${ctx.basePath}?aba=sincronizacao&lote=${ev.importBatchId}`}
                               className="block rounded-xs text-caption text-link underline-offset-2 hover:underline hfm-focus-ring"
                               data-testid="tires-history-batch"
                             >
@@ -290,7 +290,7 @@ function EventsView({ data, ctx }: { data: TiresEventsList; ctx: TiresPanelConte
                     {isOpen ? (
                       <TableRow className="bg-surface-sunken/50 hover:bg-surface-sunken/50" data-testid="tires-history-event-detail-row">
                         <TableCell colSpan={8} className="py-3">
-                          <ValuesList fields={fields} beforeLabel="Fotografia anterior" afterLabel="Esta fotografia" />
+                          <ValuesList fields={fields} beforeLabel="Dados anteriores" afterLabel="Dados desta data" />
                         </TableCell>
                       </TableRow>
                     ) : null}
@@ -406,7 +406,7 @@ const ENTITY_LABEL: Record<string, string> = {
 
 /** Ação completa ("import.confirmed") → o que aconteceu, em texto. */
 const ACTION_DETAIL: Record<string, string> = {
-  "import.confirmed": "Fotografia confirmada",
+  "import.confirmed": "Dados confirmados",
   "import.cancelled": "Lote descartado",
   "repair.created": "Conserto registrado",
   "repair.updated": "Conserto alterado",
@@ -434,11 +434,11 @@ function actionText(action: string): { area: string; detail: string } {
   return { area, detail: suffix || area };
 }
 
-/** O resumo gravado pela rotina, com os códigos de situação da vistoria em texto. */
+/** O resumo gravado pela rotina, com os códigos de situação da vistoria em texto e o vocabulário atual (registros antigos). */
 const STATUS_CODE = /\b(pendente_revisao|pendente_rodopar|sincronizado_rodopar|retornar_divergencia|substituida)\b/g;
 const readableSummary = (s: string | null) =>
   s
-    ? s.replace(STATUS_CODE, (m) => {
+    ? modernTerms(s).replace(STATUS_CODE, (m) => {
         const label = INSPECTION_STATUS_LABEL[m as keyof typeof INSPECTION_STATUS_LABEL] ?? m;
         return label.charAt(0).toLowerCase() + label.slice(1);
       })
@@ -448,7 +448,7 @@ const readableSummary = (s: string | null) =>
 function entityHref(row: TireAuditRow, basePath: string): string | null {
   if (!row.entityId) return null;
   if (row.entityType === "tire_inspection") return `${basePath}?aba=vistorias&fase=todas&vistoria=${row.entityId}`;
-  if (row.entityType === "tire_import_batch") return `${basePath}?aba=importacao&lote=${row.entityId}`;
+  if (row.entityType === "tire_import_batch") return `${basePath}?aba=sincronizacao&lote=${row.entityId}`;
   return null;
 }
 
@@ -698,7 +698,7 @@ const KEY_LABEL: Record<string, string> = {
   serviceDate: "Data do serviço",
   serviceOrderNumber: "OS",
   vehicleResolution: "Veículo resolvido por",
-  resolutionReferenceDate: "Fotografia usada",
+  resolutionReferenceDate: "Dados usados (data)",
   resolutionConfidence: "Confiança",
   overrideReason: "Justificativa da troca de veículo",
   voidReason: "Motivo do cancelamento",
@@ -711,8 +711,8 @@ const KEY_LABEL: Record<string, string> = {
   updatedBy: "Alterado por (id)",
   fileName: "Arquivo",
   fileHash: "Hash do arquivo",
-  referenceDate: "Data da fotografia",
-  snapshots: "Pneus na fotografia",
+  referenceDate: "Data dos dados",
+  snapshots: "Pneus nos dados",
   newTires: "Pneus novos",
   events: "Eventos",
   absent: "Ausentes",
@@ -760,7 +760,7 @@ const KEY_LABEL: Record<string, string> = {
   staleUpdateDays: "Cadastro desatualizado após (dias)",
   reviewSlaDays: "SLA de revisão (dias)",
   rodoparSyncSlaDays: "SLA de sincronização (dias)",
-  repairResolutionMaxAgeDays: "Idade máxima da fotografia no conserto (dias)",
+  repairResolutionMaxAgeDays: "Idade máxima dos dados no conserto (dias)",
   retreadAlertUseRodoparCondition: "Alerta de ressolagem pela condição Rodopar",
   retreadAlertTreadMm: "Alerta de ressolagem por sulco (mm)",
   layoutSource: "Origem do layout",

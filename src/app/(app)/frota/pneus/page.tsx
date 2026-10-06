@@ -10,8 +10,14 @@ import { TiresView } from "./tires-view";
 export const metadata: Metadata = {
   title: "Gestão de Pneus",
   description:
-    "Fotografia oficial dos pneus (Rodopar 10): base geral, aderência de medição e calibragem, cronograma, vistorias recebidas, serviços, qualidade e histórico.",
+    "Base oficial dos pneus (Rodopar, sincronizada do SharePoint): dados gerais, conformidade, aderência de sulco, calibragem e PSI, evolução dos indicadores, auditoria dos dados, vistorias e histórico.",
 };
+
+/** A sincronização manual (Sincronizar agora) baixa e aplica a planilha: precisa de folga. */
+export const maxDuration = 300;
+
+/** Abas renomeadas: links antigos continuam abrindo a tela certa. */
+const LEGACY_TAB: Record<string, TiresTab> = { importacao: "sincronizacao" };
 
 /**
  * Gestão de Frota → Gestão de Pneus.
@@ -32,7 +38,8 @@ export default async function TiresPage({ searchParams }: { searchParams: Promis
   const tabs = tiresVisibleTabs(perms);
   if (tabs.length === 0) redirect("/sem-permissao");
 
-  const requested = firstParam(params, "aba") as TiresTab | undefined;
+  const rawTab = firstParam(params, "aba");
+  const requested = (rawTab && LEGACY_TAB[rawTab]) || (rawTab as TiresTab | undefined);
   const tab: TiresTab =
     requested && (TIRES_TABS as readonly string[]).includes(requested) && tabs.includes(requested) ? requested : tabs[0];
   const filters = parseTiresFilters(params);

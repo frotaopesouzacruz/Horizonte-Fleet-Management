@@ -2,11 +2,12 @@ import fixtures from "./fixtures.json";
 
 /**
  * Fixtures da prévia da Gestão de Pneus: saídas das rotinas no formato do
- * banco, geradas numa base LOCAL de teste com duas fotografias (uma
- * sintética, derivada do Rodopar 10 real, e o próprio Rodopar 10), vistorias
- * enviadas pela rotina do aplicativo e um lote validado aguardando
- * confirmação. Os nomes de operação/liderança são fictícios (a base local
- * não tem operações) e os usuários do Rodopar foram anonimizados.
+ * banco, geradas numa base LOCAL de teste com dois conjuntos de dados (um
+ * sintético, derivado do Rodopar 10 real, e o próprio Rodopar 10), vistorias
+ * enviadas pela rotina do aplicativo, um lote validado aguardando
+ * confirmação, capturas semanais de indicadores, uma varredura da auditoria
+ * e execuções de sincronização. Operações, locais e lideranças são fictícios
+ * (atribuídos na cópia local) e os usuários do Rodopar foram anonimizados.
  */
 const FX = fixtures as unknown as Record<string, unknown>;
 
@@ -25,11 +26,36 @@ function received(args: Record<string, unknown>): unknown {
   return { ...base, rows, total: rows.length };
 }
 
+/** Histórico de KPIs: série do indicador pedido (Geral) ou a visão por dimensão. */
+function kpiHistory(args: Record<string, unknown>): unknown {
+  const period = args.p_period === "mes" ? "mes" : "semana";
+  const dim = String(args.p_dimension ?? "geral");
+  const ind = String(args.p_indicator ?? "overall_conformity");
+  if (dim !== "geral") {
+    const base = (args.p_dimension_id ? FX["kpi_history:semana:operation:member"] : FX[`kpi_history:semana:${dim}`] ?? FX["kpi_history:semana:operation"]) as Record<string, unknown>;
+    return { ...base, period, dimension: dim, dimension_id: args.p_dimension_id ?? null };
+  }
+  return FX[`kpi_series:${period}:${ind}`] ?? FX[`kpi_history:${period}:geral`];
+}
+
 export function tiresPreviewResolver(fn: string, args: Record<string, unknown>): unknown {
   switch (fn) {
     case "tires_filter_options": return FX.options;
     case "tires_overview": return FX.overview;
-    case "tires_base": return FX[`base_${args.p_view === "fogo" || args.p_view === "fora" ? args.p_view : "frota"}`];
+    case "tires_definitions": return FX.definitions;
+    case "tires_priorities": return args.p_group_id ? FX.priorities_drill : FX[`priorities:${String(args.p_group_by ?? "operation")}`] ?? FX["priorities:operation"];
+    case "tires_indicator": return FX[`indicator:${String(args.p_indicator)}`] ?? new Error("indicador sem fixture");
+    case "tires_base_groups": return FX[`base_groups:${String(args.p_group_by ?? "operation")}`] ?? FX["base_groups:operation"];
+    case "tires_kpi_history": return kpiHistory(args);
+    case "tires_audit_center": return FX[`audit_center:${String(args.p_group_by ?? "rule")}`] ?? FX["audit_center:rule"];
+    case "tire_sync_overview": return FX.sync_overview;
+    case "tires_base": {
+      const view = args.p_view === "fogo" || args.p_view === "fora" ? args.p_view : "frota";
+      const f = (args.p_filters ?? {}) as Record<string, unknown>;
+      // grupo aberto na Base Geral agrupada: as frotas do grupo
+      if (view === "frota" && (f.operation_ids || f.city_ids || f.leader_ids || f.null_dims)) return FX.base_frota_op1;
+      return FX[`base_${view}`];
+    }
     case "tires_adherence": return FX[args.p_kind === "calibration" ? "adh_calibration" : "adh_measurement"];
     case "tires_schedule": return FX.schedule;
     case "tires_quality": return FX.quality;

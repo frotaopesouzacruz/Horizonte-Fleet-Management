@@ -1,5 +1,5 @@
 import type { Json } from "@/types/database.types";
-import { TIRES_FILTER_PARAM, type TiresFilters } from "./types";
+import { TIRES_FILTER_PARAM, TIRES_LEGACY_PARAM, type TiresFilters } from "./types";
 
 /**
  * Filtros da Gestão de Pneus ↔ URL ↔ payload das rotinas. Um lugar só: a
@@ -17,9 +17,12 @@ export const firstParam = (params: SearchParamsLike, key: string): string | unde
 export function parseTiresFilters(params: SearchParamsLike): TiresFilters {
   const out: TiresFilters = {};
   for (const [key, param] of Object.entries(TIRES_FILTER_PARAM) as [keyof TiresFilters, string][]) {
-    const v = firstParam(params, param);
+    const legacy = TIRES_LEGACY_PARAM[key];
+    const v = firstParam(params, param) ?? (legacy ? firstParam(params, legacy) : undefined);
     if (v) out[key] = v;
   }
+  if (out.conformity && !["conforme", "nao_conforme"].includes(out.conformity)) delete out.conformity;
+  if (out.calConformity && !["conforme", "nao_conforme"].includes(out.calConformity)) delete out.calConformity;
   if (out.reference && !/^\d{4}-\d{2}-\d{2}$/.test(out.reference)) delete out.reference;
   return out;
 }
@@ -63,6 +66,12 @@ export function tiresFiltersPayload(f: TiresFilters): Record<string, Json> {
   put("severities", splitList(f.severity));
   if (truthy(f.quality)) out.quality_only = true;
   if (truthy(f.retread)) out.retread_only = true;
+  if (f.conformity) out.overall_conformity = f.conformity;
+  if (f.calConformity) out.calibration_conformity = f.calConformity;
+  const missing: string[] = splitList(f.missing).flatMap((m) =>
+    m === "operacao" ? ["operation"] : m === "local" ? ["city"] : m === "lideranca" ? ["leader"] : [],
+  );
+  put("null_dims", missing);
   if (f.q?.trim()) out.search = f.q.trim();
   return out;
 }
@@ -78,7 +87,7 @@ export function tiresFiltersQuery(f: TiresFilters, extra: Record<string, string 
   return p.toString();
 }
 
-/** Quantos filtros estão ativos (fora a busca e a fotografia). */
+/** Quantos filtros estão ativos (fora a busca e a data dos dados). */
 export function tiresActiveFilterCount(f: TiresFilters): number {
   return (Object.keys(TIRES_FILTER_PARAM) as (keyof TiresFilters)[]).filter(
     (k) => k !== "q" && k !== "reference" && Boolean(f[k]),

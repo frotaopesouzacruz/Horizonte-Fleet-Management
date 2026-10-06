@@ -13,7 +13,7 @@ import type { TireAppContext } from "@/lib/tires/types";
  * protocolo (`duplicate`) em vez de criar uma segunda vistoria.
  *
  * Só há aqui o que a própria pessoa digitou: a leitura é cega e nenhum valor
- * da fotografia oficial passa pelo aparelho.
+ * da base oficial (Rodopar) passa pelo aparelho.
  *
  * Também mora aqui a validação de UX das leituras (o banco é a autoridade:
  * os limites vêm de `context.limits` e o mesmo critério é reaplicado no envio).

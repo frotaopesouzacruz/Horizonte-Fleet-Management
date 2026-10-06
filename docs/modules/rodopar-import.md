@@ -1,19 +1,28 @@
-# Gestão de Pneus › Importação oficial Rodopar 10
+# Gestão de Pneus › Pipeline oficial Rodopar 10 (sincronização e contingência)
 
-Rota: `/frota/pneus?aba=importacao` · Permissão: `tires.import` (ver o histórico
-também com `tires.audit.view`) · Rotinas: `tire_import_start`,
+Rota: `/frota/pneus?aba=sincronizacao` (Sincronização Rodopar; o envio manual
+fica em "Envio manual (contingência)") · Permissão: `tires.import` (ver o
+histórico também com `tires.audit.view`) · Rotinas: `tire_import_start`,
 `tire_import_stage`, `tire_import_validate`, `tire_import_preview`,
 `tire_import_confirm`, `tire_import_cancel`, `tire_import_history`
 (`supabase/migrations/20261006102000_tires_import.sql`).
 
-O relatório **Rodopar 10** é a fonte oficial dos pneus. Cada arquivo confirmado
-vira uma **fotografia** (`tire_daily_snapshots`, uma linha por pneu × data de
-referência). O cadastro do pneu (`tires`) é a identidade; a fotografia é o
-estado naquela data. Cadastro ≠ fotografia.
+O relatório **Rodopar 10** é a fonte oficial dos pneus — desde 07/10/2026
+lido **automaticamente** da planilha *Base Geral Pneus Rodorpar.xlsx* no
+SharePoint (ver [`tire-sync-sharepoint.md`](./tire-sync-sharepoint.md)). Cada
+arquivo confirmado vira os **dados da data de referência**
+(`tire_daily_snapshots`, uma linha por pneu × data). O cadastro do pneu
+(`tires`) é a identidade; os dados diários são o estado naquela data.
 
 ```
-LER (navegador) → VALIDAR → COMPARAR → PRÉVIA → CONFIRMAR → ATUALIZAR FOTOGRAFIA → HISTÓRICO
+LER (servidor na sincronização · navegador no envio manual) → VALIDAR → COMPARAR
+  → PRÉVIA → CONFIRMAR → DADOS DA DATA → HISTÓRICO
 ```
+
+A sincronização e o envio manual usam **o mesmo leitor**
+(`readRodoparWorkbook`) e **as mesmas rotinas** abaixo; a diferença é só a
+origem (`source_kind = sharepoint | upload`) e que a sincronização confirma
+sozinha quando não há erro bloqueante.
 
 ---
 
@@ -44,8 +53,11 @@ na validação** — só na área de preparação do lote (`tire_import_staging`
 
 ## 2. Abertura do lote (`tire_import_start`)
 
-- Data de referência obrigatória, não futura e **posterior** à última
-  fotografia confirmada (`tire_reference_not_after_latest`).
+- Data de referência obrigatória, não futura e **posterior** aos últimos dados
+  confirmados (`tire_reference_not_after_latest`) — ou **igual**, como
+  **revisão do mesmo dia** (`replace_same_day`, usada pela sincronização): o
+  lote confirmado da data passa a `superseded` na confirmação e cada linha
+  alterada é arquivada em `tire_snapshot_revisions` antes de ser atualizada.
 - O mesmo arquivo (mesmo hash) já confirmado é recusado
   (`unique_violation`, hint `tire_duplicate_file`) — reimportar não duplica.
 
@@ -62,13 +74,14 @@ confirmação:
 | KM | KM Real negativo é **problema de qualidade** (`km_real_negativo`), nunca somado. O KM dos pneus não substitui a Gestão de KM. |
 | Enriquecimento | N. Frota → veículo do Cadastro de Frotas (por código de frota/placa); contexto (operação, UF, cidade, BR, liderança, filial) resolvido na data. **Nenhum veículo é criado**; frota desconhecida vira `frota_nao_encontrada`. |
 | Coerência | Em uso sem frota/posição, fora de uso com frota, posição fora do dicionário, vida que regride, pneu que volta após descarte. |
-| Comparação | Contra a fotografia anterior: novo, atualizado (com o tipo de mudança: medição, calibragem, posição, frota, vida, situação…), sem mudança; pneus da fotografia anterior que **não vieram** = ausentes; ausentes que voltaram = reaparecidos. |
+| Comparação | Contra os dados da data anterior (nunca contra a versão do mesmo dia): novo, atualizado (com o tipo de mudança: medição, calibragem, posição, frota, vida, situação…), sem mudança; pneus da data anterior que **não vieram** = ausentes; ausentes que voltaram = reaparecidos. |
 
 Erros bloqueantes (o lote fica `blocked` e não pode ser confirmado): Nº Fogo
 ausente/inválido/duplicado no arquivo, dois pneus na mesma frota e posição,
-colunas oficiais ausentes, nenhuma linha válida, data não posterior à última
-fotografia, arquivo já importado. Os demais problemas são avisos e seguem para
-a fotografia com a marca de qualidade.
+colunas oficiais ausentes, nenhuma linha válida, data anterior aos dados
+vigentes (ou igual sem revisão do dia), arquivo já importado. Os demais
+problemas são avisos e seguem para os dados com a marca de qualidade (e viram
+achados na Central de Auditoria dos Dados).
 
 ## 4. Prévia (`tire_import_preview`)
 
@@ -79,21 +92,26 @@ mudança e por problema, frotas não encontradas e motivos de bloqueio.
 
 ## 5. Confirmação (`tire_import_confirm`) — transação única
 
-1. Grava a fotografia de cada pneu na data de referência (`tire_daily_snapshots`).
+1. Grava os dados de cada pneu na data de referência (`tire_daily_snapshots`;
+   na revisão do dia, atualiza a linha arquivando a versão anterior).
 2. Cria/atualiza o cadastro (`tires`) — chave `tire_id`, Nº Fogo como texto.
-3. Gera os eventos (`tire_events`): primeira fotografia, medição, calibragem,
+3. Gera os eventos (`tire_events`): primeiro registro, medição, calibragem,
    troca de posição, movimentação entre frotas, mudança de vida/situação,
    envio para ressolagem, descarte, retorno ao estoque, ausente, reaparecido.
 4. **Ausentes não são excluídos**: o pneu fica `presence_status = absent` com a
-   última fotografia conhecida e o evento `TIRE_ABSENT`.
+   última situação conhecida e o evento `TIRE_ABSENT`.
 5. Concilia as vistorias de campo pendentes de lançamento
    (`private.tire_reconcile_inspections`): sincronizada, pendente ou
    divergência persistente — ver [`tire-inspection-app.md`](./tire-inspection-app.md).
-6. Audita (`tire_audit_events`, autor = pessoa autenticada) e publica
-   `tires.snapshot.confirmed` em `outbox_events`.
+6. Dispara a varredura da Central de Auditoria dos Dados
+   (`private.tire_after_confirm` → `tire_audit_scan`; uma falha da auditoria
+   nunca desfaz a confirmação).
+7. Audita (`tire_audit_events`, autor = pessoa autenticada ou "Sincronização
+   automática (SharePoint)") e publica `tires.snapshot.confirmed` em
+   `outbox_events`.
 
 Lote não confirmado pode ser descartado (`tire_import_cancel`) sem alterar a
-base; lote confirmado não pode ser cancelado.
+base; lote confirmado ou substituído (`superseded`) não pode ser cancelado.
 
 ## 6. Primeira carga real (produção, 06/10/2026)
 
@@ -108,8 +126,8 @@ MD5 conferida no banco antes de gravar → `tire_import_validate` →
 | Validação | 617 linhas, 617 válidas, **0 erros**, 93 com aviso (80 KM Real negativo, 15 números gravados como data, 2 sulcos fora do limite, 1 menor sulco divergente, 1 data futura). |
 | Situação canônica | 409 em uso, 99 estoque, 68 descartados, 41 baixados. |
 | Enriquecimento | 75 frotas no arquivo, 75 resolvidas no Cadastro de Frotas, 0 não encontradas; nenhum veículo criado. |
-| Confirmação | 617 pneus, 617 fotografias, 617 eventos `TIRE_CREATED`, trilha de auditoria e `tires.snapshot.confirmed` no outbox. |
-| Idempotência | Reenvio do mesmo arquivo recusado com `tire_duplicate_file` ("já importado e confirmado como fotografia de 05/10/2026"); nenhum lote criado. |
+| Confirmação | 617 pneus, 617 linhas de dados da data, 617 eventos `TIRE_CREATED`, trilha de auditoria e `tires.snapshot.confirmed` no outbox. |
+| Idempotência | Reenvio do mesmo arquivo recusado com `tire_duplicate_file` ("já importado e confirmado como dados de 05/10/2026"); nenhum lote criado. |
 
 Uma primeira tentativa de confirmação foi revertida por inteiro porque a
 consulta de conferência executada na mesma transação falhou — prova prática de
@@ -125,4 +143,4 @@ ROI de pneus, controle financeiro por vida, comparativo de custo entre 1ª, 2ª 
 3ª vidas, custo de ressolagem por vida, rentabilidade de recapagem, dashboard
 financeiro, tabelas, rotas, APIs ou permissões de CPK. Nenhuma planilha de CPK
 é importada e nenhum valor de recapagem é solicitado. O KM Rodado/KM Real do
-Rodopar é guardado apenas como dado da fotografia e não é base de custo.
+Rodopar é guardado apenas como dado operacional do pneu e não é base de custo.

@@ -22,7 +22,7 @@ import {
 /**
  * Gestão de Pneus → Cronograma.
  *
- * `tires_schedule` agrupa os pneus em uso da fotografia mais recente por
+ * `tires_schedule` agrupa os pneus em uso dos dados mais recentes por
  * frota/placa — o pior pneu manda: a frota assume a data mais antiga de
  * medição e de calibragem — e devolve a página já ordenada pela pior
  * situação e pelo vencimento, com a agenda de janelas e os pneus de cada
@@ -44,15 +44,15 @@ export function SchedulePanel({ data, ctx }: { data: TiresTabData["cronograma"] 
     return (
       <PanelEmpty
         icon={<Upload />}
-        title="Nenhuma fotografia importada"
-        description="O cronograma de medição e calibragem é montado sobre a fotografia oficial mais recente importada do Rodopar 10. Assim que a primeira planilha for confirmada, as frotas aparecem aqui."
+        title="Nenhum dado oficial recebido"
+        description="O cronograma de medição e calibragem é montado sobre os dados mais recentes da base oficial (Rodopar 10). Assim que a primeira sincronização for concluída, as frotas aparecem aqui."
         testId="tires-cronograma-empty"
         action={
           ctx.perms.import ? (
             <Button asChild size="sm" variant="primary">
-              <Link href={`${ctx.basePath}?aba=importacao`}>
+              <Link href={`${ctx.basePath}?aba=sincronizacao`}>
                 <Upload aria-hidden />
-                Importar fotografia
+                Abrir a sincronização
               </Link>
             </Button>
           ) : undefined
@@ -158,7 +158,7 @@ function ScheduleContent({ data, ctx }: { data: TiresSchedule; ctx: TiresPanelCo
   return (
     <div className="flex flex-col gap-6" data-testid="tires-cronograma">
       <p className="text-body-sm text-fg-muted" data-testid="tires-cronograma-period">
-        Fotografia oficial mais recente: <span className="font-medium text-fg-secondary tabular-nums">{formatDate(data.referenceDate)}</span> ·{" "}
+        Dados oficiais mais recentes (Rodopar): <span className="font-medium text-fg-secondary tabular-nums">{formatDate(data.referenceDate)}</span> ·{" "}
         {fmtInt(k.units)} {plural(k.units, "frota com pneus em uso", "frotas com pneus em uso")} · prazos contados até{" "}
         <span className="tabular-nums">{formatDate(data.asOf)}</span>
       </p>
@@ -174,7 +174,7 @@ function ScheduleContent({ data, ctx }: { data: TiresSchedule; ctx: TiresPanelCo
               kpi="cronograma-frotas"
               label="Frotas no cronograma"
               value={fmtInt(k.units)}
-              period="com pneus em uso na fotografia"
+              period="com pneus em uso nos dados atuais"
               status="primary"
               icon={<Truck />}
               nav={toWindow("todos")}
@@ -241,8 +241,8 @@ function ScheduleContent({ data, ctx }: { data: TiresSchedule; ctx: TiresPanelCo
         {fmtDays(p.measurementWarningDays)}, vencida acima disso; a próxima medição vence {fmtDays(p.measurementWarningDays)} depois dela.{" "}
         <strong>Calibragem</strong>: em dia até {fmtDays(p.calibrationOkDays)}, próxima até {fmtDays(p.calibrationWarningDays)}, vencida acima
         disso; a próxima vence {fmtDays(p.calibrationWarningDays)} depois da calibragem mais antiga. As janelas da agenda contam a partir de hoje
-        ({formatDate(data.today)}). Sempre a fotografia mais recente do Rodopar 10 — vistorias de campo não alteram a base até serem lançadas no
-        Rodopar e importadas.
+        ({formatDate(data.today)}). Sempre os dados mais recentes da base oficial (Rodopar 10) — vistorias de campo não alteram a base até serem
+        lançadas no Rodopar e sincronizadas.
       </InsightCard>
 
       <Section

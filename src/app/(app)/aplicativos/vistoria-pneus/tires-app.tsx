@@ -48,9 +48,9 @@ import { MyTireInspectionDetail, MyTireInspections, type RedoTarget } from "./my
  *
  * LEITURA CEGA: antes e durante a medição a pessoa vê só as posições do
  * veículo — nunca Nº Fogo esperado, sulco, PSI, datas ou situação da
- * fotografia oficial. A comparação é feita no banco no envio, e a vistoria não
- * altera a fotografia oficial: vai para revisão e é conciliada com o próximo
- * Rodopar. A busca de frotas roda no servidor (escopo e elegibilidade do app);
+ * base oficial (Rodopar). A comparação é feita no banco no envio, e a vistoria
+ * não altera a base oficial: vai para revisão e é conciliada com os próximos
+ * dados do Rodopar. A busca de frotas roda no servidor (escopo e elegibilidade do app);
  * o rascunho e a chave de idempotência ficam no aparelho (`draft.ts`).
  */
 export interface TiresAppLoaders {
@@ -153,8 +153,8 @@ export function TiresApp({ loaders = DEFAULT_LOADERS, canExecute }: TiresAppProp
           ? { title: "Aplicativo inativo", text: "O aplicativo Vistoria de Pneus está inativo nesta organização. Fale com a administração para reativá-lo." }
           : !context.hasOfficialPhoto
             ? {
-                title: "Ainda sem fotografia oficial",
-                text: "Nenhuma fotografia oficial do Rodopar foi importada ainda. A vistoria só pode ser registrada depois da primeira importação, porque é com ela que a equipe compara as leituras. Fale com a equipe de Gestão de Pneus.",
+                title: "Ainda sem dados oficiais",
+                text: "A base oficial (Rodopar) ainda não recebeu nenhum dado. A vistoria só pode ser registrada depois da primeira sincronização, porque é com ela que a equipe compara as leituras. Fale com a equipe de Gestão de Pneus.",
               }
             : null;
   const canStart = canExecute && !!context && blocker === null;
@@ -207,7 +207,7 @@ export function TiresApp({ loaders = DEFAULT_LOADERS, canExecute }: TiresAppProp
         className={screen.name === "home" ? undefined : "max-sm:sr-only"}
         description={
           screen.name === "home"
-            ? "Vistoria de campo dos pneus com leitura cega. O envio vai para revisão da equipe; a fotografia oficial só muda com o Rodopar."
+            ? "Vistoria de campo dos pneus com leitura cega. O envio vai para revisão da equipe; a base oficial só muda com o Rodopar."
             : undefined
         }
       />
@@ -360,7 +360,7 @@ function HomeScreen({
             <h3 className="text-body font-semibold text-fg">Leitura cega</h3>
             <p className="text-body-sm text-info-soft-fg">
               Você vê só as posições do veículo. Anote exatamente o que ler em cada pneu — Nº Fogo, sulcos e PSI. A equipe compara com a base oficial depois do
-              envio; a vistoria não altera a fotografia oficial.
+              envio; a vistoria não altera a base oficial (Rodopar).
             </p>
           </div>
         </section>

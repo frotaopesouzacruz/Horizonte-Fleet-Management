@@ -27,7 +27,7 @@ import {
  * `tire_inspections_received` filtra, pagina e conta; a vistoria aberta
  * (`?vistoria=<id>`) é lida no servidor e mostrada na gaveta, com as leituras
  * ao lado da referência oficial do Rodopar. A vistoria nunca altera a
- * fotografia oficial: a conciliação acontece na próxima importação.
+ * base oficial (Rodopar): a conciliação acontece na próxima sincronização.
  */
 type Data = NonNullable<TiresTabData["vistorias"]>;
 
@@ -164,7 +164,7 @@ function InspectionsContent({ data, ctx }: { data: Data; ctx: TiresPanelContext 
               value={fmtInt(k.persistent)}
               status={k.persistent > 0 ? "danger" : "neutral"}
               icon={<RefreshCcwDot />}
-              period="A nova fotografia não confirmou a leitura"
+              period="Os novos dados do Rodopar não confirmaram a leitura"
               nav={kpiNav({ fase: "pendente_rodopar", divergencia: "persistente" })}
               destination="ver as vistorias com divergência persistente"
             />
@@ -174,17 +174,17 @@ function InspectionsContent({ data, ctx }: { data: Data; ctx: TiresPanelContext 
           ariaLabel="Situação das vistorias e SLAs vigentes"
           className="sm:grid-cols-3 xl:grid-cols-6"
           items={[
-            { key: "sincronizadas", label: "Sincronizadas com o Rodopar", value: <span data-testid="tires-kpi-vistorias-sincronizadas">{fmtInt(k.sincronizadoRodopar)}</span>, hint: "Confirmadas pela importação" },
+            { key: "sincronizadas", label: "Sincronizadas com o Rodopar", value: <span data-testid="tires-kpi-vistorias-sincronizadas">{fmtInt(k.sincronizadoRodopar)}</span>, hint: "Confirmadas pela sincronização" },
             { key: "retornadas", label: "Retornadas por divergência", value: <span data-testid="tires-kpi-vistorias-retornadas">{fmtInt(k.retornarDivergencia)}</span>, hint: "Aguardam nova medição" },
             { key: "substituidas", label: "Substituídas", value: fmtInt(k.substituida), hint: "Refeitas por nova medição" },
             { key: "tempo", label: "Tempo médio de revisão", value: <span data-testid="tires-kpi-vistorias-tempo">{fmtHours(k.avgReviewHours)}</span>, hint: "Do envio à decisão, últimos 90 dias" },
             { key: "sla-revisao", label: "SLA de revisão", value: fmtDays(k.reviewSlaDays), hint: "Parâmetro vigente" },
-            { key: "sla-rodopar", label: "SLA de sincronização", value: fmtDays(k.rodoparSyncSlaDays), hint: "Da aprovação à fotografia" },
+            { key: "sla-rodopar", label: "SLA de sincronização", value: fmtDays(k.rodoparSyncSlaDays), hint: "Da aprovação aos dados do Rodopar" },
           ]}
         />
         <p className="text-caption text-fg-muted">
-          Indicadores de todas as vistorias do seu escopo, sem os filtros da fila. A vistoria de campo nunca altera a fotografia oficial: o que
-          for aprovado só chega à base pela próxima importação do Rodopar.
+          Indicadores de todas as vistorias do seu escopo, sem os filtros da fila. A vistoria de campo nunca altera a base oficial (Rodopar): o que
+          for aprovado só chega à base pela próxima sincronização do Rodopar.
         </p>
       </section>
 

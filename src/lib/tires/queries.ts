@@ -3,6 +3,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { Json } from "@/types/database.types";
 import { tiresPreviewActive, tiresRpc } from "./rpc";
+import { camelize as camelizeRow } from "@/lib/maintenance/types";
 import type {
   ImportPreviewSection,
   ScheduleWindow,
@@ -10,7 +11,7 @@ import type {
   TireImportHistory,
   TireImportPreview,
   TireInspectionDetail,
-  TireOverview,
+  TireOverviewV2,
   TirePositionInfo,
   TireRepairSuggestion,
   TireSheet,
@@ -26,11 +27,26 @@ import type {
   TiresQuality,
   TiresRepairsList,
   TiresSchedule,
+  AuditGroupBy,
+  KpiDimension,
+  KpiIndicator,
+  KpiPeriod,
+  KpiSchedule,
+  TireIndicatorKey,
+  TireSyncSource,
+  TiresAuditCenter,
+  TiresBaseGroups,
+  TiresDefinitions,
+  TiresGroupBy,
+  TiresIndicator,
+  TiresKpiHistory,
+  TiresPriorities,
+  TiresSyncOverview,
 } from "./types";
 
 /**
  * Leituras da Gestão de Pneus. Tudo passa por rotinas do banco sobre a mesma
- * avaliação da fotografia (`private.tire_rows`), sob a RLS da pessoa: o
+ * avaliação dos dados (`private.tire_rows`), sob a RLS da pessoa: o
  * escopo por organização, operação e veículo vale igual para a visão geral,
  * a base, as aderências, a ficha e a exportação.
  */
@@ -40,7 +56,108 @@ export const getTiresFilterOptions = (organizationId: string, referenceDate?: st
   tiresRpc<TireFilterOptions>("tires_filter_options", { p_organization_id: organizationId, p_reference_date: referenceDate ?? null });
 
 export const getTiresOverview = (organizationId: string, filters: Filters) =>
-  tiresRpc<TireOverview>("tires_overview", { p_organization_id: organizationId, p_filters: filters });
+  tiresRpc<TireOverviewV2>("tires_overview", { p_organization_id: organizationId, p_filters: filters });
+
+export const getTiresPriorities = (
+  organizationId: string,
+  filters: Filters,
+  groupBy: TiresGroupBy = "operation",
+  groupId: string | null = null,
+  limit = 25,
+  offset = 0,
+) =>
+  tiresRpc<TiresPriorities>("tires_priorities", {
+    p_organization_id: organizationId,
+    p_filters: filters,
+    p_group_by: groupBy,
+    p_group_id: groupId,
+    p_limit: limit,
+    p_offset: offset,
+  });
+
+export const getTiresIndicator = (
+  organizationId: string,
+  indicator: TireIndicatorKey,
+  filters: Filters,
+  status: string | null = null,
+  limit = 50,
+  offset = 0,
+) =>
+  tiresRpc<TiresIndicator>("tires_indicator", {
+    p_organization_id: organizationId,
+    p_indicator: indicator,
+    p_filters: filters,
+    p_status: status,
+    p_limit: limit,
+    p_offset: offset,
+  });
+
+export const getTiresBaseGroups = (organizationId: string, filters: Filters, groupBy: TiresGroupBy) =>
+  tiresRpc<TiresBaseGroups>("tires_base_groups", { p_organization_id: organizationId, p_filters: filters, p_group_by: groupBy });
+
+export const getTiresKpiHistory = (
+  organizationId: string,
+  period: KpiPeriod = "semana",
+  indicator: KpiIndicator = "overall_conformity",
+  dimension: KpiDimension = "geral",
+  dimensionId: string | null = null,
+  limit = 26,
+) =>
+  tiresRpc<TiresKpiHistory>("tires_kpi_history", {
+    p_organization_id: organizationId,
+    p_period: period,
+    p_indicator: indicator,
+    p_dimension: dimension,
+    p_dimension_id: dimensionId,
+    p_limit: limit,
+  });
+
+export const getTiresAuditCenter = (
+  organizationId: string,
+  filters: Filters,
+  opts: { category?: string | null; rule?: string | null; severity?: string | null; status?: string; groupBy?: AuditGroupBy; limit?: number; offset?: number } = {},
+) =>
+  tiresRpc<TiresAuditCenter>("tires_audit_center", {
+    p_organization_id: organizationId,
+    p_filters: filters,
+    p_category: opts.category ?? null,
+    p_rule: opts.rule ?? null,
+    p_severity: opts.severity ?? null,
+    p_status: opts.status ?? "aberta",
+    p_group_by: opts.groupBy ?? "rule",
+    p_limit: opts.limit ?? 50,
+    p_offset: opts.offset ?? 0,
+  });
+
+export const getTiresSyncOverview = (organizationId: string, limit = 20, offset = 0) =>
+  tiresRpc<TiresSyncOverview>("tire_sync_overview", { p_organization_id: organizationId, p_limit: limit, p_offset: offset });
+
+export const getTiresDefinitions = (organizationId: string) =>
+  tiresRpc<TiresDefinitions>("tires_definitions", { p_organization_id: organizationId });
+
+/** Local da fonte oficial (sem segredo) para Parâmetros; null sem permissão de leitura. */
+export async function getTireSyncSource(organizationId: string): Promise<TireSyncSource | null> {
+  if (tiresPreviewActive()) return (await getTiresSyncOverview(organizationId)).source;
+  const supabase = await createClient();
+  const query = (supabase.from as unknown as (t: string) => {
+    select: (c: string) => { eq: (k: string, v: unknown) => { maybeSingle: () => Promise<{ data: Record<string, unknown> | null; error: { message: string } | null }> } };
+  })("tire_sync_sources");
+  const { data, error } = await query.select("*").eq("organization_id", organizationId).maybeSingle();
+  if (error) throw new Error(`tire_sync_sources: ${error.message}`);
+  return data ? camelizeRow<TireSyncSource>(data) : null;
+}
+
+/** Agenda da captura de indicadores (Parâmetros). */
+export async function getTireKpiSchedule(organizationId: string): Promise<KpiSchedule | null> {
+  if (tiresPreviewActive()) return (await getTiresKpiHistory(organizationId)).schedule;
+  const supabase = await createClient();
+  const query = (supabase.from as unknown as (t: string) => {
+    select: (c: string) => { eq: (k: string, v: unknown) => { maybeSingle: () => Promise<{ data: Record<string, unknown> | null; error: { message: string } | null }> } };
+  })("tire_kpi_schedules");
+  const { data, error } = await query.select("*").eq("organization_id", organizationId).maybeSingle();
+  if (error) throw new Error(`tire_kpi_schedules: ${error.message}`);
+  return data ? { ...camelizeRow<KpiSchedule>(data), nextSlotAt: null } : null;
+}
 
 export const getTiresBase = (
   organizationId: string,

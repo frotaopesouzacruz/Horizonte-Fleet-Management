@@ -22,8 +22,8 @@ import {
  * Permissão `applications.tires.execute` (o `tires.inspection.submit` do
  * requisito), concedida pelos perfis oficiais. LEITURA CEGA: nenhuma rotina
  * daqui devolve Nº Fogo, sulco ou PSI esperados — só as posições do veículo.
- * A comparação com a fotografia oficial é feita no banco, no envio, e a
- * vistoria NÃO altera a fotografia (ela segue para revisão e conciliação com
+ * A comparação com a base oficial (Rodopar) é feita no banco, no envio, e a
+ * vistoria NÃO altera a base oficial (ela segue para revisão e conciliação com
  * o próximo Rodopar). O envio é idempotente pela chave gerada no aparelho.
  */
 export interface Result<T = undefined> {

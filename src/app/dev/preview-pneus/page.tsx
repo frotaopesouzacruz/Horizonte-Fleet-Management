@@ -16,7 +16,7 @@ import { tiresPreviewResolver } from "./preview-data";
  *
  * `?perfil=lideranca` renderiza com as permissões padrão da Liderança de
  * Operações na matriz (ver, visão geral, base, histórico, aderências,
- * cronograma, serviços e o aplicativo) — sem importação, qualidade, revisão de
+ * cronograma, serviços e o aplicativo) — sem Sincronização Rodopar, Auditoria dos dados, revisão de
  * vistorias, exportação nem edição de parâmetros.
  */
 export const metadata = { title: "Preview · Gestão de Pneus", robots: { index: false, follow: false } };

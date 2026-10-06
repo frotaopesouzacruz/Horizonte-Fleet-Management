@@ -47,3 +47,4 @@ tests/ui/.results/
 tests/ui/.screenshots/
 /playwright-report/
 /test-results/
+tests/integration/.results/
