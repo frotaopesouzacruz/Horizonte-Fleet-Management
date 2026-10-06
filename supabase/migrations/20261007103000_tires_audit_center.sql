@@ -197,14 +197,9 @@ begin
                                    where x.organization_id = p_organization_id and x.status = 'confirmed'), '-infinity'::timestamptz)
    order by b.created_at desc limit 1;
 
+  -- calcula os achados da situação atual e concilia com os persistidos num
+  -- único comando (CTEs com escrita): sem tabela temporária
   perform set_config('hfm.tire_org_wide', 'on', true);
-  create temp table if not exists tmp_tire_findings (
-    rule_code text, fingerprint text, tire_id uuid, fire_number text, vehicle_id uuid, license_plate text, fleet_number text,
-    position_code text, operation_id uuid, operation_name text, city_id integer, city_label text, leader_id uuid, leader_name text,
-    field text, found_value text, expected_value text, detail text) on commit drop;
-  truncate tmp_tire_findings;
-
-  insert into tmp_tire_findings
   with r as materialized (select * from private.tire_rows(p_organization_id, jsonb_build_object('reference_date', v_ref), v_as_of)),
   ctx as (select r.*, coalesce(r.city_name || ' · ' || r.state_uf, null) as city_label from r),
   iss as (
@@ -222,13 +217,16 @@ begin
     select r.vehicle_id, min(r.license_plate) as plate, min(r.fleet_number) as fleet, (array_agg(r.operation_id))[1] as op,
            min(r.operation_name) as op_name, (array_agg(r.city_id))[1] as city, min(r.city_name || ' · ' || r.state_uf) as city_label,
            (array_agg(r.leader_employee_id))[1] as leader, min(r.leader_name) as leader_name, count(*) as in_use
-      from r where r.canonical_status = 'em_uso' and r.vehicle_id is not null group by r.vehicle_id)
+      from r where r.canonical_status = 'em_uso' and r.vehicle_id is not null group by r.vehicle_id),
+  found as materialized (
   -- 1. flags da leitura
-  select case iss.code when 'em_uso_sem_frota' then 'em_uso_sem_veiculo' else iss.code end,
-         iss.code || ':' || iss.tire_id || ':' || coalesce(iss.i_field, ''),
-         iss.tire_id, iss.fire_number, iss.vehicle_id, iss.license_plate, iss.fleet_number, iss.position_code,
-         iss.operation_id, iss.operation_name, iss.city_id, iss.city_label, iss.leader_employee_id, iss.leader_name,
-         iss.i_field, iss.i_value, null, iss.i_msg
+  select case iss.code when 'em_uso_sem_frota' then 'em_uso_sem_veiculo' else iss.code end as rule_code,
+         iss.code || ':' || iss.tire_id || ':' || coalesce(iss.i_field, '') as fingerprint,
+         iss.tire_id as tire_id, iss.fire_number as fire_number, iss.vehicle_id as vehicle_id, iss.license_plate as license_plate,
+         iss.fleet_number as fleet_number, iss.position_code as position_code,
+         iss.operation_id as operation_id, iss.operation_name as operation_name, iss.city_id as city_id, iss.city_label as city_label,
+         iss.leader_employee_id as leader_id, iss.leader_name as leader_name,
+         iss.i_field as field, iss.i_value as found_value, null::text as expected_value, iss.i_msg as detail
     from iss
    where iss.code in ('sulco_invalido', 'menor_mm_divergente', 'km_real_negativo', 'psi_invalido', 'numero_formatado_como_data',
                       'data_futura', 'data_invalida', 'vida_invalida', 'situacao_nao_reconhecida', 'vida_regrediu', 'reativado_apos_baixa')
@@ -352,11 +350,9 @@ begin
          st.position_code, null, null, null, null, null, null, i ->> 'field', i ->> 'value', null,
          format('Linha %s da planilha (%s): %s', st.row_number, v_blocked.file_name, i ->> 'message')
     from public.tire_import_staging st cross join lateral jsonb_array_elements(st.issues) i
-   where v_blocked.id is not null and st.batch_id = v_blocked.id and (i ->> 'code') in ('fogo_duplicado', 'colisao_posicao');
-  perform set_config('hfm.tire_org_wide', '', true);
-
-  -- conciliação com os achados persistidos
-  with up as (
+   where v_blocked.id is not null and st.batch_id = v_blocked.id and (i ->> 'code') in ('fogo_duplicado', 'colisao_posicao')),
+  -- conciliação com os achados persistidos (abre/atualiza os encontrados; resolve os que sumiram)
+  up as (
     insert into public.tire_data_findings as fd (organization_id, rule_code, fingerprint, category, severity, tire_id, fire_number,
                                                  vehicle_id, license_plate, fleet_number, position_code, operation_id, operation_name,
                                                  city_id, city_label, leader_id, leader_name, field, found_value, expected_value, detail,
@@ -365,7 +361,7 @@ begin
            t.fleet_number, t.position_code, t.operation_id, t.operation_name, t.city_id, t.city_label, t.leader_id, t.leader_name,
            coalesce(t.field, ru.field), left(t.found_value, 500), coalesce(t.expected_value, ru.expected), left(t.detail, 1000),
            v_ref, v_ref, v_scan
-      from (select distinct on (x.fingerprint) x.* from tmp_tire_findings x order by x.fingerprint) t
+      from (select distinct on (x.fingerprint) x.* from found x order by x.fingerprint) t
       join public.tire_audit_rules ru on ru.code = t.rule_code and ru.is_active
     on conflict (organization_id, fingerprint) do update set
       severity = excluded.severity, category = excluded.category, vehicle_id = excluded.vehicle_id, license_plate = excluded.license_plate,
@@ -376,14 +372,15 @@ begin
       occurrences = fd.occurrences + case when fd.last_reference_date is distinct from excluded.last_reference_date or fd.status = 'resolvida' then 1 else 0 end,
       reopened_count = fd.reopened_count + case when fd.status = 'resolvida' then 1 else 0 end,
       status = 'aberta', resolved_at = null
-    returning (xmax = 0) as inserted, fd.reopened_count)
-  select count(*) filter (where up.inserted), count(*) filter (where not up.inserted)
-    into n_open, n_ref from up;
-
-  update public.tire_data_findings fd set status = 'resolvida', resolved_at = now(), last_scan_id = v_scan
-   where fd.organization_id = p_organization_id and fd.status = 'aberta'
-     and not exists (select 1 from tmp_tire_findings t where t.fingerprint = fd.fingerprint);
-  get diagnostics n_res = row_count;
+    returning (xmax = 0) as inserted),
+  res as (
+    update public.tire_data_findings fd set status = 'resolvida', resolved_at = now(), last_scan_id = v_scan
+     where fd.organization_id = p_organization_id and fd.status = 'aberta'
+       and not exists (select 1 from found t where t.fingerprint = fd.fingerprint)
+    returning 1)
+  select (select count(*) from up where up.inserted), (select count(*) from up where not up.inserted), (select count(*) from res)
+    into n_open, n_ref, n_res;
+  perform set_config('hfm.tire_org_wide', '', true);
   select count(*) into n_total from public.tire_data_findings fd where fd.organization_id = p_organization_id and fd.status = 'aberta';
 
   update public.tire_audit_scans s set status = 'concluida', finished_at = now(), opened = n_open, refreshed = n_ref, resolved = n_res,
