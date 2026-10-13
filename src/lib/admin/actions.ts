@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient, canProvisionAccess } from "@/lib/supabase/admin";
 import { requireOrganization } from "@/lib/auth/session";
 import { siteOrigin } from "@/lib/auth/actions";
+import { loginEmailForCode } from "@/lib/auth/login-identity";
 
 const MODULE_PATH = "/administracao/usuarios";
 const PROFILES_PATH = "/administracao/perfis";
@@ -192,6 +193,77 @@ async function findUserByEmail(email: string): Promise<string | null> {
   return null;
 }
 
+/**
+ * Creates the account of someone who signs in with the matrícula.
+ *
+ * There is no mailbox to invite, so the account is created already confirmed,
+ * with the initial password the database derived from the CPF (its first six
+ * digits). The password is never logged or returned to the browser: the
+ * administrator already knows the rule and the person changes it after signing
+ * in. If the address already has an account (a grant that was removed and is
+ * being given again), that account is reused and its password set back to the
+ * initial one.
+ */
+async function ensureEmployeeCodeUser(
+  employeeCode: string,
+  fullName: string,
+  initialPassword: string | null,
+): Promise<{ userId: string; warning?: string }> {
+  const email = loginEmailForCode(employeeCode);
+  if (!email) {
+    throw new Error(
+      "A matrícula contém caracteres que não formam um login (use só letras e números). Corrija a matrícula antes de conceder o acesso.",
+    );
+  }
+  if (!initialPassword) {
+    throw new Error("Não foi possível obter a senha inicial (6 primeiros dígitos do CPF). Verifique o CPF do colaborador.");
+  }
+  if (!canProvisionAccess()) {
+    throw new Error(
+      "O acesso por matrícula precisa da API de administração do Supabase. Configure SUPABASE_SERVICE_ROLE_KEY neste ambiente.",
+    );
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.auth.admin.createUser({
+    email,
+    password: initialPassword,
+    email_confirm: true,
+    user_metadata: { full_name: fullName, employee_code: employeeCode, login_method: "employee_code" },
+  });
+  if (!error && data.user) return { userId: data.user.id };
+
+  if (error && isAlreadyRegistered(error)) {
+    const existing = await findUserByEmail(email);
+    if (existing) {
+      const reset = await admin.auth.admin.updateUserById(existing, { password: initialPassword, email_confirm: true });
+      if (reset.error) throw new Error(describeAuthError(reset.error, "A conta já existia e a senha inicial não pôde ser redefinida."));
+      return {
+        userId: existing,
+        warning: "A conta de login já existia: a senha voltou a ser a inicial (6 primeiros dígitos do CPF).",
+      };
+    }
+  }
+  throw new Error(describeAuthError(error, "Não foi possível criar a conta de acesso."));
+}
+
+function isAlreadyRegistered(error: { code?: string; message: string }): boolean {
+  return error.code === "email_exists" || /already (been )?registered|already exists/i.test(error.message);
+}
+
+/**
+ * Auth API errors are in English and about policy. The one an administrator
+ * can actually run into here is the password policy refusing six digits, and
+ * that one needs to say what to change.
+ */
+function describeAuthError(error: { code?: string; message: string } | null, fallback: string): string {
+  const message = error?.message ?? "";
+  if (/password/i.test(message) && /(weak|short|at least|characters|requirement|strength|length)/i.test(message)) {
+    return "A política de senhas do Supabase Auth não aceita os 6 dígitos do CPF como senha inicial (mínimo de caracteres ou complexidade). Ajuste a política em Authentication › Settings ou conceda o acesso por e-mail.";
+  }
+  return message ? `${fallback} (${message})` : fallback;
+}
+
 export async function grantAccess(
   employeeId: string,
   roleIds: string[],
@@ -201,9 +273,11 @@ export async function grantAccess(
   const supabase = await createClient();
 
   // Everything that can be validated before an account exists is validated
-  // first, so provisioning cannot leave an auth user without a membership.
+  // first, so provisioning cannot leave an auth user without a membership. The
+  // answer also says how this person signs in: by e-mail (invitation) or by
+  // matrícula (no e-mail; the initial password comes from the CPF).
   const { data: prepared, error: prepareError } = await supabase
-    .rpc("prepare_employee_access", {
+    .rpc("prepare_employee_access_v2", {
       p_employee_id: employeeId,
       p_role_ids: roleIds,
       p_operation_ids: operationIds,
@@ -211,14 +285,19 @@ export async function grantAccess(
     .maybeSingle();
 
   if (prepareError) return { ok: false, error: toMessage(prepareError, "Não foi possível validar a concessão de acesso.") };
-  if (!prepared?.email) return { ok: false, error: "Este colaborador não possui e-mail corporativo." };
+  if (!prepared) return { ok: false, error: "Não foi possível validar a concessão de acesso." };
+
+  const byCode = prepared.login_method === "employee_code";
+  if (!byCode && !prepared.email) return { ok: false, error: "Este colaborador não possui e-mail corporativo." };
 
   let userId = prepared.account_user_id;
   let warning: string | undefined;
 
   if (!userId) {
     try {
-      const created = await ensureAuthUser(prepared.email, prepared.email.split("@")[0]);
+      const created = byCode
+        ? await ensureEmployeeCodeUser(prepared.employee_code, prepared.full_name, prepared.initial_password)
+        : await ensureAuthUser(prepared.email, prepared.email.split("@")[0]);
       userId = created.userId;
       warning = created.warning;
     } catch (error) {
@@ -226,7 +305,7 @@ export async function grantAccess(
     }
   }
 
-  const { error } = await supabase.rpc("grant_employee_access", {
+  const { error } = await supabase.rpc("grant_employee_access_v2", {
     p_employee_id: employeeId,
     p_user_id: userId,
     p_role_ids: roleIds,
@@ -245,10 +324,13 @@ export async function resendInvite(employeeId: string): Promise<Result> {
 
   const { data } = await supabase
     .from("employee_directory")
-    .select("corporate_email, access_status")
+    .select("corporate_email, access_status, login_method")
     .eq("id", employeeId)
     .maybeSingle();
 
+  if (data?.login_method === "employee_code") {
+    return { ok: false, error: "Este colaborador entra por matrícula: não há convite por e-mail. Use “Redefinir senha inicial”." };
+  }
   if (!data?.corporate_email) return { ok: false, error: "Este colaborador não possui e-mail corporativo." };
 
   const origin = await siteOrigin();
@@ -257,6 +339,40 @@ export async function resendInvite(employeeId: string): Promise<Result> {
   });
   if (error) return { ok: false, error: "Não foi possível reenviar o convite." };
 
+  return { ok: true };
+}
+
+/**
+ * Puts the password of a matrícula account back to the initial one.
+ *
+ * Someone who signs in with the matrícula has no mailbox for a recovery link,
+ * so this is how a forgotten password is recovered: the manager asks for it
+ * here, the database records who asked (`user.initial_password_issued`) and
+ * the Auth Admin API applies the first six digits of the CPF again. Nothing is
+ * shown or sent; the person signs in and changes it.
+ */
+export async function resetEmployeeCodePassword(employeeId: string): Promise<Result> {
+  await requireOrganization("users.manage_access");
+  if (!canProvisionAccess()) {
+    return {
+      ok: false,
+      error: "A redefinição precisa da API de administração do Supabase. Configure SUPABASE_SERVICE_ROLE_KEY neste ambiente.",
+    };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("employee_code_initial_password", { p_employee_id: employeeId }).maybeSingle();
+  if (error) return { ok: false, error: toMessage(error, "Não foi possível redefinir a senha inicial.") };
+  if (!data?.account_user_id || !data.initial_password) return { ok: false, error: "Não foi possível redefinir a senha inicial." };
+
+  const admin = createAdminClient();
+  const { error: authError } = await admin.auth.admin.updateUserById(data.account_user_id, {
+    password: data.initial_password,
+    email_confirm: true,
+  });
+  if (authError) return { ok: false, error: describeAuthError(authError, "A senha inicial não pôde ser aplicada.") };
+
+  revalidatePath(MODULE_PATH);
   return { ok: true };
 }
 

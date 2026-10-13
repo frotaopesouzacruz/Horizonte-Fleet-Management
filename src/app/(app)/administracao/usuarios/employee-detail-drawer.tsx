@@ -37,6 +37,7 @@ import {
   restoreEmployee,
   grantAccess,
   resendInvite,
+  resetEmployeeCodePassword,
   setAccessStatus,
   setOperationScopes,
   setRoles,
@@ -291,6 +292,14 @@ export function EmployeeDetailDrawer({
                     )
                   }
                   onResend={() => run(() => resendInvite(row.id!), "Convite reenviado.")}
+                  onResetPassword={async () => {
+                    const confirmed = await confirm({
+                      title: "Redefinir senha inicial",
+                      description: `A senha desta conta voltará a ser os 6 primeiros dígitos do CPF cadastrado. Oriente ${row.full_name} a trocá-la depois de entrar. A redefinição fica registrada com o seu usuário.`,
+                      confirmLabel: "Redefinir senha",
+                    });
+                    if (confirmed) await run(() => resetEmployeeCodePassword(row.id!), "Senha inicial redefinida.").catch(() => {});
+                  }}
                 />
               </TabsContent>
 
@@ -434,6 +443,7 @@ function AccessTab({
   onScopes,
   onStatus,
   onResend,
+  onResetPassword,
 }: {
   detail: EmployeeDetailPayload;
   options: DirectoryOptions;
@@ -443,13 +453,18 @@ function AccessTab({
   onScopes: (operationIds: string[]) => void;
   onStatus: (status: "active" | "suspended") => void;
   onResend: () => void;
+  onResetPassword: () => void;
 }) {
   const row = detail.directory;
   const can = (permission: string) => detail.permissions.includes(permission);
   const hasAccount = Boolean(row.membership_id);
+  // Como esta pessoa entra no HFM: pelo perfil organizacional vigente.
+  const byCode = row.login_method === "employee_code";
+  // Sem a leitura mascarada não dá para saber se há CPF; o banco decide de novo.
+  const cpfKnown = detail.masked ? detail.masked.has_cpf : true;
 
   const [roleIds, setRoleIds] = React.useState<string[]>(detail.roleIds);
-  const [operationIds, setOperationIds] = React.useState<string[]>(detail.scopeOperationIds);
+  const [operationIds, setOperationIds] = React.useState<string[]>(() => initialScope(detail));
   const [reasonOpen, setReasonOpen] = React.useState(false);
 
   // A reload brings a new `detail` object: the pickers follow it during render,
@@ -458,7 +473,7 @@ function AccessTab({
   if (source !== detail) {
     setSource(detail);
     setRoleIds(detail.roleIds);
-    setOperationIds(detail.scopeOperationIds);
+    setOperationIds(initialScope(detail));
   }
 
   const grantsAllOperations = React.useMemo(
@@ -477,7 +492,26 @@ function AccessTab({
           </AlertDescription>
         </Alert>
 
-        {!row.corporate_email ? (
+        {byCode ? (
+          cpfKnown ? (
+            <Alert variant="info">
+              <AlertTitle>Acesso por matrícula</AlertTitle>
+              <AlertDescription>
+                O perfil organizacional deste colaborador entra no HFM com a matrícula <strong>{row.employee_code}</strong>{" "}
+                e uma senha. Nenhum e-mail é necessário nem enviado: a senha inicial são os 6 primeiros dígitos do CPF
+                cadastrado, e a conta já nasce ativa.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Alert variant="warning">
+              <AlertTitle>CPF obrigatório</AlertTitle>
+              <AlertDescription>
+                Este perfil entra com matrícula e senha, e a senha inicial são os 6 primeiros dígitos do CPF. Edite o
+                cadastro e informe o CPF antes de conceder o acesso.
+              </AlertDescription>
+            </Alert>
+          )
+        ) : !row.corporate_email ? (
           <Alert variant="warning">
             <AlertTitle>E-mail corporativo obrigatório</AlertTitle>
             <AlertDescription>
@@ -499,14 +533,15 @@ function AccessTab({
             <div>
               <Button
                 leadingIcon={<KeyRound />}
-                disabled={pending || !row.corporate_email || roleIds.length === 0}
+                disabled={pending || roleIds.length === 0 || (byCode ? !cpfKnown : !row.corporate_email)}
                 onClick={() => onGrant(roleIds, operationIds)}
               >
                 Conceder acesso ao HFM
               </Button>
               <p className="mt-2 text-caption text-fg-muted">
-                O colaborador receberá um e-mail para definir a própria senha. Nenhuma senha é definida ou visualizada
-                por administradores.
+                {byCode
+                  ? "A conta é criada na hora, sem e-mail. O colaborador entra com a matrícula e os 6 primeiros dígitos do CPF e deve trocar a senha depois; ninguém visualiza senhas."
+                  : "O colaborador receberá um e-mail para definir a própria senha. Nenhuma senha é definida ou visualizada por administradores."}
               </p>
             </div>
           </>
@@ -521,7 +556,11 @@ function AccessTab({
     <div className="flex flex-col gap-4">
       <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Status de acesso">{ACCESS_STATUS_LABELS[row.access_status ?? "none"]}</Field>
-        <Field label="E-mail de login">{row.corporate_email}</Field>
+        {byCode ? (
+          <Field label="Login">{`Matrícula ${row.employee_code}`}</Field>
+        ) : (
+          <Field label="E-mail de login">{row.corporate_email}</Field>
+        )}
         <Field label="Acesso desde">{formatDateTime(row.access_since)}</Field>
         <Field label="Última atualização de acesso">{formatDateTime(row.access_updated_at)}</Field>
       </dl>
@@ -578,7 +617,12 @@ function AccessTab({
       <Separator />
 
       <div className="flex flex-wrap gap-2">
-        {row.access_status === "invited" && can("users.invite") ? (
+        {byCode && can("users.manage_access") && row.access_status !== "removed" ? (
+          <Button variant="secondary" leadingIcon={<KeyRound />} disabled={pending} onClick={onResetPassword}>
+            Redefinir senha inicial
+          </Button>
+        ) : null}
+        {!byCode && row.access_status === "invited" && can("users.invite") ? (
           <Button variant="secondary" leadingIcon={<Mail />} disabled={pending} onClick={onResend}>
             Reenviar convite
           </Button>
@@ -609,6 +653,17 @@ function AccessTab({
       ) : null}
     </div>
   );
+}
+
+/**
+ * The operations a new account starts with. Someone who already has an account
+ * keeps the scope the database holds; someone without one starts from the
+ * operation of their own current assignment — the one they work in, and the
+ * one the RLS will use.
+ */
+function initialScope(detail: EmployeeDetailPayload): string[] {
+  if (detail.directory.membership_id || detail.scopeOperationIds.length) return detail.scopeOperationIds;
+  return detail.directory.operation_id ? [detail.directory.operation_id] : [];
 }
 
 /** The profile names behind a set of role ids, for the confirmation sentence. */

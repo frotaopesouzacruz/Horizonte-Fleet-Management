@@ -122,6 +122,12 @@ export async function setPassword(_state: ActionState, formData: FormData): Prom
   const { error } = await supabase.auth.updateUser({ password });
   if (error) return { error: "Não foi possível definir a senha. Tente novamente." };
 
+  // An invitation only becomes access once the person has a password of their
+  // own: this is where an invited membership turns active (the session loads
+  // only active ones). For someone merely recovering a password it is a no-op.
+  const { error: acceptError } = await supabase.rpc("accept_my_invitations");
+  if (acceptError) console.error("accept_my_invitations", acceptError.message);
+
   redirect("/inicio");
 }
 

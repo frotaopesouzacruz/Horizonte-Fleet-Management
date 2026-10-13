@@ -5650,6 +5650,7 @@ export type Database = {
           license_expiration_date: string | null
           license_points: number | null
           license_state: string | null
+          login_method: string | null
           manager_employee_id: string | null
           manager_name: string | null
           membership_id: string | null
@@ -6338,6 +6339,7 @@ export type Database = {
       }
     }
     Functions: {
+      accept_my_invitations: { Args: never; Returns: number }
       access_inconsistencies: {
         Args: { p_organization_id: string }
         Returns: {
@@ -7296,6 +7298,15 @@ export type Database = {
           without_access: number
         }[]
       }
+      employee_code_initial_password: {
+        Args: { p_employee_id: string }
+        Returns: {
+          account_user_id: string
+          employee_code: string
+          initial_password: string
+          organization_id: string
+        }[]
+      }
       employee_masked_identifiers: {
         Args: { p_employee_id: string }
         Returns: {
@@ -7459,6 +7470,15 @@ export type Database = {
         }
         Returns: string
       }
+      grant_employee_access_v2: {
+        Args: {
+          p_employee_id: string
+          p_operation_ids?: string[]
+          p_role_ids?: string[]
+          p_user_id: string
+        }
+        Returns: string
+      }
       invert_fidelization_vehicles: {
         Args: {
           p_assignment_a: string
@@ -7553,6 +7573,23 @@ export type Database = {
         Returns: {
           account_user_id: string
           email: string
+          membership_id: string
+          organization_id: string
+        }[]
+      }
+      prepare_employee_access_v2: {
+        Args: {
+          p_employee_id: string
+          p_operation_ids?: string[]
+          p_role_ids?: string[]
+        }
+        Returns: {
+          account_user_id: string
+          email: string
+          employee_code: string
+          full_name: string
+          initial_password: string
+          login_method: string
           membership_id: string
           organization_id: string
         }[]

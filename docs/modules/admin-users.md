@@ -112,7 +112,44 @@ CPF, birth date and licence number are restricted:
    transaction and emits `user.access_granted`.
 
 An administrator never sees or chooses a password. The account starts as
-`invited` and becomes `active` when the person sets their own.
+`invited` and becomes `active` when the person sets their own: the password
+screen calls `accept_my_invitations()`, which activates the caller's own invited
+memberships and records `user.invitation_accepted` (the session loads only
+active memberships, so without this step the invitation never became access).
+
+### Access by matrícula (Operacional)
+
+Who signs in how is a property of the business profile
+(`business_profiles.login_method`): `email` for every profile but one, and
+`employee_code` for **Operacional** — 123 people, none of whom has an e-mail.
+For them the grant does not ask for an e-mail and sends none:
+
+1. `prepare_employee_access_v2()` answers `login_method`. For `employee_code`
+   it requires a CPF instead of an e-mail and returns, only while there is no
+   account yet, the **initial password: the first six digits of the CPF**. The
+   password is derived at that moment and never stored.
+2. The server action creates the auth user through the Admin API
+   (`createUser`, `email_confirm: true`) on the login address
+   `<matrícula>@<HFM_LOGIN_DOMAIN>` (see `src/lib/auth/login-identity.ts`), so
+   the account is usable immediately. `SUPABASE_SERVICE_ROLE_KEY` is required;
+   without it the grant refuses and says so.
+3. `grant_employee_access_v2()` binds the membership as before (it calls the
+   original routine) and then marks it `active`: there is no invitation to
+   accept.
+
+The person signs in with the matrícula and those six digits and changes the
+password afterwards. Because there is no mailbox for a recovery link, the
+drawer offers **Redefinir senha inicial** instead of *Reenviar convite*:
+`employee_code_initial_password()` re-derives the six digits (only for an
+existing, non-removed `employee_code` account, only with `users.manage_access`)
+and records `user.initial_password_issued` with the requesting user; the Admin
+API applies it. The directory view exposes `login_method` so the screen knows
+which flow it is in; the old `prepare_employee_access()` signature now reads the
+new function, so nothing that called it breaks.
+
+Known trade-off: six digits of the CPF are a weak, guessable secret. It is the
+rule the operation asked for; the recommended complement is to make the person
+change it on first sign-in, which is not implemented yet.
 
 ## 8. Import
 
@@ -147,8 +184,8 @@ cannot contain them. Every export is recorded as `user.exported`.
 ## 10. Audit
 
 `employee.created/updated/archived`, `user.access_granted/suspended/reactivated`,
-`user.role_changed`, `user.operation_scope_changed`, `user.exported`,
-`user.import_started/completed`. The trail is append-only: `DELETE` on
+`user.invitation_accepted`, `user.initial_password_issued`, `user.role_changed`,
+`user.operation_scope_changed`, `user.exported`, `user.import_started/completed`. The trail is append-only: `DELETE` on
 `audit_logs` is refused even for a superuser.
 
 ## 11. The managerial indicators
