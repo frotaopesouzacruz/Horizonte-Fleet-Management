@@ -286,6 +286,38 @@ viram inconsistência; reimportar o mesmo dia da mesma placa não duplica
 (`already_imported`), e um dia que já tem checklist do aplicativo não é
 sobrescrito (`already_done`). Nunca cria veículo, colaborador ou pergunta.
 
+**Status Diário do HFC** (13/10/2026). O relatório "Status Diário Aderência"
+do HFC (Placa, Data, Status, Tipo = "Saída de Rota" / "Retorno de Rota") é
+lido sem ajustes: a coluna *Tipo* vale como Contexto e os rótulos próprios do
+HFC são reconhecidos — "Fez Check List Retorno" (com ou sem "· fora da
+elegibilidade") vale Fez; "Herdado da Saída — Sem Rota / Manutenção / Em
+Viagem / Frota Reserva / Frota não ativa" vale o motivo herdado (o retorno
+recebe o mesmo expurgo da saída). Migration
+`20261013150000_import_mailbox_and_hfc_status.sql`.
+
+### 12.2 Caixa de entrada por API (`import_mailbox_*`)
+
+Uma carga grande (dezenas de milhares de linhas com respostas) pode chegar em
+partes por HTTP, sem passar pelo navegador — só o **transporte** muda; a
+importação é a mesma:
+
+1. quem tem a permissão de importar do módulo abre a caixa
+   (`import_mailbox_open(org, nome, 'adherence.import', máx. partes, máx.
+   bytes/parte, validade em minutos)`) e recebe o **token uma única vez** — no
+   banco fica só o SHA-256;
+2. as partes entram por `import_mailbox_put(token, sequência, conteúdo)` —
+   única rotina da caixa aberta a chamadas sem sessão (o token é a credencial;
+   formato, prazo, fechamento, número e tamanho das partes são conferidos;
+   token errado espera 300 ms e recusa). Ela **só grava**: não lê dado da
+   organização, não cria lote, não decide nada; reenviar a mesma sequência
+   substitui a parte;
+3. `import_mailbox_close` fecha a caixa e aponta partes faltantes; a esteira
+   oficial (`stage_checklist_history_import` por parte, `validate`,
+   `finalize`, `process_checklist_history_import`) lê as partes **com o
+   usuário que abriu a caixa**, e `private.import_mailbox_purge` esvazia o
+   conteúdo depois — o registro da caixa fica como trilha (quem, quando,
+   quantas partes, quantos bytes).
+
 ## 13. RBAC e RLS
 
 Permissões (módulo `adherence`): `view`, `view_own`, `view_audit`, `request`,

@@ -59,9 +59,9 @@ export const HISTORY_FIXED_COLUMNS: HistoryFixedColumn[] = [
     aliases: ["frota", "codigo da frota", "cod frota", "fleet", "fleet code"] },
   { field: "operational_date", label: "Data", required: true, hint: "dia operacional (dd/mm/aaaa)",
     aliases: ["data", "data operacional", "dia", "date", "operational date"] },
-  { field: "context", label: "Contexto", required: false, hint: "Saída ou Retorno; vazio = Saída",
-    aliases: ["contexto", "tipo de checklist", "context", "momento", "saida retorno"] },
-  { field: "status", label: "Status", required: true, hint: "Fez Check List, Não Fez Check List, Sem Rota, Manutenção, Em Viagem, Frota Reserva, Frota não ativa, Outros",
+  { field: "context", label: "Contexto", required: false, hint: "Saída ou Retorno (aceita \"Saída de Rota\" / \"Retorno de Rota\"); vazio = Saída",
+    aliases: ["contexto", "tipo de checklist", "context", "momento", "saida retorno", "tipo", "tipo de rota"] },
+  { field: "status", label: "Status", required: true, hint: "Fez Check List, Não Fez Check List, Sem Rota, Manutenção, Em Viagem, Frota Reserva, Frota não ativa, Outros (aceita também os rótulos do Status Diário do HFC)",
     aliases: ["status", "situacao", "status do dia", "status diario", "aderencia"] },
   { field: "employee_code", label: "Matrícula", required: false, hint: "matrícula do motorista que fez o checklist",
     aliases: ["matricula", "matricula motorista", "codigo colaborador", "employee code", "re"] },
@@ -185,6 +185,20 @@ export function mapHistoryColumns(headers: string[], layout: ChecklistHistoryLay
   return { mapping, mapped, unmapped, duplicated, missing, unansweredQuestions };
 }
 
+/**
+ * Saída/Retorno em qualquer grafia — "Saída de Rota" e "Retorno de Rota" do
+ * Status Diário do HFC inclusive. Vazio continua vazio (a rotina lê como Saída).
+ */
+export function normalizeContext(value: unknown): string | null {
+  const text = cellToText(value);
+  if (text == null) return null;
+  const k = norm(text);
+  if (!k) return null;
+  if (k.includes("retorno") || k === "r" || k === "volta") return "retorno";
+  if (k.includes("saida") || k === "s" || k === "ida") return "saida";
+  return text;
+}
+
 /** Sim/Não/N/A em qualquer grafia → yes | no | na; vazio ou "0" → nulo. */
 export function normalizeAnswer(value: unknown): "yes" | "no" | "na" | null {
   const text = cellToText(value);
@@ -278,7 +292,8 @@ export function buildHistoryRow(
       else if (target.field === "employee_code") {
         const text = cellToText(value);
         row.employee_code = text == null ? null : text.replace(/\.0$/, "");
-      } else row[target.field] = cellToText(value);
+      } else if (target.field === "context") row.context = normalizeContext(value);
+      else row[target.field] = cellToText(value);
       return;
     }
     if (target.kind === "answer") {
