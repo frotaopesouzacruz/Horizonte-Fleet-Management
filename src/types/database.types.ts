@@ -6960,6 +6960,14 @@ export type Database = {
         Args: { p_organization_id: string; p_payload: Json }
         Returns: Json
       }
+      bulk_set_employee_access_status: {
+        Args: {
+          p_employee_ids: string[]
+          p_organization_id: string
+          p_status: string
+        }
+        Returns: Json
+      }
       cancel_adherence_request: {
         Args: { p_organization_id: string; p_payload: Json }
         Returns: Json

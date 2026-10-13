@@ -317,26 +317,64 @@ export async function setOperationScopes(membershipId: string, operationIds: str
 /* Bulk actions                                                               */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * What a bulk access change did to each selected person, as the database
+ * classified them. Only `applied` changed; every other count stayed as it was,
+ * for the reason its name gives.
+ */
+export interface BulkAccessOutcome {
+  applied: number;
+  already: number;
+  noAccount: number;
+  self: number;
+  removed: number;
+  invited: number;
+  archived: number;
+  notFound: number;
+  blocked: number;
+  changed: number;
+}
+
+/**
+ * Suspends or reactivates HFM access for a selection in one database call.
+ *
+ * The database decides who can change (only accounts in the right state) and
+ * reports everyone else by reason, so "nobody had an account" reads as an
+ * explanation, not as a failure.
+ */
 export async function bulkSetAccessStatus(
   employeeIds: string[],
   status: "active" | "suspended",
-): Promise<Result<{ applied: number; failed: number }>> {
-  await requireOrganization("users.bulk_manage");
+): Promise<Result<BulkAccessOutcome>> {
+  const { organization } = await requireOrganization("users.bulk_manage");
   const supabase = await createClient();
 
-  let applied = 0;
-  let failed = 0;
-  for (const employeeId of employeeIds) {
-    const { error } = await supabase.rpc("set_employee_access_status", {
-      p_employee_id: employeeId,
-      p_status: status,
-    });
-    if (error) failed++;
-    else applied++;
-  }
+  const { data, error } = await supabase.rpc("bulk_set_employee_access_status", {
+    p_organization_id: organization.organizationId,
+    p_employee_ids: employeeIds,
+    p_status: status,
+  });
+  if (error) return { ok: false, error: toMessage(error, "Não foi possível alterar o acesso dos colaboradores selecionados.") };
+
+  const counts = (data ?? {}) as Record<string, unknown>;
+  const count = (key: string) => Number(counts[key] ?? 0) || 0;
 
   revalidatePath(MODULE_PATH);
-  return { ok: failed === 0, data: { applied, failed }, error: failed ? `${failed} registro(s) não puderam ser alterados.` : undefined };
+  return {
+    ok: true,
+    data: {
+      applied: count("applied"),
+      already: count("already"),
+      noAccount: count("no_account"),
+      self: count("self"),
+      removed: count("removed"),
+      invited: count("invited"),
+      archived: count("archived"),
+      notFound: count("not_found"),
+      blocked: count("blocked"),
+      changed: count("changed"),
+    },
+  };
 }
 
 export async function bulkArchive(employeeIds: string[], suspendAccess: boolean): Promise<Result<{ applied: number; failed: number }>> {

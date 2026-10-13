@@ -50,10 +50,73 @@ import { useToast } from "@/components/feedback/toast";
 import { useConfirm } from "@/components/feedback/confirm-dialog";
 import { EMPLOYMENT_STATUS_LABELS, ACCESS_STATUS_LABELS } from "@/lib/admin/qlp";
 import type { DirectoryFilters, DirectoryOptions, DirectoryPage, SortKey } from "@/lib/admin/queries";
-import { bulkArchive, bulkSetAccessStatus } from "@/lib/admin/actions";
+import { bulkArchive, bulkSetAccessStatus, type BulkAccessOutcome } from "@/lib/admin/actions";
 import { EmployeeDetailDrawer } from "./employee-detail-drawer";
 import { EmployeeFormDrawer } from "./employee-form-drawer";
 import { ImportDrawer } from "./import-drawer";
+
+/* -------------------------------------------------------------------------- */
+/* Bulk access: who changes, and why the rest stays                           */
+/* -------------------------------------------------------------------------- */
+
+type AccessTarget = "active" | "suspended";
+type KeptCounts = Omit<BulkAccessOutcome, "applied">;
+
+const NO_KEPT: KeptCounts = {
+  already: 0, noAccount: 0, self: 0, removed: 0, invited: 0, archived: 0, notFound: 0, blocked: 0, changed: 0,
+};
+
+function count(n: number, one: string, many: string) {
+  return `${n.toLocaleString("pt-BR")} ${n === 1 ? one : many}`;
+}
+
+function joinList(parts: string[]) {
+  return parts.length <= 1 ? (parts[0] ?? "") : `${parts.slice(0, -1).join(", ")} e ${parts[parts.length - 1]}`;
+}
+
+/**
+ * The same rules the database applies (reactivate: suspended or pending
+ * invitation; suspend: active), read from the rows on screen so the
+ * confirmation can say what will happen before anything is sent. The database
+ * still decides: it also knows which row is the person's own account.
+ */
+function planAccessChange(rows: DirectoryRow[], ids: string[], target: AccessTarget) {
+  const byId = new Map(rows.filter((row) => row.id).map((row) => [row.id as string, row]));
+  const kept = { ...NO_KEPT };
+  let eligible = 0;
+  for (const id of ids) {
+    const row = byId.get(id);
+    const status = row?.access_status ?? "none";
+    if (!row) eligible++;
+    else if (status === "none") kept.noAccount++;
+    else if (status === target) kept.already++;
+    else if (status === "removed") kept.removed++;
+    else if (target === "suspended" && status === "invited") kept.invited++;
+    else if (target === "active" && row.deleted_at) kept.archived++;
+    else eligible++;
+  }
+  return { eligible, kept };
+}
+
+function keptParts(kept: KeptCounts, target: AccessTarget) {
+  return [
+    kept.noAccount ? count(kept.noAccount, "sem conta de acesso ao HFM", "sem conta de acesso ao HFM") : null,
+    kept.already
+      ? target === "active"
+        ? count(kept.already, "já ativo", "já ativos")
+        : count(kept.already, "já suspenso", "já suspensos")
+      : null,
+    kept.removed ? count(kept.removed, "com acesso removido", "com acesso removido") : null,
+    kept.invited ? count(kept.invited, "com convite pendente", "com convite pendente") : null,
+    kept.archived ? count(kept.archived, "com cadastro inativo", "com cadastro inativo") : null,
+    kept.self ? "a sua própria conta" : null,
+    kept.notFound ? count(kept.notFound, "não encontrado", "não encontrados") : null,
+    kept.blocked ? count(kept.blocked, "bloqueado para não deixar a organização sem Administrador", "bloqueados para não deixar a organização sem Administrador") : null,
+    kept.changed ? count(kept.changed, "alterado por outra pessoa durante a ação", "alterados por outra pessoa durante a ação") : null,
+  ].filter((part): part is string => Boolean(part));
+}
+
+const GRANT_HINT = "Para liberar o HFM a quem não tem conta, abra o colaborador e use “Conceder acesso ao HFM”.";
 
 /* -------------------------------------------------------------------------- */
 /* Presentation helpers                                                       */
@@ -429,28 +492,79 @@ export function UsersView({
     const ids = [...selected];
     if (!ids.length) return;
 
-    const copy = {
-      suspend: { title: "Suspender acesso", description: `O acesso ao HFM de ${ids.length} colaborador(es) será suspenso. O cadastro permanece ativo.`, confirmLabel: "Suspender" },
-      reactivate: { title: "Reativar acesso", description: `O acesso ao HFM de ${ids.length} colaborador(es) será reativado.`, confirmLabel: "Reativar" },
-      archive: { title: "Inativar cadastro", description: `${ids.length} colaborador(es) serão inativados e o acesso ao HFM será suspenso. Nenhum dado é excluído.`, confirmLabel: "Inativar" },
-    }[action];
+    if (action === "archive") {
+      const confirmed = await confirm({
+        title: "Inativar cadastro",
+        description: `${ids.length} colaborador(es) serão inativados e o acesso ao HFM será suspenso. Nenhum dado é excluído.`,
+        confirmLabel: "Inativar",
+        destructive: true,
+      });
+      if (!confirmed) return;
+      startTransition(async () => {
+        const result = await bulkArchive(ids, true);
+        if (result.ok) {
+          toast({ title: `${result.data?.applied ?? 0} registro(s) atualizados.`, variant: "success" });
+          setSelected(new Set());
+          router.refresh();
+        } else {
+          toast({ title: "Não foi possível concluir a ação", description: result.error, variant: "danger" });
+        }
+      });
+      return;
+    }
 
-    const confirmed = await confirm({ ...copy, destructive: action !== "reactivate" });
+    // Acesso: só muda quem tem conta na situação certa. Quem fica como está é
+    // explicado antes da confirmação e de novo no resultado, com o motivo.
+    const target: AccessTarget = action === "suspend" ? "suspended" : "active";
+    const reactivate = target === "active";
+    const plan = planAccessChange(page.rows, ids, target);
+    const planKept = keptParts(plan.kept, target);
+    const hint = plan.kept.noAccount ? ` ${GRANT_HINT}` : "";
+
+    if (plan.eligible === 0) {
+      const subject =
+        ids.length === 1
+          ? `O colaborador selecionado não tem ${reactivate ? "acesso suspenso nem convite pendente" : "acesso ativo"}`
+          : `Nenhum dos ${ids.length.toLocaleString("pt-BR")} selecionados tem ${reactivate ? "acesso suspenso ou convite pendente" : "acesso ativo"}`;
+      toast({
+        title: reactivate ? "Nenhum acesso para reativar" : "Nenhum acesso para suspender",
+        description: `${subject}: ${joinList(planKept)}.${hint}`,
+        variant: "info",
+      });
+      return;
+    }
+
+    const changes = reactivate
+      ? `${count(plan.eligible, "colaborador terá", "colaboradores terão")} o acesso ao HFM reativado.`
+      : `${count(plan.eligible, "colaborador terá", "colaboradores terão")} o acesso ao HFM suspenso. O cadastro permanece ativo.`;
+    const confirmed = await confirm({
+      title: reactivate ? "Reativar acesso" : "Suspender acesso",
+      description: planKept.length ? `${changes} Ficam como estão: ${joinList(planKept)}.` : changes,
+      confirmLabel: reactivate ? "Reativar" : "Suspender",
+      destructive: !reactivate,
+    });
     if (!confirmed) return;
 
     startTransition(async () => {
-      const result =
-        action === "archive"
-          ? await bulkArchive(ids, true)
-          : await bulkSetAccessStatus(ids, action === "suspend" ? "suspended" : "active");
-
-      if (result.ok) {
-        toast({ title: `${result.data?.applied ?? 0} registro(s) atualizados.`, variant: "success" });
-        setSelected(new Set());
-        router.refresh();
-      } else {
+      const result = await bulkSetAccessStatus(ids, target);
+      if (!result.ok || !result.data) {
         toast({ title: "Não foi possível concluir a ação", description: result.error, variant: "danger" });
+        return;
       }
+      const outcome = result.data;
+      const kept = keptParts(outcome, target);
+      const title = outcome.applied
+        ? `${count(outcome.applied, reactivate ? "acesso reativado" : "acesso suspenso", reactivate ? "acessos reativados" : "acessos suspensos")}.`
+        : "Nenhum acesso foi alterado";
+      const description = [
+        kept.length ? `Ficam como estão: ${joinList(kept)}.` : "",
+        outcome.noAccount ? GRANT_HINT : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      toast({ title, description: description || undefined, variant: outcome.applied ? "success" : "info" });
+      setSelected(new Set());
+      router.refresh();
     });
   }
 
