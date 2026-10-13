@@ -56,7 +56,6 @@ export interface CatalogPanelProps {
 const SECTION_LABEL: Record<CatalogSection, string> = {
   clusters: "Clusters",
   servicos: "Serviços",
-  fornecedores: "Fornecedores",
   preventiva: "Parâmetros preventivos",
   preditiva: "Planos preditivos",
   origens: "Origens",
@@ -75,7 +74,6 @@ export function CatalogPanel({ cadastros, catalog, options, perms, actions }: Ca
   const counts: Partial<Record<CatalogSection, number>> = {
     clusters: catalog.clusters.length,
     servicos: catalog.services.length,
-    fornecedores: catalog.suppliers.length,
     origens: catalog.origins.length,
   };
 
@@ -103,9 +101,6 @@ export function CatalogPanel({ cadastros, catalog, options, perms, actions }: Ca
         {section === "clusters" ? <ClustersSection catalog={catalog} canManage={perms.manageClusters} actions={actions} /> : null}
         {section === "servicos" ? (
           <ServicesSection catalog={catalog} options={options} canManage={perms.manageServices} actions={actions} />
-        ) : null}
-        {section === "fornecedores" ? (
-          <SuppliersSection catalog={catalog} options={options} canManage={perms.manageSuppliers} actions={actions} />
         ) : null}
         {section === "preventiva" ? (
           <PreventiveSection
@@ -540,18 +535,23 @@ function ServicesSection({
 }
 
 // ---------------------------------------------------------------------------
-// Fornecedores
+// Fornecedores — a seção mora em Administração › Fornecedores
+// (`/administracao/fornecedores`), que a monta sozinha (`standalone`); o
+// cadastro, o formulário e as regras do banco são os mesmos de sempre.
 // ---------------------------------------------------------------------------
-function SuppliersSection({
+export function SuppliersSection({
   catalog,
   options,
   canManage,
   actions,
+  standalone = false,
 }: {
   catalog: MaintenanceCatalog;
   options: MaintenanceFilterOptions;
   canManage: boolean;
   actions: PanelActions;
+  /** Tela própria: o título e a descrição ficam no cabeçalho da página. */
+  standalone?: boolean;
 }) {
   const [form, setForm] = React.useState<{ open: boolean; supplier: MaintenanceSupplier | null }>({ open: false, supplier: null });
   const [q, setQ] = React.useState("");
@@ -569,18 +569,37 @@ function SuppliersSection({
 
   return (
     <section className="flex flex-col gap-4" data-testid="maintenance-catalog-suppliers">
-      <SectionHeader
-        title="Fornecedores"
-        description="Oficinas e prestadores. O agendamento e a base de manutenções só aceitam fornecedores cadastrados; o banco valida o CNPJ/CPF (11 ou 14 dígitos)."
-        canManage={canManage}
-        actions={
-          canManage ? (
+      {standalone ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {canManage ? (
+            <span className="text-body-sm text-fg-secondary">
+              O agendamento e a base de manutenções só aceitam fornecedores cadastrados; o banco valida o CNPJ/CPF (11 ou 14 dígitos).
+            </span>
+          ) : (
+            <Badge variant="neutral" size="sm" icon={<Lock aria-hidden />}>
+              Somente leitura
+            </Badge>
+          )}
+          {canManage ? (
             <Button leadingIcon={<Plus />} onClick={() => setForm({ open: true, supplier: null })} data-testid="maintenance-supplier-new">
               Novo fornecedor
             </Button>
-          ) : undefined
-        }
-      />
+          ) : null}
+        </div>
+      ) : (
+        <SectionHeader
+          title="Fornecedores"
+          description="Oficinas e prestadores. O agendamento e a base de manutenções só aceitam fornecedores cadastrados; o banco valida o CNPJ/CPF (11 ou 14 dígitos)."
+          canManage={canManage}
+          actions={
+            canManage ? (
+              <Button leadingIcon={<Plus />} onClick={() => setForm({ open: true, supplier: null })} data-testid="maintenance-supplier-new">
+                Novo fornecedor
+              </Button>
+            ) : undefined
+          }
+        />
+      )}
       {catalog.suppliers.length === 0 ? (
         <EmptyState
           variant="panel"

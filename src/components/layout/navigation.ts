@@ -19,6 +19,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Shapes,
+  Store,
   Truck,
   UserCheck,
   UserCog,
@@ -168,6 +169,15 @@ export const navigation: NavGroup[] = [
         href: "/administracao/usuarios",
         icon: Users,
         permission: "users.view",
+      },
+      {
+        // Cadastro da plataforma (oficinas e prestadores), usado pela Manutenção
+        // e pelo MTSR. Saiu de Manutenção › Cadastros: quem cadastra um
+        // fornecedor administra a base, não programa uma manutenção.
+        label: "Fornecedores",
+        href: "/administracao/fornecedores",
+        icon: Store,
+        permission: "maintenance.view",
       },
       {
         label: "Perfis e permissões",

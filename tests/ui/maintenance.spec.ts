@@ -377,10 +377,12 @@ test.describe("manutenção", () => {
     }
   });
 
-  test("fornecedor: dados comerciais e outros nomes (de-para) no cadastro", async ({
+  test("fornecedor: dados comerciais e outros nomes (de-para) no cadastro — em Administração › Fornecedores", async ({
     page,
   }) => {
-    await page.goto(`${PREVIEW}?aba=cadastros&secao=fornecedores`);
+    // O cadastro saiu de Manutenção › Cadastros; o link antigo leva à nova casa.
+    await page.goto("/dev/preview-fornecedores");
+    await expect(page.getByRole("heading", { level: 1, name: "Fornecedores" })).toBeVisible();
     const section = page.getByTestId("maintenance-catalog-suppliers");
     await expect(section.getByText("Cód. 239031")).toBeVisible();
     await expect(

@@ -280,7 +280,7 @@ test.describe("Portal da Liderança (prévia)", () => {
     // O perfil tem users.view, leadership.manage, operations.view, vehicles.view…
     // e nenhuma dessas telas é da liderança (no HFC também não).
     for (const name of [
-      "Dashboard", "Colaboradores e usuários", "Perfis e permissões", "Operações", "Filiais",
+      "Dashboard", "Colaboradores e usuários", "Fornecedores", "Perfis e permissões", "Operações", "Filiais",
       "Tipos de equipamento", "Lideranças", "Cadastro de frotas",
     ]) {
       await expect(nav.getByRole("link", { name, exact: true })).toHaveCount(0);

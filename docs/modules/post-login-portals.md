@@ -59,7 +59,7 @@ mesma lista.
 | ambos | `/sem-permissao`, `/sem-organizacao` |
 
 Fora do portal da Liderança, de propósito (no HFC também não são telas da
-liderança): Colaboradores e usuários, Perfis e permissões, Operações, Filiais,
+liderança): Colaboradores e usuários, Fornecedores, Perfis e permissões, Operações, Filiais,
 Tipos de equipamento, Cadastro de frotas e Planejamento de lideranças. Para dar
 uma dessas telas a um líder, atribua-lhe também o perfil correspondente (por
 exemplo, Gestor de Frota): a conta passa ao portal `management`.

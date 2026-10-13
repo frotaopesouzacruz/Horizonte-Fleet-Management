@@ -233,8 +233,8 @@ model lives in a single file — `src/components/layout/navigation.ts` — and t
 is no second list to keep in step. An entry has exactly one home; moving it in
 that file is the only way it moves.
 
-Six groups, in this order: **Administração** (Colaboradores e usuários, Perfis
-e permissões), **Estrutura operacional** (Operações, Filiais, Tipos de
+Six groups, in this order: **Administração** (Colaboradores e usuários,
+Fornecedores, Perfis e permissões), **Estrutura operacional** (Operações, Filiais, Tipos de
 equipamento), **Governança operacional** (Lideranças, Fidelização), **Gestão de
 frota** (Cadastro de frotas), **Aplicativos** (Check List de Frota) and
 **Módulos futuros**, kept separate because every entry in it is still a

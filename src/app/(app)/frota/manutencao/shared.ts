@@ -95,11 +95,17 @@ export function visibleTabs(p: MaintenancePerms): MaintenanceTab[] {
 
 export type Navigate = (patch: Record<string, string | null>) => void;
 
+/**
+ * Seções de Manutenção › Cadastros. Fornecedores saiu daqui: é um cadastro da
+ * plataforma, em Administração › Fornecedores (`/administracao/fornecedores`);
+ * o link antigo (`secao=fornecedores`) é redirecionado para lá.
+ */
 export type CatalogSection =
-  | "clusters" | "servicos" | "fornecedores" | "preventiva" | "preditiva" | "origens" | "configuracoes";
+  | "clusters" | "servicos" | "preventiva" | "preditiva" | "origens" | "configuracoes";
 export const CATALOG_SECTIONS: CatalogSection[] = [
-  "clusters", "servicos", "fornecedores", "preventiva", "preditiva", "origens", "configuracoes",
+  "clusters", "servicos", "preventiva", "preditiva", "origens", "configuracoes",
 ];
+export const SUPPLIERS_PATH = "/administracao/fornecedores";
 
 export interface ListState {
   sort: MaintenanceSortKey;

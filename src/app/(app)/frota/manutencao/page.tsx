@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { hasPermission, requireOrganization } from "@/lib/auth/session";
 import {
   DEFAULT_PAGE_SIZE,
@@ -21,6 +22,7 @@ import { MaintenanceView } from "./maintenance-view";
 import {
   buildPerms,
   CATALOG_SECTIONS,
+  SUPPLIERS_PATH,
   visibleTabs,
   type CatalogSection,
   type ListState,
@@ -146,6 +148,8 @@ export default async function MaintenancePage({ searchParams }: { searchParams: 
     data.base = { view, page, hierarchy, list, levels };
     data.today = page?.today ?? "";
   } else if (tab === "cadastros") {
+    // Fornecedores virou Administração › Fornecedores; o link antigo ainda chega lá.
+    if (first(params, "secao") === "fornecedores") redirect(SUPPLIERS_PATH);
     const requestedSection = first(params, "secao") as CatalogSection | undefined;
     const section = requestedSection && CATALOG_SECTIONS.includes(requestedSection) ? requestedSection : "clusters";
     const parameters =
