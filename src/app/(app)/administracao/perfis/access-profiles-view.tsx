@@ -792,10 +792,13 @@ export function AccessProfilesView({
  * colaborador and then cannot see the screen it would register them on. The
  * database refuses that combination; this is the same rule, said early enough
  * that nobody has to discover it by being rejected.
+ *
+ * `view_own` depends on nothing: it is the narrower read ("only what is mine")
+ * given precisely to whoever does not hold `view` — the Operacional profile.
  */
 function dependencyOf(code: string, catalogue: Set<string>): string | null {
   const [resource, action] = code.split(".");
-  if (!resource || !action || action === "view") return null;
+  if (!resource || !action || action === "view" || action === "view_own") return null;
   const dependency = `${resource}.view`;
   return catalogue.has(dependency) ? dependency : null;
 }

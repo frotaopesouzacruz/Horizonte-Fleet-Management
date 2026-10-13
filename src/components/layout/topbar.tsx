@@ -148,8 +148,15 @@ function GlobalSearch({ className }: { className?: string }) {
 /* -------------------------------------------------------------------------- */
 
 export interface TopbarProps {
+  /**
+   * `portal`: o cabeçalho do Operacional e da Liderança — sem o seletor de
+   * unidade e sem a busca global, que ainda são reservas da gestão e não
+   * levam a nada nas telas desses perfis.
+   */
+  variant?: "full" | "portal";
   /** Display name of the signed-in user. */
   userName?: string;
+  /** Linha abaixo do nome no menu da conta: e-mail, ou "Matrícula … · Perfil". */
   userEmail?: string;
   organizationName?: string;
   unitName?: string;
@@ -161,6 +168,7 @@ export interface TopbarProps {
 }
 
 export function Topbar({
+  variant = "full",
   userName = "Usuário",
   userEmail,
   organizationName = "Organização",
@@ -196,12 +204,18 @@ export function Topbar({
           fallbackName={organizationName}
           onSwitch={onSwitchOrganization}
         />
-        <span aria-hidden className="h-4 w-px bg-border" />
-        <UnitSelector value={unitName} />
+        {variant === "full" ? (
+          <>
+            <span aria-hidden className="h-4 w-px bg-border" />
+            <UnitSelector value={unitName} />
+          </>
+        ) : null}
       </div>
 
       <div className="flex min-w-0 flex-1 justify-center px-1 md:justify-end">
-        <GlobalSearch className="w-full min-w-0 max-w-xs md:w-[300px] md:max-w-none xl:w-[340px]" />
+        {variant === "full" ? (
+          <GlobalSearch className="w-full min-w-0 max-w-xs md:w-[300px] md:max-w-none xl:w-[340px]" />
+        ) : null}
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5">

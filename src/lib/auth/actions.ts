@@ -122,7 +122,7 @@ export async function setPassword(_state: ActionState, formData: FormData): Prom
   const { error } = await supabase.auth.updateUser({ password });
   if (error) return { error: "Não foi possível definir a senha. Tente novamente." };
 
-  redirect("/dashboard");
+  redirect("/inicio");
 }
 
 /** Switches the active organization, accepting only the caller's own memberships. */

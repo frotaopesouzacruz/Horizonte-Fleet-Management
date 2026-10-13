@@ -66,7 +66,7 @@ export function loginEmailForCode(employeeCode: string): string | null {
  * host, which turns any `?next=` into an open redirect — the classic way to
  * make a phishing link look like it points at the real product.
  */
-export function safeNext(next: string | null | undefined, fallback = "/dashboard"): string {
+export function safeNext(next: string | null | undefined, fallback = "/inicio"): string {
   if (!next) return fallback;
   if (!next.startsWith("/")) return fallback;
   if (next.startsWith("//") || next.startsWith("/\\")) return fallback;

@@ -6710,6 +6710,14 @@ export type Database = {
           vehicle_id: string
         }[]
       }
+      my_leadership_home: {
+        Args: { p_organization_id: string }
+        Returns: Json
+      }
+      my_operational_home: {
+        Args: { p_month: number; p_organization_id: string; p_year: number }
+        Returns: Json
+      }
       process_maintenance_import: {
         Args: {
           p_batch_id: string
@@ -7253,6 +7261,10 @@ export type Database = {
       current_user_permissions: {
         Args: { p_organization_id: string }
         Returns: string[]
+      }
+      current_user_portal: {
+        Args: { p_organization_id: string }
+        Returns: Json
       }
       eligible_fidelization_vehicles: {
         Args: {

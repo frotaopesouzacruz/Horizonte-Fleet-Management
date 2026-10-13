@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getSessionContext, hasPermission } from "@/lib/auth/session";
+import { getSessionContext, hasPermission, portalBlocks } from "@/lib/auth/session";
 import { spreadsheetResponse } from "@/lib/admin/spreadsheet";
 import {
   getAdherenceMatrix, getAdherenceSummary, getReturnTracking,
@@ -46,6 +46,11 @@ export async function GET(request: NextRequest) {
   const session = await getSessionContext();
   if (!session?.activeOrganization) {
     return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+  }
+  // A trava do portal vale também para o arquivo: o que não é tela da conta
+  // não sai em planilha pelo endereço.
+  if (await portalBlocks(session)) {
+    return NextResponse.json({ error: "Esta exportação não faz parte do seu acesso." }, { status: 403 });
   }
   if (!hasPermission(session, "adherence.export")) {
     return NextResponse.json({ error: "Sem permissão para exportar." }, { status: 403 });

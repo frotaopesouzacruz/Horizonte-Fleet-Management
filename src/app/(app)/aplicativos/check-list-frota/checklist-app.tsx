@@ -623,21 +623,27 @@ function PickerScreen({
   );
 }
 
-function HistoryScreen({
+/**
+ * A lista dos próprios checklists — no aplicativo (com "Voltar") e na tela
+ * "Meus checklists" do Operacional (sem ele: lá o cabeçalho é a página).
+ */
+export function HistoryScreen({
   history, onBack, onOpen,
 }: {
   history: ExecutionSummary[];
-  onBack: () => void;
+  onBack?: () => void;
   onOpen: (id: string) => void;
 }) {
   return (
     <div className="flex flex-col gap-3" data-testid="my-history">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-h3 font-semibold text-fg">Meus checklists</h2>
-        <Button variant="ghost" leadingIcon={<ArrowLeft />} onClick={onBack}>
-          Voltar
-        </Button>
-      </div>
+      {onBack ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-h3 font-semibold text-fg">Meus checklists</h2>
+          <Button variant="ghost" leadingIcon={<ArrowLeft />} onClick={onBack}>
+            Voltar
+          </Button>
+        </div>
+      ) : null}
 
       {history.length === 0 ? (
         <EmptyState

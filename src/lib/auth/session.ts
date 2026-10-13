@@ -1,9 +1,10 @@
 import "server-only";
 
 import { cache } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { PATHNAME_HEADER, PORTAL_HOME, parsePortalKind, portalAllowsPath, type PortalKind } from "@/lib/auth/portal";
 
 export const ACTIVE_ORG_COOKIE = "hfm.org";
 
@@ -13,6 +14,18 @@ export interface MembershipSummary {
   organizationName: string;
   organizationSlug: string;
   status: string;
+}
+
+/**
+ * O início e as telas da conta (ver `@/lib/auth/portal`). Vem do banco, pelos
+ * perfis do vínculo ativo, junto com a matrícula do colaborador vinculado — a
+ * conta do Operacional entra por matrícula e o "e-mail" dela é um endereço
+ * técnico que não se mostra a ninguém.
+ */
+export interface SessionPortal {
+  kind: PortalKind;
+  employeeCode: string | null;
+  employeeName: string | null;
 }
 
 export interface SessionContext {
@@ -25,7 +38,10 @@ export interface SessionContext {
   activeOrganization: MembershipSummary | null;
   permissions: string[];
   isPlatformAdmin: boolean;
+  portal: SessionPortal;
 }
+
+const NO_PORTAL: SessionPortal = { kind: "management", employeeCode: null, employeeName: null };
 
 /**
  * Everything the shell needs about the caller, resolved once per request.
@@ -67,11 +83,27 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
   const activeOrganization = list.find((m) => m.organizationId === preferred) ?? list[0] ?? null;
 
   let permissions: string[] = [];
+  let portal: SessionPortal = NO_PORTAL;
   if (activeOrganization) {
-    const { data } = await supabase.rpc("current_user_permissions", {
-      p_organization_id: activeOrganization.organizationId,
-    });
+    const [{ data }, portalResult] = await Promise.all([
+      supabase.rpc("current_user_permissions", { p_organization_id: activeOrganization.organizationId }),
+      supabase.rpc("current_user_portal", { p_organization_id: activeOrganization.organizationId }),
+    ]);
     permissions = (data as string[] | null) ?? [];
+    // Sem a resposta, a conta fica com a navegação de sempre, filtrada por
+    // permissão — o que havia antes do portal. O dado continua protegido
+    // pela RLS; o que se perde, até a próxima requisição, é só o recorte de
+    // telas.
+    if (portalResult.error) {
+      console.error("session: current_user_portal", portalResult.error.message);
+    } else {
+      const raw = (portalResult.data ?? {}) as Record<string, unknown>;
+      portal = {
+        kind: parsePortalKind(raw.kind),
+        employeeCode: typeof raw.employee_code === "string" ? raw.employee_code : null,
+        employeeName: typeof raw.employee_name === "string" ? raw.employee_name : null,
+      };
+    }
   }
 
   const fullName = profile?.full_name?.trim() || user.email?.split("@")[0] || "Usuário";
@@ -85,13 +117,33 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
     activeOrganization,
     permissions,
     isPlatformAdmin: Boolean(platformAdmin),
+    portal,
   };
 });
 
-/** Session context or a redirect to the login screen. */
+/**
+ * A tela pedida pertence ao portal da conta? O caminho vem do middleware
+ * (`x-hfm-pathname`, sempre sobrescrito com o caminho real da requisição);
+ * sem ele — uma chamada fora do ciclo de página — não há o que conferir.
+ */
+export async function portalBlocks(session: SessionContext): Promise<boolean> {
+  if (session.portal.kind === "management") return false;
+  const pathname = (await headers()).get(PATHNAME_HEADER);
+  return Boolean(pathname) && !portalAllowsPath(session.portal.kind, pathname!);
+}
+
+/**
+ * Session context or a redirect to the login screen.
+ *
+ * Também é a trava do portal: o Operacional e a Liderança que abrem uma tela
+ * fora da sua alçada voltam ao próprio início, em silêncio, como no HFC. Toda
+ * página passa por aqui (direto ou por `requireOrganization`), inclusive na
+ * navegação do lado do cliente, em que o layout não roda de novo.
+ */
 export async function requireSession(): Promise<SessionContext> {
   const session = await getSessionContext();
   if (!session) redirect("/login");
+  if (await portalBlocks(session)) redirect(PORTAL_HOME);
   return session;
 }
 

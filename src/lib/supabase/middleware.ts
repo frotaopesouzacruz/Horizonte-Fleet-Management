@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import type { Database } from "@/types/database.types";
+import { PATHNAME_HEADER, PORTAL_HOME } from "@/lib/auth/portal";
 
 /**
  * Routes that never require a session.
@@ -22,7 +23,16 @@ function isPublic(pathname: string) {
  * boundary — RLS is. Pages re-check the session server-side.
  */
 export async function updateSession(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  // O servidor precisa saber QUAL tela foi pedida para aplicar a trava do
+  // portal (`requireSession`). Vai num cabeçalho da requisição encaminhada,
+  // sempre sobrescrito com o caminho real: um valor mandado pelo cliente
+  // nunca chega à página.
+  const forward = () => {
+    const forwarded = new Headers(request.headers);
+    forwarded.set(PATHNAME_HEADER, request.nextUrl.pathname);
+    return NextResponse.next({ request: { headers: forwarded } });
+  };
+  let response = forward();
 
   const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,7 +44,7 @@ export async function updateSession(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           for (const { name, value } of cookiesToSet) request.cookies.set(name, value);
-          response = NextResponse.next({ request });
+          response = forward();
           for (const { name, value, options } of cookiesToSet) response.cookies.set(name, value, options);
         },
       },
@@ -57,9 +67,10 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // O Início decide a casa de cada perfil (o Dashboard para quem não tem portal).
   if (user && (pathname === "/login" || pathname === "/")) {
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = PORTAL_HOME;
     url.search = "";
     return NextResponse.redirect(url);
   }

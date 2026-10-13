@@ -121,6 +121,22 @@ cannot reason about. `private.permission_dependency()` names the
 combination, and the editor greys the dependants out and un-ticks them when the
 `view` goes, so the rule is visible before it is enforced.
 
+`<resource>.view_own` is the exception, and has been since 13/10/2026
+(`20261013140000_portals_post_login.sql`): "only what is mine" is a narrower
+read than `view`, not an action on it, and it exists precisely for whoever does
+not hold `view`. The old rule made the official Operacional profile
+(`adherence.view_own` and `action_plans.view_own` without the matching `view`)
+impossible to save from the editor. Nothing else changed: every other code still
+requires its resource's `view`.
+
+### Profiles also decide the home and the screens (post-login portals)
+
+Permissions decide the **data**; since 13/10/2026 the profiles of the active
+membership also decide the **home and the set of screens** — Operacional gets
+"Meu resumo", Liderança de Operações gets the "Portal da Liderança", everyone
+else keeps the permission-filtered navigation. No permission was changed for
+this. See [`post-login-portals.md`](./post-login-portals.md).
+
 ## 3. Nothing automatic ever changes an access profile
 
 > CSV, XLSX, API externa, QLP, ERP, integração, webhook e sincronização **nunca**

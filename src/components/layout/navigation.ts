@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import { PORTAL_HOME, type PortalKind } from "@/lib/auth/portal";
 import {
   BarChart3,
   Building2,
@@ -8,6 +9,8 @@ import {
   ClipboardList,
   Fuel,
   Gauge,
+  History,
+  Home,
   LayoutDashboard,
   MapPin,
   MessageSquareText,
@@ -55,12 +58,19 @@ export interface NavGroup {
 /**
  * Filters the navigation for a set of permissions, dropping groups that end up
  * empty. Entries without a `permission` are visible to every member.
+ *
+ * O portal escolhe QUAL menu (o de sempre, o do Operacional ou o da
+ * Liderança); a permissão continua decidindo cada entrada dentro dele.
  */
-export function visibleNavigation(permissions: string[], isPlatformAdmin = false): NavGroup[] {
+export function visibleNavigation(
+  permissions: string[],
+  isPlatformAdmin = false,
+  portal: PortalKind = "management",
+): NavGroup[] {
   const allowed = (item: NavItem) =>
     !item.permission || isPlatformAdmin || permissions.includes(item.permission);
 
-  return navigation
+  return navigationFor(portal)
     .map((group) => ({
       ...group,
       items: group.items.flatMap((item): NavItem[] => {
@@ -72,9 +82,16 @@ export function visibleNavigation(permissions: string[], isPlatformAdmin = false
     .filter((group) => group.items.length > 0);
 }
 
-/** Todos os itens (com subitens) numa lista só. */
+/** O menu de cada portal. */
+export function navigationFor(portal: PortalKind): NavGroup[] {
+  return portal === "operational" ? operationalNavigation : portal === "leadership" ? leadershipNavigation : navigation;
+}
+
+/** Todos os itens (com subitens) de todos os menus numa lista só. */
 function flatItems(): NavItem[] {
-  return navigation.flatMap((group) => group.items.flatMap((item) => [item, ...(item.children ?? [])]));
+  return [...navigation, ...operationalNavigation, ...leadershipNavigation].flatMap((group) =>
+    group.items.flatMap((item) => [item, ...(item.children ?? [])]),
+  );
 }
 
 /**
@@ -352,6 +369,83 @@ export const navigation: NavGroup[] = [
       { label: "Relatórios", href: "/relatorios", icon: BarChart3, planned: true },
     ],
   },
+];
+
+/**
+ * Os três aplicativos de campo, iguais nos três menus: quem executa e quem
+ * lidera usam os mesmos.
+ */
+const APPLICATION_ITEMS: NavItem[] = [
+  { label: "Check List de Frota", href: "/aplicativos/check-list-frota", icon: ClipboardCheck, permission: "applications.view" },
+  { label: "Vistoria MTSR", href: "/aplicativos/vistoria-mtsr", icon: ShieldCheck, permission: "applications.view" },
+  { label: "Vistoria de Pneus", href: "/aplicativos/vistoria-pneus", icon: CircleDot, permission: "applications.view" },
+];
+
+/**
+ * Menu do Operacional (HFC: "Menu operacional" — Meu resumo, Minha rotina e
+ * Aplicativos). Tudo aqui é da própria pessoa: o que ela respondeu, o que
+ * apontou e como está a aderência dela. As telas da operação não aparecem —
+ * e a trava do portal (`@/lib/auth/portal`) recusa quem digitar o endereço.
+ */
+export const operationalNavigation: NavGroup[] = [
+  {
+    id: "home",
+    items: [{ label: "Meu resumo", href: PORTAL_HOME, icon: Home }],
+  },
+  {
+    id: "routine",
+    label: "Minha rotina",
+    items: [
+      {
+        label: "Meus checklists",
+        href: "/aplicativos/check-list-frota/meus-checklists",
+        icon: History,
+        permission: "applications.checklist_fleet.view_own",
+      },
+      {
+        label: "Meus apontamentos",
+        href: "/checklist/planos-acao/meus-apontamentos",
+        icon: Wrench,
+        permission: "action_plans.view_own",
+      },
+      {
+        label: "Minha situação",
+        href: "/checklist/aderencia/minha-situacao",
+        icon: UserCheck,
+        permission: "adherence.view_own",
+      },
+    ],
+  },
+  { id: "applications", label: "Aplicativos", items: APPLICATION_ITEMS },
+];
+
+/**
+ * Menu da Liderança de Operações (HFC: "Navegação da Liderança"). A
+ * operação que ela lidera, nos módulos que já existem no HFM, e os mesmos
+ * aplicativos de campo. Administração da plataforma, estrutura operacional,
+ * Cadastro de frotas e Planejamento de lideranças não são telas da
+ * liderança — no HFC também não.
+ */
+export const leadershipNavigation: NavGroup[] = [
+  {
+    id: "home",
+    items: [{ label: "Portal da Liderança", href: PORTAL_HOME, icon: Home }],
+  },
+  {
+    id: "operation",
+    label: "Minha operação",
+    items: [
+      { label: "Aderência", href: "/checklist/aderencia", icon: Gauge, permission: "adherence.view" },
+      { label: "Planos de ação", href: "/checklist/planos-acao", icon: ClipboardList, permission: "action_plans.view" },
+      { label: "Fidelização", href: "/governanca/fidelizacao", icon: CalendarRange, permission: "fidelization.view" },
+      { label: "BRs", href: "/governanca/brs", icon: MapPin, permission: "fidelization.view" },
+      { label: "Gestão de KM Rodado", href: "/frota/km", icon: Route, permission: "km.view" },
+      { label: "Gestão de Pneus", href: "/frota/pneus", icon: CircleDot, permission: "tires.view" },
+      { label: "Manutenção", href: "/frota/manutencao", icon: Wrench, permission: "maintenance.view" },
+      { label: "Gestão de MTSR", href: "/seguranca/mtsr", icon: ShieldCheck, permission: "mtsr.view" },
+    ],
+  },
+  { id: "applications", label: "Aplicativos", items: APPLICATION_ITEMS },
 ];
 
 export function isActivePath(pathname: string, href: string): boolean {

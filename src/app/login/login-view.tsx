@@ -112,7 +112,7 @@ export function LoginView({ next, linkError }: { next?: string; linkError?: stri
             }}
             className="mt-7 flex flex-col gap-4"
           >
-            <input type="hidden" name="next" value={next ?? "/dashboard"} />
+            <input type="hidden" name="next" value={next ?? "/inicio"} />
 
             {error ? (
               <Alert variant="danger">

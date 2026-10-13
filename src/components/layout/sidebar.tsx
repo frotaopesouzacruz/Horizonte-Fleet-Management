@@ -12,6 +12,7 @@ import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { visibleNavigation, isActivePath, type NavGroup, type NavItem } from "./navigation";
 import { useAppShell } from "./app-shell-context";
+import { portalHome, type PortalKind } from "@/lib/auth/portal";
 import { usePersistedSet } from "@/lib/use-persisted-set";
 
 const GROUPS_STORAGE_KEY = "hfm.nav.closed";
@@ -261,10 +262,10 @@ function SidebarGroup({
 /* -------------------------------------------------------------------------- */
 
 export function SidebarNav({ collapsed = false, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
-  const { permissions, isPlatformAdmin } = useAppShell();
+  const { permissions, isPlatformAdmin, portal } = useAppShell();
   const groups = React.useMemo(
-    () => visibleNavigation(permissions, isPlatformAdmin),
-    [permissions, isPlatformAdmin],
+    () => visibleNavigation(permissions, isPlatformAdmin, portal),
+    [permissions, isPlatformAdmin, portal],
   );
 
   // Every group starts open: a menu that hides its own contents on first visit
@@ -384,6 +385,13 @@ export function Sidebar() {
 /* Brand                                                                      */
 /* -------------------------------------------------------------------------- */
 
+/** O subtítulo da marca diz em que casa a pessoa está (HFC: "Menu operacional"). */
+const BRAND_SUBTITLE: Record<PortalKind, string> = {
+  management: "Central operacional",
+  operational: "Menu operacional",
+  leadership: "Portal da liderança",
+};
+
 /**
  * A marca no topo da navegação: símbolo oficial + nome do produto.
  *
@@ -398,9 +406,10 @@ export function Sidebar() {
  * Recolhida, a faixa tem 68px e só cabe o símbolo — o mesmo do favicon.
  */
 function SidebarBrand({ collapsed }: { collapsed: boolean }) {
+  const { portal } = useAppShell();
   return (
     <Link
-      href="/dashboard"
+      href={portalHome(portal)}
       className="flex min-w-0 items-center gap-2.5 rounded-sm outline-none hfm-focus-ring"
       aria-label="Horizonte Fleet Management — início"
     >
@@ -411,7 +420,7 @@ function SidebarBrand({ collapsed }: { collapsed: boolean }) {
             Horizonte Fleet Management
           </span>
           <span className="truncate text-overline leading-tight font-medium text-fg-muted uppercase">
-            Central operacional
+            {BRAND_SUBTITLE[portal]}
           </span>
         </span>
       )}

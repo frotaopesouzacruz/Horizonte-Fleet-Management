@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import type { PortalKind } from "@/lib/auth/portal";
 
 export const SIDEBAR_STORAGE_KEY = "hfm.sidebar.collapsed";
 const EVENT = "hfm:sidebar";
@@ -25,6 +26,8 @@ interface AppShellContextValue {
   permissions: string[];
   isPlatformAdmin: boolean;
   can: (permission: string) => boolean;
+  /** Qual menu e qual início a conta recebe (`@/lib/auth/portal`). */
+  portal: PortalKind;
 }
 
 const AppShellContext = React.createContext<AppShellContextValue | null>(null);
@@ -38,10 +41,12 @@ export function AppShellProvider({
   children,
   permissions = [],
   isPlatformAdmin = false,
+  portal = "management",
 }: {
   children: React.ReactNode;
   permissions?: string[];
   isPlatformAdmin?: boolean;
+  portal?: PortalKind;
 }) {
   const collapsed = React.useSyncExternalStore(subscribe, readCollapsed, () => false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
@@ -66,8 +71,9 @@ export function AppShellProvider({
       permissions,
       isPlatformAdmin,
       can: (permission: string) => isPlatformAdmin || permissions.includes(permission),
+      portal,
     }),
-    [collapsed, setCollapsed, mobileOpen, permissions, isPlatformAdmin],
+    [collapsed, setCollapsed, mobileOpen, permissions, isPlatformAdmin, portal],
   );
 
   return <AppShellContext.Provider value={value}>{children}</AppShellContext.Provider>;
