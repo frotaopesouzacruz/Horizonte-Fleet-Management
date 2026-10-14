@@ -638,9 +638,12 @@ begin
   -- ---------------------------------------------------------------- T17 --
   begin
     insert into public.organizations (name, slug) values ('Suite39 Outro Tenant', 'suite39-outro-tenant-' || substr(md5(random()::text), 1, 8)) returning id into v_org2;
+    -- O Gestor de Frota de teste só tem vínculo na org A (um administrador da plataforma leria qualquer org por desenho).
+    perform set_config('request.jwt.claims', json_build_object('sub', u_gf, 'role', 'authenticated')::text, true);
     ok2 := false; begin perform public.maintenance_predictive_overview(v_org2, '{}'); exception when insufficient_privilege then ok2 := true; end;
     ok3 := false; begin perform public.maintenance_predictive_app_submit(v_org2, jsonb_build_object('client_submission_id', gen_random_uuid(), 'vehicle_id', va1, 'items', '[]'::jsonb)); exception when insufficient_privilege then ok3 := true; end;
     select count(*) into n from private.maintenance_predictive_state_v2(v_org2);
+    perform set_config('request.jwt.claims', v_claims, true);
     set local role authenticated;
     select (select count(*) from public.maintenance_predictive_cycles where organization_id = v_org2)
          + (select count(*) from public.maintenance_predictive_events where organization_id = v_org2)
