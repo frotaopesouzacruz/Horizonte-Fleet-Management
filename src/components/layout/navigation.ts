@@ -12,6 +12,7 @@ import {
   History,
   Home,
   LayoutDashboard,
+  LayoutGrid,
   MapPin,
   MessageSquareText,
   Network,
@@ -21,6 +22,7 @@ import {
   Shapes,
   Store,
   Truck,
+  User,
   UserCheck,
   UserCog,
   Users,
@@ -392,19 +394,28 @@ const APPLICATION_ITEMS: NavItem[] = [
 ];
 
 /**
- * Menu do Operacional (HFC: "Menu operacional" — Meu resumo, Minha rotina e
- * Aplicativos). Tudo aqui é da própria pessoa: o que ela respondeu, o que
- * apontou e como está a aderência dela. As telas da operação não aparecem —
- * e a trava do portal (`@/lib/auth/portal`) recusa quem digitar o endereço.
+ * Menu do Operacional — Início, Aplicativos, Histórico e Perfil, os mesmos
+ * quatro destinos da navegação inferior do celular. Tudo aqui é da própria
+ * pessoa: o que ela faz agora, o que já fez e quem ela é. As telas da
+ * operação não aparecem — e a trava do portal (`@/lib/auth/portal`) recusa
+ * quem digitar o endereço.
  */
 export const operationalNavigation: NavGroup[] = [
   {
     id: "home",
-    items: [{ label: "Meu resumo", href: PORTAL_HOME, icon: Home }],
+    items: [{ label: "Início", href: PORTAL_HOME, icon: Home }],
   },
   {
-    id: "routine",
-    label: "Minha rotina",
+    id: "applications",
+    label: "Aplicativos",
+    items: [
+      { label: "Todos os aplicativos", href: "/aplicativos", icon: LayoutGrid, permission: "applications.view" },
+      ...APPLICATION_ITEMS,
+    ],
+  },
+  {
+    id: "history",
+    label: "Histórico",
     items: [
       {
         label: "Meus checklists",
@@ -426,34 +437,50 @@ export const operationalNavigation: NavGroup[] = [
       },
     ],
   },
-  { id: "applications", label: "Aplicativos", items: APPLICATION_ITEMS },
+  {
+    id: "account",
+    label: "Conta",
+    items: [{ label: "Perfil", href: "/perfil", icon: User }],
+  },
 ];
 
 /**
- * Menu da Liderança de Operações (HFC: "Navegação da Liderança"). A
- * operação que ela lidera, nos módulos que já existem no HFM, e os mesmos
- * aplicativos de campo. Administração da plataforma, estrutura operacional,
- * Cadastro de frotas e Planejamento de lideranças não são telas da
- * liderança — no HFC também não.
+ * Menu da Liderança de Operações — Início › Gestão da operação › Frota ›
+ * Segurança › Aplicativos. A operação que ela lidera, nos módulos que já
+ * existem no HFM. Administração da plataforma e estrutura operacional não
+ * são telas da liderança; Cadastro de frotas e Lideranças entram em leitura,
+ * pelo que `vehicles.*` e `leadership.*` lhe dão.
  */
 export const leadershipNavigation: NavGroup[] = [
   {
     id: "home",
-    items: [{ label: "Portal da Liderança", href: PORTAL_HOME, icon: Home }],
+    items: [{ label: "Início", href: PORTAL_HOME, icon: Home }],
   },
   {
     id: "operation",
-    label: "Minha operação",
+    label: "Gestão da operação",
     items: [
       { label: "Aderência", href: "/checklist/aderencia", icon: Gauge, permission: "adherence.view" },
       { label: "Planos de ação", href: "/checklist/planos-acao", icon: ClipboardList, permission: "action_plans.view" },
       { label: "Fidelização", href: "/governanca/fidelizacao", icon: CalendarRange, permission: "fidelization.view" },
       { label: "BRs", href: "/governanca/brs", icon: MapPin, permission: "fidelization.view" },
+      { label: "Lideranças", href: "/governanca/liderancas", icon: Users, permission: "leadership.view" },
+    ],
+  },
+  {
+    id: "fleet",
+    label: "Frota",
+    items: [
+      { label: "Cadastro de frotas", href: "/frota/cadastro", icon: Truck, permission: "vehicles.view" },
       { label: "Gestão de KM Rodado", href: "/frota/km", icon: Route, permission: "km.view" },
       { label: "Gestão de Pneus", href: "/frota/pneus", icon: CircleDot, permission: "tires.view" },
       { label: "Manutenção", href: "/frota/manutencao", icon: Wrench, permission: "maintenance.view" },
-      { label: "Gestão de MTSR", href: "/seguranca/mtsr", icon: ShieldCheck, permission: "mtsr.view" },
     ],
+  },
+  {
+    id: "safety",
+    label: "Segurança",
+    items: [{ label: "Gestão de MTSR", href: "/seguranca/mtsr", icon: ShieldCheck, permission: "mtsr.view" }],
   },
   { id: "applications", label: "Aplicativos", items: APPLICATION_ITEMS },
 ];

@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  AlertOctagon, CalendarRange, CheckCircle2, CircleDot, ClipboardCheck, ClipboardList, Flame, Gauge, MapPin,
+  AlertOctagon, CalendarRange, CheckCircle2, CircleDot, ClipboardCheck, ClipboardList, Flame, Gauge, Lightbulb, MapPin,
   Network, Route, ShieldCheck, Truck, UserCheck, Users, UserX, Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -16,14 +16,18 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Alert, AlertDescription } from "@/components/feedback/alert";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { ErrorState } from "@/components/feedback/error-state";
+import { InsightCard, InsightList } from "@/components/feedback/insight-card";
 import { PageContent, PageHeader, PageHeaderContext } from "@/components/layout/page-header";
+import type { HomeCapabilities } from "@/lib/home/resolver";
 import type { LeadershipHome, LeadershipResponsibility, Loaded } from "@/lib/portal/types";
 import {
-  buildPriorities, type AdherenceNumbers, type LeadershipBlocks, type Priority, type PrioritySeverity,
+  buildInsights, buildPriorities, pctDelta, pendingByCategory,
+  type AdherenceNumbers, type Insight, type LeadershipBlocks, type PendingCategory, type Priority, type PrioritySeverity,
 } from "@/lib/portal/leadership";
 import { HomeSection, ShortcutCard, type ShortcutTone } from "./shortcut-card";
 
 export type LeadershipScope = "leadership" | "operations";
+export type LeadershipMode = "padrao" | "compacto";
 
 export interface LeadershipHomeProps {
   displayName: string;
@@ -34,9 +38,11 @@ export interface LeadershipHomeProps {
   canToggleScope: boolean;
   /** Colaborador do líder, para levar o recorte aos módulos ("?lideranca="). */
   leaderId: string | null;
-  /** Permissões da conta, para os atalhos dos módulos (dado, não função: vem do servidor). */
-  permissions: string[];
-  isPlatformAdmin?: boolean;
+  can: HomeCapabilities;
+  /** Compacto: só ação e resumo (níveis 1 e 2); padrão: tudo. */
+  mode: LeadershipMode;
+  /** Blocos de nível 3 e 4 (manutenção, preditiva, KM, tendência), em Suspense. */
+  secondary?: React.ReactNode;
   basePath?: string;
 }
 
@@ -81,37 +87,78 @@ const SEVERITY: Record<PrioritySeverity, { label: string; tone: "danger" | "warn
   medium: { label: "Médio", tone: "info", bar: "bg-info" },
 };
 
+const INSIGHT_TONE: Record<Insight["tone"], "success" | "warning" | "danger" | "info"> = {
+  positive: "success",
+  warning: "warning",
+  critical: "danger",
+  info: "info",
+};
+
 function BlockError({ title, error, onRetry, retrying }: { title: string; error: string; onRetry: () => void; retrying: boolean }) {
   return <ErrorState variant="panel" headingLevel={3} title={title} description={error} onRetry={onRetry} retrying={retrying} />;
 }
 
+/** Cartão de prioridade: o cartão inteiro é o link para o drill-down. */
 function PriorityCard({ p }: { p: Priority }) {
   const s = SEVERITY[p.severity];
   return (
-    <li className="relative flex flex-col gap-1.5 overflow-hidden rounded-lg border border-border bg-surface-raised p-3 pt-3.5 shadow-card">
-      <span aria-hidden className={cn("absolute inset-x-0 top-0 h-1", s.bar)} />
-      <div className="flex flex-wrap items-center gap-2">
-        <StatusBadge status={s.tone} size="sm">{s.label}</StatusBadge>
-        <span className="text-caption font-semibold text-fg-muted">{p.source}</span>
-      </div>
-      <p className="text-body-sm font-semibold text-fg">{p.title}</p>
-      <p className="text-caption text-fg-secondary">{p.description}</p>
-      <Link href={p.href} className="self-start rounded-xs text-body-sm font-semibold text-link hfm-focus-ring hover:text-link-hover hover:underline">
-        Ver →
+    <li>
+      <Link
+        href={p.href}
+        className="relative flex h-full flex-col gap-1.5 overflow-hidden rounded-lg border border-border bg-surface-raised p-3 pt-3.5 shadow-card outline-none hfm-transition hfm-focus-ring hover:-translate-y-px hover:border-border-emphasis hover:shadow-card-hover"
+        data-testid="prioridade"
+        data-severity={p.severity}
+      >
+        <span aria-hidden className={cn("absolute inset-x-0 top-0 h-1", s.bar)} />
+        <span className="flex flex-wrap items-center gap-2">
+          <StatusBadge status={s.tone} size="sm">{s.label}</StatusBadge>
+          <span className="text-caption font-semibold text-fg-muted">{p.source}</span>
+        </span>
+        <span className="text-body-sm font-semibold text-fg">{p.title}</span>
+        <span className="text-caption text-fg-secondary">{p.description}</span>
+        <span className="mt-auto pt-1 text-body-sm font-semibold text-link">Ver →</span>
+      </Link>
+    </li>
+  );
+}
+
+function CategoryCard({ c }: { c: PendingCategory }) {
+  const tone = c.total == null ? "neutral" : c.critical > 0 ? "danger" : c.total > 0 ? "warning" : "success";
+  return (
+    <li>
+      <Link
+        href={c.href}
+        className="flex h-full flex-col gap-1 rounded-lg border border-border bg-surface-raised p-3.5 shadow-card outline-none hfm-transition hfm-focus-ring hover:-translate-y-px hover:border-border-emphasis hover:shadow-card-hover"
+        data-testid={`categoria-${c.key}`}
+      >
+        <span className="flex items-center justify-between gap-2">
+          <span className="text-body-sm font-semibold text-fg">{c.label}</span>
+          <StatusBadge status={tone} size="sm">
+            {c.total == null ? "Não carregou" : c.total === 0 ? "Em dia" : c.critical > 0 ? `${int.format(c.critical)} crítica${c.critical === 1 ? "" : "s"}` : "Atenção"}
+          </StatusBadge>
+        </span>
+        <span className="text-kpi font-semibold tabular-nums text-fg">{c.total == null ? "—" : int.format(c.total)}</span>
+        <span className="text-caption text-fg-muted">
+          {c.total == null ? "A fonte não respondeu." : c.parts.filter((p) => p.value > 0).map((p) => `${int.format(p.value)} ${p.label}`).join(" · ") || "Nenhuma pendência"}
+        </span>
       </Link>
     </li>
   );
 }
 
 /**
- * Início da Liderança de Operações — "Portal da Liderança" (HFC), na ordem
- * do HFC: escopo › minha operação hoje › semana até hoje › prioridades ›
- * pneus › segurança e planos › minha equipe › navegação e aplicativos.
+ * Home da Liderança de Operações — responde "o que exige minha atenção
+ * agora?", em camadas:
  *
- * Cada número vem da rotina oficial do módulo (ver `leadership-data.ts`) e
- * leva ao módulo com o mesmo recorte. Diferente do HFC, a aderência é a do
- * Motor oficial (obrigações com expurgos, no fuso da operação) — não uma
- * conta paralela sobre os checklists da equipe.
+ *   nível 1 (ação)      cabeçalho com escopo e contagens › prioridades
+ *   nível 2 (resumo)    KPIs críticos › resumo operacional › aderência do dia
+ *                       com comparativos › pendências da equipe › insights
+ *   nível 3 (tendência) manutenção, preditiva, KM e tendência (Suspense)
+ *   nível 4 (detalhe)   pneus, MTSR, planos, equipe, atalhos, aplicativos
+ *
+ * O modo compacto corta nos níveis 1 e 2. Cada número vem da rotina oficial
+ * do módulo e leva ao módulo com o mesmo recorte; um bloco que falha mostra
+ * o motivo no lugar dos números.
  */
 export function LeadershipHomeView({
   displayName,
@@ -120,50 +167,64 @@ export function LeadershipHomeView({
   scope,
   canToggleScope,
   leaderId,
-  permissions,
-  isPlatformAdmin = false,
+  can,
+  mode,
+  secondary,
   basePath = "/inicio",
 }: LeadershipHomeProps) {
-  const can = (permission: string) => isPlatformAdmin || permissions.includes(permission);
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const retry = () => startTransition(() => router.refresh());
-  const setScope = (next: LeadershipScope) =>
-    startTransition(() =>
-      router.push(next === "operations" ? `${basePath}${basePath.includes("?") ? "&" : "?"}escopo=operacoes` : basePath, {
-        scroll: false,
-      }),
-    );
+  const navigate = (next: { scope?: LeadershipScope; mode?: LeadershipMode }) => {
+    const s = next.scope ?? scope;
+    const m = next.mode ?? mode;
+    const params: string[] = [];
+    if (s === "operations") params.push("escopo=operacoes");
+    if (m === "compacto") params.push("modo=compacto");
+    const url = params.length ? `${basePath}${basePath.includes("?") ? "&" : "?"}${params.join("&")}` : basePath;
+    startTransition(() => router.push(url, { scroll: false }));
+  };
 
   const data = home.ok ? home.data : null;
   const team = data?.team ?? null;
   const query = scope === "leadership" && leaderId ? `?lideranca=${leaderId}` : "";
   const priorities = React.useMemo(() => buildPriorities(blocks, team, query), [blocks, team, query]);
+  const categories = React.useMemo(() => pendingByCategory(blocks, query), [blocks, query]);
+  const insights = React.useMemo(() => buildInsights(blocks, team, categories, query), [blocks, team, categories, query]);
   const name = data?.employee?.name || displayName;
+  const compact = mode === "compacto";
   // Sem operação liberada a RLS devolve tudo vazio: "sob controle" seria mentira.
   const noScope = Boolean(data && !data.scope.allOperations && data.scope.operations.length === 0);
-
-  const moduleCards: { href: string; title: string; description: string; icon: React.ReactNode; tone: ShortcutTone; permission: string }[] = [
-    { href: `/checklist/aderencia${query}`, title: "Aderência e checklists", description: "Execução diária e mensal da sua operação", icon: <Gauge />, tone: "primary", permission: "adherence.view" },
-    { href: `/checklist/planos-acao${query}`, title: "Planos de ação", description: "Tratativas das inconformidades do Check List", icon: <ClipboardList />, tone: "warning", permission: "action_plans.view" },
-    { href: "/governanca/fidelizacao", title: "Fidelização", description: "Frotas e motoristas por BR e competência", icon: <CalendarRange />, tone: "info", permission: "fidelization.view" },
-    { href: "/governanca/brs", title: "BRs", description: "As posições operacionais da sua operação", icon: <MapPin />, tone: "neutral", permission: "fidelization.view" },
-    { href: "/frota/km", title: "KM rodado", description: "Rodagem diária e mensal das suas placas", icon: <Route />, tone: "neutral", permission: "km.view" },
-    { href: `/frota/pneus${query}`, title: "Gestão de Pneus", description: "Sulco, calibragem e prazos da sua frota", icon: <CircleDot />, tone: "info", permission: "tires.view" },
-    { href: "/frota/manutencao", title: "Manutenção", description: "Programação e execução das manutenções", icon: <Wrench />, tone: "warning", permission: "maintenance.view" },
-    { href: `/seguranca/mtsr${query}`, title: "Gestão de MTSR", description: "Conformidade dos componentes de segurança", icon: <ShieldCheck />, tone: "highlight", permission: "mtsr.view" },
-  ];
-  const modules = moduleCards.filter((m) => can(m.permission));
+  const criticalCount = priorities.items.filter((p) => p.severity === "critical").length;
 
   const today = blocks.today;
+  const yesterday = blocks.yesterday;
   const week = blocks.week;
+  const fleet = blocks.fleet;
+
+  const moduleCards: { href: string; title: string; description: string; icon: React.ReactNode; tone: ShortcutTone; allowed: boolean }[] = [
+    { href: `/checklist/aderencia${query}`, title: "Aderência e checklists", description: "Execução diária e mensal da sua operação", icon: <Gauge />, tone: "primary", allowed: can.adherence },
+    { href: `/checklist/planos-acao${query}`, title: "Planos de ação", description: "Tratativas das inconformidades do Check List", icon: <ClipboardList />, tone: "warning", allowed: can.actionPlans },
+    { href: "/governanca/fidelizacao", title: "Fidelização", description: "Frotas e motoristas por BR e competência", icon: <CalendarRange />, tone: "info", allowed: can.fidelization },
+    { href: "/governanca/brs", title: "BRs", description: "As posições operacionais da sua operação", icon: <MapPin />, tone: "neutral", allowed: can.fidelization },
+    { href: "/frota/km", title: "KM rodado", description: "Rodagem diária e mensal das suas placas", icon: <Route />, tone: "neutral", allowed: can.km },
+    { href: `/frota/pneus${query}`, title: "Gestão de Pneus", description: "Sulco, calibragem e prazos da sua frota", icon: <CircleDot />, tone: "info", allowed: can.tires },
+    { href: "/frota/manutencao", title: "Manutenção", description: "Programação e execução das manutenções", icon: <Wrench />, tone: "warning", allowed: can.maintenance },
+    { href: `/seguranca/mtsr${query}`, title: "Gestão de MTSR", description: "Conformidade dos componentes de segurança", icon: <ShieldCheck />, tone: "highlight", allowed: can.mtsr },
+  ];
+  const modules = moduleCards.filter((m) => m.allowed);
+
+  const todaySaidaDelta =
+    today && yesterday && today.saida.ok && yesterday.saida.ok ? pctDelta(today.saida.data.pct, yesterday.saida.data.pct) : null;
+  const todayRetornoDelta =
+    today && yesterday && today.retorno.ok && yesterday.retorno.ok ? pctDelta(today.retorno.data.pct, yesterday.retorno.data.pct) : null;
 
   return (
     <>
       <PageHeader
         eyebrow="Liderança de Operações"
         title="Portal da Liderança"
-        description={`Olá, ${name}. A operação que você lidera: execução dos checklists, pneus, segurança e equipe.`}
+        description={`Olá, ${name}. O que exige a sua atenção agora.`}
         context={
           data ? (
             <>
@@ -174,28 +235,40 @@ export function LeadershipHomeView({
           ) : undefined
         }
         secondaryActions={
-          canToggleScope ? (
-            <SegmentedControl<LeadershipScope>
-              aria-label="Recorte dos números"
-              value={scope}
-              onValueChange={setScope}
+          <div className="flex flex-wrap items-center gap-2">
+            {canToggleScope ? (
+              <SegmentedControl<LeadershipScope>
+                aria-label="Recorte dos números"
+                value={scope}
+                onValueChange={(next) => navigate({ scope: next })}
+                disabled={pending}
+                options={[
+                  { value: "leadership", label: "Minha liderança" },
+                  { value: "operations", label: "Operações liberadas" },
+                ]}
+              />
+            ) : null}
+            <SegmentedControl<LeadershipMode>
+              aria-label="Modo da tela"
+              value={mode}
+              onValueChange={(next) => navigate({ mode: next })}
               disabled={pending}
               options={[
-                { value: "leadership", label: "Minha liderança" },
-                { value: "operations", label: "Operações liberadas" },
+                { value: "padrao", label: "Padrão" },
+                { value: "compacto", label: "Compacto" },
               ]}
             />
-          ) : undefined
+          </div>
         }
       />
       <PageContent aria-busy={pending || undefined}>
-        <div className="flex w-full flex-col gap-6" data-testid="inicio-lideranca">
-          {/* ----------------------------------------------------------- escopo */}
+        <div className="flex w-full flex-col gap-6" data-testid="inicio-lideranca" data-mode={mode}>
+          {/* ------------------------------------------------- escopo e contagens */}
           {!data ? (
             <BlockError title="Não foi possível carregar o seu escopo." error={home.ok ? "" : home.error} onRetry={retry} retrying={pending} />
           ) : (
             <section aria-label="Seu escopo" className="flex flex-col gap-3" data-testid="escopo">
-              {!data.scope.allOperations && data.scope.operations.length === 0 ? (
+              {noScope ? (
                 <Alert variant="warning" data-testid="escopo-vazio">
                   <AlertDescription>
                     Sua conta ainda não tem operações liberadas: os módulos ficam vazios até que o administrador do HFM
@@ -211,7 +284,7 @@ export function LeadershipHomeView({
                   </AlertDescription>
                 </Alert>
               ) : null}
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
                 <KpiCard
                   size="compact"
                   label="Operações liberadas"
@@ -227,162 +300,47 @@ export function LeadershipHomeView({
                 />
                 <KpiCard
                   size="compact"
-                  label="Minhas responsabilidades"
-                  value={data.scope.responsibilities.length}
-                  icon={<UserCheck />}
-                  period={
-                    data.scope.responsibilities.length
-                      ? data.scope.responsibilities
-                          .slice(0, 2)
-                          .map((r) => `${responsibilityLabel(r)} (${RESPONSIBILITY_TYPE[r.responsibilityType]})`)
-                          .join("; ") + (data.scope.responsibilities.length > 2 ? "…" : "")
-                      : "Nenhuma liderança vigente no Planejamento de lideranças"
-                  }
-                  data-testid="kpi-responsabilidades"
+                  label="Veículos ativos"
+                  value={fleet ? (fleet.ok ? fleet.data.active : "—") : "—"}
+                  icon={<Truck />}
+                  period={fleet ? (fleet.ok ? `${int.format(fleet.data.total)} cadastrados · ${int.format(fleet.data.unassigned)} sem operação` : "Não foi possível carregar a frota") : "Sem permissão para a frota"}
+                  data-testid="kpi-veiculos"
                 />
                 <KpiCard
                   size="compact"
-                  label="Equipe direta"
+                  label="Colaboradores"
                   value={team ? team.members : "—"}
                   icon={<Users />}
-                  period={team ? "Colaboradores que têm você como gestor imediato" : "Sem colaborador vinculado"}
+                  period={team ? "Equipe direta (gestor imediato)" : "Sem colaborador vinculado"}
                   data-testid="kpi-equipe"
+                />
+                <KpiCard
+                  size="compact"
+                  label="Pendências críticas"
+                  value={criticalCount}
+                  status={criticalCount > 0 ? "danger" : "success"}
+                  icon={<AlertOctagon />}
+                  period={priorities.incomplete ? "Algumas fontes não carregaram" : `${int.format(priorities.items.length)} prioridades no total`}
+                  data-testid="kpi-criticas"
                 />
               </div>
               <p className="text-caption text-fg-muted">
                 {scope === "leadership"
                   ? "Números da sua liderança: as obrigações, pneus, vistorias e planos das cidades e BRs pelos quais você responde."
                   : "Números de tudo o que a sua conta enxerga nas operações liberadas."}
+                {data.scope.responsibilities.length
+                  ? ` Responsabilidades: ${data.scope.responsibilities.slice(0, 2).map((r) => `${responsibilityLabel(r)} (${RESPONSIBILITY_TYPE[r.responsibilityType]})`).join("; ")}${data.scope.responsibilities.length > 2 ? "…" : "."}`
+                  : ""}
               </p>
             </section>
           )}
 
-          {/* ----------------------------------------------------- hoje e semana */}
-          {today ? (
-            <HomeSection
-              id="hoje"
-              title="Minha operação hoje"
-              icon={<ClipboardCheck />}
-              description={`Aderência oficial do dia ${dateBr(today.from)} — obrigações de saída e retorno, com expurgos.`}
-              actions={
-                <Button asChild size="sm" variant="secondary">
-                  <Link href={`/checklist/aderencia${query}`}>Abrir a Aderência</Link>
-                </Button>
-              }
-              testId="hoje"
-            >
-              {!today.saida.ok || !today.retorno.ok ? (
-                <BlockError
-                  title="Não foi possível carregar a aderência de hoje."
-                  error={!today.saida.ok ? today.saida.error : !today.retorno.ok ? today.retorno.error : ""}
-                  onRetry={retry}
-                  retrying={pending}
-                />
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <KpiCard
-                    label="Saída hoje"
-                    value={pctLabel(today.saida.data)}
-                    status={pctStatus(today.saida.data)}
-                    period={`${int.format(today.saida.data.numerator)} de ${int.format(today.saida.data.denominator)} obrigações`}
-                    data-testid="kpi-saida-hoje"
-                  />
-                  <KpiCard
-                    label="Retorno hoje"
-                    value={pctLabel(today.retorno.data)}
-                    status={pctStatus(today.retorno.data)}
-                    period={`${int.format(today.retorno.data.pendingReturn)} ainda no prazo`}
-                    data-testid="kpi-retorno-hoje"
-                  />
-                  <KpiCard
-                    label="Realizados hoje"
-                    value={today.saida.data.done + today.retorno.data.done}
-                    status="success"
-                    icon={<CheckCircle2 />}
-                    period="Saídas e retornos com checklist"
-                  />
-                  <KpiCard
-                    label="Sem checklist ainda"
-                    value={today.saida.data.notDone + today.retorno.data.notDone}
-                    status={today.saida.data.notDone + today.retorno.data.notDone > 0 ? "warning" : "neutral"}
-                    icon={<AlertOctagon />}
-                    period={`${int.format(today.saida.data.excluded + today.retorno.data.excluded)} dispensadas por expurgo`}
-                  />
-                </div>
-              )}
-            </HomeSection>
-          ) : null}
-
-          {week ? (
-            <HomeSection
-              id="semana"
-              title="Semana até hoje"
-              icon={<CalendarRange />}
-              description={`${dateBr(week.from)} a ${dateBr(week.to)} — dias futuros não contam.`}
-              testId="semana"
-            >
-              {!week.saida.ok || !week.retorno.ok ? (
-                <BlockError
-                  title="Não foi possível carregar a aderência da semana."
-                  error={!week.saida.ok ? week.saida.error : !week.retorno.ok ? week.retorno.error : ""}
-                  onRetry={retry}
-                  retrying={pending}
-                />
-              ) : (
-                <div className="flex flex-col gap-3">
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <KpiCard
-                      label="Saída na semana"
-                      value={pctLabel(week.saida.data)}
-                      status={pctStatus(week.saida.data)}
-                      period={`${int.format(week.saida.data.numerator)} de ${int.format(week.saida.data.denominator)}`}
-                      target={week.saida.data.targetPct != null ? `Meta ${pct.format(week.saida.data.targetPct)}%` : undefined}
-                    />
-                    <KpiCard
-                      label="Retorno na semana"
-                      value={pctLabel(week.retorno.data)}
-                      status={pctStatus(week.retorno.data)}
-                      period={`${int.format(week.retorno.data.numerator)} de ${int.format(week.retorno.data.denominator)}`}
-                      target={week.retorno.data.targetPct != null ? `Meta ${pct.format(week.retorno.data.targetPct)}%` : undefined}
-                    />
-                    <KpiCard
-                      label="Não realizados"
-                      value={week.saida.data.notDone + week.retorno.data.notDone}
-                      status={week.saida.data.notDone + week.retorno.data.notDone > 0 ? "danger" : "neutral"}
-                      period="Obrigações da semana sem checklist"
-                    />
-                    <KpiCard
-                      label="Equipe sem checklist"
-                      value={team ? team.withoutChecklistWeek : "—"}
-                      status={team && team.withoutChecklistWeek > 0 ? "warning" : "neutral"}
-                      icon={<UserX />}
-                      period={team ? `de ${int.format(team.members)} na equipe direta` : "Sem colaborador vinculado"}
-                    />
-                  </div>
-                  {team && team.withoutWeekNames.length > 0 ? (
-                    <div className="flex flex-wrap items-center gap-1.5" data-testid="sem-checklist-semana">
-                      <span className="text-caption font-semibold text-fg-muted">Sem checklist na semana:</span>
-                      {team.withoutWeekNames.map((n) => (
-                        <Badge key={n} variant="warning" size="sm">{n}</Badge>
-                      ))}
-                      {team.withoutChecklistWeek > team.withoutWeekNames.length ? (
-                        <span className="text-caption text-fg-muted">
-                          +{team.withoutChecklistWeek - team.withoutWeekNames.length}
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              )}
-            </HomeSection>
-          ) : null}
-
           {/* ------------------------------------------------------- prioridades */}
           <HomeSection
             id="prioridades"
-            title="Prioridades da minha operação"
+            title="Prioridades"
             icon={<AlertOctagon />}
-            description="Geradas das regras oficiais de aderência, pneus, MTSR, planos de ação e da sua equipe."
+            description="Geradas das regras oficiais de aderência, pneus, MTSR, planos de ação e da sua equipe. Cada uma abre o módulo já filtrado."
             testId="prioridades"
           >
             {priorities.items.length === 0 ? (
@@ -401,8 +359,8 @@ export function LeadershipHomeView({
                   variant="panel"
                   headingLevel={3}
                   icon={<CheckCircle2 />}
-                  title="Nenhuma pendência no seu escopo"
-                  description="Operação sob controle pelas regras oficiais de hoje."
+                  title="Tudo em dia"
+                  description="Nenhuma pendência no seu escopo pelas regras oficiais de hoje."
                 />
               )
             ) : (
@@ -419,8 +377,175 @@ export function LeadershipHomeView({
             )}
           </HomeSection>
 
-          {/* ------------------------------------------------------------- pneus */}
-          {blocks.tires ? (
+          {/* ---------------------------------------------- aderência do dia (KPIs) */}
+          {today ? (
+            <HomeSection
+              id="aderencia-dia"
+              title="Aderência do dia"
+              icon={<ClipboardCheck />}
+              description={`Aderência oficial de ${dateBr(today.from)} — obrigações de saída e retorno, com expurgos — comparada com ontem, a semana e a meta.`}
+              actions={
+                <Button asChild size="sm" variant="secondary">
+                  <Link href={`/checklist/aderencia${query}`}>Abrir a Aderência</Link>
+                </Button>
+              }
+              testId="aderencia-dia"
+            >
+              {!today.saida.ok || !today.retorno.ok ? (
+                <BlockError
+                  title="Não foi possível carregar a aderência de hoje."
+                  error={!today.saida.ok ? today.saida.error : !today.retorno.ok ? today.retorno.error : ""}
+                  onRetry={retry}
+                  retrying={pending}
+                />
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <KpiCard
+                      label="Saída hoje"
+                      value={pctLabel(today.saida.data)}
+                      status={pctStatus(today.saida.data)}
+                      period={`${int.format(today.saida.data.numerator)} de ${int.format(today.saida.data.denominator)} obrigações`}
+                      target={today.saida.data.targetPct != null ? `Meta ${pct.format(today.saida.data.targetPct)}%` : undefined}
+                      trend={todaySaidaDelta ? { value: todaySaidaDelta.value, direction: todaySaidaDelta.direction, goodWhen: "up", comparison: "vs. ontem" } : undefined}
+                      data-testid="kpi-saida-hoje"
+                    />
+                    <KpiCard
+                      label="Retorno hoje"
+                      value={pctLabel(today.retorno.data)}
+                      status={pctStatus(today.retorno.data)}
+                      period={`${int.format(today.retorno.data.pendingReturn)} ainda no prazo`}
+                      target={today.retorno.data.targetPct != null ? `Meta ${pct.format(today.retorno.data.targetPct)}%` : undefined}
+                      trend={todayRetornoDelta ? { value: todayRetornoDelta.value, direction: todayRetornoDelta.direction, goodWhen: "up", comparison: "vs. ontem" } : undefined}
+                      data-testid="kpi-retorno-hoje"
+                    />
+                    <KpiCard
+                      label="Sem checklist ainda"
+                      value={today.saida.data.notDone + today.retorno.data.notDone}
+                      status={today.saida.data.notDone + today.retorno.data.notDone > 0 ? "warning" : "success"}
+                      icon={<AlertOctagon />}
+                      period={`${int.format(today.saida.data.done + today.retorno.data.done)} realizados · ${int.format(today.saida.data.excluded + today.retorno.data.excluded)} dispensados`}
+                      data-testid="kpi-sem-checklist"
+                    />
+                    {week && week.saida.ok && week.retorno.ok ? (
+                      <KpiCard
+                        label="Semana até hoje"
+                        value={pctLabel(week.saida.data)}
+                        status={pctStatus(week.saida.data)}
+                        icon={<CalendarRange />}
+                        period={`Saída ${int.format(week.saida.data.numerator)}/${int.format(week.saida.data.denominator)} · Retorno ${week.retorno.data.pct == null ? "sem base" : `${pct.format(week.retorno.data.pct)}%`}`}
+                        data-testid="kpi-semana"
+                      />
+                    ) : week ? (
+                      <KpiCard label="Semana até hoje" value="—" status="neutral" period="Não foi possível carregar a semana" />
+                    ) : null}
+                  </div>
+                  {team && team.withoutWeekNames.length > 0 ? (
+                    <div className="flex flex-wrap items-center gap-1.5" data-testid="sem-checklist-semana">
+                      <span className="text-caption font-semibold text-fg-muted">Sem checklist na semana:</span>
+                      {team.withoutWeekNames.map((n) => (
+                        <Badge key={n} variant="warning" size="sm">{n}</Badge>
+                      ))}
+                      {team.withoutChecklistWeek > team.withoutWeekNames.length ? (
+                        <span className="text-caption text-fg-muted">+{team.withoutChecklistWeek - team.withoutWeekNames.length}</span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </HomeSection>
+          ) : null}
+
+          {/* ------------------------------------------------ resumo operacional */}
+          {data ? (
+            <HomeSection id="resumo-operacional" title="Resumo operacional" icon={<Truck />} testId="resumo-operacional">
+              <div className="rounded-xl border border-border bg-surface-raised p-4 shadow-card">
+                <dl className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                  <div>
+                    <dt className="text-caption text-fg-muted">Frotas ativas</dt>
+                    <dd className="text-kpi font-semibold tabular-nums text-fg" data-testid="resumo-frotas">
+                      {fleet && fleet.ok ? int.format(fleet.data.active) : "—"}
+                    </dd>
+                    <dd className="text-caption text-fg-muted">{fleet ? (fleet.ok ? `${int.format(fleet.data.inactive)} inativas` : "não carregou") : "sem permissão"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-caption text-fg-muted">Checklist OK hoje</dt>
+                    <dd className="text-kpi font-semibold tabular-nums text-fg" data-testid="resumo-checklist">
+                      {today && today.saida.ok ? pctLabel(today.saida.data) : "—"}
+                    </dd>
+                    <dd className="text-caption text-fg-muted">saída, pela regra oficial</dd>
+                  </div>
+                  <div>
+                    <dt className="text-caption text-fg-muted">Pneus críticos</dt>
+                    <dd className="text-kpi font-semibold tabular-nums text-fg" data-testid="resumo-pneus">
+                      {blocks.tires ? (blocks.tires.ok ? (blocks.tires.data.empty ? "—" : int.format(blocks.tires.data.fleetsWithCritical)) : "—") : "—"}
+                    </dd>
+                    <dd className="text-caption text-fg-muted">{blocks.tires ? (blocks.tires.ok ? (blocks.tires.data.empty ? "sem base oficial" : "frotas") : "não carregou") : "sem permissão"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-caption text-fg-muted">MTSR vencidas</dt>
+                    <dd className="text-kpi font-semibold tabular-nums text-fg" data-testid="resumo-mtsr">
+                      {blocks.mtsr ? (blocks.mtsr.ok ? int.format(blocks.mtsr.data.overdue) : "—") : "—"}
+                    </dd>
+                    <dd className="text-caption text-fg-muted">{blocks.mtsr ? (blocks.mtsr.ok ? `de ${int.format(blocks.mtsr.data.vehicles)} veículos` : "não carregou") : "sem permissão"}</dd>
+                  </div>
+                </dl>
+              </div>
+            </HomeSection>
+          ) : null}
+
+          {/* ------------------------------------------- pendências da equipe */}
+          {categories.length ? (
+            <HomeSection
+              id="pendencias-equipe"
+              title="Pendências da equipe"
+              icon={<ClipboardList />}
+              description="Por categoria; cada cartão abre o módulo já filtrado pelo seu recorte."
+              testId="pendencias-equipe"
+            >
+              <ul className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                {categories.map((c) => (
+                  <CategoryCard key={c.key} c={c} />
+                ))}
+              </ul>
+            </HomeSection>
+          ) : null}
+
+          {/* ---------------------------------------------------------- insights */}
+          {data && !noScope ? (
+            <HomeSection id="insights" title="Insights" icon={<Lightbulb />} testId="insights">
+              {insights.length === 0 ? (
+                <p className="rounded-lg border border-border bg-surface-raised px-4 py-3 text-body-sm text-fg-secondary">
+                  Ainda não há base para insights: eles aparecem quando a aderência, as pendências ou a equipe tiverem números.
+                </p>
+              ) : (
+                <InsightList>
+                  {insights.map((i) => (
+                    <InsightCard
+                      key={i.key}
+                      tone={INSIGHT_TONE[i.tone]}
+                      title={i.title}
+                      action={
+                        i.href ? (
+                          <Link href={i.href} className="text-body-sm font-semibold text-link hover:underline">
+                            Ver
+                          </Link>
+                        ) : undefined
+                      }
+                    >
+                      {i.text}
+                    </InsightCard>
+                  ))}
+                </InsightList>
+              )}
+            </HomeSection>
+          ) : null}
+
+          {/* --------------------------------------- nível 3: blocos secundários */}
+          {!compact ? secondary : null}
+
+          {/* ------------------------------------------------ nível 4: detalhes */}
+          {!compact && blocks.tires ? (
             <HomeSection
               id="pneus"
               title="Gestão de Pneus da minha frota"
@@ -440,13 +565,8 @@ export function LeadershipHomeView({
               {!blocks.tires.ok ? (
                 <BlockError title="Não foi possível carregar os pneus." error={blocks.tires.error} onRetry={retry} retrying={pending} />
               ) : blocks.tires.data.empty ? (
-                <EmptyState
-                  variant="panel"
-                  headingLevel={3}
-                  icon={<CircleDot />}
-                  title="Ainda não há base oficial de pneus"
-                  description="Os números aparecem quando a primeira fotografia do Rodopar for importada."
-                />
+                <EmptyState variant="panel" headingLevel={3} icon={<CircleDot />} title="Ainda não há base oficial de pneus"
+                  description="Os números aparecem quando a primeira fotografia do Rodopar for importada." />
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                   <KpiCard size="compact" label="Frotas com pneu crítico" value={blocks.tires.data.fleetsWithCritical}
@@ -465,8 +585,7 @@ export function LeadershipHomeView({
             </HomeSection>
           ) : null}
 
-          {/* ----------------------------------------------- segurança e planos */}
-          {blocks.mtsr || blocks.plans ? (
+          {!compact && (blocks.mtsr || blocks.plans) ? (
             <div className="grid gap-6 xl:grid-cols-2">
               {blocks.mtsr ? (
                 <HomeSection
@@ -526,64 +645,61 @@ export function LeadershipHomeView({
           ) : null}
 
           {/* ------------------------------------------------------------ equipe */}
-          <HomeSection
-            id="equipe"
-            title="Minha equipe"
-            icon={<Users />}
-            description="Equipe direta do cadastro (gestor imediato), com os checklists de hoje e da semana."
-            testId="equipe"
-          >
-            {!data ? null : !team ? (
-              <EmptyState
-                variant="panel"
-                headingLevel={3}
-                icon={<Users />}
-                title="Sem colaborador vinculado à sua conta"
-                description="A equipe é a de quem tem você como gestor imediato no cadastro; sem o seu cadastro vinculado, não há equipe a mostrar."
-              />
-            ) : team.members === 0 ? (
-              <EmptyState
-                variant="panel"
-                headingLevel={3}
-                icon={<Users />}
-                title="Ninguém tem você como gestor imediato"
-                description="Quando o cadastro dos colaboradores indicar você como gestor imediato, eles aparecem aqui."
-              />
-            ) : (
-              <div className="overflow-hidden rounded-xl border border-border bg-surface-raised shadow-card">
-                <ul className="divide-y divide-border" aria-label="Colaboradores da equipe">
-                  {team.list.map((m) => (
-                    <li key={m.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2.5 sm:px-4" data-testid="membro">
-                      <div className="min-w-0 flex-1 basis-48">
-                        <p className="truncate text-body-sm font-semibold text-fg">{m.name}</p>
-                        <p className="truncate text-caption text-fg-muted">
-                          {[m.code ? `Matrícula ${m.code}` : null, m.jobPosition].filter(Boolean).join(" · ") || "—"}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 text-caption tabular-nums">
-                        {m.week === 0 ? (
-                          <StatusBadge status="warning" size="sm">Sem checklist na semana</StatusBadge>
-                        ) : (
-                          <StatusBadge status="success" size="sm">
-                            {m.week} {m.week === 1 ? "checklist" : "checklists"} na semana
-                          </StatusBadge>
-                        )}
-                        <span className="text-fg-secondary">Hoje: {m.today}</span>
-                        <span className="text-fg-muted">Último: {dateBr(m.lastDate)}</span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-                {team.truncated ? (
-                  <p className="border-t border-border px-4 py-2 text-caption text-fg-muted">Mostrando 200 colaboradores.</p>
-                ) : null}
-              </div>
-            )}
-          </HomeSection>
+          {!compact ? (
+            <HomeSection
+              id="equipe"
+              title="Meu time"
+              icon={<Users />}
+              description="Equipe direta do cadastro (gestor imediato), com os checklists de hoje e da semana."
+              testId="equipe"
+            >
+              {!data ? null : !team ? (
+                <EmptyState variant="panel" headingLevel={3} icon={<Users />} title="Sem colaborador vinculado à sua conta"
+                  description="A equipe é a de quem tem você como gestor imediato no cadastro; sem o seu cadastro vinculado, não há equipe a mostrar." />
+              ) : team.members === 0 ? (
+                <EmptyState variant="panel" headingLevel={3} icon={<Users />} title="Ninguém tem você como gestor imediato"
+                  description="Quando o cadastro dos colaboradores indicar você como gestor imediato, eles aparecem aqui." />
+              ) : (
+                <div className="overflow-hidden rounded-xl border border-border bg-surface-raised shadow-card">
+                  <ul className="divide-y divide-border" aria-label="Colaboradores da equipe">
+                    {team.list.map((m) => (
+                      <li key={m.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2.5 sm:px-4" data-testid="membro">
+                        <div className="min-w-0 flex-1 basis-48">
+                          <p className="truncate text-body-sm font-semibold text-fg">{m.name}</p>
+                          <p className="truncate text-caption text-fg-muted">
+                            {[m.code ? `Matrícula ${m.code}` : null, m.jobPosition].filter(Boolean).join(" · ") || "—"}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-caption tabular-nums">
+                          {m.week === 0 ? (
+                            <StatusBadge status="warning" size="sm" withIcon>Sem checklist na semana</StatusBadge>
+                          ) : (
+                            <StatusBadge status="success" size="sm" withIcon>
+                              {m.week} {m.week === 1 ? "checklist" : "checklists"} na semana
+                            </StatusBadge>
+                          )}
+                          <span className="text-fg-secondary">Hoje: {m.today}</span>
+                          <span className="text-fg-muted">Último: {dateBr(m.lastDate)}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                  {team.truncated ? (
+                    <p className="border-t border-border px-4 py-2 text-caption text-fg-muted">Mostrando 200 colaboradores.</p>
+                  ) : null}
+                </div>
+              )}
+            </HomeSection>
+          ) : team && team.withoutChecklistWeek > 0 ? (
+            <p id="equipe" className="flex scroll-mt-20 items-center gap-2 text-body-sm text-fg-secondary" data-testid="equipe-compacta">
+              <UserX aria-hidden className="size-4 text-warning-soft-fg" />
+              {int.format(team.withoutChecklistWeek)} de {int.format(team.members)} da equipe sem checklist na semana.
+            </p>
+          ) : null}
 
-          {/* ------------------------------------------------- navegação e apps */}
-          {modules.length > 0 ? (
-            <HomeSection id="navegacao" title="Navegação da liderança" icon={<Truck />} testId="navegacao">
+          {/* ------------------------------------------------- atalhos e apps */}
+          {!compact && modules.length > 0 ? (
+            <HomeSection id="navegacao" title="Atalhos" icon={<UserCheck />} testId="navegacao">
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {modules.map((m) => (
                   <ShortcutCard key={m.title} href={m.href} title={m.title} description={m.description} icon={m.icon} tone={m.tone} />
@@ -592,15 +708,21 @@ export function LeadershipHomeView({
             </HomeSection>
           ) : null}
 
-          {can("applications.view") ? (
+          {!compact && can.apps ? (
             <HomeSection id="aplicativos" title="Aplicativos operacionais" icon={<ClipboardCheck />} testId="aplicativos">
               <div className="grid gap-3 sm:grid-cols-3">
-                <ShortcutCard href="/aplicativos/check-list-frota" title="Check List de Frota"
-                  description="Checklist de saída e retorno de rota" icon={<ClipboardCheck />} tone="primary" />
-                <ShortcutCard href="/aplicativos/vistoria-pneus" title="Vistoria de Pneus"
-                  description="Aferição de sulco e calibragem em campo" icon={<CircleDot />} tone="info" />
-                <ShortcutCard href="/aplicativos/vistoria-mtsr" title="Vistoria MTSR"
-                  description="Vistoria dos componentes MTSR da sua frota" icon={<ShieldCheck />} tone="highlight" />
+                {can.checklistExecute ? (
+                  <ShortcutCard href="/aplicativos/check-list-frota" title="Check List de Frota"
+                    description="Checklist de saída e retorno de rota" icon={<ClipboardCheck />} tone="primary" />
+                ) : null}
+                {can.tiresExecute ? (
+                  <ShortcutCard href="/aplicativos/vistoria-pneus" title="Vistoria de Pneus"
+                    description="Aferição de sulco e calibragem em campo" icon={<CircleDot />} tone="info" />
+                ) : null}
+                {can.mtsrExecute ? (
+                  <ShortcutCard href="/aplicativos/vistoria-mtsr" title="Vistoria MTSR"
+                    description="Vistoria dos componentes MTSR da sua frota" icon={<ShieldCheck />} tone="highlight" />
+                ) : null}
               </div>
             </HomeSection>
           ) : null}

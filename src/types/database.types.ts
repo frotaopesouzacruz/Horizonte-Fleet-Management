@@ -6712,6 +6712,7 @@ export type Database = {
           vehicle_id: string
         }[]
       }
+      my_apps: { Args: { p_organization_id: string }; Returns: Json }
       my_leadership_home: {
         Args: { p_organization_id: string }
         Returns: Json

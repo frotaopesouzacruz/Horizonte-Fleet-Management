@@ -1,13 +1,18 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { hasPermission, requireOrganization } from "@/lib/auth/session";
+import { requireOrganization } from "@/lib/auth/session";
 import { MANAGEMENT_HOME } from "@/lib/auth/portal";
-import { parseCompetence, type Competence } from "@/lib/governance/competence";
+import { resolveHome } from "@/lib/home/resolver";
+import { parseCompetence } from "@/lib/governance/competence";
+import { competenceOf, mondayOf, operationalToday } from "@/lib/portal/clock";
 import { getMySituation } from "@/lib/adherence/my-situation";
 import { getLeadershipHome, getOperationalHome, settle } from "@/lib/portal/queries";
 import { loadLeadershipBlocks } from "@/lib/portal/leadership-data";
 import { OperationalHomeView } from "./operational-home";
-import { LeadershipHomeView, type LeadershipScope } from "./leadership-home";
+import { LeadershipHomeView, type LeadershipMode, type LeadershipScope } from "./leadership-home";
+import { LeadershipSecondary } from "./leadership-secondary-loader";
+import { LeadershipSecondarySkeleton } from "./leadership-secondary";
 import type { ObligationsSource } from "./checklist-calendar";
 
 export const metadata: Metadata = {
@@ -22,21 +27,6 @@ const first = (params: SearchParams, key: string): string | undefined => {
   return Array.isArray(value) ? value[0] : value;
 };
 
-/** O dia operacional em São Paulo — o relógio do servidor, nunca o do navegador. */
-function operationalToday(): string {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
-}
-
-function competenceOf(iso: string): Competence {
-  return { year: Number(iso.slice(0, 4)), month: Number(iso.slice(5, 7)) };
-}
-
-function mondayOf(iso: string): string {
-  const d = new Date(`${iso}T12:00:00Z`);
-  const offset = (d.getUTCDay() + 6) % 7;
-  d.setUTCDate(d.getUTCDate() - offset);
-  return d.toISOString().slice(0, 10);
-}
 
 /**
  * Início (pós-login).
@@ -52,16 +42,17 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const kind = session.portal.kind;
   if (kind === "management") redirect(MANAGEMENT_HOME);
 
-  const can = (permission: string) => hasPermission(session, permission);
   const today = operationalToday();
+  // A casa e o que ela mostra saem de um lugar só: o portal (banco) e a matriz de permissões.
+  const resolved = resolveHome({ portal: kind, permissions: session.permissions, isPlatformAdmin: session.isPlatformAdmin });
 
   if (kind === "operational") {
     const current = competenceOf(today);
     const competence = parseCompetence(first(params, "ano"), first(params, "mes"), current);
-    const canSituation = can("adherence.view_own");
+    const canSituation = resolved.can.ownSituation;
 
     const [home, situation] = await Promise.all([
-      can("applications.checklist_fleet.view_own")
+      resolved.can.ownChecklists
         ? settle(getOperationalHome(organization.organizationId, competence), "my_operational_home")
         : Promise.resolve({ ok: false as const, error: "Seu perfil não consulta os próprios checklists." }),
       canSituation ? getMySituation(organization.organizationId, competence) : Promise.resolve(null),
@@ -82,12 +73,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         obligations={obligations}
         competence={competence}
         currentCompetence={current}
-        can={{
-          viewApps: can("applications.view"),
-          viewOwnChecklists: can("applications.checklist_fleet.view_own"),
-          viewReports: can("action_plans.view_own"),
-          viewSituation: canSituation,
-        }}
+        can={resolved.can}
+        now={new Date().toISOString()}
       />
     );
   }
@@ -97,12 +84,19 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const leaderId =
     home.ok && home.data.employee && home.data.scope.responsibilities.length > 0 ? home.data.employee.id : null;
   const scope: LeadershipScope = leaderId && first(params, "escopo") !== "operacoes" ? "leadership" : "operations";
+  const mode: LeadershipMode = first(params, "modo") === "compacto" ? "compacto" : "padrao";
   const homeToday = home.ok ? home.data.today : today;
-  const blocks = await loadLeadershipBlocks(organization.organizationId, can, {
+  const scopedLeader = scope === "leadership" ? leaderId : null;
+  // Rotinas sem filtro de líder (frota, preditiva) recebem a operação quando o recorte é uma só.
+  const operationId =
+    scopedLeader && home.ok ? singleOperation(home.data.scope.responsibilities.map((r) => r.operationId)) : null;
+  const blocks = await loadLeadershipBlocks(organization.organizationId, resolved.can, {
     today: homeToday,
     weekFrom: home.ok ? home.data.weekFrom : mondayOf(homeToday),
-    leaderId: scope === "leadership" ? leaderId : null,
+    leaderId: scopedLeader,
+    operationId,
   });
+  const query = scopedLeader ? `?lideranca=${scopedLeader}` : "";
 
   return (
     <LeadershipHomeView
@@ -112,8 +106,28 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       scope={scope}
       canToggleScope={Boolean(leaderId)}
       leaderId={leaderId}
-      permissions={session.permissions}
-      isPlatformAdmin={session.isPlatformAdmin}
+      can={resolved.can}
+      mode={mode}
+      secondary={
+        mode === "padrao" ? (
+          <Suspense fallback={<LeadershipSecondarySkeleton />}>
+            <LeadershipSecondary
+              organizationId={organization.organizationId}
+              can={resolved.can}
+              leaderId={scopedLeader}
+              operationId={operationId}
+              today={homeToday}
+              query={query}
+            />
+          </Suspense>
+        ) : null
+      }
     />
   );
+}
+
+/** A única operação de uma lista, ou null quando há mais de uma (ou nenhuma). */
+function singleOperation(ids: (string | null)[]): string | null {
+  const distinct = Array.from(new Set(ids.filter((id): id is string => Boolean(id))));
+  return distinct.length === 1 ? distinct[0] : null;
 }

@@ -60,13 +60,80 @@ export interface PlansNumbers {
   vehiclesPending: number;
 }
 
+export interface FleetNumbers {
+  total: number;
+  active: number;
+  inactive: number;
+  unassigned: number;
+  operations: number;
+}
+
 /** Bloco ausente (null) = sem permissão para ele; Loaded com erro = falhou. */
 export interface LeadershipBlocks {
   today: AdherenceBlock | null;
+  /** Ontem, para o comparativo "hoje × ontem" da aderência. */
+  yesterday: AdherenceBlock | null;
   week: AdherenceBlock | null;
   tires: Loaded<TiresNumbers> | null;
   mtsr: Loaded<MtsrNumbers> | null;
   plans: Loaded<PlansNumbers> | null;
+  fleet: Loaded<FleetNumbers> | null;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Blocos secundários (carregados depois da primeira pintura)                 */
+/* -------------------------------------------------------------------------- */
+
+export interface MaintenanceNumbers {
+  today: string;
+  open: number;
+  toSchedule: number;
+  scheduled: number;
+  inProgress: number;
+  scheduledToday: number;
+  exitOverdue: number;
+  unscheduledOverdue: number;
+  immobilized: number;
+  preventiveCritical: number;
+  preventiveDue: number;
+  preventiveToSchedule: number;
+  predictiveCritical: number;
+}
+
+export interface PredictiveNumbers {
+  itemsMonitored: number;
+  critical: number;
+  due: number;
+  toSchedule: number;
+  upcoming: number;
+  coveragePct: number | null;
+  uncoveredVehicles: number;
+  criticalClusters: { cluster: string; critical: number; toSchedule: number }[];
+}
+
+export interface KmNumbers {
+  referenceDay: string | null;
+  kmTotal: number | null;
+  vehiclesWithoutReadingRef: number;
+  vehiclesStale: number;
+  coveragePeriodPct: number | null;
+  lastUpdate: string | null;
+}
+
+export interface AdherenceTrendPoint {
+  month: number;
+  adherencePct: number | null;
+  targetPct: number | null;
+  isCurrent: boolean;
+  isFuture: boolean;
+}
+
+export interface LeadershipSecondary {
+  maintenance: Loaded<MaintenanceNumbers> | null;
+  predictive: Loaded<PredictiveNumbers> | null;
+  km: Loaded<KmNumbers> | null;
+  /** Aderência de saída mês a mês no ano (tendência). */
+  trend: Loaded<AdherenceTrendPoint[]> | null;
 }
 
 export type PrioritySeverity = "critical" | "high" | "medium";
@@ -231,4 +298,203 @@ export function buildPriorities(
 
   items.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
   return { items, incomplete };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Pendências da equipe por categoria                                         */
+/* -------------------------------------------------------------------------- */
+
+export type PendingCategoryKey = "checklist" | "tires" | "mtsr" | "plans";
+
+export interface PendingCategory {
+  key: PendingCategoryKey;
+  label: string;
+  /** Quantidade total da categoria; null quando a fonte não carregou. */
+  total: number | null;
+  /** Dentro do total, o que é crítico. */
+  critical: number;
+  /** As partes que compõem o total, para a linha de detalhe. */
+  parts: { label: string; value: number }[];
+  href: string;
+  /** Sem permissão para a fonte: a categoria não aparece. */
+  available: boolean;
+}
+
+/**
+ * As pendências agrupadas por categoria (HFC: "Pendências da equipe"), cada
+ * uma abrindo o módulo já filtrado pelo recorte. Fonte que falhou vira
+ * total nulo — a tela diz "não carregou", nunca zero.
+ */
+export function pendingByCategory(blocks: LeadershipBlocks, query: string): PendingCategory[] {
+  const out: PendingCategory[] = [];
+
+  if (blocks.today || blocks.week) {
+    const t = blocks.today;
+    const w = blocks.week;
+    const ok = (!t || (t.saida.ok && t.retorno.ok)) && (!w || (w.saida.ok && w.retorno.ok));
+    const todayMissing = t && t.saida.ok && t.retorno.ok ? t.saida.data.notDone + t.retorno.data.notDone : 0;
+    const weekMissing = w && w.saida.ok && w.retorno.ok ? w.saida.data.notDone + w.retorno.data.notDone : 0;
+    out.push({
+      key: "checklist",
+      label: "Checklist",
+      total: ok ? weekMissing : null,
+      critical: todayMissing,
+      parts: [
+        { label: "sem envio hoje", value: todayMissing },
+        { label: "não realizados na semana", value: Math.max(weekMissing - todayMissing, 0) },
+      ],
+      href: `/checklist/aderencia${query}`,
+      available: true,
+    });
+  }
+
+  if (blocks.tires) {
+    const b = blocks.tires;
+    const d = b.ok && !b.data.empty ? b.data : null;
+    out.push({
+      key: "tires",
+      label: "Pneus",
+      total: b.ok ? (d ? d.critical + d.measurementOverdue + d.calibrationOverdue : 0) : null,
+      critical: d ? d.critical : 0,
+      parts: [
+        { label: "críticos", value: d?.critical ?? 0 },
+        { label: "medição vencida", value: d?.measurementOverdue ?? 0 },
+        { label: "calibragem vencida", value: d?.calibrationOverdue ?? 0 },
+      ],
+      href: `/frota/pneus${query}`,
+      available: true,
+    });
+  }
+
+  if (blocks.mtsr) {
+    const b = blocks.mtsr;
+    const d = b.ok ? b.data : null;
+    out.push({
+      key: "mtsr",
+      label: "MTSR",
+      total: d ? d.overdue + d.nonConforming + d.pendingInspections : null,
+      critical: d ? d.overdue : 0,
+      parts: [
+        { label: "vistorias vencidas", value: d?.overdue ?? 0 },
+        { label: "não conformes", value: d?.nonConforming ?? 0 },
+        { label: "aguardando validação", value: d?.pendingInspections ?? 0 },
+      ],
+      href: `/seguranca/mtsr${query}`,
+      available: true,
+    });
+  }
+
+  if (blocks.plans) {
+    const b = blocks.plans;
+    const d = b.ok ? b.data : null;
+    out.push({
+      key: "plans",
+      label: "Planos de ação",
+      total: d ? d.plansActive : null,
+      critical: d ? d.plansOverdue : 0,
+      parts: [
+        { label: "vencidos", value: d?.plansOverdue ?? 0 },
+        { label: "críticos", value: d?.plansCritical ?? 0 },
+        { label: "veículos com pendência", value: d?.vehiclesPending ?? 0 },
+      ],
+      href: `/checklist/planos-acao${query}`,
+      available: true,
+    });
+  }
+
+  return out;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Insights (2–3, só do que os dados dizem)                                   */
+/* -------------------------------------------------------------------------- */
+
+export interface Insight {
+  key: string;
+  tone: "positive" | "warning" | "critical" | "info";
+  title: string;
+  text: string;
+  href?: string;
+}
+
+const pp = (n: number) => `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} p.p.`;
+const pct = (n: number) => `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+
+/**
+ * Dois ou três fatos derivados dos números carregados — nunca inventados.
+ * Sem base (fonte que falhou, sem obrigação, sem equipe), o insight não
+ * existe; a lista pode ficar vazia e a tela diz isso.
+ */
+export function buildInsights(
+  blocks: LeadershipBlocks,
+  team: LeadershipTeam | null,
+  categories: PendingCategory[],
+  query: string,
+): Insight[] {
+  const out: Insight[] = [];
+
+  const today = blocks.today && blocks.today.saida.ok ? blocks.today.saida.data : null;
+  const yesterday = blocks.yesterday && blocks.yesterday.saida.ok ? blocks.yesterday.saida.data : null;
+  if (today && today.pct != null) {
+    const target = today.targetPct ?? 90;
+    if (yesterday && yesterday.pct != null) {
+      const delta = today.pct - yesterday.pct;
+      out.push({
+        key: "adherence-vs-yesterday",
+        tone: today.pct >= target ? "positive" : delta < 0 ? "warning" : "info",
+        title: `Saída hoje em ${pct(today.pct)}`,
+        text:
+          Math.abs(delta) < 0.05
+            ? `Igual a ontem (${pct(yesterday.pct)}); meta ${pct(target)}.`
+            : `${delta > 0 ? "Acima" : "Abaixo"} de ontem em ${pp(Math.abs(delta))} (ontem ${pct(yesterday.pct)}); meta ${pct(target)}.`,
+        href: `/checklist/aderencia${query}`,
+      });
+    } else {
+      out.push({
+        key: "adherence-today",
+        tone: today.pct >= target ? "positive" : "warning",
+        title: `Saída hoje em ${pct(today.pct)}`,
+        text: `${today.numerator.toLocaleString("pt-BR")} de ${today.denominator.toLocaleString("pt-BR")} obrigações; meta ${pct(target)}.`,
+        href: `/checklist/aderencia${query}`,
+      });
+    }
+  }
+
+  const loaded = categories.filter((c) => c.total != null && (c.total ?? 0) > 0);
+  if (loaded.length) {
+    const top = [...loaded].sort((a, b) => (b.critical - a.critical) || ((b.total ?? 0) - (a.total ?? 0)))[0];
+    out.push({
+      key: `category-${top.key}`,
+      tone: top.critical > 0 ? "critical" : "warning",
+      title: `${top.label} concentra as pendências`,
+      text: `${(top.total ?? 0).toLocaleString("pt-BR")} ${top.total === 1 ? "pendência" : "pendências"}${top.critical > 0 ? `, ${top.critical.toLocaleString("pt-BR")} ${top.critical === 1 ? "crítica" : "críticas"}` : ""}.`,
+      href: top.href,
+    });
+  }
+
+  if (team && team.members > 0) {
+    out.push({
+      key: "team-week",
+      tone: team.withoutChecklistWeek === 0 ? "positive" : team.withoutChecklistWeek > team.members / 2 ? "critical" : "warning",
+      title:
+        team.withoutChecklistWeek === 0
+          ? "Toda a equipe enviou checklist na semana"
+          : `${team.withoutChecklistWeek.toLocaleString("pt-BR")} de ${team.members.toLocaleString("pt-BR")} sem checklist na semana`,
+      text:
+        team.withoutChecklistWeek === 0
+          ? `${team.members.toLocaleString("pt-BR")} colaboradores da equipe direta, todos com envio de segunda até hoje.`
+          : `Hoje, ${team.withoutChecklistToday.toLocaleString("pt-BR")} ainda sem checklist.`,
+      href: "#equipe",
+    });
+  }
+
+  return out.slice(0, 3);
+}
+
+/** Variação entre dois percentuais, para o KpiCard (direção, bom quando sobe). */
+export function pctDelta(current: number | null, previous: number | null): { value: string; direction: "up" | "down" | "flat" } | null {
+  if (current == null || previous == null) return null;
+  const delta = current - previous;
+  if (Math.abs(delta) < 0.05) return { value: "0 p.p.", direction: "flat" };
+  return { value: `${delta > 0 ? "+" : "−"}${pp(Math.abs(delta))}`, direction: delta > 0 ? "up" : "down" };
 }

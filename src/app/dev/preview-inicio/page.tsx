@@ -1,10 +1,12 @@
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { parseCompetence } from "@/lib/governance/competence";
-import { LeadershipHomeView, type LeadershipScope } from "@/app/(app)/inicio/leadership-home";
+import { homeCapabilities } from "@/lib/home/resolver";
+import { LeadershipHomeView, type LeadershipMode, type LeadershipScope } from "@/app/(app)/inicio/leadership-home";
+import { LeadershipSecondaryBlocks } from "@/app/(app)/inicio/leadership-secondary";
 import {
-  COMPETENCE, LEADERSHIP_PERMISSIONS, LEADERSHIP_SCENARIOS, OPERATIONAL_PERMISSIONS, OPERATIONAL_SCENARIOS,
-  leadershipFixture, operationalFixture, type LeadershipScenario, type OperationalScenario,
+  COMPETENCE, LEADERSHIP_PERMISSIONS, LEADERSHIP_SCENARIOS, OPERATIONAL_PERMISSIONS, OPERATIONAL_SCENARIOS, PREVIEW_NOW,
+  leadershipFixture, leadershipSecondaryFixture, operationalFixture, type LeadershipScenario, type OperationalScenario,
 } from "./fixture";
 import { PreviewOperationalHome } from "./preview-client";
 
@@ -54,7 +56,8 @@ export default async function PreviewHomePage({ searchParams }: { searchParams: 
           obligations={obligations}
           competence={competence}
           currentCompetence={COMPETENCE}
-          can={{ viewApps: true, viewOwnChecklists: true, viewReports: true, viewSituation: true }}
+          can={homeCapabilities({ portal: "operational", permissions: OPERATIONAL_PERMISSIONS })}
+          now={PREVIEW_NOW}
           basePath={`${BASE}?perfil=operacional&cenario=${scenario}`}
         />
       </AppShell>
@@ -64,6 +67,8 @@ export default async function PreviewHomePage({ searchParams }: { searchParams: 
   const scenario = (LEADERSHIP_SCENARIOS.includes(scenarioParam as LeadershipScenario) ? scenarioParam : "completo") as LeadershipScenario;
   const { home, blocks, leaderId } = leadershipFixture(scenario);
   const scope: LeadershipScope = leaderId && first(params, "escopo") !== "operacoes" ? "leadership" : "operations";
+  const mode: LeadershipMode = first(params, "modo") === "compacto" ? "compacto" : "padrao";
+  const query = scope === "leadership" && leaderId ? `?lideranca=${leaderId}` : "";
   return (
     <AppShell
       portal="leadership"
@@ -77,7 +82,9 @@ export default async function PreviewHomePage({ searchParams }: { searchParams: 
         scope={scope}
         canToggleScope={Boolean(leaderId)}
         leaderId={leaderId}
-        permissions={LEADERSHIP_PERMISSIONS}
+        can={homeCapabilities({ portal: "leadership", permissions: LEADERSHIP_PERMISSIONS })}
+        mode={mode}
+        secondary={mode === "padrao" ? <LeadershipSecondaryBlocks data={leadershipSecondaryFixture(scenario)} query={query} /> : null}
         basePath={`${BASE}?perfil=lideranca&cenario=${scenario}`}
       />
     </AppShell>

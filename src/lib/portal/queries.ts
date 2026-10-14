@@ -3,8 +3,10 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { Competence } from "@/lib/governance/competence";
 import {
+  mapHomeApps,
   mapLeadershipHome,
   mapOperationalHome,
+  type HomeApp,
   type Loaded,
   type LeadershipHome,
   type OperationalHome,
@@ -25,6 +27,14 @@ export async function getOperationalHome(organizationId: string, competence: Com
   });
   if (error) throw new Error(error.message);
   return mapOperationalHome(data);
+}
+
+/** Os aplicativos oficiais e se valem para a operação do vínculo da pessoa (`applications.view`). */
+export async function getMyApps(organizationId: string): Promise<HomeApp[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("my_apps", { p_organization_id: organizationId });
+  if (error) throw new Error(error.message);
+  return mapHomeApps(data);
 }
 
 export async function getLeadershipHome(organizationId: string): Promise<LeadershipHome> {

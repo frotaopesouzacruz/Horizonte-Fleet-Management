@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Building2, Check, ChevronDown, HelpCircle, LogOut, MapPin, Menu, Search, Settings, User } from "lucide-react";
+import Link from "next/link";
+import { Bell, Building2, Check, ChevronDown, HelpCircle, LogOut, MapPin, Menu, RefreshCw, Search, Settings, User } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button, IconButton } from "@/components/ui/button";
 import {
@@ -15,6 +16,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { StatusBadge } from "@/components/ui/status-badge";
+import type { NotificationItem, NotificationsResult } from "@/lib/home/notifications";
 import { ThemeToggle } from "./theme-toggle";
 import { useAppShell } from "./app-shell-context";
 
@@ -147,6 +150,104 @@ function GlobalSearch({ className }: { className?: string }) {
 /* Topbar                                                                     */
 /* -------------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------- */
+/* Central de notificações                                                    */
+/* -------------------------------------------------------------------------- */
+
+const KIND: Record<NotificationItem["kind"], { label: string; tone: "danger" | "warning" | "info" }> = {
+  alerta: { label: "Alerta", tone: "danger" },
+  acao: { label: "Ação", tone: "warning" },
+  informacao: { label: "Informação", tone: "info" },
+};
+
+/**
+ * O sino. Nada é lido antes de a pessoa abrir; o que aparece é derivado do
+ * que a Home de cada perfil já sabe (Ação / Alerta / Informação), nunca
+ * inventado. Sem carregador (prévias, gestão) o sino diz que não há nada.
+ */
+function NotificationCenter({ load }: { load?: () => Promise<NotificationsResult> }) {
+  const [result, setResult] = React.useState<NotificationsResult | null>(null);
+  const [loading, startLoading] = React.useTransition();
+
+  const refresh = React.useCallback(() => {
+    if (!load) return;
+    startLoading(async () => {
+      const next = await load();
+      setResult(next);
+    });
+  }, [load]);
+
+  const items = result?.ok ? result.items : [];
+  const urgent = items.filter((i) => i.kind !== "informacao").length;
+
+  return (
+    <Popover onOpenChange={(open) => open && result === null && refresh()}>
+      <PopoverTrigger asChild>
+        <IconButton label={urgent ? `Notificações (${urgent} que pedem ação)` : "Notificações"} variant="ghost" className="relative">
+          <Bell aria-hidden />
+          {urgent ? (
+            <span
+              aria-hidden
+              className="absolute top-1 right-1 min-w-4 rounded-full bg-danger px-1 text-center text-[10px] font-semibold leading-4 text-danger-fg"
+            >
+              {urgent > 9 ? "9+" : urgent}
+            </span>
+          ) : null}
+        </IconButton>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[min(100vw-1rem,22rem)] p-0" data-testid="notificacoes">
+        <div className="flex items-center justify-between border-b border-border px-3 py-2">
+          <span className="text-body-sm font-semibold">Notificações</span>
+          {load ? (
+            <Button variant="ghost" size="sm" leadingIcon={<RefreshCw />} disabled={loading} onClick={refresh}>
+              Atualizar
+            </Button>
+          ) : null}
+        </div>
+        {!load || (result?.ok && items.length === 0) ? (
+          <p className="px-3 py-6 text-center text-body-sm text-fg-muted">Nenhuma notificação no momento.</p>
+        ) : loading && result === null ? (
+          <p className="px-3 py-6 text-center text-body-sm text-fg-muted" role="status">
+            Carregando…
+          </p>
+        ) : result && !result.ok ? (
+          <p className="px-3 py-6 text-center text-body-sm text-danger" role="alert">
+            {result.error}
+          </p>
+        ) : (
+          <ul className="max-h-96 divide-y divide-border overflow-y-auto" aria-label="Notificações">
+            {items.map((item) => {
+              const kind = KIND[item.kind];
+              const body = (
+                <>
+                  <span className="flex items-center gap-2">
+                    <StatusBadge status={kind.tone} size="sm">
+                      {kind.label}
+                    </StatusBadge>
+                    <span className="truncate text-body-sm font-medium text-fg">{item.title}</span>
+                  </span>
+                  <span className="mt-0.5 block text-caption text-fg-muted">{item.description}</span>
+                </>
+              );
+              return (
+                <li key={item.key}>
+                  {item.href ? (
+                    <Link href={item.href} className="block px-3 py-2.5 hfm-transition hover:bg-hover-overlay hfm-focus-ring">
+                      {body}
+                    </Link>
+                  ) : (
+                    <div className="px-3 py-2.5">{body}</div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export interface TopbarProps {
   /**
    * `portal`: o cabeçalho do Operacional e da Liderança — sem o seletor de
@@ -165,6 +266,10 @@ export interface TopbarProps {
   activeOrganizationId?: string;
   onSignOut?: () => Promise<void>;
   onSwitchOrganization?: (organizationId: string) => Promise<void>;
+  /** "Meu perfil" no menu da conta; sem ele o item fica desabilitado. */
+  profileHref?: string;
+  /** Central de notificações: lida só quando o sino é aberto (ação do servidor). */
+  loadNotifications?: () => Promise<NotificationsResult>;
 }
 
 export function Topbar({
@@ -177,6 +282,8 @@ export function Topbar({
   activeOrganizationId,
   onSignOut,
   onSwitchOrganization,
+  profileHref,
+  loadNotifications,
 }: TopbarProps) {
   const { setMobileOpen } = useAppShell();
   const [signingOut, startSignOut] = React.useTransition();
@@ -220,22 +327,7 @@ export function Topbar({
 
       <div className="flex shrink-0 items-center gap-0.5">
         <ThemeToggle />
-        <Popover>
-          <PopoverTrigger asChild>
-            <IconButton label="Notificações" variant="ghost" className="relative">
-              <Bell aria-hidden />
-            </IconButton>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-80 p-0">
-            <div className="flex items-center justify-between border-b border-border px-3 py-2">
-              <span className="text-body-sm font-semibold">Notificações</span>
-              <Button variant="link" size="sm" disabled>
-                Marcar como lidas
-              </Button>
-            </div>
-            <p className="px-3 py-6 text-center text-body-sm text-fg-muted">Nenhuma notificação no momento.</p>
-          </PopoverContent>
-        </Popover>
+        <NotificationCenter load={loadNotifications} />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -257,10 +349,19 @@ export function Topbar({
               {userEmail ? <p className="truncate text-caption text-fg-muted">{userEmail}</p> : null}
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled>
-              <User aria-hidden />
-              Meu perfil
-            </DropdownMenuItem>
+            {profileHref ? (
+              <DropdownMenuItem asChild>
+                <Link href={profileHref}>
+                  <User aria-hidden />
+                  Meu perfil
+                </Link>
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem disabled>
+                <User aria-hidden />
+                Meu perfil
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem disabled>
               <Settings aria-hidden />
               Preferências

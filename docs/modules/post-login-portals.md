@@ -1,11 +1,18 @@
 # Pós-login › Início de cada perfil (Operacional e Liderança de Operações)
 
-Rota: `/inicio` (a casa de todo login) · Telas novas: `/inicio` e
-`/aplicativos/check-list-frota/meus-checklists` · Migration:
-`supabase/migrations/20261013140000_portals_post_login.sql` · Teste de banco:
-`supabase/tests/remote/35_portals_post_login.sql` · Testes de interface:
-`tests/ui/portal-home.spec.ts` · Prévia sem sessão:
+Rota: `/inicio` (a casa de todo login) · Telas novas: `/inicio`,
+`/aplicativos/check-list-frota/meus-checklists`, `/aplicativos` e `/perfil` ·
+Migrations: `supabase/migrations/20261013140000_portals_post_login.sql` e
+`20261013190000_role_based_home.sql` · Testes de banco:
+`supabase/tests/remote/35_portals_post_login.sql` e `38_role_based_home.sql` ·
+Testes de interface: `tests/ui/portal-home.spec.ts` · Prévia sem sessão:
 `/dev/preview-inicio?perfil=operacional|lideranca&cenario=…`.
+
+> **14/10/2026 — Home por perfil.** As duas homes foram redesenhadas sobre
+> esta camada (resolver, capabilities, ações do dia, prioridades, níveis,
+> navegação inferior, acordeão, sino). O desenho atual está em
+> **`docs/ux/role-based-home.md`**; as seções 4 e 5 abaixo descrevem a base
+> (rotinas e regras) que continua valendo.
 
 Referência: a vistoria do HFC (Lovable, somente leitura) de 13/10/2026 — "Meu
 resumo" do Operacional, "Portal da Liderança", menus por perfil e o
@@ -54,15 +61,17 @@ mesma lista.
 
 | Portal | Telas |
 |---|---|
-| Operacional | `/inicio` · os 3 aplicativos (Check List de Frota — inclusive *Meus checklists* —, Vistoria MTSR, Vistoria de Pneus) · `/checklist/aderencia/minha-situacao` · `/checklist/planos-acao/meus-apontamentos` |
-| Liderança de Operações | `/inicio` · os 3 aplicativos · Aderência · Planos de ação · Fidelização · BRs · KM Rodado · Gestão de Pneus · Manutenção · Gestão de MTSR |
-| ambos | `/sem-permissao`, `/sem-organizacao` |
+| Operacional | `/inicio` · `/aplicativos` (índice) e os 3 aplicativos (Check List de Frota — inclusive *Meus checklists* —, Vistoria MTSR, Vistoria de Pneus) · `/checklist/aderencia/minha-situacao` · `/checklist/planos-acao/meus-apontamentos` |
+| Liderança de Operações | `/inicio` · `/aplicativos` e os 3 aplicativos · Aderência · Planos de ação · Fidelização · BRs · Lideranças · Cadastro de frotas · KM Rodado · Gestão de Pneus · Manutenção · Gestão de MTSR |
+| ambos | `/perfil`, `/sem-permissao`, `/sem-organizacao` |
 
-Fora do portal da Liderança, de propósito (no HFC também não são telas da
-liderança): Colaboradores e usuários, Fornecedores, Perfis e permissões, Operações, Filiais,
-Tipos de equipamento, Cadastro de frotas e Planejamento de lideranças. Para dar
-uma dessas telas a um líder, atribua-lhe também o perfil correspondente (por
-exemplo, Gestor de Frota): a conta passa ao portal `management`.
+Fora do portal da Liderança, de propósito: Colaboradores e usuários,
+Fornecedores, Perfis e permissões, Operações, Filiais e Tipos de equipamento.
+Lideranças (`leadership.view`) e Cadastro de frotas (`vehicles.view`) entraram
+em 14/10/2026, pelo menu pedido para a liderança (Gestão da operação / Frota).
+Para dar uma das telas restantes a um líder, atribua-lhe também o perfil
+correspondente (por exemplo, Gestor de Frota): a conta passa ao portal
+`management`.
 
 **Como a trava funciona.** O middleware encaminha o caminho pedido no cabeçalho
 `x-hfm-pathname`, **sempre sobrescrito** com o caminho real (um valor mandado
@@ -74,16 +83,18 @@ que leem a sessão diretamente fazem a mesma conferência e respondem 403
 ("Esta exportação não faz parte do seu acesso.") — um líder não baixa, pelo
 endereço, a lista de usuários ou o planejamento de lideranças.
 
-## 4. Meu resumo (Operacional)
+## 4. Início do Operacional (antes "Meu resumo")
 
-Na ordem do HFC: saudação ("Olá, {primeiro nome}" e, abaixo, nome completo,
-matrícula, cargo e operação) › **Abrir o App de Checklist** › atalhos (Meus
-checklists realizados, Meus apontamentos, Minha situação, Vistoria de Pneus,
-Vistoria MTSR) › **Meus números** › **Quanto do que apontei já foi resolvido** ›
-**Meu calendário de checklists**.
+Ordem atual (14/10/2026, `docs/ux/role-based-home.md` §3): saudação compacta
+› **Ações do dia** › **Pendências** › **Meus aplicativos** › **Meu veículo** ›
+**Histórico recente** › Meus números › Quanto do que apontei já foi resolvido
+› Meu calendário de checklists.
 
 `public.my_operational_home(org, ano, mês)` (exige
-`applications.checklist_fleet.view_own`):
+`applications.checklist_fleet.view_own`; v2 na migration
+`20261013190000_role_based_home.sql` — mesma assinatura, mesmas permissões,
+chaves antigas preservadas; novas: `today_actions` (só com
+`adherence.view_own`), `vehicle`, `pending`, `recent`, `apps`):
 
 * checklists **enviados** do colaborador da conta — a mesma regra de
   `checklist_my_executions`, que alimenta "Meus checklists": o número do início
@@ -118,6 +129,9 @@ No celular a grade cabe na largura (quadradinhos S/R), sem rolagem lateral.
 
 ## 5. Portal da Liderança
 
+Desenho atual em `docs/ux/role-based-home.md` §4–§5 (níveis 1–4, prioridades,
+comparativos, pendências por categoria, insights, modo compacto). A base:
+
 `public.my_leadership_home(org)` (exige `adherence.view` ou
 `applications.checklist_fleet.view_details`) devolve as duas metades da alçada:
 
@@ -150,9 +164,11 @@ operação liberada, o portal diz isso em vez de "operação sob controle".
 
 * Login, `/`, "definir senha" e o link de recuperação levam ao **Início**
   (`/inicio`); quem não tem portal segue dele para o Dashboard.
-* Menu: o Operacional vê **Meu resumo / Minha rotina / Aplicativos**; a
-  Liderança, **Portal da Liderança / Minha operação / Aplicativos**; o
-  subtítulo da marca acompanha ("Menu operacional", "Portal da liderança").
+* Menu (14/10/2026): o Operacional vê **Início / Aplicativos / Histórico /
+  Conta (Perfil)** e, no celular, a navegação inferior Início / Aplicativos /
+  Histórico / Perfil; a Liderança, **Início / Gestão da operação / Frota /
+  Segurança / Aplicativos** em acordeão; o subtítulo da marca acompanha
+  ("Menu operacional", "Portal da liderança").
 * Cabeçalho dos portais sem o seletor de unidade e sem a busca global (ainda
   reservas da gestão).
 * "Sem permissão" ganhou **Voltar ao início**.

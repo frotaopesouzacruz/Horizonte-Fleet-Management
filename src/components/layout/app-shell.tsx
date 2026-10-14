@@ -2,6 +2,7 @@ import * as React from "react";
 import { AppShellProvider, AppShellScript } from "./app-shell-context";
 import { Sidebar, MobileSidebar } from "./sidebar";
 import { Topbar, type TopbarProps } from "./topbar";
+import { BottomNav } from "./bottom-nav";
 import type { PortalKind } from "@/lib/auth/portal";
 
 export interface AppShellProps {
@@ -16,7 +17,8 @@ export interface AppShellProps {
 
 /**
  * AppShell — Sidebar (fixed, collapsible; drawer on mobile) + Topbar + main
- * content. The content area offsets by the sidebar width through CSS variables
+ * content. O Operacional ganha, no celular, a navegação inferior (Início,
+ * Aplicativos, Histórico, Perfil) e o conteúdo deixa espaço para ela. The content area offsets by the sidebar width through CSS variables
  * driven by <html data-sidebar>, so there is no layout jump on load.
  */
 export function AppShell({ children, topbar, permissions, isPlatformAdmin, portal = "management" }: AppShellProps) {
@@ -28,9 +30,17 @@ export function AppShell({ children, topbar, permissions, isPlatformAdmin, porta
         <MobileSidebar />
         <div className="flex min-h-dvh flex-col transition-[padding] duration-(--duration-slow) ease-(--ease-standard) lg:pl-(--sidebar-current-width)">
           <Topbar variant={portal === "management" ? "full" : "portal"} {...topbar} />
-          <main id="main" className="flex min-h-0 flex-1 flex-col">
+          <main
+            id="main"
+            className={
+              portal === "operational"
+                ? "flex min-h-0 flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0"
+                : "flex min-h-0 flex-1 flex-col"
+            }
+          >
             {children}
           </main>
+          {portal === "operational" ? <BottomNav /> : null}
         </div>
       </div>
     </AppShellProvider>

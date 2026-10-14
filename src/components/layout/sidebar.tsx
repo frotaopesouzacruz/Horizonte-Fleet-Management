@@ -263,14 +263,28 @@ function SidebarGroup({
 
 export function SidebarNav({ collapsed = false, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
   const { permissions, isPlatformAdmin, portal } = useAppShell();
+  const pathname = usePathname();
   const groups = React.useMemo(
     () => visibleNavigation(permissions, isPlatformAdmin, portal),
     [permissions, isPlatformAdmin, portal],
   );
 
-  // Every group starts open: a menu that hides its own contents on first visit
-  // is a menu nobody discovers. What someone closes is remembered, nothing else.
+  // Gestão: every group starts open — a menu that hides its own contents on
+  // first visit is a menu nobody discovers. What someone closes is remembered.
   const [closed, toggle] = usePersistedSet(GROUPS_STORAGE_KEY, ALL_OPEN);
+
+  // Liderança: acordeão — um grupo aberto por vez, o da tela atual por padrão.
+  // Menos para ler, e o grupo aberto diz onde a pessoa está. O grupo sem
+  // rótulo (Início) não participa: está sempre à vista. O menu do Operacional
+  // é curto (Início, Aplicativos, Histórico, Perfil) e fica todo aberto, como
+  // o da gestão.
+  const accordion = portal === "leadership";
+  const activeGroup = React.useMemo(
+    () => groups.find((g) => g.label && g.items.some((item) => isActivePath(pathname, item.href)))?.id ?? null,
+    [groups, pathname],
+  );
+  const [chosen, setChosen] = React.useState<{ pathname: string; id: string | null } | null>(null);
+  const expanded = chosen && chosen.pathname === pathname ? chosen.id : activeGroup;
 
   return (
     <nav aria-label="Navegação principal" className="flex flex-col gap-3 px-3">
@@ -279,8 +293,10 @@ export function SidebarNav({ collapsed = false, onNavigate }: { collapsed?: bool
           key={group.id}
           group={group}
           collapsed={collapsed}
-          open={!closed.includes(group.id)}
-          onToggle={() => toggle(group.id)}
+          open={accordion ? !group.label || expanded === group.id : !closed.includes(group.id)}
+          onToggle={() =>
+            accordion ? setChosen({ pathname, id: expanded === group.id ? null : group.id }) : toggle(group.id)
+          }
           onNavigate={onNavigate}
         />
       ))}

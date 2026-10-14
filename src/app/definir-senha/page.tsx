@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { LOGIN_DOMAIN } from "@/lib/auth/login-identity";
 import { SetPasswordView } from "./set-password-view";
 
 export const metadata: Metadata = {
@@ -17,5 +18,8 @@ export default async function SetPasswordPage() {
   // Reached only with a valid session created by the e-mail link.
   if (!user) redirect("/login?erro=link-expirado");
 
-  return <SetPasswordView email={user.email ?? null} />;
+  // Quem entra por matrícula tem um endereço técnico que não é de ninguém:
+  // a tela não o mostra.
+  const technical = user.email?.toLowerCase().endsWith(`@${LOGIN_DOMAIN}`) ?? false;
+  return <SetPasswordView email={technical ? null : (user.email ?? null)} />;
 }

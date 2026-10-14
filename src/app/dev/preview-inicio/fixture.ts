@@ -1,7 +1,17 @@
 import type { MySituationCell, MySituationCounts, MySituationDay } from "@/lib/adherence/my-situation";
 import type { Competence } from "@/lib/governance/competence";
-import type { LeadershipHome, Loaded, OperationalExecution, OperationalHome } from "@/lib/portal/types";
-import type { LeadershipBlocks } from "@/lib/portal/leadership";
+import type {
+  HomeApp,
+  LeadershipHome,
+  Loaded,
+  MyVehicle,
+  OperationalExecution,
+  OperationalHome,
+  PendingInspection,
+  RecentActivity,
+  TodayAction,
+} from "@/lib/portal/types";
+import type { AdherenceTrendPoint, LeadershipBlocks, LeadershipSecondary } from "@/lib/portal/leadership";
 import type { ObligationsSource } from "@/app/(app)/inicio/checklist-calendar";
 
 /**
@@ -158,6 +168,62 @@ function summaryOf(days: MySituationDay[]): MySituationCounts {
   };
 }
 
+/** Hoje: saída feita às 09:12, retorno ainda no prazo (até 23:59). */
+export const TODAY_ACTIONS: TodayAction[] = [
+  {
+    obligationId: "ob-13-saida", context: "saida", journey: 1, status: "FEZ_CHECKLIST", due: true, done: true, excluded: false,
+    provisional: false, pendingRequest: false, expectedAt: `${TODAY}T12:00:00Z`, deadlineAt: `${TODAY}T15:59:00Z`,
+    vehicleId: "veh-1203", licensePlate: "RJX4A21", fleetCode: "F-1203", brCode: "BR-RJ-012", operationName: "Distribuição Rio", cityName: "Rio de Janeiro",
+  },
+  {
+    obligationId: "ob-13-retorno", context: "retorno", journey: 1, status: "RETORNO_PENDENTE", due: false, done: false, excluded: false,
+    provisional: false, pendingRequest: false, expectedAt: `${TODAY}T21:00:00Z`, deadlineAt: `${TODAY}T23:59:00-03:00`,
+    vehicleId: "veh-1203", licensePlate: "RJX4A21", fleetCode: "F-1203", brCode: "BR-RJ-012", operationName: "Distribuição Rio", cityName: "Rio de Janeiro",
+  },
+];
+
+const VEHICLE: MyVehicle = {
+  id: "veh-1203",
+  licensePlate: "RJX4A21",
+  fleetCode: "F-1203",
+  typeName: "Van",
+  modelName: "Sprinter 415",
+  status: "active",
+  brCode: "BR-RJ-012",
+  operationName: "Distribuição Rio",
+  cityName: "Rio de Janeiro",
+  uf: "RJ",
+  odometerKm: 184230,
+  odometerDate: "2026-10-12",
+  lastChecklist: { date: TODAY, context: "saida", submittedAt: `${TODAY}T09:12:00-03:00`, mine: true },
+  openReports: 3,
+  maintenance: { id: "mnt-1", code: "MNT-2026-0412", status: "scheduled", scheduledDate: "2026-10-16", entryDate: null, expectedExitDate: null },
+};
+
+/** Uma vistoria MTSR devolvida ao campo: só o próprio motorista resolve. */
+export const PENDING: PendingInspection[] = [
+  {
+    kind: "mtsr", id: "mtsr-77", protocol: "MTSR-2026-000077", licensePlate: "RJX4A21", date: "2026-10-12",
+    status: "retornada", reason: "Refazer a verificação do extintor com foto do lacre", reviewedAt: "2026-10-12T18:40:00-03:00",
+  },
+];
+
+const RECENT: RecentActivity[] = [
+  { kind: "checklist", id: "ex-2026-10-13-saida", date: TODAY, submittedAt: `${TODAY}T09:12:00-03:00`, licensePlate: "RJX4A21", context: "saida", protocol: null, status: "submitted", nonConforming: 0 },
+  { kind: "checklist", id: "ex-2026-10-12-retorno", date: "2026-10-12", submittedAt: "2026-10-12T21:38:00-03:00", licensePlate: "RJX4A21", context: "retorno", protocol: null, status: "submitted", nonConforming: 1 },
+  { kind: "mtsr", id: "mtsr-77", date: "2026-10-12", submittedAt: "2026-10-12T16:05:00-03:00", licensePlate: "RJX4A21", context: null, protocol: "MTSR-2026-000077", status: "retornada", nonConforming: null },
+  { kind: "tires", id: "tire-31", date: "2026-10-10", submittedAt: "2026-10-10T10:20:00-03:00", licensePlate: "RJX4A21", context: null, protocol: "PNE-2026-000031", status: "sincronizado_rodopar", nonConforming: null },
+  { kind: "checklist", id: "ex-2026-10-12-saida", date: "2026-10-12", submittedAt: "2026-10-12T09:03:00-03:00", licensePlate: "RJX4A21", context: "saida", protocol: null, status: "submitted", nonConforming: 0 },
+];
+
+export const APPS: HomeApp[] = [
+  { code: "checklist_frota", slug: "check-list-frota", name: "Check List de Frota", enabled: true },
+  { code: "vistoria_mtsr", slug: "vistoria-mtsr", name: "Vistoria MTSR", enabled: true },
+  { code: "vistoria_pneus", slug: "vistoria-pneus", name: "Vistoria de Pneus", enabled: true },
+];
+
+export const PREVIEW_NOW = `${TODAY}T15:00:00-03:00`;
+
 export function operationalFixture(
   scenario: OperationalScenario,
   c: Competence,
@@ -173,6 +239,7 @@ export function operationalFixture(
   const executions = isNew ? [] : monthExecutions(c, days);
   const before = isNew ? 0 : 37;
   const last = executions.length ? executions[executions.length - 1] : null;
+  const noFidelization = scenario === "sem-fidelizacao";
   const home: OperationalHome = {
     today: TODAY,
     year: c.year,
@@ -187,6 +254,12 @@ export function operationalFixture(
       operationName: "Distribuição Rio",
       unitName: "Filial Rio de Janeiro",
     },
+    operationId: "op1",
+    todayActions: noFidelization || isNew ? [] : TODAY_ACTIONS,
+    vehicle: noFidelization ? null : isNew ? { ...VEHICLE, lastChecklist: null, openReports: 0, maintenance: null } : VEHICLE,
+    pending: isNew || noFidelization ? [] : PENDING,
+    recent: isNew ? [] : RECENT,
+    apps: noFidelization ? APPS.map((a) => (a.code === "vistoria_pneus" ? { ...a, enabled: false } : a)) : APPS,
     checklists: {
       total: before + executions.length,
       monthTotal: executions.length,
@@ -284,14 +357,21 @@ export function leadershipFixture(scenario: LeadershipScenario): {
   const blocks: LeadershipBlocks = noScope
     ? {
         today: { from: TODAY, to: TODAY, saida: zero, retorno: zero },
+        yesterday: { from: "2026-10-12", to: "2026-10-12", saida: zero, retorno: zero },
         week: { from: "2026-10-12", to: TODAY, saida: zero, retorno: zero },
+        fleet: { ok: true, data: { total: 0, active: 0, inactive: 0, unassigned: 0, operations: 0 } },
         tires: { ok: true, data: { empty: true, referenceDate: null, inUse: 0, fleetsWithCritical: 0, critical: 0, measurementOverdue: 0, measurementDueSoon: 0, calibrationOverdue: 0, calibrationDueSoon: 0 } },
         mtsr: { ok: true, data: { vehicles: 0, overdue: 0, attention: 0, nonConforming: 0, pendingInspections: 0, openMaintenances: 0, conformityPct: null } },
         plans: { ok: true, data: { plansActive: 0, plansOverdue: 0, plansCritical: 0, itemsOpen: 0, vehiclesPending: 0 } },
       }
     : {
         today: { from: TODAY, to: TODAY, saida: adh(18, 13, 3, 0, 2), retorno: adh(18, 6, 1, 9, 2) },
+        yesterday: { from: "2026-10-12", to: "2026-10-12", saida: adh(18, 17, 1, 0, 0), retorno: adh(18, 18, 0, 0, 0) },
         week: { from: "2026-10-12", to: TODAY, saida: adh(36, 30, 4, 0, 2), retorno: adh(36, 24, 3, 9, 0) },
+        fleet:
+          scenario === "erros"
+            ? { ok: false, error: "A consulta demorou mais que o permitido." }
+            : { ok: true, data: { total: 46, active: 41, inactive: 5, unassigned: 7, operations: 2 } },
         tires:
           scenario === "erros"
             ? { ok: false, error: "A consulta demorou mais que o permitido." }
@@ -305,4 +385,43 @@ export function leadershipFixture(scenario: LeadershipScenario): {
 
   const leaderId = home.employee && home.scope.responsibilities.length > 0 ? home.employee.id : null;
   return { home: { ok: true, data: home }, blocks, leaderId };
+}
+
+/**
+ * Blocos de nível 3 e 4 (manutenção, preditiva, KM e tendência). Na rota real
+ * chegam depois da primeira pintura (Suspense); aqui já prontos.
+ */
+export function leadershipSecondaryFixture(scenario: LeadershipScenario): LeadershipSecondary {
+  if (scenario === "sem-escopo") {
+    return {
+      maintenance: { ok: true, data: { today: TODAY, open: 0, toSchedule: 0, scheduled: 0, inProgress: 0, scheduledToday: 0, exitOverdue: 0, unscheduledOverdue: 0, immobilized: 0, preventiveCritical: 0, preventiveDue: 0, preventiveToSchedule: 0, predictiveCritical: 0 } },
+      predictive: { ok: true, data: { itemsMonitored: 0, critical: 0, due: 0, toSchedule: 0, upcoming: 0, coveragePct: null, uncoveredVehicles: 0, criticalClusters: [] } },
+      km: { ok: true, data: { referenceDay: null, kmTotal: null, vehiclesWithoutReadingRef: 0, vehiclesStale: 0, coveragePeriodPct: null, lastUpdate: null } },
+      trend: { ok: true, data: [] },
+    };
+  }
+  const failed = { ok: false as const, error: "A consulta demorou mais que o permitido." };
+  const trend: AdherenceTrendPoint[] = [93.4, 94.1, 92.8, 95.2, 96.0, 94.7, 95.5, 96.3, 94.9, 86.1].map((pct, i) => ({
+    month: i + 1,
+    adherencePct: pct,
+    targetPct: 95,
+    isCurrent: i === 9,
+    isFuture: false,
+  }));
+  for (let m = 11; m <= 12; m += 1) trend.push({ month: m, adherencePct: null, targetPct: 95, isCurrent: false, isFuture: true });
+  return {
+    maintenance:
+      scenario === "erros"
+        ? failed
+        : { ok: true, data: { today: TODAY, open: 9, toSchedule: 2, scheduled: 4, inProgress: 3, scheduledToday: 1, exitOverdue: 1, unscheduledOverdue: 1, immobilized: 3, preventiveCritical: 2, preventiveDue: 5, preventiveToSchedule: 4, predictiveCritical: 1 } },
+    predictive: {
+      ok: true,
+      data: {
+        itemsMonitored: 184, critical: 3, due: 7, toSchedule: 4, upcoming: 12, coveragePct: 87.5, uncoveredVehicles: 6,
+        criticalClusters: [{ cluster: "Freios", critical: 2, toSchedule: 1 }, { cluster: "Suspensão", critical: 1, toSchedule: 0 }],
+      },
+    },
+    km: scenario === "erros" ? failed : { ok: true, data: { referenceDay: "2026-10-12", kmTotal: 128430, vehiclesWithoutReadingRef: 4, vehiclesStale: 2, coveragePeriodPct: 91.3, lastUpdate: "2026-10-13T06:10:00-03:00" } },
+    trend: { ok: true, data: trend },
+  };
 }

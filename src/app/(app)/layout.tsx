@@ -3,6 +3,7 @@ import { requireSession, type SessionContext } from "@/lib/auth/session";
 import { signOut, switchOrganization } from "@/lib/auth/actions";
 import { LOGIN_DOMAIN } from "@/lib/auth/login-identity";
 import { PORTAL_KIND_LABEL } from "@/lib/auth/portal";
+import { loadMyNotifications } from "@/lib/home/notifications";
 
 /**
  * A linha da conta no cabeçalho. Quem entra por matrícula tem um "e-mail"
@@ -40,6 +41,8 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
         unitName: "Todas as unidades",
         onSignOut: signOut,
         onSwitchOrganization: switchOrganization,
+        profileHref: "/perfil",
+        loadNotifications: loadMyNotifications,
       }}
     >
       {children}
