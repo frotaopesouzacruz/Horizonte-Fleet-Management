@@ -13,7 +13,7 @@ How the HFC (the Lovable reference) was mapped, and the comparison with it, is i
 | **Visão geral** | TMM, corrective TMM and P90, volume versus previous period, downtime, SLA, immobilised and available fleet, open work, overdue items, preventive and predictive status, possible recurrence, monthly volume by type, mix, aging, volume × TMM by cluster, top services and suppliers | `maintenance.view_dashboard` |
 | **Programação & execução** | 9 queue KPIs (to schedule, scheduled, in progress, scheduled today, exit forecast overdue, overdue without scheduling, late for entry, over SLA, completed today). Each KPI filters the queue below using the **same definition** as the database. The queue is split into **one board per status** (Há agendar, Agendadas, Em execução, then any other status in the result), each grouped by **Operação → Cidade/UF → Placa** with collapsible groups and per-group alerts, so every maintenance of a plate in that status reads together. Each board's header is filled with the status color (`StatusTone.softClassName`); *Em execução* uses the violet `progress` tone, distinct from the blue of *Agendadas*. The whole open queue is loaded at once (up to 1,000 rows; above that the screen asks to refine the filters). | `maintenance.view` |
 | **Preventiva** | Three boards — **Frotas com preventiva vencida crítica / vencida / a programar** — with Placa, Tipo de operação, Local, Tipo de equipamento, Ciclo, KM atual, KM previsto and KM excedido; each vehicle appears once, on the board of its most severe pending cycle, and the **Nova manutenção** button opens the scheduling of the preventive maintenance of that cycle (an open maintenance is shown by its code instead). Below, the vehicle × MP1..MPn matrix **grouped by equipment type**; each cycle card is tinted (background, border and a stripe) in the status colour — Crítica, Vencida, A programar, Não atingida, Realizada, Sem KM (dashed). Generating a maintenance is idempotent. The inactive fleet is shown as history. | `maintenance.view` (generating needs `manage_preventive`) |
-| **Preditiva** | Technical status (KM or days band) kept **separate** from execution status. Alerts, vehicle × item matrix, verifications (CONFORME / MONITORAR / NÃO CONFORME / NÃO REALIZADO) with a traceable decision, cycle history and reset. | `maintenance.view` (actions need `manage_predictive`) |
+| **Preditiva** | Engine v2 (`predictive-maintenance.md`): technical status (KM or days band, worst case) kept **separate** from execution and conformity. Seven views in `pd_visao`: executive panel (health index, backlog, demand forecast by KM/day windows, coverage, rankings, deterministic insights, trends, effectiveness), alerts **grouped by plate** with actions, vehicle × item matrix (server-side pagination), indicators, data quality, event audit and app submissions. Cycle drawer with timeline, verification dialog by response type, maintenance generation and audited manual reset. | `maintenance.predictive.view` (legacy `maintenance.view`); actions by capability (`maintenance.predictive.*`, legacy `manage_predictive`) |
 | **Base geral** | Paginated table sorted on the server, and a hierarchy whose levels the user picks with the "Agrupar por" chips — Operação, Cidade, Placa, Cluster, Serviço (`niveis=operacao,cidade,placa` in the URL; default Operação → Cidade → Placa). `maintenance_hierarchy` reads `p_filters.levels` and groups on the server with GROUPING SETS over the path prefixes (plus the empty set for the root), counting **distinct** maintenances per node, so a maintenance with two services counts once in each cluster and once in the parent; the screen only assembles the tree. Leaf rows open the table filtered by the ids of their path. | `maintenance.view_base` |
 | **Cadastros** | Clusters, services (with the Services × Check List mapping), preventive parameters, predictive plans (versions, items, script, coverage), origins, settings. **Suppliers are not here any more:** they live in **Administração › Fornecedores** (`/administracao/fornecedores`), with the same form, the same `maintenance.view` / `maintenance.manage_suppliers` permissions and the same database rules; the old link `?aba=cadastros&secao=fornecedores` redirects there. The supplier spreadsheet is still imported in **Importações**. | `manage_*` (read-only without it) |
 | **Importações** | 5 layouts (clusters, services, suppliers, preventive parameters, maintenance base), preview, confirmation, history | `maintenance.import` |
@@ -41,7 +41,8 @@ All screen state lives in the URL: tab, filters (`de`, `ate`, `operacao`, `uf`, 
 | `maintenance_clusters`, `maintenance_services`, `maintenance_suppliers` | Reference data. |
 | `maintenance_checklist_service_links` | **Services × Check List**: app + stable `question_key` (+ conditional field) → service. This is the same relation the Action Plan will use. |
 | `maintenance_preventive_rules`, `maintenance_preventive_cycles` | Preventive: parameters per type / subcategory / model, and MP1..n cycles per vehicle. |
-| `maintenance_predictive_plans`, `_plan_items`, `_plan_versions`, `_coverage`, `_cycles`, `_verifications` | Predictive: versioned technical plan, items (KM / days / engine hours), technical script, service coverage, cycles and verifications. |
+| `maintenance_predictive_plans`, `_plan_items`, `_plan_versions`, `_coverage`, `_cycles`, `_verifications` | Predictive: versioned technical plan (with validity window), items (KM / days / engine hours), technical script with response types, service coverage (`is_active`, never deleted), cycles (`status_cache`) and verifications (`source`, `submission_id`). |
+| `maintenance_predictive_submissions`, `_events`, `_quality_issues`, `_snapshots` | Predictive v2: app submissions (protocol VPF, idempotency key), immutable cycle timeline, data-quality issues (detected → resolved) and daily indicator snapshots. |
 | `maintenance_settings` | Per organisation: aging buckets, recurrence window, KM windows, default SLA, overdue-without-scheduling threshold, predictive forecast. |
 
 A `maintenances` row holds:
@@ -113,15 +114,15 @@ The Preventiva tab opens with a **Conformidade das preventivas** card: one fleet
 - **Drawer:** shows "Ciclo preventivo MPx", plus the declared MP when it differs.
 
 ### Predictive
-- Each item has KM and/or day intervals with bands: alert = Próximo, schedule = A programar, tolerance = Vencido, beyond = Crítico.
-- Precedence:
-  - no KM comes first;
-  - no reference → Inspeção inicial;
-  - otherwise the worse of the KM band and the day band;
-  - a NÃO CONFORME verification caps the status at A programar and opens a maintenance (idempotent).
-- MONITORAR reduces the interval.
-- Completing a service with full coverage restarts the item's cycle.
-- Only an **approved** plan feeds the engine. A sensitive change to an approved plan requires a reason and creates a new version.
+Documented in full in [`predictive-maintenance.md`](./predictive-maintenance.md). In short:
+- Each item has KM and/or day intervals with bands: alert = Próximo, schedule = A programar, tolerance = Vencido, beyond = Crítico; the worse of KM and days wins.
+- Precedence: no KM comes first (`Sem KM`); no reference → Inspeção inicial; a NÃO CONFORME verification caps the status at A programar and opens a maintenance (idempotent, origin Preditiva).
+- Reference priority: verification › maintenance with full coverage › manual reset › cluster history (non-formal) › none.
+- KM comes only from Gestão de KM Rodado; a reading older than `predictive_km_max_age_days` is flagged **KM desatualizado**.
+- MONITORAR reduces the interval. Completing a service with full coverage restarts the item's cycle (corrective or preventive); partial coverage only informs.
+- Only an **approved, valid** plan feeds the engine; applicability is deterministic by specificity and a tie is reported as `plan_ambiguous`, never resolved silently. A sensitive change to an approved plan requires a reason, creates a version and triggers a controlled recalculation; cycles are deactivated, never deleted.
+- Every change is an immutable event; data-quality issues are detected and resolved, never fixed silently; a daily snapshot feeds the trends.
+- The field app **Aplicativos › Verificação Preditiva** submits idempotent verifications with a protocol.
 - **Engine hours:** stored, but not yet used in the calculation. This is pending.
 
 ### Duplicates and recurrence
@@ -170,7 +171,7 @@ The Preventiva tab opens with a **Conformidade das preventivas** card: one fleet
   - `maintenance_events`, append-only;
   - `audit_logs` (`tg_audit`) on catalogue and parameter tables;
   - `log_maintenance_export`: no audit record, no file;
-  - predictive reset in `audit_logs`;
+  - predictive reset in `audit_logs`, and every predictive cycle change in `maintenance_predictive_events` (immutable);
   - the author is always the real name (`maintenance_actor_name`). "Sistema" is used only when there is no session: the daily routine, or a routine triggered by a completion.
 
 ## Import (`stage_maintenance_import` / `process_maintenance_import`)
@@ -203,7 +204,7 @@ The Preventiva tab opens with a **Conformidade das preventivas** card: one fleet
   - delete links to findings.
 
 ## Code
-- **Database:** `supabase/migrations/20260928100000` … `20260928106000_maintenance_*.sql`, `20261001100000_maintenance_import_layouts.sql` (columns, de-para, catalogue writes) and `20261001100100_maintenance_import_routines.sql` (stage/process).
+- **Database:** `supabase/migrations/20260928100000` … `20260928106000_maintenance_*.sql`, `20261001100000_maintenance_import_layouts.sql` (columns, de-para, catalogue writes) and `20261001100100_maintenance_import_routines.sql` (stage/process). Predictive engine v2: `20261014120000_predictive_engine_v2.sql`.
 - **Server:**
   - `src/lib/maintenance/queries.ts` (server-only);
   - `actions.ts` (`"use server"`, `Result<T>`);
@@ -213,7 +214,9 @@ The Preventiva tab opens with a **Conformidade das preventivas** card: one fleet
 - **Tests:**
   - `supabase/tests/remote/20_maintenance.sql` (T93–T105): one `do` block against the database with data; it ends with `raise exception 'ROLLBACK_TESTES…'`, so everything it creates is rolled back and the PASS/FAIL lines come back in the error message;
   - `supabase/tests/remote/23_maintenance_import_layouts.sql` (L1–L8): catalogue imports in parts without `kind`, the five layouts, de-para, unknown supplier kept by name, cluster mismatch, KM with decimals, mixed statuses, re-import after de-para;
+  - `supabase/tests/remote/39_predictive_engine_v2.sql` (predictive engine v2, 25 checks, the 20 mandatory tests of the specification plus app, panel, plan ambiguity and RBAC);
   - `tests/ui/maintenance.spec.ts` (tabs, queues, matrices, wizard, Leadership profile, import layout and XLSX template, supplier commercial data and other names, mobile without horizontal scroll, Axe in light and dark);
+  - `tests/ui/predictive-app.spec.ts` (the Verificação Preditiva app against `/dev/preview-verificacao-preditiva`);
   - T106 (regression): the other remote suites and the whole Playwright suite.
 
 ## Known limitations (real pending items)
@@ -223,4 +226,4 @@ The Preventiva tab opens with a **Conformidade das preventivas** card: one fleet
 - **Socorro em Rota and Entrega Técnica:** they are **origins** of a corrective maintenance, not their own modules.
 - **Costs:** there are no maintenance costs yet: parts, labour, quotes.
 - **Overview filters:** the preventive and predictive indicators respect the person's scope, not the filter bar. The Preventiva and Preditiva tabs do filter.
-- **Matrix pagination:** the preventive and predictive matrices come whole from the server and are paginated in the browser. That is fine for the current fleet (~90 vehicles), but will need server-side pagination at a few thousand vehicles.
+- **Matrix pagination:** the preventive matrix comes whole from the server and is paginated in the browser. That is fine for the current fleet (~90 vehicles), but will need server-side pagination at a few thousand vehicles. The predictive matrix and alerts are already paginated on the server (`rows_page`, `alerts_page`).

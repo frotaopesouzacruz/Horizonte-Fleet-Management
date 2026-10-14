@@ -204,7 +204,7 @@ Fonte única: `src/components/layout/navigation.ts` (+ `PORTAL_ROUTES` em
 
 | Portal | Menu |
 |---|---|
-| Operacional | **Início** · **Aplicativos** (Todos os aplicativos, Check List de Frota, Vistoria MTSR, Vistoria de Pneus) · **Histórico** (Meus checklists, Meus apontamentos, Minha situação) · **Conta** (Perfil). No celular, **navegação inferior** fixa: Início / Aplicativos / Histórico / Perfil. Nenhuma tela administrativa. |
+| Operacional | **Início** · **Aplicativos** (Todos os aplicativos, Check List de Frota, Vistoria MTSR, Vistoria de Pneus, Verificação Preditiva) · **Histórico** (Meus checklists, Meus apontamentos, Minha situação) · **Conta** (Perfil). No celular, **navegação inferior** fixa: Início / Aplicativos / Histórico / Perfil. Nenhuma tela administrativa. |
 | Liderança | **Início** · **Gestão da operação** (Aderência, Planos de ação, Fidelização, BRs, Lideranças) · **Frota** (Cadastro de frotas, Gestão de KM Rodado, Gestão de Pneus, Manutenção) · **Segurança** (Gestão de MTSR) · **Aplicativos**. Grupos em **acordeão**: um aberto por vez, o da tela atual por padrão. |
 
 Novas telas de ambos os portais: `/aplicativos` (índice) e `/perfil`

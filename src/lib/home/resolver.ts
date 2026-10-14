@@ -22,6 +22,7 @@ export interface HomeCapabilities {
   checklistExecute: boolean;
   mtsrExecute: boolean;
   tiresExecute: boolean;
+  predictiveExecute: boolean;
   /** Visões pessoais do Operacional. */
   ownChecklists: boolean;
   ownReports: boolean;
@@ -53,6 +54,7 @@ const APP_CODES = {
   checklist_frota: "applications.checklist_fleet.execute",
   vistoria_mtsr: "applications.mtsr.execute",
   vistoria_pneus: "applications.tires.execute",
+  verificacao_preditiva: "applications.predictive.execute",
 } as const;
 
 export type HomeAppCode = keyof typeof APP_CODES;
@@ -69,6 +71,7 @@ export function homeCapabilities(subject: HomeSubject): HomeCapabilities {
     checklistExecute: has("applications.checklist_fleet.execute"),
     mtsrExecute: has("applications.mtsr.execute"),
     tiresExecute: has("applications.tires.execute"),
+    predictiveExecute: has("applications.predictive.execute"),
     ownChecklists: has("applications.checklist_fleet.view_own"),
     ownReports: has("action_plans.view_own") || has("action_plans.view"),
     ownSituation: has("adherence.view_own"),

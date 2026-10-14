@@ -201,23 +201,29 @@ test.describe("manutenção", () => {
     ).toBeVisible();
   });
 
-  test("preditiva: situação técnica separada da execução, alertas e matriz veículo × item", async ({
+  test("preditiva: painel executivo, alertas agrupados por placa e matriz veículo × item", async ({
     page,
   }) => {
     await page.goto(`${PREVIEW}?aba=preditiva`);
     await expect(
-      page.getByText("Situação técnica e execução são coisas diferentes"),
+      page.getByText("Situação técnica, execução e conformidade são coisas diferentes"),
     ).toBeVisible();
-    const alerts = page.locator("table").first();
-    await expect(
-      alerts.getByText("Crítico", { exact: true }).first(),
-    ).toBeVisible();
+    // O painel executivo é a visão padrão; as demais ficam a um clique.
+    await expect(page.getByText("Índice de saúde preditiva")).toBeVisible();
+    for (const view of ["painel", "alertas", "matriz", "indicadores", "qualidade", "auditoria", "envios"]) {
+      await expect(page.getByTestId(`maintenance-predictive-view-${view}`)).toBeVisible();
+    }
+
+    await page.goto(`${PREVIEW}?aba=preditiva&pd_visao=alertas`);
+    const alerts = page.getByTestId("maintenance-predictive-alerts");
+    await expect(alerts.getByTestId("maintenance-predictive-alert-vehicle").first()).toBeVisible();
+    await expect(alerts.getByText("Crítico", { exact: true }).first()).toBeVisible();
     await expect(alerts.getByText("Não programada").first()).toBeVisible();
     await expect(alerts.getByText("Correia dentada").first()).toBeVisible();
 
-    await page.goto(`${PREVIEW}?aba=preditiva&visao=matriz`);
+    await page.goto(`${PREVIEW}?aba=preditiva&pd_visao=matriz`);
     await expect(
-      page.locator("table").first().getByText("Sistema de freios").first(),
+      page.getByTestId("maintenance-predictive-matrix").getByText("Sistema de freios").first(),
     ).toBeVisible();
   });
 

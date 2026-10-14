@@ -61,8 +61,8 @@ mesma lista.
 
 | Portal | Telas |
 |---|---|
-| Operacional | `/inicio` · `/aplicativos` (índice) e os 3 aplicativos (Check List de Frota — inclusive *Meus checklists* —, Vistoria MTSR, Vistoria de Pneus) · `/checklist/aderencia/minha-situacao` · `/checklist/planos-acao/meus-apontamentos` |
-| Liderança de Operações | `/inicio` · `/aplicativos` e os 3 aplicativos · Aderência · Planos de ação · Fidelização · BRs · Lideranças · Cadastro de frotas · KM Rodado · Gestão de Pneus · Manutenção · Gestão de MTSR |
+| Operacional | `/inicio` · `/aplicativos` (índice) e os 4 aplicativos (Check List de Frota — inclusive *Meus checklists* —, Vistoria MTSR, Vistoria de Pneus, Verificação Preditiva) · `/checklist/aderencia/minha-situacao` · `/checklist/planos-acao/meus-apontamentos` |
+| Liderança de Operações | `/inicio` · `/aplicativos` e os 4 aplicativos · Aderência · Planos de ação · Fidelização · BRs · Lideranças · Cadastro de frotas · KM Rodado · Gestão de Pneus · Manutenção · Gestão de MTSR |
 | ambos | `/perfil`, `/sem-permissao`, `/sem-organizacao` |
 
 Fora do portal da Liderança, de propósito: Colaboradores e usuários,

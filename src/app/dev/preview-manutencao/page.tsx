@@ -9,7 +9,7 @@ import {
   type CatalogSection,
   type MaintenanceViewData,
 } from "@/app/(app)/frota/manutencao/shared";
-import type { MaintenanceTab } from "@/lib/maintenance/types";
+import { PREDICTIVE_VIEWS, type MaintenanceTab, type PredictiveView } from "@/lib/maintenance/types";
 import {
   firstParam,
   parseHierarchyLevels,
@@ -25,6 +25,13 @@ import {
   OPTIONS,
   PARAMETERS,
   PREDICTIVE,
+  PREDICTIVE_EVENTS,
+  PREDICTIVE_INDICATORS,
+  PREDICTIVE_QUALITY,
+  PREDICTIVE_SUBMISSIONS,
+  PREDICTIVE_SUMMARY,
+  PREDICTIVE_TRENDS,
+  PREDICTIVE_VERIFICATIONS,
   PREVENTIVE,
   SCHEDULE_KPIS,
   SCHEDULE_PAGE,
@@ -76,6 +83,13 @@ export default async function PreviewPage({
   const requested = firstParam(params, "aba") as MaintenanceTab | undefined;
   const tab = requested && tabs.includes(requested) ? requested : tabs[0];
   const section = firstParam(params, "secao") as CatalogSection | undefined;
+  const requestedView = firstParam(params, "pd_visao") as PredictiveView | undefined;
+  const predictiveView: PredictiveView = requestedView && PREDICTIVE_VIEWS.includes(requestedView) ? requestedView : "painel";
+  const viewParams: Record<string, string> = {};
+  for (const key of ["pd_inconsistencia", "pd_severidade", "pd_resolvidas", "pd_evento", "ciclo", "pd_lista", "pd_resultado", "pd_origem", "pd_so_nc"]) {
+    const value = firstParam(params, key);
+    if (value) viewParams[key] = value;
+  }
 
   const data: MaintenanceViewData = {
     basePath: "/dev/preview-manutencao",
@@ -86,13 +100,27 @@ export default async function PreviewPage({
     options: OPTIONS,
     perms,
     dashboard: DASHBOARD,
+    predictiveSummary: PREDICTIVE_SUMMARY,
     schedule: {
       kpis: SCHEDULE_KPIS,
       page: SCHEDULE_PAGE,
       list: { sort: "scheduled", dir: "asc", page: 1, pageSize: 50 },
     },
     preventive: { matrix: PREVENTIVE, filters: { situation: "active" } },
-    predictive: { overview: PREDICTIVE, filters: {} },
+    predictive: {
+      view: predictiveView,
+      overview: PREDICTIVE,
+      filters: {},
+      indicators: PREDICTIVE_INDICATORS,
+      trends: PREDICTIVE_TRENDS,
+      quality: PREDICTIVE_QUALITY,
+      events: PREDICTIVE_EVENTS,
+      submissions: PREDICTIVE_SUBMISSIONS,
+      verifications: PREDICTIVE_VERIFICATIONS,
+      page: 1,
+      pageSize: 25,
+      params: viewParams,
+    },
     base: {
       view:
         firstParam(params, "visao") === "hierarquia" ? "hierarquia" : "tabela",

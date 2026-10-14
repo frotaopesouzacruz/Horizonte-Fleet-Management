@@ -214,6 +214,87 @@ export const REFERENCE_TYPE_LABEL: Record<string, string> = {
   history: "Histórico",
   none: "Sem referência",
 };
+/** Referências formais reiniciam o ciclo com base em fato registrado; "histórico" é só indicativo. */
+export const REFERENCE_FORMAL: Record<string, boolean> = {
+  verification: true,
+  maintenance: true,
+  manual_reset: true,
+  history: false,
+  none: false,
+};
+export type ChecklistResponseType = "conformity" | "yes_no" | "number" | "text" | "choice" | "photo";
+export const RESPONSE_TYPE_LABEL: Record<ChecklistResponseType, string> = {
+  conformity: "Conformidade",
+  yes_no: "Sim / Não",
+  number: "Número",
+  text: "Texto",
+  choice: "Seleção",
+  photo: "Foto (descrição)",
+};
+export type IssueSeverity = "low" | "medium" | "high" | "critical";
+export const SEVERITY_LABEL: Record<IssueSeverity, string> = {
+  low: "Baixa",
+  medium: "Média",
+  high: "Alta",
+  critical: "Crítica",
+};
+export const SEVERITY_TONE: Record<IssueSeverity, StatusTone> = {
+  low: "neutral",
+  medium: "info",
+  high: "warning",
+  critical: "danger",
+};
+export const QUALITY_ISSUE_LABEL: Record<string, string> = {
+  vehicle_no_plan: "Frota ativa sem plano aplicável",
+  plan_ambiguous: "Plano ambíguo (mais de um com a mesma especificidade)",
+  vehicle_no_km: "Sem KM oficial",
+  km_stale: "KM desatualizado",
+  cluster_without_rule: "Cluster sem item em plano aprovado",
+  service_without_coverage: "Serviço preditivo sem cobertura",
+  cycle_without_reference: "Ciclo sem referência (inspeção inicial)",
+  maintenance_without_km: "Manutenção concluída sem KM",
+  verification_without_km: "Verificação sem KM",
+  reference_in_future: "Referência no futuro",
+  reference_km_above_current: "KM de referência acima do KM atual",
+  negative_cycle: "Marco ultrapassado em mais de um ciclo",
+};
+export const PREDICTIVE_EVENT_LABEL: Record<string, string> = {
+  cycle_created: "Ciclo criado",
+  cycle_deactivated: "Ciclo desativado",
+  cycle_reactivated: "Ciclo reativado",
+  history_reference: "Referência pelo histórico",
+  verification: "Verificação registrada",
+  monitoring_started: "Monitoramento iniciado",
+  monitoring_closed: "Monitoramento encerrado",
+  maintenance_generated: "Manutenção gerada",
+  maintenance_restart: "Ciclo reiniciado pela manutenção",
+  maintenance_reopened: "Manutenção reaberta",
+  manual_reset: "Baixa manual",
+  status_changed: "Situação técnica mudou",
+  plan_version: "Nova versão do plano",
+};
+export const PREDICTIVE_EVENT_SOURCE_LABEL: Record<string, string> = {
+  user: "Portal",
+  app: "Aplicativo",
+  system: "Rotina automática",
+  import: "Importação",
+};
+export const VERIFICATION_SOURCE_LABEL: Record<string, string> = {
+  portal: "Portal",
+  app: "Aplicativo",
+  import: "Importação",
+};
+export type PredictiveView = "painel" | "alertas" | "matriz" | "indicadores" | "qualidade" | "auditoria" | "envios";
+export const PREDICTIVE_VIEWS: PredictiveView[] = ["painel", "alertas", "matriz", "indicadores", "qualidade", "auditoria", "envios"];
+export const PREDICTIVE_VIEW_LABEL: Record<PredictiveView, string> = {
+  painel: "Painel executivo",
+  alertas: "Alertas e ações",
+  matriz: "Matriz frota × cluster",
+  indicadores: "Indicadores",
+  qualidade: "Qualidade dos dados",
+  auditoria: "Auditoria",
+  envios: "Verificações do app",
+};
 export const PLAN_STATUS_LABEL: Record<PlanStatus, string> = {
   draft: "Rascunho",
   in_review: "Em revisão",
@@ -775,54 +856,475 @@ export interface PredictiveCell {
   status: PredictiveStatus;
   execution: PredictiveExecution;
   conformity: Conformity;
+  criticality: Criticality;
   monitoring: boolean;
   nextKm: number | null;
   nextDate: string | null;
   kmRemaining: number | null;
   daysRemaining: number | null;
+  /** % do intervalo já consumido (negativo quando a referência está à frente do KM atual). */
+  pctConsumed: number | null;
   referenceKm: number | null;
   referenceDate: string | null;
   referenceType: string;
+  /** KM oficial mais velho que `summary.kmMaxAgeDays`: a situação é uma estimativa. */
+  kmStale: boolean;
   lastVerificationOn: string | null;
   openMaintenanceId: string | null;
   openMaintenanceCode: string | null;
+  statusChangedAt: string | null;
 }
 export interface PredictiveAlert extends PredictiveCell {
   vehicleId: string;
   licensePlate: string | null;
   fleetCode: string | null;
   operationName: string | null;
+  cityName: string | null;
+  brCode: string | null;
+  leaderName: string | null;
   planName: string;
   cluster: string;
+  clusterId: string;
   item: string;
-  criticality: Criticality;
   currentKm: number | null;
+  currentKmDate: string | null;
+  severity: number;
+}
+export interface PredictiveRanking {
+  key: string;
+  label: string | null;
+  detail?: string | null;
+  critical: number;
+  toSchedule?: number;
+  vehicles?: number;
+}
+export type PredictiveRankingKey = "fleets" | "clusters" | "models" | "types" | "operations" | "cities" | "brs" | "leaders";
+export const PREDICTIVE_RANKING_LABEL: Record<PredictiveRankingKey, string> = {
+  fleets: "Frotas",
+  clusters: "Clusters",
+  models: "Modelos",
+  types: "Tipos de equipamento",
+  operations: "Operações",
+  cities: "Locais",
+  brs: "BRs",
+  leaders: "Lideranças",
+};
+export interface PredictiveInsight {
+  key: string;
+  tone: "danger" | "warning" | "info" | "success" | "neutral";
+  rank: number;
+  title: string;
+  text: string;
+  /** Filtros do painel que abrem o recorte do insight (chaves da rotina). */
+  filter: Record<string, unknown> | null;
+}
+export interface PredictiveHealth {
+  score: number | null;
+  penaltyPerItem: number | null;
+  components: { key: string; weight: number; count: number }[];
+  formula: string;
+}
+export interface PredictiveSummaryBlock {
+  itemsMonitored: number;
+  vehicles: number;
+  critical: number;
+  due: number;
+  toSchedule: number;
+  upcoming: number;
+  ok: number;
+  initialInspection: number;
+  noKm: number;
+  kmStale: number;
+  monitoring: number;
+  scheduled: number;
+  inProgress: number;
+  awaitingCorrective: number;
+  /** Críticos + vencidos + aguardando corretiva. */
+  backlog: number;
+  formalReference: number;
+  formalReferencePct: number | null;
+  historyReference: number;
+  historyReferencePct: number | null;
+  forecastKm: number;
+  forecastDays: number;
+  forecastKmWindow: number;
+  forecastDaysWindow: number;
+  kmMaxAgeDays: number;
+}
+export interface PredictiveRow {
+  vehicleId: string;
+  licensePlate: string | null;
+  fleetCode: string | null;
+  typeName: string | null;
+  modelName: string | null;
+  operationName: string | null;
+  cityName: string | null;
+  brCode: string | null;
+  leaderName: string | null;
+  planName: string | null;
+  currentKm: number | null;
+  currentKmDate: string | null;
+  kmStale: boolean;
+  worst: number;
+  /** Chave: id do item do plano. */
+  cells: Record<string, PredictiveCell>;
 }
 export interface PredictiveOverview {
   today: string;
-  summary: {
-    itemsMonitored: number;
-    critical: number;
-    due: number;
-    toSchedule: number;
-    upcoming: number;
-    ok: number;
-    initialInspection: number;
-    noKm: number;
-    monitoring: number;
-    scheduled: number;
-    inProgress: number;
-    awaitingCorrective: number;
-    forecastKm: number;
-    forecastDays: number;
-    forecastKmWindow: number;
-    forecastDaysWindow: number;
-  };
+  summary: PredictiveSummaryBlock;
   coverage: { activeVehicles: number; coveredVehicles: number; uncoveredVehicles: number; coveragePct: number | null };
   /** Clusters com itens críticos/vencidos (`critical`) ou a programar (`toSchedule`). */
-  criticalClusters: { cluster: string; critical: number; toSchedule: number }[];
+  criticalClusters: { cluster: string; clusterId?: string | null; critical: number; toSchedule: number }[];
+  forecast: { km: { window: number; count: number }[]; days: { window: number; count: number }[] };
+  rankings: Record<PredictiveRankingKey, PredictiveRanking[]>;
+  insights: PredictiveInsight[];
+  health: PredictiveHealth;
+  quality: { open: number; critical: number; high: number; medium: number; low: number };
   columns: { itemId: string; item: string; clusterId: string; cluster: string }[];
-  rows: {
+  rows: PredictiveRow[];
+  rowsTotal: number;
+  rowsPage: number;
+  rowsPageSize: number;
+  alerts: PredictiveAlert[];
+  alertsTotal: number;
+  alertsPage: number;
+  alertsPageSize: number;
+}
+/** Resumo leve (Home da Manutenção e cartões). */
+export interface PredictiveSummary {
+  items: number;
+  critical: number;
+  due: number;
+  toSchedule: number;
+  noKm: number;
+  kmStale: number;
+  monitoring: number;
+  awaitingCorrective: number;
+  forecastKm: number;
+  forecastKmWindow: number;
+  vehiclesCritical: number;
+}
+export interface PredictiveIndicators {
+  period: { from: string; to: string };
+  verifications: {
+    total: number;
+    conforming: number;
+    monitor: number;
+    nonConforming: number;
+    notPerformed: number;
+    fromApp: number;
+    ncRatePct: number | null;
+    monitoringRatePct: number | null;
+    withKmPct: number | null;
+    onTime: number;
+    late: number;
+    onTimePct: number | null;
+  };
+  conversion: {
+    ncTotal: number;
+    ncWithMaintenance: number;
+    conversionPct: number | null;
+    anticipations: number;
+    anticipationPct: number | null;
+    open: number;
+    withoutMaintenance: number;
+  };
+  sla: {
+    days: Record<Criticality, number>;
+    ncTreated: number;
+    ncWithinSla: number;
+    withinSlaPct: number | null;
+    ncOpenBeyondSla: number;
+  };
+  leadTimesDays: {
+    flaggedToVerified: number | null;
+    flaggedPending: number;
+    ncToMaintenanceOpen: number | null;
+    maintenanceOpenToDone: number | null;
+  };
+  current: {
+    backlog: number;
+    avgOverdueKm: number | null;
+    maxOverdueKm: number | null;
+    avgOverdueDays: number | null;
+    maxOverdueDays: number | null;
+    formalReferencePct: number | null;
+    historyOnlyPct: number | null;
+  };
+  recurrence: {
+    byVehicleCluster: { vehicleId: string; licensePlate: string | null; fleetCode: string | null; cluster: string; clusterId: string; nonConforming: number; last: string | null }[];
+    byCluster: { clusterId: string; cluster: string; nonConforming: number; sharePct: number | null }[];
+    byModel: { model: string | null; nonConforming: number; vehicles: number }[];
+    byOperation: { operation: string | null; nonConforming: number }[];
+    meanKmBetweenNc: number | null;
+    meanDaysBetweenNc: number | null;
+  };
+}
+export interface PredictiveTrendPoint {
+  date: string;
+  items: number;
+  vehicles: number;
+  ok: number;
+  upcoming: number;
+  toSchedule: number;
+  due: number;
+  critical: number;
+  initialInspection: number;
+  noKm: number;
+  kmStale: number;
+  monitoring: number;
+  awaitingCorrective: number;
+  openMaintenances: number;
+  backlog: number;
+  verifications7d: number;
+  nonConforming7d: number;
+}
+export interface PredictiveTrends {
+  days: number;
+  operationId: string | null;
+  series: PredictiveTrendPoint[];
+  weeklyVerifications: { weekStart: string; verifications: number; nonConforming: number; monitoring: number; fromApp: number }[];
+}
+export interface PredictiveQualityIssue {
+  id: string;
+  issueType: string;
+  severity: IssueSeverity;
+  vehicleId: string | null;
+  licensePlate: string | null;
+  fleetCode: string | null;
+  cycleId: string | null;
+  planId: string | null;
+  planItemId: string | null;
+  clusterId: string | null;
+  cluster: string | null;
+  message: string;
+  details: Record<string, unknown> | null;
+  detectedAt: string;
+  lastSeenAt: string;
+  resolvedAt: string | null;
+}
+export interface PredictiveQuality {
+  total: number;
+  items: PredictiveQualityIssue[];
+  byType: Record<string, number>;
+  bySeverity: Record<IssueSeverity, number>;
+  lastRun: string | null;
+}
+export interface PredictiveEvent {
+  id: string;
+  eventType: string;
+  source: string;
+  occurredOn: string | null;
+  occurredAt: string;
+  km: number | null;
+  result: VerificationResult | null;
+  fromStatus: PredictiveStatus | null;
+  toStatus: PredictiveStatus | null;
+  referenceType: string | null;
+  coverage: string | null;
+  maintenanceId: string | null;
+  verificationId: string | null;
+  submissionId: string | null;
+  actorName: string | null;
+  details: Record<string, unknown> | null;
+}
+export interface PredictiveEventRow extends PredictiveEvent {
+  cycleId: string;
+  vehicleId: string;
+  licensePlate: string | null;
+  fleetCode: string | null;
+  item: string | null;
+  cluster: string | null;
+}
+export interface PredictiveEvents {
+  total: number;
+  items: PredictiveEventRow[];
+}
+export interface PredictiveVerificationRow {
+  id: string;
+  cycleId: string;
+  vehicleId: string;
+  licensePlate: string | null;
+  fleetCode: string | null;
+  item: string;
+  cluster: string;
+  clusterId: string;
+  result: VerificationResult;
+  decision: string;
+  verifiedOn: string;
+  km: number | null;
+  kmSource: string | null;
+  responsible: string | null;
+  notes: string | null;
+  monitorKm: number | null;
+  monitorDays: number | null;
+  source: string;
+  protocol: string | null;
+  maintenanceCode: string | null;
+  createdAt: string;
+}
+export interface PredictiveVerificationSearch {
+  total: number;
+  summary: { conforming: number; monitor: number; nonConforming: number; notPerformed: number };
+  items: PredictiveVerificationRow[];
+}
+export interface PredictiveSubmissionRow {
+  id: string;
+  protocol: string;
+  vehicleId: string;
+  licensePlate: string | null;
+  fleetCode: string | null;
+  verifiedOn: string;
+  createdAt: string;
+  inspector: string | null;
+  operationName: string | null;
+  cityName: string | null;
+  leaderName: string | null;
+  totalItems: number;
+  totalConforming: number;
+  totalMonitoring: number;
+  totalNonConforming: number;
+  totalNotPerformed: number;
+  maintenancesOpened: number;
+  kmOfficial: number | null;
+  kmInformed: number | null;
+  kmDivergent: boolean;
+}
+export interface PredictiveSubmissionSearch {
+  total: number;
+  items: PredictiveSubmissionRow[];
+}
+export interface PredictiveSubmissionDetail {
+  id: string;
+  protocol: string;
+  vehicleId: string;
+  licensePlate: string | null;
+  fleetCode: string | null;
+  vehicleTypeName: string | null;
+  verifiedOn: string;
+  verifiedAt: string;
+  createdAt: string;
+  operationName: string | null;
+  cityName: string | null;
+  stateUf: string | null;
+  brCode: string | null;
+  leaderName: string | null;
+  inspector: { userId: string | null; employeeId: string | null; name: string; employeeCode: string | null };
+  km: { official: number | null; officialDate: string | null; informed: number | null; justification: string | null; divergent: boolean };
+  generalObservation: string | null;
+  totals: { items: number; conforming: number; monitoring: number; nonConforming: number; notPerformed: number; maintenancesOpened: number };
+  items: {
+    verificationId: string;
+    cycleId: string;
+    itemId: string;
+    itemName: string;
+    clusterId: string;
+    clusterName: string;
+    criticality: Criticality;
+    result: VerificationResult;
+    decision: string;
+    km: number | null;
+    kmSource: string | null;
+    notes: string | null;
+    monitorKm: number | null;
+    monitorDays: number | null;
+    checklist: { key: string; answer: string }[];
+    maintenance: { id: string; code: string; status: MaintenanceStatus; label: string } | null;
+  }[];
+}
+export interface PredictiveChecklistStep {
+  key: string;
+  description: string;
+  required: boolean;
+  responseType?: ChecklistResponseType;
+  approvalCriteria?: string | null;
+  applicability?: string | null;
+  active?: boolean;
+  options?: string[] | null;
+  sequence?: number | null;
+}
+export interface PredictiveHistoryMaintenance {
+  id: string;
+  code: string;
+  type: string;
+  status: MaintenanceStatus;
+  services: string | null;
+  supplier?: string | null;
+  entryDate: string | null;
+  exitDate: string | null;
+  entryKm: number | null;
+  serviceOrderNumber: string | null;
+}
+export interface PredictiveHistoryVerification {
+  id: string;
+  result: VerificationResult;
+  decision: string;
+  verifiedOn: string;
+  km: number | null;
+  kmSource?: string | null;
+  source?: string | null;
+  responsible: string | null;
+  notes: string | null;
+  monitorKm: number | null;
+  monitorDays: number | null;
+  maintenanceId: string | null;
+  submissionId?: string | null;
+  checklist: { key: string; answer: string }[];
+  createdAt: string;
+}
+export interface PredictiveCycleState {
+  cycleId: string;
+  technicalStatus: PredictiveStatus;
+  executionStatus: PredictiveExecution;
+  conformity: Conformity;
+  kmBase: number | null;
+  dayBase: number | null;
+  nextKm: number | null;
+  nextDate: string | null;
+  kmRemaining: number | null;
+  daysRemaining: number | null;
+  pctConsumed: number | null;
+  currentKm: number | null;
+  currentKmDate: string | null;
+  kmAgeDays: number | null;
+  kmStale: boolean;
+  referenceType: string;
+  referenceDate: string | null;
+  referenceKm: number | null;
+  monitoringActive: boolean;
+  monitoringKm: number | null;
+  monitoringDays: number | null;
+  openMaintenanceId: string | null;
+  openMaintenanceCode: string | null;
+  openMaintenanceStatus: string | null;
+  lastVerificationOn: string | null;
+  lastResult: VerificationResult | null;
+  statusCache: string | null;
+  statusChangedAt: string | null;
+  severity: number;
+  licensePlate: string | null;
+  fleetCode: string | null;
+}
+export interface PredictiveCycleHistory {
+  item: {
+    id: string;
+    name: string;
+    cluster?: string | null;
+    clusterId?: string | null;
+    serviceId: string | null;
+    criticality?: Criticality;
+    intervalKm: number | null;
+    intervalDays: number | null;
+    intervalEngineHours?: number | null;
+    alertPct?: number;
+    schedulePct?: number;
+    tolerancePct?: number;
+    technicalDescription: string | null;
+    checklist: PredictiveChecklistStep[];
+    coverage?: { serviceId: string; service: string; coverage: "full" | "partial" }[];
+  };
+  plan?: { id: string; code: string; name: string; version: number; source: string } | null;
+  context?: {
     vehicleId: string;
     licensePlate: string | null;
     fleetCode: string | null;
@@ -830,51 +1332,17 @@ export interface PredictiveOverview {
     modelName: string | null;
     operationName: string | null;
     cityName: string | null;
-    planName: string | null;
-    currentKm: number | null;
-    currentKmDate: string | null;
-    worst: number;
-    /** Chave: id do item do plano. */
-    cells: Record<string, PredictiveCell>;
-  }[];
-  alerts: PredictiveAlert[];
-}
-export interface PredictiveChecklistStep { key: string; description: string; required: boolean }
-export interface PredictiveCycleHistory {
-  item: {
-    id: string;
-    name: string;
-    serviceId: string | null;
-    intervalKm: number | null;
-    intervalDays: number | null;
-    technicalDescription: string | null;
-    checklist: PredictiveChecklistStep[];
-  };
-  verifications: {
-    id: string;
-    result: VerificationResult;
-    decision: string;
-    verifiedOn: string;
-    km: number | null;
-    responsible: string | null;
-    notes: string | null;
-    monitorKm: number | null;
-    monitorDays: number | null;
-    maintenanceId: string | null;
-    checklist: { key: string; answer: string }[];
-    createdAt: string;
-  }[];
-  maintenances: {
-    id: string;
-    code: string;
-    type: string;
-    status: MaintenanceStatus;
-    services: string | null;
-    entryDate: string | null;
-    exitDate: string | null;
-    entryKm: number | null;
-    serviceOrderNumber: string | null;
-  }[];
+    stateUf: string | null;
+    brCode: string | null;
+    unitName: string | null;
+    leaderName: string | null;
+  } | null;
+  state?: PredictiveCycleState | null;
+  lastMaintenance?: PredictiveHistoryMaintenance | null;
+  lastVerification?: Pick<PredictiveHistoryVerification, "id" | "result" | "decision" | "verifiedOn" | "km" | "responsible" | "notes" | "source" | "kmSource"> | null;
+  verifications: PredictiveHistoryVerification[];
+  maintenances: PredictiveHistoryMaintenance[];
+  events?: PredictiveEvent[];
 }
 
 // ---------------------------------------------------------------------------
@@ -920,6 +1388,8 @@ export interface PredictivePlanItem {
   isActive: boolean;
   checklist: PredictiveChecklistStep[];
   coverage: { serviceId: string; serviceName: string; coverage: "full" | "partial" }[];
+  /** Ciclos ativos deste item (veículos cobertos). */
+  cycles?: number;
 }
 export interface PredictivePlan {
   id: string;
@@ -936,6 +1406,9 @@ export interface PredictivePlan {
   vehicleModelName: string | null;
   yearFrom: number | null;
   yearTo: number | null;
+  /** Vigência do plano (vazio = sem limite). */
+  validFrom?: string | null;
+  validTo?: string | null;
   source: string;
   referenceDocument: string | null;
   oemReference: string | null;
@@ -946,6 +1419,8 @@ export interface PredictivePlan {
   isActive: boolean;
   notes: string | null;
   vehicles: number;
+  /** Veículos para os quais este plano empata com outro aprovado (inconsistência aberta). */
+  ambiguousVehicles?: number;
   updatedAt: string;
   items: PredictivePlanItem[];
   versions: { version: number; approvalStatus: PlanStatus; reason: string | null; createdAt: string; createdByName: string | null }[];

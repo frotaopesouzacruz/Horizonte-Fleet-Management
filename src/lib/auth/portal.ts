@@ -38,12 +38,13 @@ export const PORTAL_KIND_LABEL: Record<PortalKind, string> = {
 /** O início, o perfil da própria conta e as telas de recusa. */
 const SHARED_ROUTES = [PORTAL_HOME, "/perfil", "/sem-permissao", "/sem-organizacao"] as const;
 
-/** Os três aplicativos de campo — de quem executa e de quem lidera — e o índice deles. */
+/** Os quatro aplicativos de campo — de quem executa e de quem lidera — e o índice deles. */
 const APP_ROUTES = [
   "/aplicativos",
   "/aplicativos/check-list-frota",
   "/aplicativos/vistoria-mtsr",
   "/aplicativos/vistoria-pneus",
+  "/aplicativos/verificacao-preditiva",
 ] as const;
 
 /**

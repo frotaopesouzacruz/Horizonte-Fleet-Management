@@ -124,7 +124,7 @@ test.describe("gestão de MTSR", () => {
     await expect(drawer).toBeVisible();
     await expect(page).toHaveURL(/vistoria=/);
     // Na prévia não há sessão: a gaveta mostra o erro tratado, nunca uma tela em branco.
-    await expect(drawer.getByRole("heading", { name: "Vistoria" })).toBeVisible();
+    await expect(drawer.getByRole("heading", { name: "Vistoria", exact: true })).toBeVisible();
     expect(crashes).toEqual([]);
   });
 

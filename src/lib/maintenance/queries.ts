@@ -19,7 +19,15 @@ import {
   type MaintenanceSettings,
   type MaintenanceSortKey,
   type PredictiveCycleHistory,
+  type PredictiveEvents,
+  type PredictiveIndicators,
   type PredictiveOverview,
+  type PredictiveQuality,
+  type PredictiveSubmissionDetail,
+  type PredictiveSubmissionSearch,
+  type PredictiveSummary,
+  type PredictiveTrends,
+  type PredictiveVerificationSearch,
   type PreventiveMatrix,
   type ScheduleKpis,
   type VehicleContext,
@@ -324,23 +332,231 @@ export interface PredictiveFilters {
   status?: string;
   execution?: string;
   vehicle?: string;
+  vehicleType?: string;
+  subcategory?: string;
+  make?: string;
+  model?: string;
+  state?: string;
+  city?: string;
+  br?: string;
+  leader?: string;
+  plan?: string;
+  criticality?: string;
+  conformity?: string;
+  /** Tipo de referência do ciclo (verification, maintenance, manual_reset, history, none). */
+  reference?: string;
+  /** Só itens em monitoramento. */
+  monitoring?: boolean;
+  /** Só itens com KM oficial desatualizado. */
+  kmStale?: boolean;
+  /** Inclui frota inativa (padrão: só ativa). */
+  includeInactive?: boolean;
+  from?: string;
+  to?: string;
+  /** Paginação no servidor da matriz e dos alertas. */
+  rowsPage?: number;
+  rowsPageSize?: number;
+  alertsPage?: number;
+  alertsPageSize?: number;
+}
+
+/** Filtros da preditiva → chaves de `private.maintenance_predictive_filtered`. Vários valores: vírgula. */
+export function predictivePayload(f: PredictiveFilters): Record<string, Json> {
+  const payload: Record<string, Json> = {};
+  const put = (key: string, values: (string | number)[]) => {
+    if (values.length) payload[key] = values;
+  };
+  if (f.q?.trim()) payload.search = f.q.trim();
+  put("operation_ids", list(f.operation));
+  put("cluster_ids", list(f.cluster));
+  put("statuses", list(f.status));
+  put("execution", list(f.execution));
+  put("vehicle_ids", list(f.vehicle));
+  put("vehicle_type_ids", list(f.vehicleType));
+  put("subcategory_ids", list(f.subcategory));
+  put("make_ids", list(f.make));
+  put("model_ids", list(f.model));
+  put("state_ids", ints(f.state));
+  put("city_ids", ints(f.city));
+  put("br_ids", list(f.br));
+  put("leader_ids", list(f.leader));
+  put("plan_ids", list(f.plan));
+  put("criticality", list(f.criticality));
+  put("conformity", list(f.conformity));
+  put("reference_types", list(f.reference));
+  if (f.monitoring) payload.monitoring = true;
+  if (f.kmStale) payload.km_stale = true;
+  if (f.includeInactive) payload.include_inactive = true;
+  if (f.from) payload.date_from = f.from;
+  if (f.to) payload.date_to = f.to;
+  if (f.rowsPage) payload.rows_page = f.rowsPage;
+  if (f.rowsPageSize) payload.rows_page_size = f.rowsPageSize;
+  if (f.alertsPage) payload.alerts_page = f.alertsPage;
+  if (f.alertsPageSize) payload.alerts_page_size = f.alertsPageSize;
+  return payload;
+}
+
+async function predictiveRpc<T>(fn: string, args: Record<string, Json | undefined>): Promise<T> {
+  const supabase = await createClient();
+  const clean: Record<string, Json> = {};
+  for (const [k, v] of Object.entries(args)) if (v !== undefined) clean[k] = v;
+  const { data, error } = await (supabase.rpc as unknown as (
+    f: string,
+    a: Record<string, Json>,
+  ) => Promise<{ data: unknown; error: { code?: string; message?: string } | null }>)(fn, clean);
+  if (error) fail(fn, { message: error.message ?? error.code ?? "erro desconhecido" });
+  return camelize<T>(data);
 }
 
 export async function getPredictiveOverview(organizationId: string, f: PredictiveFilters): Promise<PredictiveOverview> {
+  return predictiveRpc<PredictiveOverview>("maintenance_predictive_overview", {
+    p_organization_id: organizationId,
+    p_filters: predictivePayload(f),
+  });
+}
+
+/** Resumo leve para a Home da Manutenção e cartões (mesmo recorte do painel). */
+export async function getPredictiveSummary(organizationId: string, f: PredictiveFilters = {}): Promise<PredictiveSummary> {
+  return predictiveRpc<PredictiveSummary>("maintenance_predictive_summary", {
+    p_organization_id: organizationId,
+    p_filters: predictivePayload(f),
+  });
+}
+
+export async function getPredictiveIndicators(organizationId: string, f: PredictiveFilters): Promise<PredictiveIndicators> {
+  return predictiveRpc<PredictiveIndicators>("maintenance_predictive_indicators", {
+    p_organization_id: organizationId,
+    p_filters: predictivePayload(f),
+  });
+}
+
+export async function getPredictiveTrends(
+  organizationId: string,
+  opts: { days?: number; operation?: string | null } = {},
+): Promise<PredictiveTrends> {
+  const payload: Record<string, Json> = { days: opts.days ?? 90 };
+  if (opts.operation) payload.operation_id = opts.operation;
+  return predictiveRpc<PredictiveTrends>("maintenance_predictive_trends", { p_organization_id: organizationId, p_filters: payload });
+}
+
+export interface PredictiveQualityFilters {
+  types?: string;
+  severity?: string;
+  vehicle?: string;
+  includeResolved?: boolean;
+}
+export async function getPredictiveQuality(
+  organizationId: string,
+  f: PredictiveQualityFilters,
+  limit = 50,
+  offset = 0,
+): Promise<PredictiveQuality> {
   const payload: Record<string, Json> = {};
-  if (f.q?.trim()) payload.search = f.q.trim();
-  if (f.operation) payload.operation_ids = list(f.operation);
-  if (f.cluster) payload.cluster_ids = list(f.cluster);
-  if (f.status) payload.statuses = list(f.status);
-  if (f.execution) payload.execution = list(f.execution);
-  if (f.vehicle) payload.vehicle_ids = list(f.vehicle);
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("maintenance_predictive_overview", {
+  if (list(f.types).length) payload.issue_types = list(f.types);
+  if (list(f.severity).length) payload.severity = list(f.severity);
+  if (list(f.vehicle).length) payload.vehicle_ids = list(f.vehicle);
+  if (f.includeResolved) payload.include_resolved = true;
+  return predictiveRpc<PredictiveQuality>("maintenance_predictive_quality", {
     p_organization_id: organizationId,
     p_filters: payload,
+    p_limit: limit,
+    p_offset: offset,
   });
-  if (error) fail("maintenance_predictive_overview", error);
-  return camelize<PredictiveOverview>(data);
+}
+
+export interface PredictiveEventFilters {
+  vehicle?: string;
+  cycle?: string;
+  types?: string;
+  from?: string;
+  to?: string;
+}
+export async function getPredictiveEvents(
+  organizationId: string,
+  f: PredictiveEventFilters,
+  limit = 50,
+  offset = 0,
+): Promise<PredictiveEvents> {
+  const payload: Record<string, Json> = {};
+  if (f.vehicle) payload.vehicle_id = list(f.vehicle)[0];
+  if (f.cycle) payload.cycle_id = f.cycle;
+  if (list(f.types).length) payload.event_types = list(f.types);
+  if (f.from) payload.date_from = f.from;
+  if (f.to) payload.date_to = f.to;
+  return predictiveRpc<PredictiveEvents>("maintenance_predictive_events", {
+    p_organization_id: organizationId,
+    p_filters: payload,
+    p_limit: limit,
+    p_offset: offset,
+  });
+}
+
+export interface PredictiveSearchFilters {
+  q?: string;
+  from?: string;
+  to?: string;
+  operation?: string;
+  cluster?: string;
+  vehicle?: string;
+  results?: string;
+  sources?: string;
+  responsible?: string;
+  onlyNonConforming?: boolean;
+}
+export async function searchPredictiveVerifications(
+  organizationId: string,
+  f: PredictiveSearchFilters,
+  limit = 50,
+  offset = 0,
+): Promise<PredictiveVerificationSearch> {
+  const payload: Record<string, Json> = {};
+  if (f.q?.trim()) payload.search = f.q.trim();
+  if (f.responsible?.trim()) payload.responsible = f.responsible.trim();
+  if (list(f.cluster).length) payload.cluster_ids = list(f.cluster);
+  if (list(f.vehicle).length) payload.vehicle_ids = list(f.vehicle);
+  if (list(f.results).length) payload.results = list(f.results);
+  if (list(f.sources).length) payload.sources = list(f.sources);
+  if (f.from) payload.from = f.from;
+  if (f.to) payload.to = f.to;
+  return predictiveRpc<PredictiveVerificationSearch>("maintenance_predictive_verifications_search", {
+    p_organization_id: organizationId,
+    p_filters: payload,
+    p_limit: limit,
+    p_offset: offset,
+  });
+}
+
+export async function searchPredictiveSubmissions(
+  organizationId: string,
+  f: PredictiveSearchFilters,
+  limit = 50,
+  offset = 0,
+): Promise<PredictiveSubmissionSearch> {
+  const payload: Record<string, Json> = {};
+  if (f.q?.trim()) payload.search = f.q.trim();
+  if (list(f.operation).length) payload.operation_ids = list(f.operation);
+  if (f.from) payload.from = f.from;
+  if (f.to) payload.to = f.to;
+  if (f.onlyNonConforming) payload.only_non_conforming = true;
+  return predictiveRpc<PredictiveSubmissionSearch>("maintenance_predictive_submissions_search", {
+    p_organization_id: organizationId,
+    p_filters: payload,
+    p_limit: limit,
+    p_offset: offset,
+  });
+}
+
+export async function getPredictiveSubmissionDetail(organizationId: string, submissionId: string): Promise<PredictiveSubmissionDetail | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("maintenance_predictive_submission_detail", {
+    p_organization_id: organizationId,
+    p_submission_id: submissionId,
+  });
+  if (error) {
+    if (error.code === "P0002" || error.code === "42501") return null;
+    fail("maintenance_predictive_submission_detail", error);
+  }
+  return data ? camelize<PredictiveSubmissionDetail>(data) : null;
 }
 
 export async function getPredictiveCycleHistory(cycleId: string): Promise<PredictiveCycleHistory | null> {

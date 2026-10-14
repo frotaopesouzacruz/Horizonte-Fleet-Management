@@ -41,7 +41,7 @@ export function ChartCard({
           <Heading id={headingId} className="text-card-title font-semibold text-fg">{title}</Heading>
           {description ? <p className="text-caption text-fg-muted">{description}</p> : null}
         </div>
-        {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
+        {actions ? <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
       </header>
       {legend && !loading && !empty ? <div className="px-4 pt-3">{legend}</div> : null}
       <div className="min-w-0 flex-1 px-4 pb-4 pt-3">

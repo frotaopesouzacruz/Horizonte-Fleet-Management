@@ -15,7 +15,15 @@ import type {
   MaintenanceParameters,
   MaintenanceSortKey,
   MaintenanceTab,
+  PredictiveEvents,
+  PredictiveIndicators,
   PredictiveOverview,
+  PredictiveQuality,
+  PredictiveSubmissionSearch,
+  PredictiveSummary,
+  PredictiveTrends,
+  PredictiveVerificationSearch,
+  PredictiveView,
   PreventiveMatrix,
   ScheduleKpis,
 } from "@/lib/maintenance/types";
@@ -47,6 +55,15 @@ export interface MaintenancePerms {
   manageParameters: boolean;
   viewAudit: boolean;
   reprocess: boolean;
+  /** Capabilities da preditiva (`maintenance.predictive.*`); as legadas continuam valendo. */
+  predictiveView: boolean;
+  predictiveVerify: boolean;
+  predictiveGenerate: boolean;
+  predictiveReset: boolean;
+  predictivePlans: boolean;
+  predictiveRecalculate: boolean;
+  predictiveAudit: boolean;
+  predictiveApp: boolean;
 }
 
 export const PERMISSION_CODES: Record<keyof MaintenancePerms, string> = {
@@ -70,12 +87,35 @@ export const PERMISSION_CODES: Record<keyof MaintenancePerms, string> = {
   manageParameters: "maintenance.manage_parameters",
   viewAudit: "maintenance.view_audit",
   reprocess: "maintenance.reprocess",
+  predictiveView: "maintenance.predictive.view",
+  predictiveVerify: "maintenance.predictive.verify",
+  predictiveGenerate: "maintenance.predictive.generate_maintenance",
+  predictiveReset: "maintenance.predictive.manual_reset",
+  predictivePlans: "maintenance.predictive.plans.manage",
+  predictiveRecalculate: "maintenance.predictive.recalculate",
+  predictiveAudit: "maintenance.predictive.audit.view",
+  predictiveApp: "applications.predictive.execute",
 };
 
-/** A tela só esconde; quem decide é o banco, na mesma transação da escrita. */
+/**
+ * A tela só esconde; quem decide é o banco, na mesma transação da escrita.
+ * As capabilities da preditiva aceitam a permissão nova OU a legada
+ * (`maintenance.manage_predictive`, `maintenance.reprocess`,
+ * `maintenance.view_audit`), exatamente como `private.maintenance_predictive_can`.
+ */
 export function buildPerms(has: (code: string) => boolean): MaintenancePerms {
   const out = {} as MaintenancePerms;
   for (const [key, code] of Object.entries(PERMISSION_CODES)) out[key as keyof MaintenancePerms] = has(code);
+  const legacy = has("maintenance.manage_predictive");
+  out.predictiveView = out.predictiveView || out.view;
+  out.predictiveVerify = out.predictiveVerify || legacy;
+  out.predictiveGenerate = out.predictiveGenerate || legacy;
+  out.predictiveReset = out.predictiveReset || legacy;
+  out.predictivePlans = out.predictivePlans || legacy;
+  out.predictiveRecalculate = out.predictiveRecalculate || legacy || out.reprocess;
+  out.predictiveAudit = out.predictiveAudit || out.viewAudit;
+  // O que a tela chama de "gerir preditiva" é qualquer uma das capacidades de escrita.
+  out.managePredictive = legacy || out.predictiveVerify || out.predictiveGenerate || out.predictiveReset || out.predictivePlans;
   return out;
 }
 
@@ -124,12 +164,14 @@ export interface MaintenanceViewData {
   perms: MaintenancePerms;
   /** Visão geral. */
   dashboard?: MaintenanceDashboard | null;
+  /** Visão geral: resumo preditivo (críticos, vencidos, previstos, aguardando corretiva). */
+  predictiveSummary?: PredictiveSummary | null;
   /** Programação & execução. */
   schedule?: { kpis: ScheduleKpis | null; page: MaintenancePage | null; list: ListState };
   /** Preventiva. */
   preventive?: { matrix: PreventiveMatrix | null; filters: PreventiveFilters };
-  /** Preditiva. */
-  predictive?: { overview: PredictiveOverview | null; filters: PredictiveFilters };
+  /** Preditiva: só a visão aberta é carregada (o painel sempre tem a visão geral). */
+  predictive?: PredictiveViewData;
   /** Base geral. */
   base?: {
     view: "tabela" | "hierarquia";
@@ -143,6 +185,23 @@ export interface MaintenanceViewData {
   cadastros?: { section: CatalogSection; parameters: MaintenanceParameters | null };
   /** Importações. */
   importacoes?: { history: MaintenanceImportHistoryRow[] | null };
+}
+
+export interface PredictiveViewData {
+  view: PredictiveView;
+  overview: PredictiveOverview | null;
+  filters: PredictiveFilters;
+  indicators?: PredictiveIndicators | null;
+  trends?: PredictiveTrends | null;
+  quality?: PredictiveQuality | null;
+  events?: PredictiveEvents | null;
+  submissions?: PredictiveSubmissionSearch | null;
+  verifications?: PredictiveVerificationSearch | null;
+  /** Página e tamanho das listas paginadas no servidor (auditoria, qualidade, envios). */
+  page: number;
+  pageSize: number;
+  /** Parâmetros próprios das visões (pd_inconsistencia, pd_evento, pd_lista…), já achatados. */
+  params: Record<string, string>;
 }
 
 /** O que os painéis usam para abrir a gaveta ou o assistente. */

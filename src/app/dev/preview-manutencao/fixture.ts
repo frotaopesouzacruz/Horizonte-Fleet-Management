@@ -3,12 +3,19 @@ import type {
   HierarchyNode,
   HierarchyPathNode,
   MaintenanceCatalog,
-  MaintenanceItemSummary,
   MaintenanceDashboard,
+  MaintenanceItemSummary,
   MaintenancePage,
   MaintenanceParameters,
   MaintenanceRow,
+  PredictiveEvents,
+  PredictiveIndicators,
   PredictiveOverview,
+  PredictiveQuality,
+  PredictiveSubmissionSearch,
+  PredictiveSummary,
+  PredictiveTrends,
+  PredictiveVerificationSearch,
   PreventiveMatrix,
   ScheduleKpis,
 } from "@/lib/maintenance/types";
@@ -1320,22 +1327,26 @@ const cell = (
   cycleId: string,
   status: PredictiveOverview["rows"][number]["cells"][string]["status"],
   extra: Partial<PredictiveOverview["rows"][number]["cells"][string]> = {},
-) => ({
+): PredictiveOverview["rows"][number]["cells"][string] => ({
   cycleId,
   status,
-  execution: "not_programmed" as const,
-  conformity: "no_verification" as const,
+  execution: "not_programmed",
+  conformity: "no_verification",
+  criticality: "high",
   monitoring: false,
   nextKm: null,
   nextDate: null,
   kmRemaining: null,
   daysRemaining: null,
+  pctConsumed: null,
   referenceKm: null,
   referenceDate: null,
   referenceType: "none",
+  kmStale: false,
   lastVerificationOn: null,
   openMaintenanceId: null,
   openMaintenanceCode: null,
+  statusChangedAt: "2026-09-27T09:00:00.000Z",
   ...extra,
 });
 
@@ -1343,6 +1354,7 @@ export const PREDICTIVE: PredictiveOverview = {
   today: TODAY,
   summary: {
     itemsMonitored: 8,
+    vehicles: 4,
     critical: 1,
     due: 1,
     toSchedule: 1,
@@ -1350,14 +1362,21 @@ export const PREDICTIVE: PredictiveOverview = {
     ok: 2,
     initialInspection: 1,
     noKm: 1,
+    kmStale: 1,
     monitoring: 1,
     scheduled: 0,
     inProgress: 1,
     awaitingCorrective: 1,
+    backlog: 3,
+    formalReference: 5,
+    formalReferencePct: 62.5,
+    historyReference: 1,
+    historyReferencePct: 12.5,
     forecastKm: 2,
     forecastDays: 1,
     forecastKmWindow: 5000,
     forecastDaysWindow: 30,
+    kmMaxAgeDays: 30,
   },
   coverage: {
     activeVehicles: 58,
@@ -1365,20 +1384,86 @@ export const PREDICTIVE: PredictiveOverview = {
     uncoveredVehicles: 54,
     coveragePct: 6.9,
   },
-  criticalClusters: [{ cluster: "Motor", critical: 2, toSchedule: 0 }],
+  criticalClusters: [
+    { cluster: "Motor", clusterId: "cl-mot", critical: 2, toSchedule: 0 },
+    { cluster: "Freios", clusterId: "cl-fre", critical: 0, toSchedule: 1 },
+  ],
+  forecast: {
+    km: [
+      { window: 1000, count: 0 },
+      { window: 2500, count: 1 },
+      { window: 5000, count: 2 },
+      { window: 10000, count: 4 },
+    ],
+    days: [
+      { window: 7, count: 0 },
+      { window: 15, count: 0 },
+      { window: 30, count: 1 },
+      { window: 60, count: 2 },
+    ],
+  },
+  rankings: {
+    fleets: [
+      { key: "v1", label: "SNT8E16", detail: "VA116", critical: 1, toSchedule: 0 },
+      { key: "v6", label: "SNT8J46", detail: "VA170", critical: 1, toSchedule: 0 },
+    ],
+    clusters: [{ key: "cl-mot", label: "Motor", critical: 2, toSchedule: 0 }],
+    models: [{ key: "md-master", label: "Master", critical: 2, toSchedule: 1, vehicles: 2 }],
+    types: [{ key: "vt-van", label: "Van", critical: 2, toSchedule: 1, vehicles: 2 }],
+    operations: [
+      { key: OPS.mg.id, label: OPS.mg.name, critical: 1, toSchedule: 0, vehicles: 1 },
+      { key: OPS.pa.id, label: OPS.pa.name, critical: 1, toSchedule: 1, vehicles: 1 },
+    ],
+    cities: [
+      { key: "3122306", label: "Divinópolis/MG", critical: 1, toSchedule: 0, vehicles: 1 },
+      { key: "1501402", label: "Belém/PA", critical: 1, toSchedule: 1, vehicles: 1 },
+    ],
+    brs: [{ key: "br-mg-01", label: "MG-01", critical: 1, toSchedule: 0, vehicles: 1 }],
+    leaders: [{ key: "emp-lid-1", label: "Carla Nogueira", critical: 2, toSchedule: 1, vehicles: 2 }],
+  },
+  insights: [
+    {
+      key: "critical_fleets",
+      tone: "danger",
+      rank: 1,
+      title: "2 veículos com itens críticos ou vencidos",
+      text: "SNT8E16 e SNT8J46 concentram os itens críticos/vencidos do recorte; Motor é o cluster mais afetado.",
+      filter: { statuses: ["critical", "due"] },
+    },
+    {
+      key: "km_unreliable",
+      tone: "warning",
+      rank: 2,
+      title: "2 veículos estão sem KM confiável",
+      text: "1 item sem KM e 1 com KM além de 30 dias: a situação técnica deles é uma estimativa.",
+      filter: { km_stale: true },
+    },
+    {
+      key: "upcoming_window",
+      tone: "info",
+      rank: 3,
+      title: "2 itens vencem nos próximos 5.000 km",
+      text: "Programar agora evita que virem vencidos na próxima semana de rodagem.",
+      filter: { statuses: ["upcoming", "to_schedule"] },
+    },
+  ],
+  health: {
+    score: 71.3,
+    penaltyPerItem: 1.25,
+    components: [
+      { key: "critical", weight: 10, count: 1 },
+      { key: "due", weight: 6, count: 1 },
+      { key: "awaiting_corrective", weight: 4, count: 1 },
+      { key: "to_schedule", weight: 2, count: 1 },
+      { key: "no_km", weight: 2, count: 1 },
+      { key: "km_stale", weight: 1, count: 1 },
+    ],
+    formula: "100 − 10 × (Σ peso × itens ÷ itens monitorados), limitado a 0–100",
+  },
+  quality: { open: 7, critical: 0, high: 2, medium: 3, low: 2 },
   columns: [
-    {
-      itemId: "it-corr",
-      item: "Correia dentada",
-      clusterId: "cl-mot",
-      cluster: "Motor",
-    },
-    {
-      itemId: "it-fre",
-      item: "Sistema de freios",
-      clusterId: "cl-fre",
-      cluster: "Freios",
-    },
+    { itemId: "it-corr", item: "Correia dentada", clusterId: "cl-mot", cluster: "Motor" },
+    { itemId: "it-fre", item: "Sistema de freios", clusterId: "cl-fre", cluster: "Freios" },
   ],
   rows: [
     {
@@ -1389,9 +1474,12 @@ export const PREDICTIVE: PredictiveOverview = {
       modelName: "Master",
       operationName: OPS.mg.name,
       cityName: "Divinópolis",
+      brCode: "MG-01",
+      leaderName: "Carla Nogueira",
       planName: "Plano Van Master",
       currentKm: 51230,
       currentKmDate: "2026-09-27",
+      kmStale: false,
       worst: 6,
       cells: {
         "it-corr": cell("pd-11", "critical", {
@@ -1399,6 +1487,7 @@ export const PREDICTIVE: PredictiveOverview = {
           kmRemaining: -756,
           nextDate: "2027-09-12",
           daysRemaining: 349,
+          pctConsumed: 103.8,
           referenceKm: 30474,
           referenceDate: "2025-09-12",
           referenceType: "maintenance",
@@ -1406,7 +1495,9 @@ export const PREDICTIVE: PredictiveOverview = {
         "it-fre": cell("pd-12", "ok", {
           nextKm: 60000,
           kmRemaining: 8770,
+          pctConsumed: 26.9,
           conformity: "conforming",
+          criticality: "medium",
           referenceType: "verification",
           referenceDate: "2026-08-10",
           referenceKm: 48000,
@@ -1422,9 +1513,12 @@ export const PREDICTIVE: PredictiveOverview = {
       modelName: "Master",
       operationName: OPS.pa.name,
       cityName: "Belém",
+      brCode: null,
+      leaderName: "Carla Nogueira",
       planName: "Plano Van Master",
       currentKm: 88420,
-      currentKmDate: "2026-09-25",
+      currentKmDate: "2026-08-20",
+      kmStale: true,
       worst: 5,
       cells: {
         "it-corr": cell("pd-21", "due", {
@@ -1432,6 +1526,8 @@ export const PREDICTIVE: PredictiveOverview = {
           conformity: "non_conforming",
           nextKm: 88000,
           kmRemaining: -420,
+          pctConsumed: 102.1,
+          kmStale: true,
           openMaintenanceId: "m4",
           openMaintenanceCode: "MAN-2026-000097",
           referenceType: "verification",
@@ -1441,9 +1537,12 @@ export const PREDICTIVE: PredictiveOverview = {
         }),
         "it-fre": cell("pd-22", "upcoming", {
           conformity: "monitor",
+          criticality: "medium",
           monitoring: true,
           nextKm: 91000,
           kmRemaining: 2580,
+          pctConsumed: 48.4,
+          kmStale: true,
           referenceType: "verification",
           referenceDate: "2026-09-01",
           referenceKm: 86000,
@@ -1451,29 +1550,187 @@ export const PREDICTIVE: PredictiveOverview = {
         }),
       },
     },
+    {
+      vehicleId: "v7",
+      licensePlate: "SNT8K10",
+      fleetCode: "VA171",
+      typeName: "Van",
+      modelName: "Master",
+      operationName: OPS.pa.name,
+      cityName: "Belém",
+      brCode: null,
+      leaderName: "Carla Nogueira",
+      planName: "Plano Van Master",
+      currentKm: 12040,
+      currentKmDate: "2026-09-26",
+      kmStale: false,
+      worst: 3,
+      cells: {
+        "it-corr": cell("pd-31", "initial_inspection", { referenceType: "none" }),
+        "it-fre": cell("pd-32", "to_schedule", {
+          criticality: "medium",
+          nextKm: 12900,
+          kmRemaining: 860,
+          pctConsumed: 91.4,
+          referenceType: "history",
+          referenceDate: "2026-03-02",
+          referenceKm: 2900,
+        }),
+      },
+    },
+    {
+      vehicleId: "v8",
+      licensePlate: "SNT8L22",
+      fleetCode: "VA172",
+      typeName: "Van",
+      modelName: "Master",
+      operationName: OPS.mg.name,
+      cityName: "Divinópolis",
+      brCode: "MG-01",
+      leaderName: "Carla Nogueira",
+      planName: "Plano Van Master",
+      currentKm: null,
+      currentKmDate: null,
+      kmStale: false,
+      worst: 0,
+      cells: {
+        "it-corr": cell("pd-41", "no_km", { referenceType: "manual_reset", referenceDate: "2026-07-01", referenceKm: 8000 }),
+        "it-fre": cell("pd-42", "ok", { criticality: "medium", nextDate: "2027-01-05", daysRemaining: 99, referenceType: "verification", referenceDate: "2026-07-05", lastVerificationOn: "2026-07-05" }),
+      },
+    },
   ],
+  rowsTotal: 4,
+  rowsPage: 1,
+  rowsPageSize: 25,
   alerts: [],
+  alertsTotal: 0,
+  alertsPage: 1,
+  alertsPageSize: 25,
 };
-PREDICTIVE.alerts = PREDICTIVE.rows.flatMap((r) =>
-  PREDICTIVE.columns
-    .map((c) => ({ c, v: r.cells[c.itemId] }))
-    .filter(
-      ({ v }) =>
-        v && ["critical", "due", "to_schedule", "upcoming"].includes(v.status),
-    )
-    .map(({ c, v }) => ({
-      ...v,
-      vehicleId: r.vehicleId,
-      licensePlate: r.licensePlate,
-      fleetCode: r.fleetCode,
-      operationName: r.operationName,
-      planName: r.planName ?? "",
-      cluster: c.cluster,
-      item: c.item,
-      criticality: "high" as const,
-      currentKm: r.currentKm,
-    })),
-);
+PREDICTIVE.alerts = PREDICTIVE.rows
+  .flatMap((r) =>
+    PREDICTIVE.columns
+      .map((c) => ({ c, v: r.cells[c.itemId] }))
+      .filter(({ v }) => v && (["critical", "due", "to_schedule", "upcoming", "initial_inspection"].includes(v.status) || v.execution === "awaiting_corrective"))
+      .map(({ c, v }) => ({
+        ...v,
+        vehicleId: r.vehicleId,
+        licensePlate: r.licensePlate,
+        fleetCode: r.fleetCode,
+        operationName: r.operationName,
+        cityName: r.cityName,
+        brCode: r.brCode,
+        leaderName: r.leaderName,
+        planName: r.planName ?? "",
+        cluster: c.cluster,
+        clusterId: c.clusterId,
+        item: c.item,
+        currentKm: r.currentKm,
+        currentKmDate: r.currentKmDate,
+        severity: { critical: 6, due: 5, to_schedule: 4, initial_inspection: 3, upcoming: 2, ok: 1, no_km: 0 }[v.status] ?? 0,
+      })),
+  )
+  .sort((a, b) => b.severity - a.severity || (a.kmRemaining ?? Number.MAX_SAFE_INTEGER) - (b.kmRemaining ?? Number.MAX_SAFE_INTEGER));
+PREDICTIVE.alertsTotal = PREDICTIVE.alerts.length;
+
+export const PREDICTIVE_SUMMARY: PredictiveSummary = {
+  items: 8,
+  critical: 1,
+  due: 1,
+  toSchedule: 1,
+  noKm: 1,
+  kmStale: 1,
+  monitoring: 1,
+  awaitingCorrective: 1,
+  forecastKm: 2,
+  forecastKmWindow: 5000,
+  vehiclesCritical: 2,
+};
+
+export const PREDICTIVE_INDICATORS: PredictiveIndicators = {
+  period: { from: "2025-09-28", to: TODAY },
+  verifications: {
+    total: 14, conforming: 8, monitor: 2, nonConforming: 3, notPerformed: 1, fromApp: 6,
+    ncRatePct: 21.4, monitoringRatePct: 14.3, withKmPct: 92.9, onTime: 10, late: 3, onTimePct: 76.9,
+  },
+  conversion: { ncTotal: 3, ncWithMaintenance: 2, conversionPct: 66.7, anticipations: 1, anticipationPct: 33.3, open: 1, withoutMaintenance: 1 },
+  sla: { days: { critical: 2, high: 5, medium: 10, low: 20 }, ncTreated: 2, ncWithinSla: 1, withinSlaPct: 50, ncOpenBeyondSla: 1 },
+  leadTimesDays: { flaggedToVerified: 4.5, flaggedPending: 3, ncToMaintenanceOpen: 0.5, maintenanceOpenToDone: 6 },
+  current: { backlog: 3, avgOverdueKm: 588, maxOverdueKm: 756, avgOverdueDays: null, maxOverdueDays: null, formalReferencePct: 62.5, historyOnlyPct: 12.5 },
+  recurrence: {
+    byVehicleCluster: [{ vehicleId: "v6", licensePlate: "SNT8J46", fleetCode: "VA170", cluster: "Motor", clusterId: "cl-mot", nonConforming: 2, last: "2026-09-18" }],
+    byCluster: [
+      { clusterId: "cl-mot", cluster: "Motor", nonConforming: 2, sharePct: 66.7 },
+      { clusterId: "cl-fre", cluster: "Freios", nonConforming: 1, sharePct: 33.3 },
+    ],
+    byModel: [{ model: "Master", nonConforming: 3, vehicles: 2 }],
+    byOperation: [
+      { operation: OPS.pa.name, nonConforming: 2 },
+      { operation: OPS.mg.name, nonConforming: 1 },
+    ],
+    meanKmBetweenNc: 18400,
+    meanDaysBetweenNc: 96,
+  },
+};
+
+export const PREDICTIVE_TRENDS: PredictiveTrends = {
+  days: 90,
+  operationId: null,
+  series: Array.from({ length: 10 }, (_, i) => {
+    const d = new Date(Date.UTC(2026, 8, 19 + i));
+    const date = d.toISOString().slice(0, 10);
+    return {
+      date, items: 8, vehicles: 4, ok: 2 + (i % 2), upcoming: 1, toSchedule: 1, due: i < 5 ? 2 : 1, critical: i < 7 ? 1 : 1,
+      initialInspection: 1, noKm: 1, kmStale: i > 5 ? 1 : 0, monitoring: 1, awaitingCorrective: i < 3 ? 2 : 1,
+      openMaintenances: 1, backlog: i < 3 ? 5 : i < 5 ? 4 : 3, verifications7d: 2 + (i % 3), nonConforming7d: i % 2,
+    };
+  }),
+  weeklyVerifications: [
+    { weekStart: "2026-08-31", verifications: 3, nonConforming: 1, monitoring: 0, fromApp: 1 },
+    { weekStart: "2026-09-07", verifications: 4, nonConforming: 1, monitoring: 1, fromApp: 2 },
+    { weekStart: "2026-09-14", verifications: 5, nonConforming: 1, monitoring: 1, fromApp: 2 },
+    { weekStart: "2026-09-21", verifications: 2, nonConforming: 0, monitoring: 0, fromApp: 1 },
+  ],
+};
+
+export const PREDICTIVE_QUALITY: PredictiveQuality = {
+  total: 7,
+  lastRun: "2026-09-28T06:15:00.000Z",
+  byType: { vehicle_no_plan: 54, vehicle_no_km: 1, km_stale: 1, plan_ambiguous: 0, cluster_without_rule: 3, service_without_coverage: 1, cycle_without_reference: 1 },
+  bySeverity: { critical: 0, high: 2, medium: 3, low: 2 },
+  items: [
+    { id: "q1", issueType: "vehicle_no_km", severity: "high", vehicleId: "v8", licensePlate: "SNT8L22", fleetCode: "VA172", cycleId: "pd-41", planId: "pl-van", planItemId: "it-corr", clusterId: "cl-mot", cluster: "Motor", message: "Sem KM oficial para calcular o ciclo de Correia dentada em SNT8L22.", details: { item: "Correia dentada" }, detectedAt: "2026-09-20T06:15:00.000Z", lastSeenAt: "2026-09-28T06:15:00.000Z", resolvedAt: null },
+    { id: "q2", issueType: "km_stale", severity: "medium", vehicleId: "v6", licensePlate: "SNT8J46", fleetCode: "VA170", cycleId: "pd-21", planId: "pl-van", planItemId: "it-corr", clusterId: "cl-mot", cluster: "Motor", message: "KM oficial de SNT8J46 com 39 dias (limite 30): a situação de Correia dentada é uma estimativa.", details: { item: "Correia dentada" }, detectedAt: "2026-09-26T06:15:00.000Z", lastSeenAt: "2026-09-28T06:15:00.000Z", resolvedAt: null },
+    { id: "q3", issueType: "cycle_without_reference", severity: "medium", vehicleId: "v7", licensePlate: "SNT8K10", fleetCode: "VA171", cycleId: "pd-31", planId: "pl-van", planItemId: "it-corr", clusterId: "cl-mot", cluster: "Motor", message: "Sem referência para Correia dentada em SNT8K10: aguarda inspeção inicial.", details: { item: "Correia dentada" }, detectedAt: "2026-09-10T06:15:00.000Z", lastSeenAt: "2026-09-28T06:15:00.000Z", resolvedAt: null },
+    { id: "q4", issueType: "service_without_coverage", severity: "low", vehicleId: null, licensePlate: null, fleetCode: null, cycleId: null, planId: null, planItemId: null, clusterId: "cl-mot", cluster: "Motor", message: "Serviço preditivo \"Inspeção de tensores\" sem cobertura definida em nenhum item de plano.", details: null, detectedAt: "2026-09-01T06:15:00.000Z", lastSeenAt: "2026-09-28T06:15:00.000Z", resolvedAt: null },
+    { id: "q5", issueType: "vehicle_no_plan", severity: "medium", vehicleId: "v2", licensePlate: "SNT8F30", fleetCode: "VA120", cycleId: null, planId: null, planItemId: null, clusterId: null, cluster: null, message: "Frota ativa sem plano técnico preditivo aplicável: SNT8F30.", details: null, detectedAt: "2026-09-01T06:15:00.000Z", lastSeenAt: "2026-09-28T06:15:00.000Z", resolvedAt: null },
+  ],
+};
+
+export const PREDICTIVE_EVENTS: PredictiveEvents = {
+  total: 3,
+  items: [
+    { id: "e1", cycleId: "pd-21", vehicleId: "v6", licensePlate: "SNT8J46", fleetCode: "VA170", item: "Correia dentada", cluster: "Motor", eventType: "maintenance_generated", source: "user", occurredOn: "2026-09-18", occurredAt: "2026-09-18T14:02:00.000Z", km: 87990, result: null, fromStatus: "due", toStatus: null, referenceType: null, coverage: null, maintenanceId: "m4", verificationId: "ver-1", submissionId: null, actorName: "Gestor de Frota", details: { code: "MAN-2026-000097" } },
+    { id: "e2", cycleId: "pd-21", vehicleId: "v6", licensePlate: "SNT8J46", fleetCode: "VA170", item: "Correia dentada", cluster: "Motor", eventType: "verification", source: "app", occurredOn: "2026-09-18", occurredAt: "2026-09-18T14:01:00.000Z", km: 87990, result: "non_conforming", fromStatus: "due", toStatus: null, referenceType: "verification", coverage: "none", maintenanceId: null, verificationId: "ver-1", submissionId: "sub-1", actorName: "Carla Nogueira", details: { decision: "open_maintenance", responsible: "Carla Nogueira" } },
+    { id: "e3", cycleId: "pd-22", vehicleId: "v6", licensePlate: "SNT8J46", fleetCode: "VA170", item: "Sistema de freios", cluster: "Freios", eventType: "monitoring_started", source: "user", occurredOn: "2026-09-01", occurredAt: "2026-09-01T10:30:00.000Z", km: 86000, result: "monitor", fromStatus: null, toStatus: null, referenceType: "verification", coverage: null, maintenanceId: null, verificationId: "ver-2", submissionId: null, actorName: "Gestor de Frota", details: { monitor_km: 5000 } },
+  ],
+};
+
+export const PREDICTIVE_SUBMISSIONS: PredictiveSubmissionSearch = {
+  total: 1,
+  items: [
+    { id: "sub-1", protocol: "VPF-2026-000012", vehicleId: "v6", licensePlate: "SNT8J46", fleetCode: "VA170", verifiedOn: "2026-09-18", createdAt: "2026-09-18T14:01:00.000Z", inspector: "Carla Nogueira", operationName: OPS.pa.name, cityName: "Belém", leaderName: "Carla Nogueira", totalItems: 2, totalConforming: 1, totalMonitoring: 0, totalNonConforming: 1, totalNotPerformed: 0, maintenancesOpened: 1, kmOfficial: 87900, kmInformed: 87990, kmDivergent: false },
+  ],
+};
+
+export const PREDICTIVE_VERIFICATIONS: PredictiveVerificationSearch = {
+  total: 2,
+  summary: { conforming: 1, monitor: 1, nonConforming: 1, notPerformed: 0 },
+  items: [
+    { id: "ver-1", cycleId: "pd-21", vehicleId: "v6", licensePlate: "SNT8J46", fleetCode: "VA170", item: "Correia dentada", cluster: "Motor", clusterId: "cl-mot", result: "non_conforming", decision: "open_maintenance", verifiedOn: "2026-09-18", km: 87990, kmSource: "informed", responsible: "Carla Nogueira", notes: "Ruído e desgaste lateral na correia.", monitorKm: null, monitorDays: null, source: "app", protocol: "VPF-2026-000012", maintenanceCode: "MAN-2026-000097", createdAt: "2026-09-18T14:01:00.000Z" },
+    { id: "ver-2", cycleId: "pd-22", vehicleId: "v6", licensePlate: "SNT8J46", fleetCode: "VA170", item: "Sistema de freios", cluster: "Freios", clusterId: "cl-fre", result: "monitor", decision: "reduce_interval", verifiedOn: "2026-09-01", km: 86000, kmSource: "validated", responsible: "Gestor de Frota", notes: null, monitorKm: 5000, monitorDays: null, source: "portal", protocol: null, maintenanceCode: null, createdAt: "2026-09-01T10:30:00.000Z" },
+  ],
+};
 
 export const PARAMETERS: MaintenanceParameters = {
   preventiveRules: [
@@ -1515,6 +1772,8 @@ export const PARAMETERS: MaintenanceParameters = {
       vehicleModelName: "Master",
       yearFrom: 2019,
       yearTo: 2024,
+      validFrom: "2026-01-01",
+      validTo: null,
       source: "oem",
       referenceDocument: "Manual de manutenção Master 2023",
       oemReference: "RN-MST-23",
@@ -1549,11 +1808,21 @@ export const PARAMETERS: MaintenanceParameters = {
               key: "tensao",
               description: "Tensão dentro da faixa do fabricante",
               required: true,
+              responseType: "conformity",
+              approvalCriteria: "Deflexão entre 10 e 15 mm",
             },
             {
               key: "trincas",
               description: "Sem trincas ou desfiamento",
               required: true,
+              responseType: "yes_no",
+            },
+            {
+              key: "espessura",
+              description: "Espessura medida (mm)",
+              required: false,
+              responseType: "number",
+              approvalCriteria: "≥ 3 mm",
             },
           ],
           coverage: [

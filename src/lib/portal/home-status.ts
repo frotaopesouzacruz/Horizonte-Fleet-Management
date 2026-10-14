@@ -168,9 +168,15 @@ const APP_META: Record<string, Omit<HomeAppCard, "code">> = {
     description: "Sulco e calibragem",
     tone: "info",
   },
+  verificacao_preditiva: {
+    href: "/aplicativos/verificacao-preditiva",
+    name: "Verificação Preditiva",
+    description: "Roteiro técnico por cluster",
+    tone: "primary",
+  },
 };
 
-const APP_ORDER = ["checklist_frota", "vistoria_mtsr", "vistoria_pneus"];
+const APP_ORDER = ["checklist_frota", "vistoria_mtsr", "vistoria_pneus", "verificacao_preditiva"];
 
 /**
  * Os aplicativos que a pessoa vê: só os que a permissão libera E que estão
@@ -199,6 +205,8 @@ function permissionHeld(permission: string, can: HomeCapabilities): boolean {
       return can.mtsrExecute;
     case "applications.tires.execute":
       return can.tiresExecute;
+    case "applications.predictive.execute":
+      return can.predictiveExecute;
     default:
       return false;
   }

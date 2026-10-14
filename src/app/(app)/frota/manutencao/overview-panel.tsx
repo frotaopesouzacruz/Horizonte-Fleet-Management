@@ -23,6 +23,7 @@ import {
   type MaintenanceDashboard,
   type MaintenanceFilters,
   type ScheduleQueue,
+  type PredictiveSummary,
 } from "@/lib/maintenance/types";
 import {
   ChartLegend,
@@ -48,6 +49,8 @@ import type { PanelActions } from "./shared";
 
 export interface OverviewPanelProps {
   dashboard: MaintenanceDashboard | null;
+  /** Resumo da preditiva (críticos/vencidos, a programar, aguardando corretiva, previstos) — mesma rotina do painel preditivo. */
+  predictiveSummary?: PredictiveSummary | null;
   filters: MaintenanceFilters;
   catalog: MaintenanceCatalog;
   actions: PanelActions;
@@ -237,7 +240,7 @@ function Kpi({ testId, nav, destination, label, className, ...card }: KpiProps) 
 // ---------------------------------------------------------------------------
 // Painel
 // ---------------------------------------------------------------------------
-export function OverviewPanel({ dashboard, filters, catalog, actions }: OverviewPanelProps) {
+export function OverviewPanel({ dashboard, predictiveSummary = null, filters, catalog, actions }: OverviewPanelProps) {
   const link = useNavLink(actions);
 
   if (!dashboard) {
@@ -524,14 +527,37 @@ export function OverviewPanel({ dashboard, filters, catalog, actions }: Overview
           />
           <Kpi
             testId="maintenance-kpi-predictive-critical"
-            label="Preditivas críticas"
-            value={formatInt(k.predictiveCritical)}
-            status={k.predictiveCritical > 0 ? "danger" : undefined}
-            period="itens críticos ou vencidos"
+            label="Preditivas críticas e vencidas"
+            value={formatInt(predictiveSummary ? predictiveSummary.critical + predictiveSummary.due : k.predictiveCritical)}
+            status={(predictiveSummary ? predictiveSummary.critical + predictiveSummary.due : k.predictiveCritical) > 0 ? "danger" : undefined}
+            period={predictiveSummary ? `${formatInt(predictiveSummary.vehiclesCritical)} veículo(s) · ${formatInt(predictiveSummary.toSchedule)} a programar` : "itens críticos ou vencidos"}
             icon={<Activity />}
-            nav={link({ ...RESET, aba: "preditiva", pd_situacao: "critical,due" })}
-            destination="Abrir a Preditiva filtrada em críticos"
+            nav={link({ ...RESET, aba: "preditiva", pd_visao: "alertas", pd_situacao: "critical,due" })}
+            destination="Abrir a Preditiva filtrada em críticos e vencidos"
           />
+          {predictiveSummary ? (
+            <>
+              <Kpi
+                testId="maintenance-kpi-predictive-awaiting"
+                label="Preditivas aguardando corretiva"
+                value={formatInt(predictiveSummary.awaitingCorrective)}
+                status={predictiveSummary.awaitingCorrective > 0 ? "warning" : undefined}
+                period={`${formatInt(predictiveSummary.monitoring)} em monitoramento · ${formatInt(predictiveSummary.noKm + predictiveSummary.kmStale)} sem KM confiável`}
+                icon={<Activity />}
+                nav={link({ ...RESET, aba: "preditiva", pd_visao: "alertas", pd_execucao: "awaiting_corrective" })}
+                destination="Abrir a Preditiva filtrada em aguardando corretiva"
+              />
+              <Kpi
+                testId="maintenance-kpi-predictive-forecast"
+                label={`Preditivas previstas · ${formatInt(predictiveSummary.forecastKmWindow)} km`}
+                value={formatInt(predictiveSummary.forecastKm)}
+                period={`de ${formatInt(predictiveSummary.items)} itens monitorados`}
+                icon={<Activity />}
+                nav={link({ ...RESET, aba: "preditiva" })}
+                destination="Abrir o painel executivo da Preditiva"
+              />
+            </>
+          ) : null}
           <Kpi
             testId="maintenance-kpi-recurrence"
             label="Possível reincidência"

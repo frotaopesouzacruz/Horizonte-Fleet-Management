@@ -24,9 +24,11 @@ import {
   DECISION_LABEL,
   formatKm,
   KM_STATUS_LABEL,
+  RESPONSE_TYPE_LABEL,
   VERIFICATION_RESULT_LABEL,
   type KmStatus,
   type MaintenanceCatalog,
+  type PredictiveChecklistStep,
   type VerificationResult,
 } from "@/lib/maintenance/types";
 import {
@@ -35,7 +37,6 @@ import {
   ExecutionBadge,
   servicesForCluster,
   useCycleHistory,
-  type ChecklistAnswer,
   type PredictiveCycleContext,
 } from "./predictive-cycle-drawer";
 
@@ -110,7 +111,7 @@ function VerificationForm({
   const [verifiedOn, setVerifiedOn] = React.useState(today);
   const [km, setKm] = React.useState("");
   const [responsible, setResponsible] = React.useState("");
-  const [answers, setAnswers] = React.useState<Record<string, ChecklistAnswer>>({});
+  const [answers, setAnswers] = React.useState<Record<string, string>>({});
   const [notes, setNotes] = React.useState("");
   const [monitorKm, setMonitorKm] = React.useState("");
   const [monitorDays, setMonitorDays] = React.useState("");
@@ -119,8 +120,11 @@ function VerificationForm({
   const [serviceId, setServiceId] = React.useState("");
 
   const item = history?.item ?? null;
-  const steps = item?.checklist ?? [];
+  // Só passos ativos do roteiro entram na verificação; os inativos ficam no histórico do plano.
+  const steps = (item?.checklist ?? []).filter((s) => s.active !== false);
   const isRequired = (required: boolean | undefined) => required !== false;
+  const invalidNumber = (step: PredictiveChecklistStep) =>
+    (step.responseType ?? "conformity") === "number" && answers[step.key] != null && answers[step.key] !== "" && Number.isNaN(Number(answers[step.key].replace(",", ".")));
 
   // Sem serviço padrão no item, a manutenção precisa de um serviço escolhido.
   const needsService = Boolean(item) && !item?.serviceId;
@@ -134,7 +138,7 @@ function VerificationForm({
   const opensMaintenance = result === "non_conforming" && openMaintenance;
   const missingSteps =
     result && result !== "not_performed"
-      ? steps.filter((s) => isRequired(s.required) && !answers[s.key]).map((s) => s.key)
+      ? steps.filter((s) => (isRequired(s.required) && !answers[s.key]?.trim()) || invalidNumber(s)).map((s) => s.key)
       : [];
   const errors = {
     result: !result ? "Escolha o resultado da verificação." : null,
@@ -155,7 +159,7 @@ function VerificationForm({
             ? "Use números inteiros maiores que zero."
             : null
         : null,
-    steps: missingSteps.length ? `Responda os ${missingSteps.length} passo(s) obrigatório(s) do roteiro.` : null,
+    steps: missingSteps.length ? `Responda os ${missingSteps.length} passo(s) obrigatório(s) do roteiro (números só com dígitos).` : null,
     service: opensMaintenance && needsService && !serviceId ? "Escolha o serviço da manutenção." : null,
   };
   const invalid = Object.values(errors).some(Boolean);
@@ -170,7 +174,7 @@ function VerificationForm({
         verifiedOn,
         km: kmNum,
         responsibleName: responsible.trim(),
-        checklist: steps.filter((s) => answers[s.key]).map((s) => ({ key: s.key, answer: answers[s.key] })),
+        checklist: steps.filter((s) => answers[s.key]?.trim()).map((s) => ({ key: s.key, answer: answers[s.key].trim() })),
         notes: notes.trim() || null,
         monitorKm: result === "monitor" ? monitorKmNum : null,
         monitorDays: result === "monitor" ? monitorDaysNum : null,
@@ -383,6 +387,8 @@ function VerificationForm({
                           <span className="w-5 shrink-0 text-right tabular-nums text-fg-muted">{index + 1}.</span>
                           <span className="min-w-0">
                             {step.description}
+                            {step.approvalCriteria ? <span className="block text-caption text-fg-muted">Critério: {step.approvalCriteria}</span> : null}
+                            {step.applicability ? <span className="block text-caption text-fg-muted">Aplica-se a: {step.applicability}</span> : null}
                             {isRequired(step.required) ? (
                               <>
                                 <span className="text-danger" aria-hidden> *</span>
@@ -393,26 +399,14 @@ function VerificationForm({
                             )}
                           </span>
                         </div>
-                        <RadioGroup
-                          orientation="horizontal"
+                        <StepAnswer
+                          step={step}
+                          index={index}
+                          baseId={baseId}
                           value={answers[step.key] ?? ""}
-                          onValueChange={(v) => setAnswers((prev) => ({ ...prev, [step.key]: v as ChecklistAnswer }))}
-                          aria-label={`Resposta do passo ${index + 1}: ${step.description}`}
-                          aria-invalid={missing || undefined}
-                          className="shrink-0 gap-3 pl-7 sm:pl-0"
-                        >
-                          {CHECKLIST_ANSWERS.map((answer) => {
-                            const id = `${baseId}-step-${index}-${answer}`;
-                            return (
-                              <span key={answer} className="inline-flex items-center gap-1.5">
-                                <RadioGroupItem id={id} value={answer} />
-                                <label htmlFor={id} className="cursor-pointer text-body-sm text-fg select-none">
-                                  {CHECKLIST_ANSWER_LABEL[answer]}
-                                </label>
-                              </span>
-                            );
-                          })}
-                        </RadioGroup>
+                          invalid={missing}
+                          onChange={(v) => setAnswers((prev) => ({ ...prev, [step.key]: v }))}
+                        />
                       </li>
                     );
                   })}
@@ -524,5 +518,81 @@ function VerificationForm({
         </Button>
       </DialogFooter>
     </>
+  );
+}
+
+/** Controle de resposta de um passo do roteiro, pelo tipo de resposta cadastrado no plano. */
+function StepAnswer({
+  step, index, baseId, value, invalid, onChange,
+}: {
+  step: PredictiveChecklistStep;
+  index: number;
+  baseId: string;
+  value: string;
+  invalid: boolean;
+  onChange: (value: string) => void;
+}) {
+  const type = step.responseType ?? "conformity";
+  const label = `Resposta do passo ${index + 1}: ${step.description}`;
+  if (type === "conformity" || type === "yes_no") {
+    const options = type === "conformity" ? CHECKLIST_ANSWERS : (["yes", "no"] as const);
+    return (
+      <RadioGroup
+        orientation="horizontal"
+        value={value}
+        onValueChange={onChange}
+        aria-label={label}
+        aria-invalid={invalid || undefined}
+        className="shrink-0 gap-3 pl-7 sm:pl-0"
+      >
+        {options.map((answer) => {
+          const id = `${baseId}-step-${index}-${answer}`;
+          return (
+            <span key={answer} className="inline-flex items-center gap-1.5">
+              <RadioGroupItem id={id} value={answer} />
+              <label htmlFor={id} className="cursor-pointer text-body-sm text-fg select-none">
+                {CHECKLIST_ANSWER_LABEL[answer]}
+              </label>
+            </span>
+          );
+        })}
+      </RadioGroup>
+    );
+  }
+  if (type === "choice") {
+    return (
+      <NativeSelect fieldSize="sm" aria-label={label} aria-invalid={invalid || undefined} value={value} onChange={(e) => onChange(e.target.value)} className="min-w-[10rem] pl-7 sm:pl-0">
+        <option value="">Escolha…</option>
+        {(step.options ?? []).map((opt) => (
+          <option key={opt} value={opt}>{opt}</option>
+        ))}
+      </NativeSelect>
+    );
+  }
+  if (type === "number") {
+    return (
+      <Input
+        size="sm"
+        inputMode="decimal"
+        aria-label={label}
+        aria-invalid={invalid || undefined}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={RESPONSE_TYPE_LABEL.number}
+        className="w-32 pl-7 sm:pl-0"
+      />
+    );
+  }
+  return (
+    <Input
+      size="sm"
+      aria-label={label}
+      aria-invalid={invalid || undefined}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      maxLength={300}
+      placeholder={type === "photo" ? "Referência da foto / observação" : "Resposta"}
+      className="min-w-[12rem] pl-7 sm:pl-0"
+    />
   );
 }

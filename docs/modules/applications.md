@@ -162,7 +162,12 @@ outros **sem virar uma lista de exceções**: um aplicativo novo é uma linha em
 configuração são genéricas o bastante para servi-los, e específicas o bastante
 para não virar um motor de formulários que ninguém entende.
 
-Esta etapa implementou **apenas** o Check List de Frota.
+Esta etapa implementou **apenas** o Check List de Frota. Depois dela entraram,
+sobre a mesma estrutura (linha em `operational_apps`, vínculos App × Operação e
+App × Tipo, permissão `applications.<app>.execute` dependente de
+`applications.view`, idempotência por chave do aparelho e protocolo): **Vistoria
+MTSR** (`mtsr-inspection-app.md`), **Vistoria de Pneus** (`tire-inspection-app.md`)
+e **Verificação Preditiva de Frota** (`predictive-maintenance.md`, seção 7).
 
 
 ## Consumidor do outbox: Aderência (Etapa 11)

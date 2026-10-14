@@ -6573,8 +6573,44 @@ export type Database = {
         Args: { p_cycle_id: string }
         Returns: Json
       }
+      maintenance_predictive_app_context: {
+        Args: { p_organization_id: string }
+        Returns: Json
+      }
+      maintenance_predictive_app_roadmap: {
+        Args: { p_date?: string; p_organization_id: string; p_vehicle_id: string }
+        Returns: Json
+      }
+      maintenance_predictive_app_submit: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: Json
+      }
+      maintenance_predictive_app_vehicles: {
+        Args: { p_date?: string; p_organization_id: string; p_search?: string }
+        Returns: Json
+      }
+      maintenance_predictive_events: {
+        Args: { p_filters?: Json; p_limit?: number; p_offset?: number; p_organization_id: string }
+        Returns: Json
+      }
+      maintenance_predictive_indicators: {
+        Args: { p_filters?: Json; p_organization_id: string }
+        Returns: Json
+      }
+      maintenance_predictive_my_submissions: {
+        Args: { p_limit?: number; p_organization_id: string }
+        Returns: Json
+      }
       maintenance_predictive_overview: {
         Args: { p_filters?: Json; p_organization_id: string }
+        Returns: Json
+      }
+      maintenance_predictive_quality: {
+        Args: { p_filters?: Json; p_limit?: number; p_offset?: number; p_organization_id: string }
+        Returns: Json
+      }
+      maintenance_predictive_quality_refresh: {
+        Args: { p_organization_id: string }
         Returns: Json
       }
       maintenance_predictive_reset: {
@@ -6585,6 +6621,26 @@ export type Database = {
           p_reason: string
         }
         Returns: undefined
+      }
+      maintenance_predictive_submission_detail: {
+        Args: { p_organization_id: string; p_submission_id: string }
+        Returns: Json
+      }
+      maintenance_predictive_submissions_search: {
+        Args: { p_filters?: Json; p_limit?: number; p_offset?: number; p_organization_id: string }
+        Returns: Json
+      }
+      maintenance_predictive_summary: {
+        Args: { p_filters?: Json; p_organization_id: string }
+        Returns: Json
+      }
+      maintenance_predictive_trends: {
+        Args: { p_filters?: Json; p_organization_id: string }
+        Returns: Json
+      }
+      maintenance_predictive_verifications_search: {
+        Args: { p_filters?: Json; p_limit?: number; p_offset?: number; p_organization_id: string }
+        Returns: Json
       }
       maintenance_preventive_matrix: {
         Args: { p_filters?: Json; p_organization_id: string }

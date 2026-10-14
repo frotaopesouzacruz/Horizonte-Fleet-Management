@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button, IconButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -32,8 +33,8 @@ import {
 } from "@/lib/maintenance/actions";
 import type { MaintenanceFilterOptions } from "@/lib/maintenance/queries";
 import {
-  formatInt, formatKm, formatStamp, PLAN_SOURCE_LABEL, PLAN_STATUS_LABEL,
-  type Criticality, type MaintenanceCatalog, type PlanStatus, type PredictivePlan, type PredictivePlanItem,
+  formatDate, formatInt, formatKm, formatStamp, PLAN_SOURCE_LABEL, PLAN_STATUS_LABEL, RESPONSE_TYPE_LABEL,
+  type ChecklistResponseType, type Criticality, type MaintenanceCatalog, type PlanStatus, type PredictivePlan, type PredictivePlanItem,
 } from "@/lib/maintenance/types";
 import {
   CriticalitySelect, FormDrawer, FormErrorAlert, FormFieldset, FormFooter, FormSection, ReadOnlyAlert,
@@ -87,6 +88,12 @@ const TRANSITION: Record<PlanStatus, { label: string; done: string; icon: React.
 
 export function planApplicability(plan: Pick<PredictivePlan, "vehicleTypeName" | "vehicleSubcategoryName" | "vehicleMakeName" | "vehicleModelName">) {
   return [plan.vehicleTypeName, plan.vehicleSubcategoryName, plan.vehicleMakeName, plan.vehicleModelName].filter(Boolean).join(" · ");
+}
+
+export function planValidity(plan: Pick<PredictivePlan, "validFrom" | "validTo">) {
+  if (!plan.validFrom && !plan.validTo) return "Sem limite";
+  if (plan.validFrom && plan.validTo) return `${formatDate(plan.validFrom)} a ${formatDate(plan.validTo)}`;
+  return plan.validFrom ? `A partir de ${formatDate(plan.validFrom)}` : `Até ${formatDate(plan.validTo)}`;
 }
 
 export function planYears(plan: Pick<PredictivePlan, "yearFrom" | "yearTo">) {
@@ -166,6 +173,8 @@ function PlanForm({
   const [modelId, setModelId] = React.useState(plan?.vehicleModelId ?? "");
   const [yearFrom, setYearFrom] = React.useState(plan?.yearFrom != null ? String(plan.yearFrom) : "");
   const [yearTo, setYearTo] = React.useState(plan?.yearTo != null ? String(plan.yearTo) : "");
+  const [validFrom, setValidFrom] = React.useState(plan?.validFrom ?? "");
+  const [validTo, setValidTo] = React.useState(plan?.validTo ?? "");
   const [source, setSource] = React.useState(plan?.source ?? "internal");
   const [referenceDocument, setReferenceDocument] = React.useState(plan?.referenceDocument ?? "");
   const [oemReference, setOemReference] = React.useState(plan?.oemReference ?? "");
@@ -184,6 +193,7 @@ function PlanForm({
   const to = parseIntField(yearTo);
   const yearInvalid =
     (from != null && (from < 1950 || from > 2100)) || (to != null && (to < 1950 || to > 2100)) || (from != null && to != null && from > to);
+  const validityInvalid = Boolean(validFrom && validTo && validTo < validFrom);
 
   // Mudar a aplicabilidade de um plano aprovado gera versão: o banco exige motivo.
   const keyChanged =
@@ -193,10 +203,12 @@ function PlanForm({
       (makeId || null) !== plan.vehicleMakeId ||
       (modelId || null) !== plan.vehicleModelId ||
       from !== plan.yearFrom ||
-      to !== plan.yearTo);
+      to !== plan.yearTo ||
+      (validFrom || null) !== (plan.validFrom ?? null) ||
+      (validTo || null) !== (plan.validTo ?? null));
   const needsReason = plan?.approvalStatus === "approved" && keyChanged;
   const reasonInvalid = needsReason && reason.trim().length < 5;
-  const canSubmit = name.trim().length >= 2 && Boolean(vehicleTypeId) && !yearInvalid && !reasonInvalid;
+  const canSubmit = name.trim().length >= 2 && Boolean(vehicleTypeId) && !yearInvalid && !validityInvalid && !reasonInvalid;
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -216,6 +228,8 @@ function PlanForm({
             vehicle_model_id: modelId || null,
             year_from: from,
             year_to: to,
+            valid_from: validFrom || null,
+            valid_to: validTo || null,
             source,
             reference_document: referenceDocument.trim() || null,
             oem_reference: oemReference.trim() || null,
@@ -344,6 +358,12 @@ function PlanForm({
               </FormField>
               <FormField label="Ano até">
                 <Input inputMode="numeric" value={yearTo} onChange={(e) => setYearTo(e.target.value.replace(/\D/g, ""))} maxLength={4} placeholder="2026" />
+              </FormField>
+              <FormField label="Vigência de" helperText="Vazio: sem início definido." error={validityInvalid ? "A vigência final não pode ser anterior à inicial." : undefined}>
+                <DateInput value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
+              </FormField>
+              <FormField label="Vigência até" helperText="Fora da vigência o plano não se aplica a nenhum veículo.">
+                <DateInput value={validTo} onChange={(e) => setValidTo(e.target.value)} />
               </FormField>
             </FormGrid>
           </FormSection>
@@ -635,7 +655,15 @@ function PlanDetail({
             {[plan.vehicleMakeName ?? "Todas as marcas", plan.vehicleModelName ?? "todos os modelos"].join(" · ")}
           </Fact>
           <Fact label="Anos de fabricação">{planYears(plan)}</Fact>
+          <Fact label="Vigência">{planValidity(plan)}</Fact>
           <Fact label="Fonte">{PLAN_SOURCE_LABEL[plan.source] ?? plan.source}</Fact>
+          {plan.ambiguousVehicles ? (
+            <Fact label="Ambiguidade">
+              <span className="text-warning-soft-fg">
+                {formatInt(plan.ambiguousVehicles)} veículo(s) empatam com outro plano aprovado — nenhum é escolhido em silêncio (ver Qualidade dos dados).
+              </span>
+            </Fact>
+          ) : null}
           <Fact label="Veículos no plano">{formatInt(plan.vehicles)}</Fact>
           <Fact label="Documento de referência">{plan.referenceDocument ?? "—"}</Fact>
           <Fact label="Referência OEM">{plan.oemReference ?? "—"}</Fact>
@@ -839,7 +867,8 @@ function ItemExpansion({ item }: { item: PredictivePlanItem }) {
               <li key={step.key}>
                 {step.description}{" "}
                 <span className="text-caption text-fg-muted">
-                  ({step.required ? "obrigatório" : "opcional"} · <span className="font-mono">{step.key}</span>)
+                  ({RESPONSE_TYPE_LABEL[step.responseType ?? "conformity"].toLowerCase()} · {step.required ? "obrigatório" : "opcional"} · <span className="font-mono">{step.key}</span>)
+                  {step.approvalCriteria ? ` · critério: ${step.approvalCriteria}` : ""}
                 </span>
               </li>
             ))}
@@ -907,7 +936,13 @@ interface StepDraft {
   key: string;
   description: string;
   required: boolean;
+  responseType: ChecklistResponseType;
+  approvalCriteria: string;
+  /** Opções da seleção, uma por linha / separadas por ponto e vírgula. */
+  options: string;
 }
+const RESPONSE_TYPES: ChecklistResponseType[] = ["conformity", "yes_no", "number", "text", "choice", "photo"];
+const splitOptions = (text: string) => text.split(/[;\n]/).map((o) => o.trim()).filter(Boolean);
 interface CoverageDraft {
   serviceId: string;
   coverage: "full" | "partial";
@@ -945,7 +980,10 @@ function ItemForm({
   const [sortOrder, setSortOrder] = React.useState(String(item?.sortOrder ?? (plan.items.length + 1) * 10));
   const [isActive, setIsActive] = React.useState(item?.isActive ?? true);
   const [steps, setSteps] = React.useState<StepDraft[]>(() =>
-    (item?.checklist ?? []).map((s, i) => ({ uid: `s${i}`, key: s.key, description: s.description, required: s.required })),
+    (item?.checklist ?? []).map((s, i) => ({
+      uid: `s${i}`, key: s.key, description: s.description, required: s.required,
+      responseType: s.responseType ?? "conformity", approvalCriteria: s.approvalCriteria ?? "", options: (s.options ?? []).join("; "),
+    })),
   );
   const [nextUid, setNextUid] = React.useState((item?.checklist.length ?? 0) + 1);
   const initialCoverage = React.useMemo<CoverageDraft[]>(
@@ -980,7 +1018,8 @@ function ItemForm({
 
   const stepKeys = steps.map((s) => s.key.trim() || slugify(s.description));
   const stepsInvalid =
-    steps.some((s, i) => s.description.trim().length < 2 || !stepKeys[i]) || new Set(stepKeys).size !== stepKeys.length;
+    steps.some((s, i) => s.description.trim().length < 2 || !stepKeys[i] || (s.responseType === "choice" && splitOptions(s.options).length < 2)) ||
+    new Set(stepKeys).size !== stepKeys.length;
 
   const sensitive =
     !item ||
@@ -1005,7 +1044,7 @@ function ItemForm({
 
   // ---- roteiro técnico
   const addStep = () => {
-    setSteps((list) => [...list, { uid: `n${nextUid}`, key: "", description: "", required: true }]);
+    setSteps((list) => [...list, { uid: `n${nextUid}`, key: "", description: "", required: true, responseType: "conformity", approvalCriteria: "", options: "" }]);
     setNextUid((n) => n + 1);
   };
   const updateStep = (uid: string, patch: Partial<StepDraft>) =>
@@ -1057,7 +1096,10 @@ function ItemForm({
             criticality,
             sort_order: parseIntField(sortOrder) ?? 100,
             is_active: isActive,
-            checklist: steps.map((s, i) => ({ key: stepKeys[i], description: s.description.trim(), required: s.required })),
+            checklist: steps.map((s, i) => ({
+              key: stepKeys[i], description: s.description.trim(), required: s.required, response_type: s.responseType,
+              approval_criteria: s.approvalCriteria.trim() || null, options: s.responseType === "choice" ? splitOptions(s.options) : null, sequence: i + 1,
+            })),
           },
           needsReason ? reason.trim() : undefined,
         ),
@@ -1225,6 +1267,40 @@ function ItemForm({
                       <li key={step.uid} className="flex flex-col gap-2 rounded-md border border-border bg-surface p-2 sm:flex-row sm:items-start">
                         <span className="w-6 shrink-0 pt-2 text-caption font-semibold tabular-nums text-fg-muted">{index + 1}.</span>
                         <div className="grid min-w-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-[1fr_11rem]">
+                          <div className="flex flex-col gap-1 sm:col-span-2 sm:flex-row sm:items-center">
+                            <NativeSelect
+                              fieldSize="sm"
+                              aria-label={`Tipo de resposta do passo ${index + 1}`}
+                              value={step.responseType}
+                              onChange={(e) => updateStep(step.uid, { responseType: e.target.value as ChecklistResponseType })}
+                              className="sm:w-44"
+                            >
+                              {RESPONSE_TYPES.map((t) => (
+                                <option key={t} value={t}>{RESPONSE_TYPE_LABEL[t]}</option>
+                              ))}
+                            </NativeSelect>
+                            <Input
+                              size="sm"
+                              aria-label={`Critério de aprovação do passo ${index + 1}`}
+                              value={step.approvalCriteria}
+                              onChange={(e) => updateStep(step.uid, { approvalCriteria: e.target.value })}
+                              maxLength={300}
+                              placeholder="Critério de aprovação (ex.: ≥ 3 mm)"
+                              className="flex-1"
+                            />
+                            {step.responseType === "choice" ? (
+                              <Input
+                                size="sm"
+                                aria-label={`Opções do passo ${index + 1}`}
+                                value={step.options}
+                                onChange={(e) => updateStep(step.uid, { options: e.target.value })}
+                                maxLength={300}
+                                placeholder="Opções separadas por ; (mínimo 2)"
+                                className="flex-1"
+                                aria-invalid={splitOptions(step.options).length < 2 || undefined}
+                              />
+                            ) : null}
+                          </div>
                           <Input
                             size="sm"
                             aria-label={`Descrição do passo ${index + 1}`}
@@ -1285,7 +1361,7 @@ function ItemForm({
               )}
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-caption text-fg-muted" aria-live="polite">
-                  {stepsInvalid ? "Cada passo precisa de descrição e de uma chave única." : `${formatInt(steps.length)} passo(s).`}
+                  {stepsInvalid ? "Cada passo precisa de descrição, chave única e, na seleção, ao menos 2 opções." : `${formatInt(steps.length)} passo(s).`}
                 </p>
                 <Button size="sm" variant="secondary" leadingIcon={<Plus />} onClick={addStep}>
                   Adicionar passo

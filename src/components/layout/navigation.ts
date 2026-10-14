@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import { PORTAL_HOME, type PortalKind } from "@/lib/auth/portal";
 import {
+  Activity,
   BarChart3,
   Building2,
   CalendarRange,
@@ -370,6 +371,14 @@ export const navigation: NavGroup[] = [
         icon: CircleDot,
         permission: "applications.view",
       },
+      {
+        // Roteiro técnico por cluster do plano preditivo; cada item vira uma
+        // verificação formal e a decisão (reiniciar, monitorar, corretiva) é do banco.
+        label: "Verificação Preditiva",
+        href: "/aplicativos/verificacao-preditiva",
+        icon: Activity,
+        permission: "applications.view",
+      },
     ],
   },
   {
@@ -391,6 +400,7 @@ const APPLICATION_ITEMS: NavItem[] = [
   { label: "Check List de Frota", href: "/aplicativos/check-list-frota", icon: ClipboardCheck, permission: "applications.view" },
   { label: "Vistoria MTSR", href: "/aplicativos/vistoria-mtsr", icon: ShieldCheck, permission: "applications.view" },
   { label: "Vistoria de Pneus", href: "/aplicativos/vistoria-pneus", icon: CircleDot, permission: "applications.view" },
+  { label: "Verificação Preditiva", href: "/aplicativos/verificacao-preditiva", icon: Activity, permission: "applications.view" },
 ];
 
 /**

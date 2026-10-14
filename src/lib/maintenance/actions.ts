@@ -1,13 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireOrganization } from "@/lib/auth/session";
+import { getSessionContext, hasPermission, requireOrganization } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import type { Json } from "@/types/database.types";
 import {
   getChecklistQuestions,
   getMaintenanceDetail,
   getPredictiveCycleHistory,
+  getPredictiveSubmissionDetail,
   getVehicleContext,
   getVehicleFindings,
   getVehicleMaintenanceHistory,
@@ -21,6 +22,7 @@ import {
   type MaintenanceDetail,
   type OpenEquivalent,
   type PredictiveCycleHistory,
+  type PredictiveSubmissionDetail,
   type VehicleContext,
   type VehicleMaintenanceHistory,
   type VehicleOption,
@@ -101,6 +103,52 @@ async function call<T>(
 async function orgId(permission: string): Promise<string> {
   const { organization } = await requireOrganization(permission);
   return organization.organizationId;
+}
+
+// ---------------------------------------------------------------------------
+// Preditiva: capabilities (`maintenance.predictive.*`) com fallback legado —
+// o mesmo mapa de `private.maintenance_predictive_can`.
+// ---------------------------------------------------------------------------
+export type PredictiveAction = "view" | "verify" | "generate" | "reset" | "plans" | "recalculate" | "audit";
+const PREDICTIVE_CODES: Record<PredictiveAction, string[]> = {
+  view: ["maintenance.predictive.view", "maintenance.view"],
+  verify: ["maintenance.predictive.verify", "maintenance.manage_predictive"],
+  generate: ["maintenance.predictive.generate_maintenance", "maintenance.manage_predictive"],
+  reset: ["maintenance.predictive.manual_reset", "maintenance.manage_predictive"],
+  plans: ["maintenance.predictive.plans.manage", "maintenance.manage_predictive"],
+  recalculate: ["maintenance.predictive.recalculate", "maintenance.manage_predictive", "maintenance.reprocess"],
+  audit: ["maintenance.predictive.audit.view", "maintenance.view_audit"],
+};
+
+/** Organização ativa da sessão, exigindo qualquer uma das permissões da ação. */
+async function predictiveOrg(action: PredictiveAction): Promise<string | null> {
+  const session = await getSessionContext();
+  if (!session?.activeOrganization) return null;
+  const held = PREDICTIVE_CODES[action].some((code) => hasPermission(session, code));
+  return held ? session.activeOrganization.organizationId : null;
+}
+
+async function predictiveCall<T>(
+  action: PredictiveAction,
+  fn: string,
+  args: Record<string, Json | undefined>,
+  fallback: string,
+  map: (raw: unknown) => T = (raw) => camelize<T>(raw),
+  withOrg = false,
+): Promise<Result<T>> {
+  const organizationId = await predictiveOrg(action);
+  if (!organizationId) return { ok: false, error: "Você não possui permissão para esta ação." };
+  const supabase = await createClient();
+  const { data, error } = await (supabase.rpc as unknown as (
+    f: string,
+    a: Record<string, Json>,
+  ) => Promise<{ data: unknown; error: { code?: string; message?: string; hint?: string } | null }>)(
+    fn,
+    clean(withOrg ? { p_organization_id: organizationId, ...args } : args),
+  );
+  if (error) return { ok: false, error: toMessage(error, fallback) };
+  revalidatePath(MODULE_PATH);
+  return { ok: true, data: map(data) };
 }
 
 // ---------------------------------------------------------------------------
@@ -465,17 +513,31 @@ export async function syncPreventiveCycles(vehicleId?: string | null): Promise<R
 }
 
 export async function syncPredictiveCycles(vehicleId?: string | null): Promise<Result<unknown>> {
-  const organizationId = await orgId("maintenance.view");
-  return call("maintenance.view", "maintenance_sync_predictive",
-    { p_organization_id: organizationId, p_vehicle_id: vehicleId ?? undefined },
-    "Não foi possível sincronizar os ciclos preditivos.");
+  return predictiveCall("recalculate", "maintenance_sync_predictive", { p_vehicle_id: vehicleId ?? undefined },
+    "Não foi possível recalcular os ciclos preditivos.", undefined, true);
+}
+
+/** Reprocessa as inconsistências de dados da preditiva (mesma rotina do job diário). */
+export async function refreshPredictiveQuality(): Promise<Result<{ open: number; resolvedNow: number; ranAt: string }>> {
+  return predictiveCall("recalculate", "maintenance_predictive_quality_refresh", {},
+    "Não foi possível reprocessar as inconsistências.", undefined, true);
+}
+
+export async function loadPredictiveSubmissionDetail(submissionId: string): Promise<Result<PredictiveSubmissionDetail | null>> {
+  const organizationId = await predictiveOrg("view");
+  if (!organizationId) return { ok: false, error: "Você não possui permissão para esta consulta." };
+  try {
+    return { ok: true, data: await getPredictiveSubmissionDetail(organizationId, submissionId) };
+  } catch {
+    return { ok: false, error: "Não foi possível carregar o envio do aplicativo." };
+  }
 }
 
 export async function generatePredictiveMaintenance(
   cycleId: string,
   input: { scheduledDate?: string | null; description?: string | null; serviceIds?: string[] } = {},
 ): Promise<Result<{ id: string; code: string; status: string; created: boolean }>> {
-  return call("maintenance.manage_predictive", "maintenance_generate_predictive", {
+  return predictiveCall("generate", "maintenance_generate_predictive", {
     p_cycle_id: cycleId,
     p_payload: clean({
       scheduled_date: input.scheduledDate || undefined,
@@ -490,7 +552,7 @@ export interface VerificationInput {
   verifiedOn: string;
   km?: number | null;
   responsibleName: string;
-  checklist: { key: string; answer: string }[];
+  checklist: { key: string; answer: string; note?: string | null }[];
   notes?: string | null;
   monitorKm?: number | null;
   monitorDays?: number | null;
@@ -503,7 +565,7 @@ export async function registerPredictiveVerification(
   cycleId: string,
   input: VerificationInput,
 ): Promise<Result<{ decision: string; km: number | null; kmSource: string | null; maintenance: { id: string; code: string; created: boolean } | null }>> {
-  return call("maintenance.manage_predictive", "maintenance_register_predictive_verification", {
+  return predictiveCall("verify", "maintenance_register_predictive_verification", {
     p_cycle_id: cycleId,
     p_payload: clean({
       result: input.result,
@@ -522,9 +584,9 @@ export async function registerPredictiveVerification(
 }
 
 export async function resetPredictiveCycle(cycleId: string, date: string, km: number | null, reason: string): Promise<Result<unknown>> {
-  return call("maintenance.manage_predictive", "maintenance_predictive_reset",
+  return predictiveCall("reset", "maintenance_predictive_reset",
     { p_cycle_id: cycleId, p_date: date, p_km: km, p_reason: reason },
-    "Não foi possível reiniciar o ciclo.");
+    "Não foi possível registrar a baixa manual do ciclo.");
 }
 
 // ---------------------------------------------------------------------------
@@ -589,28 +651,27 @@ export async function archivePreventiveRule(id: string): Promise<Result<unknown>
 }
 
 export async function savePredictivePlan(payload: Payload, reason?: string): Promise<Result<string>> {
-  const organizationId = await orgId("maintenance.manage_predictive");
-  return call("maintenance.manage_predictive", "maintenance_save_predictive_plan",
-    { p_organization_id: organizationId, p_payload: clean(payload), p_reason: reason ?? undefined },
-    "Não foi possível salvar o plano técnico.", (r) => String(r));
+  return predictiveCall("plans", "maintenance_save_predictive_plan",
+    { p_payload: clean(payload), p_reason: reason ?? undefined },
+    "Não foi possível salvar o plano técnico.", (r) => String(r), true);
 }
-export async function savePredictiveItem(planId: string, payload: Payload, reason?: string): Promise<Result<{ id: string; versionChanged: boolean }>> {
-  return call("maintenance.manage_predictive", "maintenance_save_predictive_item",
+export async function savePredictiveItem(planId: string, payload: Payload, reason?: string): Promise<Result<{ id: string; versionChanged: boolean; vehiclesSynced?: number }>> {
+  return predictiveCall("plans", "maintenance_save_predictive_item",
     { p_plan_id: planId, p_payload: clean(payload), p_reason: reason ?? undefined }, "Não foi possível salvar o item do plano.");
 }
-export async function setPredictivePlanStatus(planId: string, status: string, reason?: string): Promise<Result<unknown>> {
-  return call("maintenance.manage_predictive", "maintenance_set_predictive_plan_status",
+export async function setPredictivePlanStatus(planId: string, status: string, reason?: string): Promise<Result<{ status: string; vehiclesSynced: number; ambiguousVehicles?: number }>> {
+  return predictiveCall("plans", "maintenance_set_predictive_plan_status",
     { p_plan_id: planId, p_status: status, p_reason: reason ?? undefined }, "Não foi possível alterar a situação do plano.");
 }
 export async function duplicatePredictivePlan(planId: string, name: string): Promise<Result<string>> {
-  return call("maintenance.manage_predictive", "maintenance_duplicate_predictive_plan",
+  return predictiveCall("plans", "maintenance_duplicate_predictive_plan",
     { p_plan_id: planId, p_name: name }, "Não foi possível duplicar o plano.", (r) => String(r));
 }
 export async function savePredictiveCoverage(
   itemId: string,
   services: { serviceId: string; coverage: "full" | "partial" }[],
 ): Promise<Result<unknown>> {
-  return call("maintenance.manage_predictive", "maintenance_save_predictive_coverage", {
+  return predictiveCall("plans", "maintenance_save_predictive_coverage", {
     p_item_id: itemId,
     p_services: services.map((s) => ({ service_id: s.serviceId, coverage: s.coverage })),
   }, "Não foi possível salvar a cobertura técnica.");

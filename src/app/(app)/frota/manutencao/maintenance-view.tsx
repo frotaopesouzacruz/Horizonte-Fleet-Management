@@ -147,7 +147,7 @@ export function MaintenanceView({ data }: { data: MaintenanceViewData }) {
         <div aria-busy={pending} className={pending ? "opacity-70 transition-opacity" : "transition-opacity"}>
           {tab === "visao-geral" ? (
             <TabsContent value="visao-geral">
-              <OverviewPanel dashboard={data.dashboard ?? null} filters={data.filters} catalog={data.catalog} actions={actions} />
+              <OverviewPanel dashboard={data.dashboard ?? null} predictiveSummary={data.predictiveSummary ?? null} filters={data.filters} catalog={data.catalog} actions={actions} />
             </TabsContent>
           ) : null}
           {tab === "programacao" && data.schedule ? (
