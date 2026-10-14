@@ -392,3 +392,10 @@ claro e escuro, celular sem rolagem horizontal), sobre as prévias
 - **Previsto × realizado** começa a acumular a partir da ativação do cache de
   situação: ciclos antigos não têm "desde quando" retroativo.
 - **CPK de pneus** continua fora do escopo, conforme a diretriz.
+- **Índice duplicado em produção**: a migração v2 criou
+  `maintenance_predictive_cycles_active_vehicle_idx`, idêntico ao índice
+  `maintenance_predictive_cycles_vehicle_idx` que já existia. É inofensivo para
+  as leituras e custa um pouco nas escritas; a limpeza (`drop index if exists
+  public.maintenance_predictive_cycles_active_vehicle_idx;`) deve ser feita pelo
+  SQL Editor, pois comandos `drop` não são enviados pela integração usada nas
+  migrações.
