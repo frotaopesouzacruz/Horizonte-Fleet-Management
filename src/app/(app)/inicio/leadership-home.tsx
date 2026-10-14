@@ -308,10 +308,10 @@ export function LeadershipHomeView({
                 />
                 <KpiCard
                   size="compact"
-                  label="Colaboradores"
+                  label="Equipe direta"
                   value={team ? team.members : "—"}
                   icon={<Users />}
-                  period={team ? "Equipe direta (gestor imediato)" : "Sem colaborador vinculado"}
+                  period={team ? "Colaboradores com você como gestor imediato" : "Sem colaborador vinculado"}
                   data-testid="kpi-equipe"
                 />
                 <KpiCard
